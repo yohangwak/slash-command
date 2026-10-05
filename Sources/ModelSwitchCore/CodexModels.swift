@@ -68,8 +68,21 @@ public struct CodexModels: Sendable {
         }
     }
 
-    /// 선택창에서 누를 (모델 번호, effort 행 번호). 둘 다 1부터.
-    public func position(of preset: AgentPreset) throws -> (modelIndex: Int, effortRow: Int) {
+    /// effort 값이 선택창에 표시되는 이름.
+    static let effortLabels = ["none": "None", "minimal": "Minimal", "low": "Low", "medium": "Medium",
+                               "high": "High", "xhigh": "Extra high", "max": "Max", "ultra": "Ultra"]
+
+    public struct Selection: Equatable, Sendable {
+        /// 모델 목록에서 누를 숫자(1부터).
+        public let modelIndex: Int
+        /// effort 목록 머리말에 나오는 모델 이름.
+        public let displayName: String?
+        /// effort 목록에서 찾을 행 이름.
+        public let effortLabel: String
+    }
+
+    /// 선택창에서 고를 모델 번호와 effort 행 이름.
+    public func selection(of preset: AgentPreset) throws -> Selection {
         guard let offset = listed.firstIndex(where: { $0.slug == preset.model }) else {
             let known = listed.map(\.slug).joined(separator: ", ")
             throw ModelSwitchError("codex 모델 '\(preset.model)' 이 선택창 목록에 없습니다. 가능한 값: \(known)")
@@ -79,16 +92,10 @@ public struct CodexModels: Sendable {
             throw ModelSwitchError("codex 모델 '\(preset.model)' 은 선택창 \(modelIndex)번째라 숫자 키로 고를 수 없습니다.")
         }
         let efforts = listed[offset].efforts
-        guard let effortOffset = efforts.firstIndex(of: preset.effort) else {
+        guard efforts.contains(preset.effort) else {
             throw ModelSwitchError("codex 모델 '\(preset.model)' 은 effort '\(preset.effort)' 를 지원하지 않습니다. 가능한 값: \(efforts.joined(separator: ", "))")
         }
-        // 선택창은 앞의 4단계를 1~4행에, 나머지를 5행(More reasoning…) 하위에 둔다.
-        guard efforts.count > 4 else {
-            throw ModelSwitchError("codex 모델 '\(preset.model)' 은 effort 목록에 기준 행이 없어 아직 지원하지 않습니다.")
-        }
-        guard effortOffset < 4 else {
-            throw ModelSwitchError("codex effort '\(preset.effort)' (More reasoning 하위)는 아직 지원하지 않습니다. low·medium·high·xhigh 중에서 골라 주세요.")
-        }
-        return (modelIndex, effortOffset + 1)
+        let label = CodexModels.effortLabels[preset.effort] ?? preset.effort.prefix(1).uppercased() + preset.effort.dropFirst()
+        return Selection(modelIndex: modelIndex, displayName: listed[offset].displayName, effortLabel: label)
     }
 }

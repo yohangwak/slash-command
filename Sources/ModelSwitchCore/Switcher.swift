@@ -19,11 +19,12 @@ public struct SwitchResult: Equatable, Sendable {
     public var confirmationSummary: String? {
         guard !confirmations.isEmpty else { return nil }
         return confirmations.map { line in
-            var text = line
-            for cut in [" and saved", " (saved", ":"] {
+            // 작업 중 알림 줄은 폭에 맞춰 잘려 온다("… Opus 5.5 and") — 꼬리가 어디서 끊겼든 떼어 낸다.
+            var text = line + " "
+            for cut in [" and ", " (saved", " for this session", ":"] {
                 if let range = text.range(of: cut) { text = String(text[..<range.lowerBound]) }
             }
-            return text
+            return text.trimmingCharacters(in: .whitespaces)
         }.joined(separator: " · ")
     }
 }
@@ -113,8 +114,9 @@ public struct Switcher {
         case .claude:
             return (chosen, preset, Plans.claude(preset))
         case .codex:
-            let position = try codexModels().position(of: preset)
-            return (chosen, preset, Plans.codex(modelIndex: position.modelIndex, effortRow: position.effortRow))
+            let selection = try codexModels().selection(of: preset)
+            return (chosen, preset, Plans.codex(modelIndex: selection.modelIndex, displayName: selection.displayName,
+                                                effortLabel: selection.effortLabel))
         }
     }
 
@@ -147,7 +149,18 @@ public struct Switcher {
         let runner = Runner(io: io, sleep: timedSleep,
                             stamp: target.agent == .claude ? { claudeDefaults.stamp() } : nil,
                             initial: first)
-        let confirmations = try runner.run(planned.steps)
+        let confirmations: [String]
+        do {
+            confirmations = try runner.run(planned.steps)
+        } catch {
+            // 도중에 멈췄어도 앞 명령은 이미 기본값을 바꿨을 수 있다 — 되돌리고 나서 실패를 알린다.
+            if let before {
+                timedSleep(300)
+                _ = claudeDefaults.restore(to: before)
+                trace?.mark("기본값복원")
+            }
+            throw error
+        }
 
         var warning: String?
         var pending: Data?
@@ -203,9 +216,9 @@ public struct Runner {
     @discardableResult
     public func run(_ steps: [Step]) throws -> [String] {
         var armedStamp: Int64?
-        var armedResult: String?
-        // 마지막으로 본 화면의 결과 줄. `arm` 이 이것을 「명령 전 상태」로 잡는다.
-        var seenResult = initial.flatMap { ClaudeScreen.lastResult($0.lines) }
+        var armedLines: [String] = []
+        // 마지막으로 본 화면. `arm` 이 이것을 「명령 전 상태」로 잡는다.
+        var seenLines = initial?.lines ?? []
         var confirmations: [String] = []
         for step in steps {
             switch step {
@@ -222,30 +235,47 @@ public struct Runner {
                 }
             case .arm:
                 armedStamp = stamp?() ?? nil
-                armedResult = seenResult
+                armedLines = seenLines
             case .expectResult(let prefix, let timeoutMs, let failure):
-                let result = try waitForResult(prefix: prefix, armedStamp: armedStamp, armedResult: armedResult,
-                                               timeoutMs: timeoutMs, failure: failure)
-                seenResult = result
-                confirmations.append(result)
+                let found = try waitForResult(prefix: prefix, armedStamp: armedStamp, armedLines: armedLines,
+                                              timeoutMs: timeoutMs, failure: failure)
+                seenLines = found.lines
+                confirmations.append(found.result)
+            case .selectRow(let label, let via, let timeoutMs, let abort, let failure):
+                if try !selectRow(label: label, via: via, timeoutMs: timeoutMs) {
+                    _ = try? run(abort)
+                    throw ModelSwitchError(failure)
+                }
+            case .expectComposer(let timeoutMs, let abort, let failure):
+                let closed = try poll(timeoutMs: timeoutMs) { lines in
+                    !CodexPicker.isOpen(lines) && Readiness.codexComposerVisible(lines)
+                }
+                if !closed {
+                    _ = try? run(abort)
+                    throw ModelSwitchError(failure)
+                }
+            case .closePicker:
+                try closePicker()
+            case .capture(let prefix):
+                if let lines = io.screen(), let found = Runner.lastLine(lines, prefix: prefix) {
+                    confirmations.append(found)
+                }
             }
         }
         return confirmations
     }
 
-    private func waitForResult(prefix: String, armedStamp: Int64?, armedResult: String?,
-                               timeoutMs: Int, failure: String) throws -> String {
+    private func waitForResult(prefix: String, armedStamp: Int64?, armedLines: [String],
+                               timeoutMs: Int, failure: String) throws -> (result: String, lines: [String]) {
         let started = DispatchTime.now()
         var simulated = 0
-        var lastSeen: String?
-        // 같은 문구가 명령 전부터 떠 있었으면 화면만으로는 새 결과인지 알 수 없다.
-        let stale = armedResult?.hasPrefix(prefix) ?? false
+        // 같은 문구가 명령 전부터 화면에 있었으면 화면만으로는 새 결과인지 알 수 없다.
+        let stale = !ClaudeScreen.results(armedLines, prefix: prefix).isEmpty
+        let saidBefore = ClaudeScreen.lastResult(armedLines)
         let draftBefore = initial?.draft ?? ""
         while true {
             guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
             let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
-            let result = ClaudeScreen.lastResult(snap.lines)
-            lastSeen = result ?? lastSeen
 
             let stampChanged = stamp != nil && (stamp?() ?? nil) != armedStamp
             let fresh = !stale || stampChanged || elapsed >= Runner.staleGraceMs
@@ -253,14 +283,16 @@ public struct Runner {
             let promptBack = Readiness.claudePromptVisible(snap.lines)
             // 쓰던 글이 있었으면 그것이 입력창에 «돌아왔음». 그 사이 사용자가 더 쳤을 수 있어 같은지는 따지지 않는다.
             let draftBack = draftBefore.isEmpty || snap.draft == nil || !(snap.draft ?? "").isEmpty
-            if let result, result.hasPrefix(prefix), fresh, promptBack, draftBack {
+            if let result = ClaudeScreen.results(snap.lines, prefix: prefix).last, fresh, promptBack, draftBack {
                 // 초안을 따로 주지 않는 터미널에서는 복원이 끝났는지 볼 수 없어 잠깐 기다린다.
                 if snap.draft == nil { sleep(150) }
-                return result
+                return (result, snap.lines)
             }
             if elapsed >= timeoutMs {
-                let seen = lastSeen.map { " (화면: \($0.prefix(80)))" } ?? ""
-                throw ModelSwitchError(failure + seen)
+                // claude 가 새로 뭐라고 했으면(예: Model 'x' not found) 그 말을 붙인다.
+                let said = ClaudeScreen.lastResult(snap.lines)
+                let detail = said.flatMap { $0 != saidBefore ? " (claude: \($0.prefix(80)))" : nil } ?? ""
+                throw ModelSwitchError(failure + detail)
             }
             sleep(40)
             simulated += 40
@@ -268,14 +300,89 @@ public struct Runner {
     }
 
     private func waitFor(_ needle: String, timeoutMs: Int) throws -> Bool {
-        let interval = 200
-        var waited = 0
+        try poll(timeoutMs: timeoutMs) { lines in lines.contains { $0.contains(needle) } }
+    }
+
+    /// 화면이 `condition` 을 만족할 때까지 다시 읽는다. 시간 안에 만족하면 참.
+    private func poll(timeoutMs: Int, _ condition: ([String]) -> Bool) throws -> Bool {
+        let started = DispatchTime.now()
+        var simulated = 0
         while true {
             guard let lines = io.screen() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
-            if lines.contains(where: { $0.contains(needle) }) { return true }
-            if waited >= timeoutMs { return false }
-            sleep(interval)
-            waited += interval
+            if condition(lines) { return true }
+            let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
+            if max(real, simulated) >= timeoutMs { return false }
+            sleep(Runner.pollMs)
+            simulated += Runner.pollMs
         }
+    }
+
+    /// 화면 읽기는 싸다(Orca 1ms 안쪽). 짧게 자주 본다.
+    static let pollMs = 30
+
+    // MARK: codex 선택창
+
+    /// `label` 행에 커서를 둔다. 성공하면 참.
+    private func selectRow(label: String, via: String?, timeoutMs: Int) throws -> Bool {
+        var found = false
+        // 목록이 그려질 때까지 기다린다: 목표 행이 있거나, 하위 목록으로 가는 행이 있어야 한다.
+        let listed = try poll(timeoutMs: timeoutMs) { lines in
+            let rows = CodexPicker.rows(lines)
+            found = rows.contains { CodexPicker.matches($0, label) }
+            return found || (via.map { via in rows.contains { CodexPicker.matches($0, via) } } ?? false)
+        }
+        guard listed else { return false }
+        if !found, let via {
+            guard try moveCursor(to: via, timeoutMs: timeoutMs) else { return false }
+            try io.press(.enter)
+            let entered = try poll(timeoutMs: timeoutMs) { lines in
+                CodexPicker.rows(lines).contains { CodexPicker.matches($0, label) }
+            }
+            guard entered else { return false }
+        }
+        return try moveCursor(to: label, timeoutMs: timeoutMs)
+    }
+
+    /// 커서가 `label` 행에 올 때까지: 화면에서 커서 행을 읽고, 차이만큼 위·아래를 보내고, 커서가 움직인 것을 본 뒤 다시 읽는다.
+    private func moveCursor(to label: String, timeoutMs: Int) throws -> Bool {
+        var budget = 4
+        while budget > 0 {
+            budget -= 1
+            guard let lines = io.screen() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
+            let rows = CodexPicker.rows(lines)
+            guard let target = rows.firstIndex(where: { CodexPicker.matches($0, label) }),
+                  let cursor = rows.firstIndex(where: \.selected) else { return false }
+            if target == cursor { return true }
+            let key = target > cursor ? Key.down : Key.up
+            try io.type(String(repeating: key.bytes, count: abs(target - cursor)))
+            // 화면이 따라오기 전에 다시 계산하면 두 번 움직인다 — 커서가 «도착함»을 보고 넘어간다.
+            let arrived = try poll(timeoutMs: min(timeoutMs, 1000)) { lines in
+                let now = CodexPicker.rows(lines)
+                guard let at = now.firstIndex(where: \.selected) else { return false }
+                return now.indices.contains(at) && CodexPicker.matches(now[at], label)
+            }
+            if arrived { return true }
+        }
+        return false
+    }
+
+    /// 선택창이 보이는 동안만 Esc 를 누른다. 누를 때마다 화면을 다시 읽는다.
+    private func closePicker() throws {
+        for _ in 0..<4 {
+            guard let lines = io.screen() else { return }
+            let before = CodexPicker.rows(lines)
+            guard !before.isEmpty else { return }
+            try io.press(.escape)
+            _ = try poll(timeoutMs: 800) { CodexPicker.rows($0) != before }
+        }
+    }
+
+    static func lastLine(_ lines: [String], prefix: String) -> String? {
+        for line in lines.reversed() {
+            var text = line.trimmingCharacters(in: .whitespaces)
+            if text.hasPrefix("•") { text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces) }
+            if text.hasPrefix(prefix) { return text }
+        }
+        return nil
     }
 }

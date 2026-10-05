@@ -57,14 +57,19 @@ final class PlanTests: XCTestCase {
         XCTAssertEqual(prefixes, ["Set model to", "Set effort level"])
     }
 
-    func testCodexPlanMovesUpFromAnchorRow() {
-        for row in 1...4 {
-            let steps = Plans.codex(modelIndex: 2, effortRow: row)
-            XCTAssertEqual(steps.filter { $0 == .key(.up) }.count, 5 - row, "row \(row)")
-            XCTAssertTrue(steps.contains(.text("2")))
-            XCTAssertTrue(steps.contains(.text("s")), "세션 한정(s)으로 확정해야 기본값을 안 건드린다")
-            XCTAssertFalse(steps.contains(.text(String(row))) && row != 2, "effort 는 숫자 키로 고르지 않는다(기본값까지 저장된다)")
+    func testCodexPlanNeverPicksEffortByNumberAndConfirmsWithS() {
+        let steps = Plans.codex(modelIndex: 2, displayName: "GPT-6-Astra", effortLabel: "High")
+        let typed = steps.compactMap { step -> String? in
+            if case .text(let text) = step { return text }
+            return nil
         }
+        // 숫자는 모델 번호 하나뿐이다 — effort 를 숫자 키로 고르면 기본값까지 저장된다.
+        XCTAssertEqual(typed.filter { $0.allSatisfy(\.isNumber) }, ["2"])
+        XCTAssertTrue(typed.contains("s"), "세션 한정(s)으로 확정해야 기본값을 안 건드린다")
+        XCTAssertTrue(steps.contains { if case .selectRow(label: "High", via: "More reasoning", _, _, _) = $0 { return true } else { return false } })
+        XCTAssertTrue(steps.contains { if case .expect(needle: "Select Reasoning Level for GPT-6-Astra", _, _, _) = $0 { return true } else { return false } })
+        XCTAssertFalse(steps.contains { if case .wait = $0 { return true } else { return false } }, "고정 대기 없음")
+        XCTAssertFalse(steps.contains(.key(.escape)), "Esc 는 선택창이 보일 때만(closePicker) — 작업 중 Esc 는 작업을 끊는다")
     }
 }
 
@@ -84,17 +89,20 @@ final class CodexModelsTests: XCTestCase {
         XCTAssertEqual(models().listed.map(\.slug), ["gpt-sol", "gpt-astra", "gpt-old"])
     }
 
-    func testPosition() throws {
-        let position = try models().position(of: AgentPreset(model: "gpt-astra", effort: "high"))
-        XCTAssertEqual(position.modelIndex, 2)
-        XCTAssertEqual(position.effortRow, 3)
+    func testSelection() throws {
+        let high = try models().selection(of: AgentPreset(model: "gpt-astra", effort: "high"))
+        XCTAssertEqual(high.modelIndex, 2)
+        XCTAssertEqual(high.effortLabel, "High")
+        XCTAssertEqual(try models().selection(of: AgentPreset(model: "gpt-sol", effort: "xhigh")).effortLabel, "Extra high")
+        // More reasoning… 하위(max·ultra)와 4단계뿐인 모델도 고를 수 있다 — 화면에서 행을 찾아가기 때문이다.
+        XCTAssertEqual(try models().selection(of: AgentPreset(model: "gpt-sol", effort: "max")).effortLabel, "Max")
+        XCTAssertEqual(try models().selection(of: AgentPreset(model: "gpt-old", effort: "high")).modelIndex, 3)
     }
 
-    func testRejectsUnknownModelUnsupportedEffortAndNoAnchor() {
-        XCTAssertThrowsError(try models().position(of: AgentPreset(model: "gpt-hidden", effort: "high")))
-        XCTAssertThrowsError(try models().position(of: AgentPreset(model: "gpt-sol", effort: "max")))
-        XCTAssertThrowsError(try models().position(of: AgentPreset(model: "gpt-sol", effort: "turbo")))
-        XCTAssertThrowsError(try models().position(of: AgentPreset(model: "gpt-old", effort: "high")))
+    func testRejectsUnknownModelAndUnsupportedEffort() {
+        XCTAssertThrowsError(try models().selection(of: AgentPreset(model: "gpt-hidden", effort: "high")))
+        XCTAssertThrowsError(try models().selection(of: AgentPreset(model: "gpt-sol", effort: "turbo")))
+        XCTAssertThrowsError(try models().selection(of: AgentPreset(model: "gpt-old", effort: "max")))
     }
 
     func testDecodesCacheFile() throws {
@@ -178,6 +186,14 @@ final class RunnerTests: XCTestCase {
         XCTAssertEqual(io.draftReadCount, 3, "초안이 돌아오기 전에는 다음 단계로 가지 않는다(그 사이 더 친 글은 문제 삼지 않는다)")
     }
 
+    func testExpectResultSeesTheNoticeLineShownWhileClaudeIsWorking() throws {
+        let io = FakeIO()
+        // 작업 중에는 결과가 대화 줄이 아니라 입력창 위의 오른쪽 정렬 알림으로 뜬다. 마지막 ⎿ 줄은 도구 출력이다.
+        io.screens = [["  ⎿  $ sleep 20 (5s)", "✻ Beaming… (11s)", "                 Set model to Opus 5.5 and", rule, "❯"]]
+        let result = try Runner(io: io, sleep: { _ in }).run([.expectResult(prefix: "Set model to", timeoutMs: 300, failure: "f")])
+        XCTAssertEqual(result, ["Set model to Opus 5.5 and"])
+    }
+
     func testExpectResultStopsWhenADialogReplacedThePrompt() {
         let io = FakeIO()
         // 결과 줄은 떴지만 그 사이 권한 확인 창이 떴다 — 다음 명령의 Enter 가 그 창을 누르면 안 된다.
@@ -194,12 +210,183 @@ final class RunnerTests: XCTestCase {
         XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }).run([.expectResult(prefix: "Set model to", timeoutMs: 200, failure: "응답 없음")])) {
             XCTAssertTrue("\($0)".contains("Model 'xyz' not found"))
         }
+        // 명령 전부터 있던 줄은 이번 명령의 말이 아니다 — 붙이지 않는다.
+        let old = ["  ⎿  $ sleep 20", rule, "❯"]
+        io.screens = [old]
+        XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }, initial: ScreenSnapshot(lines: old, draft: "")).run([
+            .arm, .expectResult(prefix: "Set model to", timeoutMs: 200, failure: "응답 없음"),
+        ])) {
+            XCTAssertEqual($0 as? ModelSwitchError, ModelSwitchError("응답 없음"))
+        }
     }
 
     func testUnreadableScreenStopsInsteadOfSendingBlind() {
         let io = FakeIO()
         XCTAssertThrowsError(try run([.expect(needle: "x", timeoutMs: 400, abort: [.text("X")], failure: "f"), .text("b")], io: io))
         XCTAssertEqual(io.sent, [], "화면을 못 읽으면 뒤 단계도 정리 단계도 보내지 않는다")
+    }
+}
+
+/// codex `/model` 선택창 흉내. 화면은 2026-10-06 codex 0.160.0 에서 받은 것과 같은 꼴로 그린다.
+final class FakePicker: TerminalIO {
+    enum Stage { case composer, models, efforts, advanced }
+    var stage = Stage.composer
+    var cursor = 0
+    var sent: [String] = []
+    /// 확정된 방식: "s"(이 세션만) 또는 "enter"/"number"(기본값까지 저장).
+    var confirmedBy: String?
+    var chosen: String?
+    let efforts = ["Low (default)", "Medium", "High (current)", "Extra high", "More reasoning…"]
+    let advanced = ["Max", "Ultra"]
+    /// 참이면 화면이 한 박자 늦게 따라온다(키를 보낸 직후 읽으면 이전 화면).
+    var lagging = false
+    private var stale: [String]?
+    private var commandTyped = false
+
+    private func render() -> [String] {
+        func list(_ header: String, _ items: [String], footer: String) -> [String] {
+            ["• Model changed to gpt-old high for this session only", "  " + header]
+                + items.enumerated().map { "\($0.offset == cursor ? "›" : " ") \($0.offset + 1). \($0.element)   설명" }
+                + ["  " + footer]
+        }
+        switch stage {
+        case .composer:
+            return (chosen.map { ["• Model changed to gpt-sol \($0) for this session only"] } ?? [])
+                + [commandTyped ? "› /model  choose what model and reasoning effort to use" : "› Ask Codex to do anything", "  GPT-Sol · ~/x"]
+        case .models: return list("Select Model and Effort", ["GPT-Sol (current)", "GPT-Astra"], footer: "enter select · esc back")
+        case .efforts:
+            return list("Select Reasoning Level for GPT-Sol", efforts,
+                        footer: cursor == 4 ? "enter select · esc back" : "enter default · s session · esc back")
+        case .advanced:
+            return ["  Advanced Reasoning", "  ⚠ Consumes usage limits faster"]
+                + advanced.enumerated().map { "\($0.offset == cursor ? "›" : " ") \($0.offset + 1). \($0.element)    설명" }
+                + ["  enter default · s session · esc back"]
+        }
+    }
+
+    private func confirm(_ how: String) {
+        let items = stage == .advanced ? advanced : efforts
+        chosen = items[cursor].lowercased().replacingOccurrences(of: " (current)", with: "")
+        confirmedBy = how
+        stage = .composer
+    }
+
+    func type(_ text: String) throws {
+        sent.append(text)
+        if lagging { stale = render() }
+        if stage == .composer {
+            if text.hasSuffix("/model") { commandTyped = true }
+            if text == "\r", commandTyped { commandTyped = false; stage = .models; cursor = 0 }
+            return
+        }
+        var rest = Substring(text)
+        while !rest.isEmpty {
+            if rest.hasPrefix("\u{1B}[A") { cursor = max(0, cursor - 1); rest = rest.dropFirst(3); continue }
+            if rest.hasPrefix("\u{1B}[B") { cursor += 1; rest = rest.dropFirst(3); continue }
+            let key = rest.removeFirst()
+            switch (stage, key) {
+            case (.models, "1"): stage = .efforts; cursor = 2
+            case (.efforts, "s") where cursor < 4: confirm("s")
+            case (.advanced, "s"): confirm("s")
+            case (.efforts, "\r") where cursor == 4, (.efforts, "5"): stage = .advanced; cursor = 0
+            case (.efforts, "\r"), (.advanced, "\r"): confirm("enter")
+            case (.efforts, _) where key.isNumber, (.advanced, _) where key.isNumber: confirm("number")
+            case (.advanced, "\u{1B}"): stage = .efforts; cursor = 4
+            case (.efforts, "\u{1B}"): stage = .models; cursor = 0
+            case (.models, "\u{1B}"): stage = .composer
+            default: break
+            }
+        }
+    }
+
+    func press(_ key: Key) throws {
+        try type(key.bytes)
+    }
+
+    func screen() -> [String]? {
+        if let old = stale { stale = nil; return old }
+        return render()
+    }
+}
+
+final class CodexPickerTests: XCTestCase {
+    let efforts = [
+        "• Model changed to gpt-6.1-sol high for this session only",
+        "  Select Reasoning Level for GPT-6.1-Sol",
+        "  1. Low (default)    Fast responses with lighter reasoning",
+        "  2. Medium           Balances speed and reasoning depth for everyday tasks",
+        "› 3. High (current)   Greater reasoning depth for complex problems",
+        "  4. Extra high       Extra high reasoning depth for complex problems",
+        "  5. More reasoning…  Max and Ultra consume usage limits faster",
+        "  enter default · s session · esc back",
+    ]
+
+    func testReadsRowsAndCursor() {
+        let rows = CodexPicker.rows(efforts)
+        XCTAssertEqual(rows.map(\.label), ["Low", "Medium", "High", "Extra high", "More reasoning…"])
+        XCTAssertEqual(rows.map(\.number), [1, 2, 3, 4, 5])
+        XCTAssertEqual(rows.firstIndex(where: \.selected), 2)
+        XCTAssertTrue(CodexPicker.matches(rows[2], "high"))
+        XCTAssertFalse(CodexPicker.matches(rows[3], "High"), "Extra high 는 High 가 아니다")
+        XCTAssertTrue(CodexPicker.matches(rows[4], "More reasoning"))
+    }
+
+    func testReadsSubmenuBelowTheWarningLine() {
+        let rows = CodexPicker.rows(["  Advanced Reasoning", "  ⚠ Consumes usage limits faster",
+                                     "› 1. Max    For difficult problems", "  2. Ultra  For demanding work",
+                                     "  enter default · s session · esc back"])
+        XCTAssertEqual(rows.map(\.label), ["Max", "Ultra"])
+        XCTAssertEqual(rows.first?.selected, true)
+    }
+
+    func testNumberedRowsWithoutOurHeaderAreNotAPicker() throws {
+        // 승인 창도 번호 행을 쓴다 — 거기에 위·아래·s·Esc 를 보내면 안 된다.
+        XCTAssertFalse(CodexPicker.isOpen(["  Would you like to run the following command?", "› 1. Yes, proceed", "  2. No"]))
+        XCTAssertFalse(CodexPicker.isOpen(["› Ask Codex to do anything"]))
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "codex-approval", withExtension: "json", subdirectory: "Fixtures"))
+        struct Fixture: Decodable { let tail: [String] }
+        XCTAssertFalse(CodexPicker.isOpen(try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail))
+    }
+
+    func run(_ effort: String, picker: FakePicker) throws -> [String] {
+        try Runner(io: picker, sleep: { _ in }).run(Plans.codex(modelIndex: 1, displayName: "GPT-Sol", effortLabel: effort))
+    }
+
+    func testPicksEachEffortForThisSessionOnly() throws {
+        for (label, expected) in [("Low", "low (default)"), ("Medium", "medium"), ("High", "high"), ("Extra high", "extra high")] {
+            let picker = FakePicker()
+            let confirmations = try run(label, picker: picker)
+            XCTAssertEqual(picker.chosen, expected, label)
+            XCTAssertEqual(picker.confirmedBy, "s", "\(label): 기본값까지 저장하는 방식으로 확정하면 안 된다")
+            XCTAssertEqual(picker.stage, .composer)
+            XCTAssertEqual(confirmations.count, 1)
+        }
+    }
+
+    func testGoesThroughMoreReasoningForMaxAndUltra() throws {
+        for (label, expected) in [("Max", "max"), ("Ultra", "ultra")] {
+            let picker = FakePicker()
+            _ = try run(label, picker: picker)
+            XCTAssertEqual(picker.chosen, expected)
+            XCTAssertEqual(picker.confirmedBy, "s")
+        }
+    }
+
+    func testDoesNotOvershootWhenTheScreenLagsBehind() throws {
+        let picker = FakePicker()
+        picker.lagging = true
+        _ = try run("Low", picker: picker)
+        XCTAssertEqual(picker.chosen, "low (default)")
+        XCTAssertEqual(picker.confirmedBy, "s")
+    }
+
+    func testMissingRowClosesThePickerWithoutConfirming() {
+        let picker = FakePicker()
+        XCTAssertThrowsError(try run("Turbo", picker: picker))
+        XCTAssertNil(picker.confirmedBy)
+        XCTAssertEqual(picker.stage, .composer, "선택창을 닫고 나온다")
+        // More reasoning… 하위까지 들어가 찾아봤으므로 하위 → effort → 모델 목록, 세 번에 닫힌다. 입력창에서는 더 누르지 않는다.
+        XCTAssertEqual(picker.sent.filter { $0 == "\u{1B}" }.count, 3)
     }
 }
 
@@ -288,7 +475,7 @@ final class ReadinessTests: XCTestCase {
     }
 
     func testCodexComposerVisibleOnlyWhenNoChoiceListIsShown() throws {
-        for name in ["codex-idle", "codex-draft", "codex-multiline", "codex-after-deny"] {
+        for name in ["codex-idle", "codex-draft", "codex-multiline", "codex-after-deny", "codex-ultra-idle"] {
             XCTAssertTrue(Readiness.inputVisible(agent: .codex, screen: try screen(name)), name)
         }
         for name in ["codex-approval", "codex-picker", "claude-idle"] {
@@ -546,5 +733,30 @@ final class SwitcherApplyTests: XCTestCase {
         XCTAssertNil(result.warning)
         XCTAssertEqual(result.confirmationSummary, "Set model to Sonnet 5.5 · Set effort level to high")
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), original)
+    }
+
+    func testRestoresDefaultsEvenWhenTheSwitchStopsHalfway() throws {
+        let original = "{\n  \"model\": \"opus\"\n}"
+        let settings = try tempSettings(original)
+        let io = FakeIO()
+        let rule = String(repeating: "─", count: 10)
+        io.screens = [[rule, "❯", rule]]
+        // /model 은 기본값을 바꿨지만 결과 줄이 끝내 안 보인다(예: 그 사이 확인 창이 떴다).
+        io.onType = { _ in try? Data("{\n  \"model\": \"sonnet\"\n}".utf8).write(to: settings) }
+        XCTAssertThrowsError(try switcher(io: io, settings: settings).apply(slot: 2, to: target))
+        XCTAssertEqual(io.sent, ["\u{13}/model sonnet\r"], "첫 명령이 확인되지 않으면 다음 명령을 보내지 않는다")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), original)
+    }
+
+    func testConfirmationSummaryTrimsTheTail() {
+        func summary(_ lines: [String]) -> String? {
+            SwitchResult(target: target, slotName: "s", preset: AgentPreset(model: "m", effort: "e"),
+                         warning: nil, confirmations: lines, pendingRestore: nil).confirmationSummary
+        }
+        XCTAssertEqual(summary(["Set model to Opus 5.5 and"]), "Set model to Opus 5.5")
+        XCTAssertEqual(summary(["Set model to Opus 5.5 and saved as your default for new sessions",
+                                "Set effort level to high (saved as your default for new sessions): Comprehensive"]),
+                       "Set model to Opus 5.5 · Set effort level to high")
+        XCTAssertNil(summary([]))
     }
 }
