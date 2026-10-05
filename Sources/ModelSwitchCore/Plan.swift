@@ -65,6 +65,18 @@ public enum Step: Equatable, Sendable {
     case capture(prefix: String)
 }
 
+public enum Launch {
+    /// 그 프리셋으로 «새 세션»을 여는 명령줄. 둘 다 이 세션에만 적용되는 옵션이라 기본값은 바뀌지 않는다.
+    public static func command(agent: Agent, preset: AgentPreset, extra: [String] = []) -> [String] {
+        switch agent {
+        case .claude:
+            return ["claude", "--model", preset.model, "--effort", preset.effort] + extra
+        case .codex:
+            return ["codex", "-m", preset.model, "-c", "model_reasoning_effort=\"\(preset.effort)\""] + extra
+        }
+    }
+}
+
 public enum Plans {
     /// claude: `/model` 선택창에서 모델 행과 effort 를 맞추고 확정한다.
     ///

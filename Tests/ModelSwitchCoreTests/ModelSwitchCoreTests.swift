@@ -1268,6 +1268,15 @@ final class ClaudePickerTests: XCTestCase {
     }
 }
 
+final class LaunchTests: XCTestCase {
+    func testBuildsSessionOnlyFlags() {
+        XCTAssertEqual(Launch.command(agent: .claude, preset: AgentPreset(model: "opus", effort: "high"), extra: ["-c"]),
+                       ["claude", "--model", "opus", "--effort", "high", "-c"])
+        XCTAssertEqual(Launch.command(agent: .codex, preset: AgentPreset(model: "gpt-6.1-sol", effort: "xhigh")),
+                       ["codex", "-m", "gpt-6.1-sol", "-c", "model_reasoning_effort=\"xhigh\""])
+    }
+}
+
 final class SlotTests: XCTestCase {
     func testNameIsOptionalInTheFile() throws {
         let config = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(#"{"slots":[{"claude":{"model":"opus","effort":"high"}},{"name":"밤샘","codex":{"model":"gpt-x","effort":"max"}}]}"#.utf8))

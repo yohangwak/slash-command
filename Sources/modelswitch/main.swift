@@ -6,6 +6,7 @@ modelswitch — 맨 앞 터미널의 claude·codex 모델과 effort 를 프리�
 
   modelswitch apply <번호> [대상] [--trace]   프리셋 적용(--trace: 단계별 시간)
   modelswitch effort <up|down> [대상] [--trace]   모델은 그대로, effort 만 한 단계
+  modelswitch run <번호> <claude|codex> [--dry-run] [인자…]   그 프리셋으로 새 세션을 이 터미널에서 연다
   modelswitch where                   지금 맨 앞 터미널과 에이전트
   modelswitch doctor [대상] [--screen]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
   modelswitch list                    프리셋 목록
@@ -88,6 +89,23 @@ do {
         let result = try switcher.stepEffort(up: args[1] == "up", on: target)
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
+    case "run":
+        guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
+            fail("modelswitch run <번호> <claude|codex> [인자…]")
+        }
+        let planned = try Switcher(config: try store.load(), codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
+        // `--dry-run` 은 바로 뒤에 올 때만 우리 것이다 — 그 뒤의 인자는 전부 에이전트에 넘긴다.
+        let dryRun = args.count > 3 && args[3] == "--dry-run"
+        let command = Launch.command(agent: agent, preset: planned, extra: Array(args.dropFirst(dryRun ? 4 : 3)))
+        if dryRun {
+            print(command.joined(separator: " "))
+        } else {
+            // 이 프로세스를 에이전트로 바꾼다 — 터미널에서 직접 친 것과 같다.
+            var argv: [UnsafeMutablePointer<CChar>?] = command.map { strdup($0) }
+            argv.append(nil)
+            execvp(command[0], argv)
+            fail("\(command[0]) 를 실행하지 못했습니다: \(String(cString: strerror(errno)))")
+        }
     case "where":
         let target = try Detector.frontmost()
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")

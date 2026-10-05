@@ -146,15 +146,21 @@ public struct Switcher {
         public let fallback: [Step]?
     }
 
-    /// `slot` 은 1부터.
-    public func plan(slot: Int, agent: Agent) throws -> Planned {
+    /// `slot`(1부터)번 프리셋의 그 에이전트 설정.
+    public func preset(slot: Int, agent: Agent) throws -> AgentPreset {
         guard slot >= 1, slot <= config.slots.count else {
             throw ModelSwitchError("\(slot)번 프리셋이 없습니다(지금 \(config.slots.count)개).")
         }
-        let chosen = config.slots[slot - 1]
-        guard let preset = chosen.preset(for: agent) else {
+        guard let preset = config.slots[slot - 1].preset(for: agent) else {
             throw ModelSwitchError("\(slot)번 프리셋에는 \(agent.rawValue) 설정이 없습니다.")
         }
+        return preset
+    }
+
+    /// `slot` 은 1부터.
+    public func plan(slot: Int, agent: Agent) throws -> Planned {
+        let preset = try preset(slot: slot, agent: agent)
+        let chosen = config.slots[slot - 1]
         switch agent {
         case .claude:
             // 선택창에서 「이 세션만」으로 확정하면 기본값을 건드리지 않는다. 선택창에 그 모델 행이 없을 때만 명령으로 한다.
