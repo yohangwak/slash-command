@@ -244,7 +244,7 @@ public struct Switcher {
         switch target.agent {
         case .claude:
             // 지금 모델과 effort 는 선택창을 열어야 안다 — 열고, 한 칸 옮기고, 이 세션만으로 확정한다.
-            steps = Plans.claudeEffortStep(up: up, saveAsDefault: !config.keepDefaults)
+            steps = Plans.claudeEffortStep(up: up, saveAsDefault: !config.keepDefaults, acceptSwitch: config.acceptSwitchPrompt)
             preset = AgentPreset(model: "claude", effort: up ? "한 단계 위" : "한 단계 아래")
         case .codex:
             if let draft = first.draft, draft.contains("\n") {
@@ -253,7 +253,9 @@ public struct Switcher {
             steps = Plans.codexEffortStep(up: up)
             preset = AgentPreset(model: "codex", effort: up ? "한 단계 위" : "한 단계 아래")
         }
-        let confirmations = try Runner(io: io, sleep: timedSleep, initial: first).run(steps)
+        var runner = Runner(io: io, sleep: timedSleep, initial: first)
+        runner.onAwaitingUser = onAwaitingUser
+        let confirmations = try runner.run(steps)
         return SwitchResult(target: target, slotName: "", preset: preset,
                             warning: nil, confirmations: confirmations, pendingRestore: nil)
     }
@@ -361,6 +363,11 @@ public struct Runner {
         var confirmations: [String] = []
         // 화면을 보지 않고(기본값 파일 신호만으로) 넘어간 결과들 — 끝나고 화면에서 문구를 찾는다.
         var unseen: [String] = []
+        // `stepEffort` 가 옮겨 놓은 단계. 확인 창이 «그 단계»를 물을 때만 받아들이는 데 쓴다.
+        var stepped: String?
+        func wanted(_ values: [String]) -> [String] {
+            values.compactMap { $0 == Step.steppedEffort ? stepped : $0 }
+        }
         for step in steps {
             switch step {
             case .text(let text):
@@ -379,11 +386,15 @@ public struct Runner {
                 armedLines = io.screen() ?? seenLines
             case .expectResult(let prefix, let command, let acceptSwitchTo, let timeoutMs, let failure):
                 if io.screenLagMs > 0, stamp != nil {
-                    try waitForStamp(prefix: prefix, command: command, acceptSwitchTo: acceptSwitchTo, armedStamp: armedStamp,
-                                     armedLines: armedLines, timeoutMs: timeoutMs, failure: failure)
-                    unseen.append(prefix)
+                    if let seen = try waitForStamp(prefix: prefix, command: command, acceptSwitchTo: wanted(acceptSwitchTo),
+                                                   armedStamp: armedStamp, armedLines: armedLines,
+                                                   timeoutMs: timeoutMs, failure: failure) {
+                        confirmations.append(seen)
+                    } else {
+                        unseen.append(prefix)
+                    }
                 } else {
-                    let found = try waitForResult(prefix: prefix, command: command, acceptSwitchTo: acceptSwitchTo,
+                    let found = try waitForResult(prefix: prefix, command: command, acceptSwitchTo: wanted(acceptSwitchTo),
                                                   armedStamp: armedStamp, armedLines: armedLines,
                                                   timeoutMs: timeoutMs, failure: failure)
                     seenLines = found.lines
@@ -407,6 +418,7 @@ public struct Runner {
             case .stepEffort(let up, let timeoutMs, let abort):
                 switch try stepEffort(up: up, timeoutMs: timeoutMs) {
                 case .moved(let level):
+                    stepped = level
                     // 선택창이 닫힌 뒤의 결과 줄에 effort 가 안 나오는 경우에 대비해 여기서 본 값을 남긴다.
                     confirmations.append("Set effort level to \(level)")
                 case .stopped(let reason, let atEdge):
@@ -421,7 +433,7 @@ public struct Runner {
                     throw error
                 }
             case .expectInput(let agent, let acceptSwitchTo, let timeoutMs, let abort, let failure):
-                switch try waitForInput(agent: agent, acceptSwitchTo: acceptSwitchTo, timeoutMs: timeoutMs) {
+                switch try waitForInput(agent: agent, acceptSwitchTo: wanted(acceptSwitchTo), timeoutMs: timeoutMs) {
                 case .ready:
                     break
                 case .declined:
@@ -459,12 +471,16 @@ public struct Runner {
 
     /// 화면이 늦게 따라오는 터미널(Ghostty)용: 명령이 실행되면 claude 가 기본값 파일을 다시 쓰는 것을 신호로 삼는다.
     /// 화면은 낡지 않았을 때만 읽어, 확인 창이 떴는지와 claude 가 거절했는지를 본다.
-    private func waitForStamp(prefix: String, command: String?, acceptSwitchTo: String?, armedStamp: Int64?, armedLines: [String],
-                              timeoutMs: Int, failure: String) throws {
+    ///
+    /// 돌려주는 값: 파일 신호로 넘어갔으면 nil(결과 문구는 아직 못 봤다), 화면에서 새 결과 줄을 봤으면 그 줄.
+    /// 파일을 다시 쓰지 않는 명령도 있다 — `/effort max` 는 이 세션에만 적용되고 기본값 파일은 그대로다(2.1.283 실측).
+    private func waitForStamp(prefix: String, command: String?, acceptSwitchTo: [String], armedStamp: Int64?, armedLines: [String],
+                              timeoutMs: Int, failure: String) throws -> String? {
         let started = DispatchTime.now()
         var simulated = 0
         var accepted = false
         let repliedBefore = ClaudeScreen.commandReply(armedLines, command: command)
+        let matchedBefore = ClaudeScreen.results(armedLines, prefix: prefix)
         // 확인 창이 떠서 사용자의 선택을 기다리는 중이면 그 모델 이름. 창이 사라진 시각도 본다.
         var awaiting: String?
         var goneAt: Int?
@@ -474,12 +490,17 @@ public struct Runner {
                 // 파일을 쓴 직후에 claude 가 쓰던 글을 입력창에 되돌린다. 다음 Ctrl+S 가 그것과 겹치지 않게 잠깐 둔다.
                 sleep(120)
                 clock.slept += 120
-                return
+                return nil
             }
             let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
             if clock.elapsedMs() >= io.screenLagMs {
                 guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
                 clock.reset()
+                // 파일은 안 바뀌었지만 화면에 이번 명령의 결과가 새로 떴다.
+                let matched = ClaudeScreen.results(snap.lines, prefix: prefix)
+                if Runner.isNew(matched, since: matchedBefore), Readiness.claudePromptVisible(snap.lines), let seen = matched.last {
+                    return seen
+                }
                 if command != nil, let reply = ClaudeScreen.commandReply(snap.lines, command: command),
                    reply != repliedBefore, !reply.hasPrefix(prefix), Readiness.claudePromptVisible(snap.lines) {
                     throw Runner.refused(reply)
@@ -511,29 +532,29 @@ public struct Runner {
 
     /// 사용자가 확인 창에서 「No, go back」을 골랐다.
     static func declined() -> ModelSwitchError {
-        var error = ModelSwitchError("확인 창에서 취소해 모델을 바꾸지 않았습니다.")
+        var error = ModelSwitchError("확인 창에서 취소해 바꾸지 않았습니다.")
         error.nothingToDo = true
         return error
     }
 
     /// claude 가 모델을 바꿀지 묻고 있다 — 우리는 답하지 않고 사용자에게 넘긴다.
     static func awaitingSwitch(_ model: String) -> ModelSwitchError {
-        var error = ModelSwitchError("claude 가 \(model) 로 바꿀지 묻고 있습니다(대화 기록을 새 모델로 다시 읽습니다). Enter 를 누르면 바뀝니다.")
+        var error = ModelSwitchError("claude 가 \(model) 로 바꿀지 묻고 있습니다(대화 기록을 다시 읽습니다). Enter 를 누르면 바뀝니다.")
         error.awaitingUser = true
         return error
     }
 
-    /// claude 의 「Switch model?」 확인 창이 «우리가 고른 그 모델»로 바꾸겠느냐고 묻고 있으면 Enter 로 받아들인다.
-    /// 그 창이 아니거나 모델이 다르면 아무것도 보내지 않는다.
-    private func acceptSwitch(_ lines: [String], to wanted: String?) throws -> Bool {
-        guard let wanted, let asked = ClaudeScreen.switchPrompt(lines) else { return false }
+    /// claude 의 확인 창이 «우리가 고른 그 값»(모델 이름이나 effort 단계)으로 바꾸겠느냐고 묻고 있으면 Enter 로 받아들인다.
+    /// 그 창이 아니거나 값이 다르면 아무것도 보내지 않는다.
+    private func acceptSwitch(_ lines: [String], to wanted: [String]) throws -> Bool {
+        guard !wanted.isEmpty, let asked = ClaudeScreen.switchPrompt(lines) else { return false }
         let row = Picker.Row(number: 1, label: asked, selected: true, current: false)
-        guard Picker.index(of: wanted, in: [row]) != nil else { return false }
+        guard wanted.contains(where: { Picker.index(of: $0, in: [row]) != nil }) else { return false }
         try io.press(.enter)
         return true
     }
 
-    private func waitForResult(prefix: String, command: String?, acceptSwitchTo: String?, armedStamp: Int64?, armedLines: [String],
+    private func waitForResult(prefix: String, command: String?, acceptSwitchTo: [String], armedStamp: Int64?, armedLines: [String],
                                timeoutMs: Int, failure: String) throws -> (result: String, lines: [String]) {
         let started = DispatchTime.now()
         var simulated = 0
@@ -801,7 +822,7 @@ public struct Runner {
     /// 선택창이 닫히고 입력창이 다시 보일 때까지 기다린다.
     enum InputOutcome { case ready, declined, timedOut }
 
-    private func waitForInput(agent: Agent, acceptSwitchTo: String?, timeoutMs: Int) throws -> InputOutcome {
+    private func waitForInput(agent: Agent, acceptSwitchTo: [String], timeoutMs: Int) throws -> InputOutcome {
         func draft(_ snap: ScreenSnapshot) -> String {
             snap.draft ?? ClaudeScreen.promptText(snap.lines) ?? ""
         }

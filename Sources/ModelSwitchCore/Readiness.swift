@@ -60,17 +60,18 @@ public enum ClaudeScreen {
         return nil
     }
 
-    /// claude 가 대화 도중 모델을 바꾸기 전에 띄우는 확인 창에서, 바꾸려는 모델 이름. 그 창이 아니면 nil.
+    /// claude 가 방금 응답한 대화에서 모델이나 effort 를 바꾸기 전에 띄우는 확인 창에서, 바꾸려는 값. 그 창이 아니면 nil.
     ///
-    ///     Switch model?
+    ///     Switch model?                         (effort 일 때는 "Change effort level?")
     ///     Your next response will be slower and use more tokens
     ///     This conversation is cached for the current model. Switching to Sonnet 5.5 means …
-    ///     ❯ 1. Yes, switch to Sonnet 5.5
+    ///     ❯ 1. Yes, switch to Sonnet 5.5        (effort 일 때는 "Yes, switch to high")
     ///       2. No, go back
     ///
-    /// 커서(`❯`)가 「Yes」 항목에 있을 때만 이름을 돌려준다 — Enter 를 눌러도 되는지의 판단에 쓰기 때문이다.
+    /// 커서(`❯`)가 「Yes」 항목에 있을 때만 값을 돌려준다 — Enter 를 눌러도 되는지의 판단에 쓰기 때문이다.
     public static func switchPrompt(_ lines: [String]) -> String? {
-        guard let header = lines.lastIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "Switch model?" }) else { return nil }
+        let headers = ["Switch model?", "Change effort level?"]
+        guard let header = lines.lastIndex(where: { headers.contains($0.trimmingCharacters(in: .whitespaces)) }) else { return nil }
         let marker = "❯ 1. Yes, switch to "
         for line in lines[(header + 1)...] {
             let text = line.trimmingCharacters(in: .whitespaces)

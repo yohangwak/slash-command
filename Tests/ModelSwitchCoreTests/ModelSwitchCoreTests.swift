@@ -661,6 +661,12 @@ final class GhosttyEscapeTests: XCTestCase {
         XCTAssertEqual(Detector.agent(inTitle: "✳ Codex — repo"), .codex)
         XCTAssertNil(Detector.agent(inTitle: "zsh"))
         XCTAssertNil(Detector.agent(inTitle: "claude vs codex"))
+        // 제목으로도 폴더로도 못 가릴 때는 화면에 보이는 입력창으로 가린다.
+        let rule = String(repeating: "─", count: 12)
+        XCTAssertEqual(Detector.agent(onScreen: [rule, "❯ ", rule]), .claude)
+        XCTAssertEqual(Detector.agent(onScreen: ["› Ask Codex to do anything", "  GPT-6-Sol high · ~/x"]), .codex)
+        XCTAssertNil(Detector.agent(onScreen: ["  Select Model and Effort", "› 1. GPT-6-Sol (current)"]), "선택창이 떠 있으면 가리지 않는다")
+        XCTAssertNil(Detector.agent(onScreen: ["yohan@Mac ~ % "]))
         XCTAssertEqual(AgentProcesses.agent(forCommandLine: "/Users/x/.local/share/claude/versions/2.1.289 --model opus"), .claude)
         XCTAssertEqual(AgentProcesses.agent(forCommandLine: "/Users/x/.codex/packages/standalone/releases/0.160.0/bin/codex -m x"), .codex)
         XCTAssertNil(AgentProcesses.agent(forCommandLine: "/bin/zsh -l"))
@@ -757,6 +763,9 @@ final class FakeClaude: TerminalIO {
     var sent: [String] = []
     /// 대화 도중 모델을 바꿀 때 한 번 더 묻는다("Switch model?").
     var asksBeforeSwitching = false
+    /// 대화 도중 effort 만 바꿀 때도 한 번 더 묻는다("Change effort level?").
+    var asksBeforeEffortChange = false
+    private var askingAboutEffort = false
     /// 작업 중에는 결과가 대화 줄이 아니라 알림 줄로 뜬다.
     var busy = false
     /// 확정 방식: "s"(이 세션만) · "enter"(기본값으로 저장) · "command"(/model X)
@@ -827,8 +836,13 @@ final class FakeClaude: TerminalIO {
             finishCommand()
         } else if command.hasPrefix("/effort ") {
             effort = String(command.dropFirst("/effort ".count))
-            say("Set effort level to \(effort) (saved as your default for new sessions): …")
-            saveDefault(model)
+            if effort == "max" {
+                // max 는 이 세션에만 적용되고 기본값 파일은 다시 쓰지 않는다(2.1.283 실측).
+                say("Set effort level to max (this session only): …")
+            } else {
+                say("Set effort level to \(effort) (saved as your default for new sessions): …")
+                saveDefault(model)
+            }
             finishCommand()
         }
     }
@@ -854,7 +868,15 @@ final class FakeClaude: TerminalIO {
             case (.prompt, "\r"): let command = line; line = ""; run(command)
             case (.prompt, _): line.append(key)
             case (.picker, "s"), (.picker, "\r"):
-                if asksBeforeSwitching, rows[cursor] != model, key == "s" { stage = .confirm } else { confirm(session: key == "s") }
+                if asksBeforeSwitching, rows[cursor] != model, key == "s" {
+                    askingAboutEffort = false
+                    stage = .confirm
+                } else if asksBeforeEffortChange, rows[cursor] == model, efforts[pickerEffort] != effort, key == "s" {
+                    askingAboutEffort = true
+                    stage = .confirm
+                } else {
+                    confirm(session: key == "s")
+                }
             case (.picker, "\u{1B}"): say("Kept model as \(model)"); finishCommand()
             case (.confirm, "\r") where askedByCommand: askedByCommand = false; applyCommand(rows[cursor]); finishCommand()
             case (.confirm, "\r"): confirm(session: true)
@@ -884,8 +906,9 @@ final class FakeClaude: TerminalIO {
             return shown + ["   Select model", "   Switch between Claude models. Your pick becomes the default for new sessions."]
                 + list + [effortLine, "   Enter to set as default · s to use this session only · Esc to cancel"]
         case .confirm:
-            return shown + ["   Switch model?", "   Your next response will be slower and use more tokens",
-                            "   ❯ 1. Yes, switch to \(rows[cursor])", "     2. No, go back"]
+            return shown + [askingAboutEffort ? "   Change effort level?" : "   Switch model?",
+                            "   Your next response will be slower and use more tokens",
+                            "   ❯ 1. Yes, switch to \(askingAboutEffort ? efforts[pickerEffort] : rows[cursor])", "     2. No, go back"]
         }
     }
 
@@ -1024,7 +1047,7 @@ final class SwitcherApplyTests: XCTestCase {
         let io = FakeIO()
         io.screens = [["   Switch model?", "   ❯ 1. Yes, switch to Sonnet 5.5", "     2. No, go back"]]
         XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }).run([
-            .expectInput(agent: .claude, acceptSwitchTo: "opus", timeoutMs: 200, abort: [], failure: "f"),
+            .expectInput(agent: .claude, acceptSwitchTo: ["opus", "high"], timeoutMs: 200, abort: [], failure: "f"),
         ]))
         XCTAssertEqual(io.sent, [])
         // 커서가 No 에 있으면 그 창으로 보지 않는다.
@@ -1111,6 +1134,30 @@ final class EffortStepTests: XCTestCase {
         _ = try switcher(io: claude).stepEffort(up: false, on: target)
         _ = try switcher(io: claude).stepEffort(up: false, on: target)
         XCTAssertEqual(claude.effort, "medium")
+    }
+
+    func testClaudeEffortConfirmationIsLeftToTheUserThenFinished() throws {
+        let claude = FakeClaude()
+        claude.asksBeforeEffortChange = true
+        var switcher = switcher(io: claude)
+        var asked: [String] = []
+        switcher.onAwaitingUser = { value in asked.append(value); try? claude.type("\r") }
+        let result = try switcher.stepEffort(up: true, on: target)
+        XCTAssertEqual(asked, ["xhigh"], "「Change effort level?」 창은 사용자가 고른다")
+        XCTAssertEqual(claude.effort, "xhigh")
+        XCTAssertEqual(result.summary, "Opus 5.5 · xhigh")
+    }
+
+    func testClaudeEffortConfirmationIsAcceptedOnlyForTheLevelWeMovedTo() throws {
+        let claude = FakeClaude()
+        claude.asksBeforeEffortChange = true
+        let accepting = Switcher(config: ModelSwitchConfig(acceptSwitchPrompt: true, slots: []),
+                                 claudeDefaults: ClaudeDefaults(url: URL(fileURLWithPath: "/nonexistent/settings.json")),
+                                 codexModels: { CodexModels(models: []) }, makeIO: { _ in claude }, sleep: { _ in })
+        _ = try accepting.stepEffort(up: false, on: target)
+        XCTAssertEqual(claude.effort, "medium")
+        XCTAssertEqual(claude.sent.filter { $0 == "\r" }.count, 1)
+        XCTAssertEqual(ClaudeScreen.switchPrompt(["   Change effort level?", "   ❯ 1. Yes, switch to high", "     2. No, go back"]), "high")
     }
 
     func testClaudeDoesNotWrapAtTheEnds() {
@@ -1227,6 +1274,22 @@ final class LaggingTerminalTests: XCTestCase {
         XCTAssertEqual(claude.draft, "쓰던 글")
         XCTAssertEqual(result.summary, "Sonnet 5.5 · medium", "끝난 뒤 새 화면에서 claude 의 말을 읽는다")
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}", "기본값은 되돌린다")
+    }
+
+    func testAcceptsAResultThatDidNotTouchTheSettingsFile() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        var clock = 0
+        let io = LaggingIO(base: claude, lagMs: 500)
+        io.now = { clock }
+        let config = ModelSwitchConfig(slots: [Slot(claude: AgentPreset(model: "fable", effort: "max"))])
+        let switcher = Switcher(config: config, claudeDefaults: ClaudeDefaults(url: settings),
+                                codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { clock += $0 })
+        let result = try switcher.apply(slot: 1, to: target)
+        XCTAssertEqual(claude.effort, "max")
+        XCTAssertEqual(result.summary, "Fable 5.1 · max", "/effort max 는 파일을 안 쓴다 — 화면의 새 결과 줄로 확인한다")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}")
     }
 
     func testReportsARefusalFromTheFreshScreen() throws {
