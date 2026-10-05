@@ -81,6 +81,23 @@ public struct CodexModels: Sendable {
         public let effortLabel: String
     }
 
+    /// 지금 모델(선택창에 보이는 이름)과 effort 에서 한 단계 위·아래 프리셋. 이미 끝이면 그렇게 알린다.
+    public func neighbour(displayName: String, effort: String, up: Bool) throws -> AgentPreset {
+        guard let model = listed.first(where: { $0.displayName == displayName }) else {
+            throw ModelSwitchError("codex 모델 '\(displayName)' 을 모델 목록에서 찾지 못했습니다.")
+        }
+        guard let index = model.efforts.firstIndex(of: effort) else {
+            throw ModelSwitchError("codex 의 지금 effort '\(effort)' 를 모델 목록에서 찾지 못했습니다.")
+        }
+        let next = index + (up ? 1 : -1)
+        guard model.efforts.indices.contains(next) else {
+            var error = ModelSwitchError("이미 가장 \(up ? "높은" : "낮은") 단계(\(effort))입니다.")
+            error.nothingToDo = true
+            throw error
+        }
+        return AgentPreset(model: model.slug, effort: model.efforts[next])
+    }
+
     /// 선택창에서 고를 모델 번호와 effort 행 이름.
     public func selection(of preset: AgentPreset) throws -> Selection {
         guard let offset = listed.firstIndex(where: { $0.slug == preset.model }) else {

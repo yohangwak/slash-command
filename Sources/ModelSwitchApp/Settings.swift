@@ -34,6 +34,7 @@ final class SettingsModel: ObservableObject {
     @Published var slots: [EditableSlot] = []
     @Published var keepDefaults = true
     @Published var acceptSwitchPrompt = false
+    @Published var effortKeys = true
     @Published var modifiers: Set<String> = Set(ModelSwitchConfig.defaultModifiers)
     @Published var status = ""
 
@@ -62,6 +63,7 @@ final class SettingsModel: ObservableObject {
             slots = config.slots.map(EditableSlot.init)
             keepDefaults = config.keepDefaults
             acceptSwitchPrompt = config.acceptSwitchPrompt
+            effortKeys = config.effortKeys
             modifiers = Set(config.modifiers)
             status = ""
         } catch {
@@ -91,6 +93,7 @@ final class SettingsModel: ObservableObject {
         do {
             try store.save(ModelSwitchConfig(keepDefaults: keepDefaults,
                                       acceptSwitchPrompt: acceptSwitchPrompt,
+                                      effortKeys: effortKeys,
                                       modifiers: ModelSwitchConfig.knownModifiers.filter(modifiers.contains),
                                       slots: slots.map(\.slot)))
             status = "저장했습니다."
@@ -137,6 +140,8 @@ struct SettingsView: View {
                 }
                 Text("+ 번호").foregroundStyle(.secondary)
             }
+
+            Toggle("\(model.symbols)= · \(model.symbols)- 로 effort 만 한 단계 올리고 내린다", isOn: $model.effortKeys)
 
             Toggle("이 세션만 바꾼다(새 세션 기본값은 그대로)", isOn: $model.keepDefaults)
             Text("켜 두면 claude·codex 선택창에서 「이 세션만」으로 확정합니다. 끄면 claude 는 새로 여는 세션의 기본값까지 바뀝니다.")

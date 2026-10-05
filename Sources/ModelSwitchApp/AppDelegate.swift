@@ -18,9 +18,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
 
-        hotKeys.onPress = { [weak self] slot in
-            Log.write("단축키 \(slot)번")
-            self?.apply(slot: slot)
+        hotKeys.onPress = { [weak self] id in
+            switch id {
+            case HotKeyCenter.effortUp:
+                Log.write("단축키 effort 올림")
+                self?.perform(.effort(up: true))
+            case HotKeyCenter.effortDown:
+                Log.write("단축키 effort 내림")
+                self?.perform(.effort(up: false))
+            default:
+                Log.write("단축키 \(id)번")
+                self?.perform(.preset(id))
+            }
         }
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(frontAppChanged),
@@ -36,10 +45,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let config = Detector.supportedBundleIDs.contains(front) ? try? store.load() : nil
         let wanted = config?.slots.count ?? 0
         let modifiers = config?.modifiers ?? []
-        guard wanted != hotKeys.registeredCount || (wanted > 0 && modifiers != hotKeys.registeredModifiers) else { return }
-        if let config, wanted > 0 {
-            hotKeys.register(count: wanted, modifiers: modifiers)
-            Log.write("단축키 등록 \(config.modifierSymbols)1…\(wanted) (\(front))\(hotKeys.failed.isEmpty ? "" : " — 못 잡은 번호 \(hotKeys.failed)")")
+        let effortKeys = config?.effortKeys ?? false
+        guard wanted != hotKeys.registeredCount || effortKeys != hotKeys.registeredEffortKeys
+                || ((wanted > 0 || effortKeys) && modifiers != hotKeys.registeredModifiers) else { return }
+        if let config, wanted > 0 || effortKeys {
+            hotKeys.register(count: wanted, modifiers: modifiers, effortKeys: effortKeys)
+            Log.write("단축키 등록 \(config.modifierSymbols)1…\(wanted)\(effortKeys ? " · = · -" : "") (\(front))\(hotKeys.failed.isEmpty ? "" : " — 못 잡은 키 \(hotKeys.failed)")")
         } else {
             hotKeys.unregister()
             Log.write("단축키 해제 (\(front))")
@@ -52,7 +63,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - 전환
 
-    private func apply(slot: Int) {
+    private enum Action {
+        case preset(Int)
+        case effort(up: Bool)
+
+        var label: String {
+            switch self {
+            case .preset(let slot): return "\(slot)번"
+            case .effort(let up): return up ? "effort 올림" : "effort 내림"
+            }
+        }
+    }
+
+    private func perform(_ action: Action) {
         guard !busy else {
             hud.show("전환 중입니다", detail: "끝난 뒤 다시 눌러 주세요.")
             return
@@ -61,14 +84,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appName = front.localizedName ?? bundleID
         // Ghostty 화면은 접근성으로 읽는다. 권한이 없으면 시스템 안내 창을 띄우고 여기서 멈춘다.
         if bundleID == Detector.ghosttyBundleID, !GhosttyScreen.trusted(prompt: true) {
-            Log.write("실패 \(slot): 손쉬운 사용 권한 없음")
+            Log.write("실패 \(action.label): 손쉬운 사용 권한 없음")
             hud.show("손쉬운 사용 권한이 필요합니다",
                      detail: "Ghostty 화면을 읽어 입력창 상태를 확인합니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 ModelSwitch 를 켠 뒤 다시 눌러 주세요.",
                      seconds: 6)
             return
         }
         busy = true
-        hud.show("\(slot)번 프리셋 적용 중…", seconds: nil)
 
         worker.async { [store] in
             let trace = Trace()
@@ -79,13 +101,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 switcher = made
                 let target = try Detector.target(bundleID: bundleID, appName: appName)
                 trace.mark("대상찾기")
-                return try made.apply(slot: slot, to: target, deferFinalCheck: true)
+                switch action {
+                case .preset(let slot): return try made.apply(slot: slot, to: target, deferFinalCheck: true)
+                case .effort(let up): return try made.stepEffort(up: up, on: target)
+                }
             }
             // 알림을 먼저 띄운다 — 기본값 재확인(0.25초)은 그 뒤에 한다.
             DispatchQueue.main.async {
                 switch outcome {
                 case .success(let result):
-                    Log.write("적용 \(slot): \(result.summary)\(result.confirmed ? "" : " (확인 문구 없음)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
+                    Log.write("적용 \(action.label): \(result.summary)\(result.confirmed ? "" : " (확인 문구 없음)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
                     var detail = "\(result.target.agent.rawValue) · \(result.target.host.appName) · \(result.target.label)"
                     if !result.slotName.isEmpty { detail += "\n\(result.slotName)" }
                     if let warning = result.warning {
@@ -94,10 +119,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         self.hud.show(result.summary, detail: detail)
                     }
                 case .failure(let error as ModelSwitchError) where error.awaitingUser:
-                    Log.write("확인 대기 \(slot): \(error)")
+                    Log.write("확인 대기 \(action.label): \(error)")
                     self.hud.show("Enter 로 확정해 주세요", detail: "\(error)", seconds: 6)
+                case .failure(let error as ModelSwitchError) where error.nothingToDo:
+                    // 바꿀 것이 없었다(이미 가장 높은 단계 등) — 실패가 아니라 안내다.
+                    Log.write("그대로 \(action.label): \(error)")
+                    self.hud.show("\(error)", seconds: 2.5)
                 case .failure(let error):
-                    Log.write("실패 \(slot): \(error)")
+                    Log.write("실패 \(action.label): \(error)")
                     self.hud.show("전환하지 않았습니다", detail: "\(error)", seconds: 4)
                 }
             }
@@ -106,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 Log.write("⚠️ \(late)")
                 DispatchQueue.main.async { self.hud.show(result.summary, detail: "⚠️ \(late)", seconds: 4) }
             }
-            Log.write("시간 \(slot): \(trace.report)")
+            Log.write("시간 \(action.label): \(trace.report)")
             DispatchQueue.main.async { self.busy = false }
         }
     }
@@ -126,13 +155,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.target = self
                 menu.addItem(item)
             }
+            if config.effortKeys {
+                let mask = NSEvent.ModifierFlags(config.modifiers.compactMap {
+                    ["shift": .shift, "option": .option, "control": .control, "command": .command][$0]
+                })
+                menu.addItem(.separator())
+                for (title, action, key) in [("effort 한 단계 올리기", #selector(menuEffortUp), "="),
+                                             ("effort 한 단계 내리기", #selector(menuEffortDown), "-")] {
+                    let entry = item(title, action, key: key)
+                    entry.keyEquivalentModifierMask = mask
+                    menu.addItem(entry)
+                }
+            }
         } catch {
             let item = NSMenuItem(title: "프리셋 파일 오류 — \(error)", action: nil, keyEquivalent: "")
             menu.addItem(item)
         }
         if !hotKeys.failed.isEmpty {
-            let numbers = hotKeys.failed.map(String.init).joined(separator: ", ")
-            menu.addItem(NSMenuItem(title: "⚠️ \(numbers)번 단축키는 다른 앱이 쓰고 있어 잡지 못했습니다", action: nil, keyEquivalent: ""))
+            let numbers = hotKeys.failed.map { id -> String in
+                switch id {
+                case HotKeyCenter.effortUp: return "="
+                case HotKeyCenter.effortDown: return "-"
+                default: return String(id)
+                }
+            }.joined(separator: ", ")
+            menu.addItem(NSMenuItem(title: "⚠️ 단축키 \(numbers) 은(는) 다른 앱이 쓰고 있어 잡지 못했습니다", action: nil, keyEquivalent: ""))
         }
         if !GhosttyScreen.trusted() {
             menu.addItem(item("⚠️ Ghostty 용 손쉬운 사용 권한 켜기…", #selector(openAccessibilitySettings)))
@@ -154,8 +201,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func menuApply(_ sender: NSMenuItem) {
-        apply(slot: sender.tag)
+        perform(.preset(sender.tag))
     }
+
+    @objc private func menuEffortUp() { perform(.effort(up: true)) }
+    @objc private func menuEffortDown() { perform(.effort(up: false)) }
 
     @objc private func openSettings() {
         if settings == nil {

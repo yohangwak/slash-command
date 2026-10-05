@@ -5,6 +5,7 @@ let usage = """
 modelswitch — 맨 앞 터미널의 claude·codex 모델과 effort 를 프리셋으로 바꾼다
 
   modelswitch apply <번호> [대상] [--trace]   프리셋 적용(--trace: 단계별 시간)
+  modelswitch effort <up|down> [대상] [--trace]   모델은 그대로, effort 만 한 단계
   modelswitch where                   지금 맨 앞 터미널과 에이전트
   modelswitch doctor [대상] [--screen]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
   modelswitch list                    프리셋 목록
@@ -49,6 +50,8 @@ func describe(_ step: Step) -> String {
     case .selectRow(let label, let via, let timeoutMs, _, _):
         return "행    커서를 \(label.debugDescription) 행에\(via.map { " (없으면 \($0.debugDescription) 하위에서)" } ?? "") (최대 \(timeoutMs)ms)"
     case .setEffort(let level, let timeoutMs, _, _): return "effort 선택창의 effort 줄을 \(level.debugDescription) 로 (최대 \(timeoutMs)ms)"
+    case .expectCurrentRow: return "확인  커서가 지금 쓰는 모델(✔) 행에 있음"
+    case .stepEffort(let up, let timeoutMs, _): return "effort 한 단계 \(up ? "올림(→)" : "내림(←)") (최대 \(timeoutMs)ms)"
     case .expectInput(let agent, _, let timeoutMs, _, _): return "확인  선택창이 닫히고 \(agent.rawValue) 입력창이 보임 (최대 \(timeoutMs)ms)"
     case .closePicker: return "닫기  선택창이 보이는 동안만 Esc"
     case .capture(let prefix): return "기록  \(prefix.debugDescription)… 줄"
@@ -73,6 +76,17 @@ do {
         print("→ \(result.summary)")
         if !result.confirmed { print("(에이전트의 확인 문구는 보지 못했습니다)") }
         if let warning = result.warning { print("⚠️ \(warning)") }
+    case "effort":
+        guard args.count >= 2, ["up", "down"].contains(args[1]) else { fail("modelswitch effort <up|down> [대상]") }
+        var switcher = Switcher(config: try store.load())
+        let trace = args.contains("--trace") ? Trace() : nil
+        switcher.trace = trace
+        let target = try explicitTarget(args) ?? Detector.frontmost()
+        trace?.mark("대상찾기")
+        defer { if let trace { print("시간: " + trace.report) } }
+        let result = try switcher.stepEffort(up: args[1] == "up", on: target)
+        print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
+        print("→ \(result.summary)")
     case "where":
         let target = try Detector.frontmost()
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")

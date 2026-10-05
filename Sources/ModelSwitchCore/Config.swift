@@ -66,6 +66,8 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     /// claude 는 대화 도중 모델을 바꾸면 「Switch model?」 확인 창을 띄운다(대화 기록을 새 모델로 다시 읽는다는 안내).
     /// 참이면 그 창이 우리가 고른 모델을 물을 때 Enter 로 받아들인다. 거짓(기본)이면 창을 그대로 두고 사용자가 고르게 한다.
     public var acceptSwitchPrompt: Bool
+    /// 조합 키 + `=`(올림) · `-`(내림) 으로 모델은 그대로 두고 effort 만 한 단계 바꾼다.
+    public var effortKeys: Bool
     /// 번호 키와 함께 누를 조합 키. `shift`·`option`·`control`·`command` 중에서.
     public var modifiers: [String]
     public var slots: [Slot]
@@ -73,11 +75,12 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     public static let defaultModifiers = ["option", "shift"]
     public static let knownModifiers = ["control", "option", "shift", "command"]
 
-    public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = false,
+    public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = false, effortKeys: Bool = true,
                 modifiers: [String] = ModelSwitchConfig.defaultModifiers, slots: [Slot]) {
         self.version = version
         self.keepDefaults = keepDefaults
         self.acceptSwitchPrompt = acceptSwitchPrompt
+        self.effortKeys = effortKeys
         self.modifiers = modifiers
         self.slots = slots
     }
@@ -93,6 +96,7 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         keepDefaults = try c.decodeIfPresent(Bool.self, forKey: .keepDefaults) ?? true
         acceptSwitchPrompt = try c.decodeIfPresent(Bool.self, forKey: .acceptSwitchPrompt) ?? false
+        effortKeys = try c.decodeIfPresent(Bool.self, forKey: .effortKeys) ?? true
         let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? ModelSwitchConfig.defaultModifiers
         modifiers = ModelSwitchConfig.knownModifiers.filter(wanted.contains)
         // 조합 키 없이 숫자만 잡으면 터미널에 숫자를 칠 수 없게 된다.
@@ -176,6 +180,8 @@ public struct ModelSwitchError: Error, CustomStringConvertible, Equatable {
     public var cleanlyAborted = false
     /// 실패가 아니라 사용자의 확인을 기다리는 상태(claude 의 「Switch model?」 창이 떠 있다).
     public var awaitingUser = false
+    /// 실패가 아니라 바꿀 것이 없었다(이미 가장 높은 단계 등).
+    public var nothingToDo = false
 
     public init(_ message: String) {
         self.message = message

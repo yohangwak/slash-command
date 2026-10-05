@@ -197,9 +197,27 @@ public enum Picker {
         return nil
     }
 
+    /// claude 선택창이 effort 를 도는 순서(끝에서 처음으로 돈다 — 2.1.289 실측).
+    public static let claudeEffortOrder = ["low", "medium", "high", "xhigh", "max"]
+
     /// `○ Effort not supported for Haiku 4.5`
     public static func claudeEffortUnsupported(_ lines: [String]) -> Bool {
         lines.contains { $0.contains("Effort not supported") }
+    }
+}
+
+public enum CodexScreen {
+    /// 입력창 아래 상태 줄(`  GPT-6.1-Sol high · ~/path`)에서 지금 모델 이름과 effort.
+    /// `known` 에 있는 모델 이름일 때만 돌려준다 — 다른 글을 상태 줄로 잘못 읽지 않기 위해서다.
+    public static func status(_ lines: [String], known: [String]) -> (model: String, effort: String)? {
+        for line in lines.reversed() {
+            let text = line.trimmingCharacters(in: .whitespaces)
+            guard let dot = text.range(of: " · ") else { continue }
+            let words = text[..<dot.lowerBound].split(separator: " ")
+            guard words.count == 2, known.contains(String(words[0])) else { continue }
+            return (String(words[0]), String(words[1]))
+        }
+        return nil
     }
 }
 

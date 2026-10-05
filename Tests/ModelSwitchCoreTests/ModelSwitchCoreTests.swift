@@ -265,6 +265,8 @@ final class FakePicker: TerminalIO {
     let advanced = ["Max", "Ultra"]
     /// 참이면 화면이 한 박자 늦게 따라온다(키를 보낸 직후 읽으면 이전 화면).
     var lagging = false
+    /// 입력창 아래 상태 줄.
+    var statusLine = "  GPT-Sol · ~/x"
     private var stale: [String]?
     private var commandTyped = false
 
@@ -277,7 +279,7 @@ final class FakePicker: TerminalIO {
         switch stage {
         case .composer:
             return (chosen.map { ["• Model changed to gpt-sol \($0) for this session only"] } ?? [])
-                + [commandTyped ? "› /model  choose what model and reasoning effort to use" : "› Ask Codex to do anything", "  GPT-Sol · ~/x"]
+                + [commandTyped ? "› /model  choose what model and reasoning effort to use" : "› Ask Codex to do anything", statusLine]
         case .models: return list("Select Model and Effort", ["GPT-Sol (current)", "GPT-Astra"], footer: "enter select · esc back")
         case .efforts:
             return list("Select Reasoning Level for GPT-Sol", efforts,
@@ -1020,6 +1022,95 @@ final class SwitcherApplyTests: XCTestCase {
     }
 }
 
+final class EffortStepTests: XCTestCase {
+    let target = Target(host: .orca(handle: "term_x"), agent: .claude, label: "x")
+
+    func switcher(io: TerminalIO, keepDefaults: Bool = true, codex: CodexModels = CodexModels(models: [])) -> Switcher {
+        Switcher(config: ModelSwitchConfig(keepDefaults: keepDefaults, slots: []),
+                 claudeDefaults: ClaudeDefaults(url: URL(fileURLWithPath: "/nonexistent/settings.json")),
+                 codexModels: { codex }, makeIO: { _ in io }, sleep: { _ in })
+    }
+
+    func testClaudeMovesOneLevelAndKeepsTheModel() throws {
+        let claude = FakeClaude()
+        claude.model = "Fable 5.1"
+        claude.effort = "high"
+        claude.draft = "쓰던 글"
+        let up = try switcher(io: claude).stepEffort(up: true, on: target)
+        XCTAssertEqual(claude.effort, "xhigh")
+        XCTAssertEqual(claude.model, "Fable 5.1", "모델은 그대로")
+        XCTAssertEqual(claude.confirmedBy, "s")
+        XCTAssertEqual(claude.draft, "쓰던 글")
+        XCTAssertEqual(up.summary, "Fable 5.1 · xhigh")
+        _ = try switcher(io: claude).stepEffort(up: false, on: target)
+        _ = try switcher(io: claude).stepEffort(up: false, on: target)
+        XCTAssertEqual(claude.effort, "medium")
+    }
+
+    func testClaudeDoesNotWrapAtTheEnds() {
+        for (start, up) in [("max", true), ("low", false)] {
+            let claude = FakeClaude()
+            claude.effort = start
+            XCTAssertThrowsError(try switcher(io: claude).stepEffort(up: up, on: target)) {
+                XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true, "\($0)")
+            }
+            XCTAssertEqual(claude.effort, start, "끝에서 누르면 반대쪽 끝으로 돈다 — 누르지 않는다")
+            XCTAssertNil(claude.confirmedBy)
+            XCTAssertEqual(claude.stage, .prompt, "선택창을 닫고 나온다")
+        }
+    }
+
+    func testClaudeStopsWhereAModelHasFewerLevels() {
+        let claude = FakeClaude()
+        claude.efforts = ["low", "medium", "high"]   // 이 모델에는 xhigh·max 가 없다
+        claude.effort = "high"
+        XCTAssertThrowsError(try switcher(io: claude).stepEffort(up: true, on: target)) {
+            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true)
+        }
+        XCTAssertEqual(claude.effort, "high")
+        XCTAssertNil(claude.confirmedBy, "low 로 넘어간 것을 확정하면 안 된다")
+    }
+
+    func testClaudeLeavesAModelThatIsNotInThePickerAlone() {
+        let claude = FakeClaude()
+        claude.model = "Custom Model"   // 목록에 없는 모델 — 커서가 다른 행에 가 있다
+        XCTAssertThrowsError(try switcher(io: claude).stepEffort(up: true, on: target))
+        XCTAssertNil(claude.confirmedBy, "여기서 확정하면 모델이 커서 행으로 바뀐다")
+        XCTAssertEqual(claude.model, "Custom Model")
+    }
+
+    func testCodexReadsTheStatusLineAndPicksTheNeighbour() throws {
+        let models = CodexModels(models: [
+            .init(slug: "gpt-sol", displayName: "GPT-Sol", priority: 1, efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]),
+        ])
+        XCTAssertEqual(try models.neighbour(displayName: "GPT-Sol", effort: "high", up: true), AgentPreset(model: "gpt-sol", effort: "xhigh"))
+        XCTAssertEqual(try models.neighbour(displayName: "GPT-Sol", effort: "max", up: false), AgentPreset(model: "gpt-sol", effort: "xhigh"))
+        XCTAssertThrowsError(try models.neighbour(displayName: "GPT-Sol", effort: "ultra", up: true)) {
+            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true)
+        }
+        XCTAssertThrowsError(try models.neighbour(displayName: "GPT-Sol", effort: "low", up: false))
+
+        let screen = ["• Model changed to gpt-sol high for this session only", "› 쓰던 글 · 가운뎃점이 든 글", "  GPT-Sol xhigh · ~/orca/workspaces/x", "  ? for shortcuts"]
+        let status = try XCTUnwrap(CodexScreen.status(screen, known: ["GPT-Sol"]))
+        XCTAssertEqual(status.model, "GPT-Sol")
+        XCTAssertEqual(status.effort, "xhigh")
+        XCTAssertNil(CodexScreen.status(["› 글 high · 뭔가"], known: ["GPT-Sol"]), "아는 모델 이름일 때만 상태 줄로 본다")
+        XCTAssertNil(CodexScreen.status(["      M A X"], known: ["GPT-Sol"]))
+    }
+
+    func testCodexStepRunsTheUsualPickerForTheNeighbour() throws {
+        let picker = FakePicker()
+        picker.statusLine = "  GPT-Sol high · ~/x"
+        let models = CodexModels(models: [
+            .init(slug: "gpt-sol", displayName: "GPT-Sol", priority: 1, efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]),
+        ])
+        let codex = Target(host: .orca(handle: "term_c"), agent: .codex, label: "c")
+        _ = try switcher(io: picker, codex: models).stepEffort(up: true, on: codex)
+        XCTAssertEqual(picker.chosen, "extra high")
+        XCTAssertEqual(picker.confirmedBy, "s")
+    }
+}
+
 final class LaggingTerminalTests: XCTestCase {
     let target = Target(host: .ghostty(terminalID: "T"), agent: .claude, label: "x")
 
@@ -1147,6 +1238,8 @@ final class SlotTests: XCTestCase {
     func testNameIsOptionalInTheFile() throws {
         let config = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(#"{"slots":[{"claude":{"model":"opus","effort":"high"}},{"name":"밤샘","codex":{"model":"gpt-x","effort":"max"}}]}"#.utf8))
         XCTAssertEqual(config.slots[0].name, "")
+        XCTAssertTrue(config.effortKeys, "옛 파일에 없는 항목은 기본값")
+        XCTAssertFalse(config.acceptSwitchPrompt, "확인 창 자동 수락은 켜야만 켜진다")
         XCTAssertEqual(config.slots[0].listing, "claude opus · high")
         XCTAssertEqual(config.slots[1].listing, "codex gpt-x · max   — 밤샘")
         let saved = String(data: try JSONEncoder().encode(config.slots[0]), encoding: .utf8) ?? ""

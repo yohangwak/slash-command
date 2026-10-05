@@ -47,6 +47,10 @@ public enum Step: Equatable, Sendable {
     /// claude 선택창의 effort 줄이 `level` 이 «될 때까지» → 를 한 번씩 누르고 그때마다 다시 읽는다(끝에서 처음으로 돈다).
     /// effort 를 지원하지 않는 모델이면 그냥 넘어간다.
     case setEffort(level: String, timeoutMs: Int, abort: [Step], failure: String)
+    /// claude 선택창의 커서가 「지금 쓰는 모델」(`✔`) 행에 있음을 확인한다 — effort 만 바꿀 때 모델이 따라 바뀌지 않게 한다.
+    case expectCurrentRow(abort: [Step], failure: String)
+    /// claude 선택창의 effort 를 한 단계 올리거나 내린다. 이미 끝이면 아무것도 바꾸지 않고 그렇게 알린다.
+    case stepEffort(up: Bool, timeoutMs: Int, abort: [Step])
     /// 선택창이 닫히고 그 에이전트의 입력창이 다시 «보임»을 확인한다. claude 는 쓰던 글이 돌아온 것까지 본다.
     ///
     /// claude 는 대화 도중 모델을 바꾸면 「Switch model?」 확인 창을 띄운다(대화 기록을 새 모델로 다시 읽는다는 안내).
@@ -82,6 +86,27 @@ public enum Plans {
             .arm,
             .text(saveAsDefault ? "\r" : "s"),
             .expectInput(agent: .claude, acceptSwitchTo: acceptSwitch ? modelLabel : nil, timeoutMs: 3000, abort: [.closePicker],
+                         failure: "claude 입력창이 돌아오지 않아 멈췄습니다."),
+            .capture(prefix: "Set model to"),
+            .capture(prefix: "Kept model as"),
+        ]
+    }
+
+    /// claude: 모델은 그대로 두고 effort 만 한 단계 옮긴다. 같은 선택창에서 → · ← 한 번이다.
+    public static func claudeEffortStep(up: Bool, saveAsDefault: Bool) -> [Step] {
+        let footer = "s to use this session only"
+        return [
+            .text("\u{13}/model\r"),
+            .expect(needle: footer, timeoutMs: 3000, abort: [],
+                    failure: "claude 모델 선택창이 열리지 않았습니다."),
+            .expectCurrentRow(abort: [.closePicker],
+                              failure: "지금 쓰는 모델이 선택창 목록에 없어 effort 만 바꿀 수 없습니다. /effort 로 바꿔 주세요."),
+            .stepEffort(up: up, timeoutMs: 2500, abort: [.closePicker]),
+            .expect(needle: footer, timeoutMs: 1000, abort: [.closePicker],
+                    failure: "claude 모델 선택창에 「이 세션만」(s) 선택지가 없어 바꾸지 않았습니다."),
+            .arm,
+            .text(saveAsDefault ? "\r" : "s"),
+            .expectInput(agent: .claude, timeoutMs: 3000, abort: [.closePicker],
                          failure: "claude 입력창이 돌아오지 않아 멈췄습니다."),
             .capture(prefix: "Set model to"),
             .capture(prefix: "Kept model as"),

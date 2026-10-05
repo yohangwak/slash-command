@@ -216,6 +216,50 @@ public struct Switcher {
                                  sleep: timedSleep, deferFinalCheck: deferFinalCheck)
     }
 
+    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다.
+    public func stepEffort(up: Bool, on target: Target) throws -> SwitchResult {
+        trace?.mark("준비")
+        let raw = try makeIO(target)
+        let io: TerminalIO = trace.map { TracingIO(base: raw, trace: $0) } ?? raw
+        let first = try readyScreen(io, target: target)
+        let traced = trace
+        let timedSleep: (Int) -> Void = { ms in self.sleep(ms); traced?.mark("대기(\(ms))") }
+
+        let steps: [Step]
+        let preset: AgentPreset
+        switch target.agent {
+        case .claude:
+            // 지금 모델과 effort 는 선택창을 열어야 안다 — 열고, 한 칸 옮기고, 이 세션만으로 확정한다.
+            steps = Plans.claudeEffortStep(up: up, saveAsDefault: !config.keepDefaults)
+            preset = AgentPreset(model: "claude", effort: up ? "한 단계 위" : "한 단계 아래")
+        case .codex:
+            if let draft = first.draft, draft.contains("\n") {
+                throw ModelSwitchError("codex 입력창에 여러 줄 초안이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+            }
+            // codex 는 입력창 아래 상태 줄에 지금 모델과 effort 를 보여 준다.
+            let models = try codexModels()
+            let known = models.listed.compactMap(\.displayName)
+            // max·ultra 로 바꾼 직후에는 상태 줄 자리에 잠깐 장식 글자가 지나간다(약 1.5초) — 그동안은 다시 읽는다.
+            var status = CodexScreen.status(first.lines, known: known)
+            var waited = 0
+            while status == nil, waited < 2500 {
+                timedSleep(100)
+                waited += 100
+                status = io.screen().flatMap { CodexScreen.status($0, known: known) }
+            }
+            guard let now = status else {
+                throw ModelSwitchError("codex 화면에서 지금 모델과 effort 를 읽지 못했습니다.")
+            }
+            preset = try models.neighbour(displayName: now.model, effort: now.effort, up: up)
+            let selection = try models.selection(of: preset)
+            steps = Plans.codex(modelIndex: selection.modelIndex, displayName: selection.displayName,
+                                effortLabel: selection.effortLabel)
+        }
+        let confirmations = try Runner(io: io, sleep: timedSleep, initial: first).run(steps)
+        return SwitchResult(target: target, slotName: "", preset: preset,
+                            warning: nil, confirmations: confirmations, pendingRestore: nil)
+    }
+
     /// claude 의 `/model X`·`/effort Y` 명령으로 전환한다. 둘 다 새 세션 기본값까지 바꾸므로 전환 전 값으로 되돌린다.
     private func applyCommands(_ planned: Planned, io: TerminalIO, target: Target, screen: ScreenSnapshot,
                                sleep timedSleep: @escaping (Int) -> Void, deferFinalCheck: Bool) throws -> SwitchResult {
@@ -351,6 +395,21 @@ public struct Runner {
                 case .set: break
                 case .unsupported(let note): confirmations.append(note)
                 case .failed: throw try aborted(abort, failure)
+                }
+            case .expectCurrentRow(let abort, let failure):
+                let rows = Picker.rows(io.screen() ?? [])
+                guard let cursor = rows.first(where: \.selected), cursor.current else {
+                    throw try aborted(abort, failure)
+                }
+            case .stepEffort(let up, let timeoutMs, let abort):
+                switch try stepEffort(up: up, timeoutMs: timeoutMs) {
+                case .moved(let level):
+                    // 선택창이 닫힌 뒤의 결과 줄에 effort 가 안 나오는 경우에 대비해 여기서 본 값을 남긴다.
+                    confirmations.append("Set effort level to \(level)")
+                case .stopped(let reason, let atEdge):
+                    var error = try aborted(abort, reason)
+                    error.nothingToDo = atEdge
+                    throw error
                 }
             case .expectInput(let agent, let acceptSwitchTo, let timeoutMs, let abort, let failure):
                 if try !waitForInput(agent: agent, acceptSwitchTo: acceptSwitchTo, timeoutMs: timeoutMs) {
@@ -583,6 +642,43 @@ public struct Runner {
             if !moved { return .failed }
         }
         return current == wanted ? .set : .failed
+    }
+
+    enum StepOutcome {
+        case moved(String)
+        /// 바꾸지 않았다. `atEdge` 면 이미 끝 단계라 바꿀 것이 없었던 것이다.
+        case stopped(String, atEdge: Bool = false)
+    }
+
+    /// claude 선택창의 effort 를 한 칸 옮긴다. 끝에서 누르면 반대쪽 끝으로 돌기 때문에, 끝이면 누르지 않는다.
+    private func stepEffort(up: Bool, timeoutMs: Int) throws -> StepOutcome {
+        var current: String?
+        var unsupported = false
+        let shown = try poll(timeoutMs: timeoutMs) { lines in
+            current = Picker.claudeEffort(lines)
+            unsupported = Picker.claudeEffortUnsupported(lines)
+            return current != nil || unsupported
+        }
+        guard shown, let now = current else {
+            return .stopped(unsupported ? "지금 모델은 effort 를 지원하지 않습니다." : "claude 선택창에서 effort 를 읽지 못했습니다.")
+        }
+        let order = Picker.claudeEffortOrder
+        let edge = up ? order.last : order.first
+        if now == edge { return .stopped("이미 가장 \(up ? "높은" : "낮은") 단계(\(now))입니다.", atEdge: true) }
+        try io.press(up ? .right : .left)
+        var after: String?
+        let moved = try poll(timeoutMs: min(timeoutMs, 1000)) { lines in
+            after = Picker.claudeEffort(lines)
+            return after != nil && after != now
+        }
+        guard moved, let after else { return .stopped("claude 선택창의 effort 가 움직이지 않았습니다.") }
+        // 단계가 적은 모델에서는 우리가 아는 끝보다 먼저 돈다. 반대쪽으로 넘어갔으면 되돌리고 끝이라고 알린다.
+        if let from = order.firstIndex(of: now), let to = order.firstIndex(of: after), (to > from) != up {
+            try io.press(up ? .left : .right)
+            _ = try poll(timeoutMs: min(timeoutMs, 1000)) { Picker.claudeEffort($0) == now }
+            return .stopped("이미 가장 \(up ? "높은" : "낮은") 단계(\(now))입니다.", atEdge: true)
+        }
+        return .moved(after)
     }
 
     /// 선택창이 닫히고 입력창이 다시 보일 때까지 기다린다.
