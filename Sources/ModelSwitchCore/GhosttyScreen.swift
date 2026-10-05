@@ -8,8 +8,38 @@ public enum GhosttyScreen {
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// Ghostty 가 화면 글자를 다시 만들지 않고 돌려주는 시간(0.5초)에 여유를 더한 값.
+    public static let cacheMs = 520
+
+    private static let clock = NSLock()
+    nonisolated(unsafe) private static var lastFetch: DispatchTime?
+
+    /// 지금 읽으면 새 화면이 나오도록, 우리가 마지막으로 읽은 뒤 `cacheMs` 가 지날 때까지 기다린다.
+    /// 이 프로세스가 아직 읽은 적이 없으면 누가 방금 읽었는지 알 수 없으므로 한 번은 다 기다린다.
+    public static func waitUntilFresh() {
+        clock.lock()
+        let last = lastFetch
+        clock.unlock()
+        var wait = Double(cacheMs) / 1000
+        if let last {
+            let since = Double(DispatchTime.now().uptimeNanoseconds - last.uptimeNanoseconds) / 1_000_000_000
+            wait -= since
+        } else {
+            // 한 번 읽어 Ghostty 의 보관 시각을 지금으로 맞춰 놓고 그만큼 기다린다.
+            _ = lines()
+        }
+        if wait > 0 { Thread.sleep(forTimeInterval: wait) }
+    }
+
     /// 포커스가 있는 터미널의 화면 줄들. 권한이 없거나 못 찾으면 nil.
     public static func lines() -> [String]? {
+        clock.lock()
+        lastFetch = .now()
+        clock.unlock()
+        return fetch()
+    }
+
+    private static func fetch() -> [String]? {
         guard trusted(),
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.ghosttyBundleID).first else {
             return nil

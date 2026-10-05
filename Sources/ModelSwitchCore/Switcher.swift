@@ -91,6 +91,8 @@ struct TracingIO: TerminalIO {
     func screen() -> [String]? { let r = base.screen(); trace.mark("화면읽기"); return r }
     func draft() -> String? { let r = base.draft(); trace.mark("초안읽기"); return r }
     func snapshot() -> ScreenSnapshot? { let r = base.snapshot(); trace.mark("화면읽기"); return r }
+    var screenLagMs: Int { base.screenLagMs }
+    func freshSnapshot() -> ScreenSnapshot? { let r = base.freshSnapshot(); trace.mark("새화면읽기"); return r }
 }
 
 public struct Switcher {
@@ -118,7 +120,12 @@ public struct Switcher {
         case .ghostty(let terminalID):
             return GhosttyIO(terminalID: terminalID)
         case .orca(let handle):
-            return OrcaIO(orca: Proc.locate("orca"), handle: handle)
+            let io = OrcaIO(orca: Proc.locate("orca"), handle: handle)
+            // 시험용: Orca 세션에서 화면이 늦게 따라오는 터미널(Ghostty)의 경로를 태운다.
+            if let lag = ProcessInfo.processInfo.environment["MODELSWITCH_SCREEN_LAG_MS"].flatMap(Int.init), lag > 0 {
+                return LaggingIO(base: io, lagMs: lag)
+            }
+            return io
         }
     }
 
@@ -166,7 +173,8 @@ public struct Switcher {
     /// 입력창이 보일 때만 보낸다 — 권한 확인 창 같은 것이 떠 있으면 우리가 보낸 Enter 가 그 창을 승인해 버린다.
     /// 화면과 초안은 한 번에 읽는다.
     private func readyScreen(_ io: TerminalIO, target: Target) throws -> ScreenSnapshot {
-        guard let screen = io.snapshot() else {
+        // 낡은 화면으로 판단하면 방금 뜬 창을 못 본다 — 반드시 지금 화면으로 본다.
+        guard let screen = io.freshSnapshot() else {
             throw ModelSwitchError(Switcher.unreadable(target.host))
         }
         guard Readiness.inputVisible(agent: target.agent, screen: screen.lines) else {
@@ -191,6 +199,11 @@ public struct Switcher {
 
         let traced = trace
         let timedSleep: (Int) -> Void = { ms in self.sleep(ms); traced?.mark("대기(\(ms))") }
+        // 화면이 늦게 따라오는 터미널(Ghostty)에서 claude 선택창은 단계마다 0.5초씩 걸린다(실측 2.4~3.8초).
+        // 거기서는 화면 대신 기본값 파일이 바뀌는 것을 신호로 삼는 명령 방식이 빠르다.
+        if target.agent == .claude, io.screenLagMs > 0, planned.fallback != nil {
+            return try applyCommands(planned, io: io, target: target, screen: first, sleep: timedSleep, deferFinalCheck: deferFinalCheck)
+        }
         do {
             let confirmations = try Runner(io: io, sleep: timedSleep, initial: first).run(planned.steps)
             return SwitchResult(target: target, slotName: planned.slot.name, preset: planned.preset,
@@ -199,13 +212,13 @@ public struct Switcher {
             // 선택창을 닫고 입력창으로 돌아왔다. 아무것도 바뀌지 않았으니 명령으로 다시 한다.
             trace?.mark("선택창 대신 명령으로(\(error.message))")
         }
-        return try applyCommands(planned, io: io, target: target, sleep: timedSleep, deferFinalCheck: deferFinalCheck)
+        return try applyCommands(planned, io: io, target: target, screen: try readyScreen(io, target: target),
+                                 sleep: timedSleep, deferFinalCheck: deferFinalCheck)
     }
 
     /// claude 의 `/model X`·`/effort Y` 명령으로 전환한다. 둘 다 새 세션 기본값까지 바꾸므로 전환 전 값으로 되돌린다.
-    private func applyCommands(_ planned: Planned, io: TerminalIO, target: Target, sleep timedSleep: @escaping (Int) -> Void,
-                               deferFinalCheck: Bool) throws -> SwitchResult {
-        let screen = try readyScreen(io, target: target)
+    private func applyCommands(_ planned: Planned, io: TerminalIO, target: Target, screen: ScreenSnapshot,
+                               sleep timedSleep: @escaping (Int) -> Void, deferFinalCheck: Bool) throws -> SwitchResult {
         let before = config.keepDefaults ? claudeDefaults.snapshot() : nil
         let runner = Runner(io: io, sleep: timedSleep, stamp: { claudeDefaults.stamp() }, initial: screen)
         let confirmations: [String]
@@ -264,12 +277,31 @@ public struct Runner {
     /// 실행 전 화면. 쓰던 글과, 이미 떠 있던 결과 줄을 여기서 안다.
     public let initial: ScreenSnapshot?
 
+    /// 화면을 마지막으로 읽은 뒤 흐른 시간. 화면이 늦게 따라오는 터미널에서 「지금 읽으면 새 화면인가」를 아는 데 쓴다.
+    private final class ReadClock {
+        var last = DispatchTime.now()
+        var slept = 0
+        func elapsedMs() -> Int {
+            max(Int((DispatchTime.now().uptimeNanoseconds - last.uptimeNanoseconds) / 1_000_000), slept)
+        }
+        func reset() { last = .now(); slept = 0 }
+    }
+    private let clock = ReadClock()
+
     public init(io: TerminalIO, sleep: @escaping (Int) -> Void,
                 stamp: (() -> Int64?)? = nil, initial: ScreenSnapshot? = nil) {
         self.io = io
         self.sleep = sleep
         self.stamp = stamp
         self.initial = initial
+    }
+
+    /// 낡지 않은 화면을 읽는다: 마지막으로 읽은 뒤 터미널의 지연 시간이 지날 때까지 기다렸다 읽는다.
+    private func freshSnapshot() -> ScreenSnapshot? {
+        let remaining = io.screenLagMs - clock.elapsedMs()
+        if remaining > 0 { sleep(remaining) }
+        defer { clock.reset() }
+        return io.snapshot()
     }
 
     /// 돌려주는 값은 `expectResult` 가 본 결과 줄들.
@@ -280,6 +312,8 @@ public struct Runner {
         // 마지막으로 본 화면. `arm` 이 이것을 「명령 전 상태」로 잡는다.
         var seenLines = initial?.lines ?? []
         var confirmations: [String] = []
+        // 화면을 보지 않고(기본값 파일 신호만으로) 넘어간 결과들 — 끝나고 화면에서 문구를 찾는다.
+        var unseen: [String] = []
         for step in steps {
             switch step {
             case .text(let text):
@@ -296,12 +330,18 @@ public struct Runner {
             case .arm:
                 armedStamp = stamp?() ?? nil
                 armedLines = io.screen() ?? seenLines
-            case .expectResult(let prefix, let acceptSwitchTo, let timeoutMs, let failure):
-                let found = try waitForResult(prefix: prefix, acceptSwitchTo: acceptSwitchTo,
-                                              armedStamp: armedStamp, armedLines: armedLines,
-                                              timeoutMs: timeoutMs, failure: failure)
-                seenLines = found.lines
-                confirmations.append(found.result)
+            case .expectResult(let prefix, let command, let acceptSwitchTo, let timeoutMs, let failure):
+                if io.screenLagMs > 0, stamp != nil {
+                    try waitForStamp(prefix: prefix, command: command, acceptSwitchTo: acceptSwitchTo, armedStamp: armedStamp,
+                                     armedLines: armedLines, timeoutMs: timeoutMs, failure: failure)
+                    unseen.append(prefix)
+                } else {
+                    let found = try waitForResult(prefix: prefix, command: command, acceptSwitchTo: acceptSwitchTo,
+                                                  armedStamp: armedStamp, armedLines: armedLines,
+                                                  timeoutMs: timeoutMs, failure: failure)
+                    seenLines = found.lines
+                    confirmations.append(found.result)
+                }
             case .selectRow(let label, let via, let timeoutMs, let abort, let failure):
                 if try !selectRow(label: label, via: via, timeoutMs: timeoutMs) {
                     throw try aborted(abort, failure)
@@ -330,7 +370,49 @@ public struct Runner {
                 }
             }
         }
+        if !unseen.isEmpty, let snap = freshSnapshot() {
+            let before = initial?.lines ?? []
+            for prefix in unseen {
+                let now = ClaudeScreen.results(snap.lines, prefix: prefix)
+                if Runner.isNew(now, since: ClaudeScreen.results(before, prefix: prefix)), let found = now.last {
+                    confirmations.append(found)
+                }
+            }
+        }
         return confirmations
+    }
+
+    /// 화면이 늦게 따라오는 터미널(Ghostty)용: 명령이 실행되면 claude 가 기본값 파일을 다시 쓰는 것을 신호로 삼는다.
+    /// 화면은 낡지 않았을 때만 읽어, 확인 창이 떴는지와 claude 가 거절했는지를 본다.
+    private func waitForStamp(prefix: String, command: String?, acceptSwitchTo: String?, armedStamp: Int64?, armedLines: [String],
+                              timeoutMs: Int, failure: String) throws {
+        let started = DispatchTime.now()
+        var simulated = 0
+        var accepted = false
+        let repliedBefore = ClaudeScreen.commandReply(armedLines, command: command)
+        while true {
+            if (stamp?() ?? nil) != armedStamp {
+                // 파일을 쓴 직후에 claude 가 쓰던 글을 입력창에 되돌린다. 다음 Ctrl+S 가 그것과 겹치지 않게 잠깐 둔다.
+                sleep(120)
+                clock.slept += 120
+                return
+            }
+            if clock.elapsedMs() >= io.screenLagMs {
+                guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
+                clock.reset()
+                if command != nil, let reply = ClaudeScreen.commandReply(snap.lines, command: command),
+                   reply != repliedBefore, !reply.hasPrefix(prefix), Readiness.claudePromptVisible(snap.lines) {
+                    throw ModelSwitchError("claude 가 받아들이지 않았습니다: \(reply.prefix(120))")
+                }
+                if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }
+                if !accepted, let asking = ClaudeScreen.switchPrompt(snap.lines) { throw Runner.awaitingSwitch(asking) }
+            }
+            let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
+            if max(real, simulated) >= timeoutMs { throw ModelSwitchError(failure) }
+            sleep(15)
+            simulated += 15
+            clock.slept += 15
+        }
     }
 
     /// claude 가 모델을 바꿀지 묻고 있다 — 우리는 답하지 않고 사용자에게 넘긴다.
@@ -350,14 +432,14 @@ public struct Runner {
         return true
     }
 
-    private func waitForResult(prefix: String, acceptSwitchTo: String?, armedStamp: Int64?, armedLines: [String],
+    private func waitForResult(prefix: String, command: String?, acceptSwitchTo: String?, armedStamp: Int64?, armedLines: [String],
                                timeoutMs: Int, failure: String) throws -> (result: String, lines: [String]) {
         let started = DispatchTime.now()
         var simulated = 0
         var accepted = false
         // 같은 문구가 명령 전부터 화면에 있었으면, 그 줄이 «새로 생겼거나» 기본값 파일이 «변했을» 때만 이번 명령의 결과로 친다.
         let matchedBefore = ClaudeScreen.results(armedLines, prefix: prefix)
-        let repliedBefore = ClaudeScreen.commandReply(armedLines)
+        let repliedBefore = ClaudeScreen.commandReply(armedLines, command: command)
         let saidBefore = ClaudeScreen.lastResult(armedLines)
         // 초안을 따로 주는 터미널(Orca)은 그 값을, 아니면 화면의 입력창 줄을 본다.
         func draft(_ snap: ScreenSnapshot) -> String {
@@ -379,7 +461,8 @@ public struct Runner {
                 return (result, snap.lines)
             }
             // 명령 바로 아래에 다른 답이 붙었으면(예: Model 'x' not found) 기다릴 것 없이 그 말로 끝낸다.
-            if promptBack, let reply = ClaudeScreen.commandReply(snap.lines), reply != repliedBefore, !reply.hasPrefix(prefix) {
+            if promptBack, command != nil, let reply = ClaudeScreen.commandReply(snap.lines, command: command),
+               reply != repliedBefore, !reply.hasPrefix(prefix) {
                 throw ModelSwitchError("claude 가 받아들이지 않았습니다: \(reply.prefix(120))")
             }
             if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }

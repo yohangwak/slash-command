@@ -79,13 +79,14 @@ public enum ClaudeScreen {
         return nil
     }
 
-    /// 마지막으로 친 명령(`❯ /…`) 바로 아래에 붙은 답(`⎿ …`). 한가할 때 명령의 결과는 이 꼴로 남는다.
-    public static func commandReply(_ lines: [String]) -> String? {
+    /// 마지막으로 친 명령(`❯ /model …`) 바로 아래에 붙은 답(`⎿ …`). 한가할 때 명령의 결과는 이 꼴로 남는다.
+    /// `command` 를 주면("/model") 그 명령의 답일 때만 돌려준다 — 앞 명령의 답을 이번 명령의 것으로 읽지 않기 위해서다.
+    public static func commandReply(_ lines: [String], command: String? = nil) -> String? {
         let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         for index in shown.indices.reversed() where index > 0 {
             let text = shown[index].trimmingCharacters(in: .whitespaces)
             guard text.hasPrefix("⎿") else { continue }
-            guard shown[index - 1].hasPrefix("❯ /") else { return nil }
+            guard shown[index - 1].hasPrefix("❯ " + (command ?? "/")) else { return nil }
             return String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
         }
         return nil

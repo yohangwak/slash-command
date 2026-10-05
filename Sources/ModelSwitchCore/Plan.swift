@@ -39,7 +39,8 @@ public enum Step: Equatable, Sendable {
     /// `prefix` 로 시작하는 결과 줄이 있고 입력창이 다시 «보임»을 확인한다.
     /// 같은 문구가 기준에 이미 있었으면 그 줄이 «새로 생겼거나» 기본값 파일이 «변했을» 때만 인정한다. 쓰던 글이 있었으면 그것이 «돌아왔음»도 본다
     /// — 그래야 다음 Ctrl+S 가 복원과 겹치지 않는다.
-    case expectResult(prefix: String, acceptSwitchTo: String? = nil, timeoutMs: Int, failure: String)
+    /// `command`("/model") 를 주면, 그 명령 바로 아래에 다른 답이 붙었을 때(예: Model 'x' not found) 기다리지 않고 그 말로 끝낸다.
+    case expectResult(prefix: String, command: String? = nil, acceptSwitchTo: String? = nil, timeoutMs: Int, failure: String)
     /// codex 선택창에서 `label` 행에 커서를 «둔다». 화면에서 커서(`›`)가 어느 행에 있는지 읽고 그만큼만 움직인 뒤 다시 읽어 확인한다.
     /// 그 행이 없고 `via` 행이 있으면(예: More reasoning…) 그 하위 목록으로 들어가서 찾는다.
     case selectRow(label: String, via: String?, timeoutMs: Int, abort: [Step], failure: String)
@@ -95,11 +96,11 @@ public enum Plans {
             // 고정 대기 대신 결과 줄이 «보임»을 확인하고 다음으로 간다 — 응답은 0.2초 안에 온다.
             .arm,
             .text("\u{13}/model \(preset.model)\r"),
-            .expectResult(prefix: "Set model to", acceptSwitchTo: acceptSwitch ? ClaudeModels.rowLabel(preset.model) : nil, timeoutMs: 3000,
+            .expectResult(prefix: "Set model to", command: "/model", acceptSwitchTo: acceptSwitch ? ClaudeModels.rowLabel(preset.model) : nil, timeoutMs: 3000,
                           failure: "claude 가 /model \(preset.model) 에 응답하지 않았습니다."),
             .arm,
             .text("\u{13}/effort \(preset.effort)\r"),
-            .expectResult(prefix: "Set effort level", timeoutMs: 3000,
+            .expectResult(prefix: "Set effort level", command: "/effort", timeoutMs: 3000,
                           failure: "claude 가 /effort \(preset.effort) 에 응답하지 않았습니다."),
         ]
     }

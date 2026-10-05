@@ -52,7 +52,7 @@ final class PlanTests: XCTestCase {
         // 고정 대기 없이 결과 줄을 확인하고 넘어간다.
         XCTAssertFalse(steps.contains { if case .wait = $0 { return true } else { return false } })
         let prefixes = steps.compactMap { step -> String? in
-            if case .expectResult(let prefix, _, _, _) = step { return prefix }
+            if case .expectResult(let prefix, _, _, _, _) = step { return prefix }
             return nil
         }
         XCTAssertEqual(prefixes, ["Set model to", "Set effort level"])
@@ -185,7 +185,7 @@ final class RunnerTests: XCTestCase {
         io.screens = [stale, stale + [], ["  ⎿  Set model to Opus 5 for this session only with low effort",
                                            "❯ /model no-such", "  ⎿  Model 'no-such' not found", rule, "❯"]]
         let runner = Runner(io: io, sleep: { _ in }, stamp: { 7 }, initial: ScreenSnapshot(lines: stale, draft: ""))
-        XCTAssertThrowsError(try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 3000, failure: "응답 없음"), .text("next")])) {
+        XCTAssertThrowsError(try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", command: "/model", timeoutMs: 3000, failure: "응답 없음"), .text("next")])) {
             XCTAssertTrue("\($0)".contains("Model 'no-such' not found"), "\($0)")
         }
         XCTAssertEqual(io.sent, ["go"], "다음 명령을 보내지 않는다")
@@ -721,7 +721,15 @@ final class FakeClaude: TerminalIO {
     var draft = ""
     var stashed: String?
     var line = ""
-    var results: [String] = []
+    /// 대화 줄들. 한가할 때 명령은 `❯ /model …` 과 그 아래 `⎿ 결과` 로 남는다.
+    var transcript: [String] = []
+    /// 작업 중에는 결과가 입력창 위의 알림 줄로만 뜬다.
+    var notice: String?
+    private var command = "/model"
+
+    private func say(_ text: String) {
+        if busy { notice = text } else { transcript += ["❯ \(command)", "  ⎿  \(text)"] }
+    }
     var sent: [String] = []
     /// 대화 도중 모델을 바꿀 때 한 번 더 묻는다("Switch model?").
     var asksBeforeSwitching = false
@@ -758,12 +766,13 @@ final class FakeClaude: TerminalIO {
             text += " with \(effort) effort"
         }
         if !session { text += " and saved as your default for new sessions"; saveDefault(model) }
-        results.append(text)
+        say(text)
         confirmedBy = session ? "s" : "enter"
         finishCommand()
     }
 
     private func run(_ command: String) {
+        self.command = command
         if command == "/model" {
             stage = .picker
             cursor = rows.firstIndex(of: model) ?? 0
@@ -772,16 +781,16 @@ final class FakeClaude: TerminalIO {
             let wanted = String(command.dropFirst("/model ".count)).lowercased()
             if let found = rows.first(where: { $0.lowercased().hasPrefix(wanted) }) {
                 model = found
-                results.append("Set model to \(found) and saved as your default for new sessions")
+                say("Set model to \(found) and saved as your default for new sessions")
                 saveDefault(found)
                 confirmedBy = "command"
             } else {
-                results.append("Model '\(wanted)' not found")
+                say("Model '\(wanted)' not found")
             }
             finishCommand()
         } else if command.hasPrefix("/effort ") {
             effort = String(command.dropFirst("/effort ".count))
-            results.append("Set effort level to \(effort) (saved as your default for new sessions): …")
+            say("Set effort level to \(effort) (saved as your default for new sessions): …")
             saveDefault(model)
             finishCommand()
         }
@@ -819,7 +828,7 @@ final class FakeClaude: TerminalIO {
     func press(_ key: Key) throws { try type(key.bytes) }
 
     func screen() -> [String]? {
-        let shown = results.suffix(3).map { busy ? String(repeating: " ", count: 20) + $0 : "  ⎿  " + $0 }
+        let shown = Array(transcript.suffix(6)) + (notice.map { [String(repeating: " ", count: 20) + $0] } ?? [])
         switch stage {
         case .prompt:
             return shown + [rule, "❯", rule, "  ⏵⏵ auto mode on"]
@@ -1008,6 +1017,66 @@ final class SwitcherApplyTests: XCTestCase {
         XCTAssertEqual(summary(["Kept model as Opus 5.5"]), "Opus 5.5 · xhigh")
         XCTAssertEqual(summary(["Model changed to gpt-6.1-sol max for this session only"]), "gpt-6.1-sol · max")
         XCTAssertEqual(summary([]), "opus · xhigh", "확인 문구가 없으면 프리셋 값")
+    }
+}
+
+final class LaggingTerminalTests: XCTestCase {
+    let target = Target(host: .ghostty(terminalID: "T"), agent: .claude, label: "x")
+
+    /// 화면이 0.5초 늦게 따라오는 터미널(Ghostty)에 claude 를 얹는다. 시간은 `sleep` 이 돌린다.
+    func setUp(_ claude: FakeClaude, settings: URL, accept: Bool = false) -> (Switcher, LaggingIO) {
+        var clock = 0
+        let io = LaggingIO(base: claude, lagMs: 500)
+        io.now = { clock }
+        let config = ModelSwitchConfig(acceptSwitchPrompt: accept, slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))])
+        let switcher = Switcher(config: config, claudeDefaults: ClaudeDefaults(url: settings),
+                                codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { clock += $0 })
+        return (switcher, io)
+    }
+
+    func tempSettings() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-lag-\(UUID().uuidString).json")
+        try Data("{\n  \"model\": \"opus\"\n}".utf8).write(to: url)
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return url
+    }
+
+    func testUsesCommandsAndTheFileSignalInsteadOfThePicker() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.draft = "쓰던 글"
+        let (switcher, _) = setUp(claude, settings: settings)
+        let result = try switcher.apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Sonnet 5.5")
+        XCTAssertEqual(claude.effort, "medium")
+        XCTAssertEqual(claude.confirmedBy, "command", "선택창은 단계마다 0.5초씩 걸려서 쓰지 않는다")
+        XCTAssertEqual(claude.sent, ["\u{13}/model sonnet\r", "\u{13}/effort medium\r"])
+        XCTAssertEqual(claude.draft, "쓰던 글")
+        XCTAssertEqual(result.summary, "Sonnet 5.5 · medium", "끝난 뒤 새 화면에서 claude 의 말을 읽는다")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}", "기본값은 되돌린다")
+    }
+
+    func testReportsARefusalFromTheFreshScreen() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.rows.removeAll { $0.hasPrefix("Sonnet") }
+        let (switcher, _) = setUp(claude, settings: settings)
+        XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
+            XCTAssertTrue("\($0)".contains("not found"), "\($0)")
+        }
+        XCTAssertEqual(claude.sent, ["\u{13}/model sonnet\r"], "거절당했으면 다음 명령을 보내지 않는다")
+    }
+
+    func testReadinessUsesAFreshScreenNotTheCachedOne() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        let (switcher, io) = setUp(claude, settings: settings)
+        _ = io.snapshot()               // 입력창이 보이는 화면이 보관된다
+        claude.stage = .picker          // 그 직후에 선택창이 떴다(보관된 화면에는 아직 입력창이 보인다)
+        XCTAssertThrowsError(try switcher.apply(slot: 1, to: target))
+        XCTAssertEqual(claude.sent, [], "낡은 화면을 믿고 선택창에 Enter 를 보내면 그 행이 기본값으로 저장된다")
     }
 }
 

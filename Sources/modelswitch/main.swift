@@ -45,7 +45,7 @@ func describe(_ step: Step) -> String {
     case .wait(let ms): return "대기  \(ms)ms"
     case .expect(let needle, let timeoutMs, _, _): return "확인  화면에 \(needle.debugDescription) (최대 \(timeoutMs)ms)"
     case .arm: return "기준  기본값 파일 수정 시각"
-    case .expectResult(let prefix, _, let timeoutMs, _): return "확인  결과 줄 \(prefix.debugDescription)… (최대 \(timeoutMs)ms)"
+    case .expectResult(let prefix, _, _, let timeoutMs, _): return "확인  결과 줄 \(prefix.debugDescription)… (최대 \(timeoutMs)ms)"
     case .selectRow(let label, let via, let timeoutMs, _, _):
         return "행    커서를 \(label.debugDescription) 행에\(via.map { " (없으면 \($0.debugDescription) 하위에서)" } ?? "") (최대 \(timeoutMs)ms)"
     case .setEffort(let level, let timeoutMs, _, _): return "effort 선택창의 effort 줄을 \(level.debugDescription) 로 (최대 \(timeoutMs)ms)"

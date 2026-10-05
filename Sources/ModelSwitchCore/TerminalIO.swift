@@ -11,6 +11,10 @@ public protocol TerminalIO {
     func draft() -> String?
     /// 화면과 초안을 한 번에. 따로 주는 터미널(Orca)은 한 번의 호출로 둘 다 준다.
     func snapshot() -> ScreenSnapshot?
+    /// 읽은 화면이 실제보다 최대 얼마나 낡을 수 있는가(ms). 0 이면 읽는 순간의 화면이다.
+    var screenLagMs: Int { get }
+    /// 낡지 않은 화면. 낡을 수 있는 터미널은 새 내용이 보장될 때까지 기다렸다 읽는다.
+    func freshSnapshot() -> ScreenSnapshot?
 }
 
 public struct ScreenSnapshot: Sendable {
@@ -25,6 +29,10 @@ public extension TerminalIO {
     func snapshot() -> ScreenSnapshot? {
         screen().map { ScreenSnapshot(lines: $0, draft: draft()) }
     }
+
+    var screenLagMs: Int { 0 }
+
+    func freshSnapshot() -> ScreenSnapshot? { snapshot() }
 }
 
 // MARK: - Orca
@@ -183,9 +191,14 @@ public struct GhosttyIO: TerminalIO {
 
     private func write(_ bytes: String) throws {
         let action = "text:" + GhosttyIO.actionEscaped(bytes)
+        // 화면은 「포커스가 있는 터미널」에서 읽는다. 쓰는 곳도 그 터미널이어야 하므로,
+        // 대상이 지금도 맨 앞 창의 포커스 터미널일 때만 쓴다.
         let script = """
-        tell application "Ghostty" to perform action \(GhosttyIO.quoted(action)) \
-        on (first terminal of front window whose id is \(GhosttyIO.quoted(terminalID)))
+        tell application "Ghostty"
+            set t to focused terminal of selected tab of front window
+            if (id of t) is not \(GhosttyIO.quoted(terminalID)) then error "대상 터미널이 더 이상 맨 앞에 없습니다"
+            perform action \(GhosttyIO.quoted(action)) on t
+        end tell
         """
         let result = GhosttyIO.osascript(script)
         guard result.ok, result.out.trimmingCharacters(in: .whitespacesAndNewlines) == "true" else {
@@ -202,7 +215,79 @@ public struct GhosttyIO: TerminalIO {
         try write(key.bytes)
     }
 
+    /// Ghostty 는 접근성으로 내주는 화면 글자를 마지막으로 내준 뒤 0.5초 동안 그대로 다시 준다
+    /// (2026-10-06 실측: 읽은 직후에 바꾼 글자는 507ms 뒤에야 보이고, 0.7초 쉬었다 읽으면 바로 보인다).
+    public var screenLagMs: Int { GhosttyScreen.cacheMs }
+
+    /// 접근성으로 읽는 화면은 「Ghostty 에서 포커스가 있는 터미널」의 것이다. 그것이 대상 터미널인지 확인한다.
+    /// (2026-10-06: 시험 창 뒤에서 사용자가 자기 창으로 옮겨 가자, 대상이 아닌 그 창의 화면이 읽혔다.)
+    func targetIsFocused() -> Bool {
+        let script = """
+        tell application "Ghostty"
+            if (count of windows) is 0 then return ""
+            return id of focused terminal of selected tab of front window
+        end tell
+        """
+        let result = GhosttyIO.osascript(script)
+        return result.ok && result.out.trimmingCharacters(in: .whitespacesAndNewlines) == terminalID
+    }
+
     public func screen() -> [String]? {
-        GhosttyScreen.lines()
+        guard targetIsFocused() else { return nil }
+        // 화면을 그리는 중에는 읽기가 잠깐 실패할 수 있다. 그 한 번으로 전환 도중에 손을 놓지 않게 몇 번 더 읽는다.
+        for attempt in 0..<5 {
+            if let lines = GhosttyScreen.lines() { return lines }
+            guard GhosttyScreen.trusted() else { return nil }
+            if attempt < 4 { Thread.sleep(forTimeInterval: 0.08) }
+        }
+        return nil
+    }
+
+    /// 마지막으로 읽은 지 0.5초가 안 됐으면(또는 모르면) 그만큼 기다렸다 읽는다 — 그래야 지금 화면이다.
+    public func freshSnapshot() -> ScreenSnapshot? {
+        GhosttyScreen.waitUntilFresh()
+        return snapshot()
+    }
+}
+
+/// 화면이 늦게 따라오는 터미널을 흉내 낸다: 마지막으로 읽은 뒤 `lagMs` 동안은 그때 화면을 그대로 돌려준다(Ghostty 의 동작).
+/// 시험용 — `MODELSWITCH_SCREEN_LAG_MS` 로 Orca 세션에서도 Ghostty 용 경로를 태워 볼 수 있다.
+public final class LaggingIO: TerminalIO {
+    let base: TerminalIO
+    let lagMs: Int
+    private var cached: ScreenSnapshot?
+    private var fetchedAt: DispatchTime?
+    /// 시험에서 시간을 직접 돌릴 때 쓴다. nil 이면 실제 시각.
+    var now: (() -> Int)?
+    private var fetchedAtMs = 0
+
+    public init(base: TerminalIO, lagMs: Int) {
+        self.base = base
+        self.lagMs = lagMs
+    }
+
+    private func ageMs() -> Int? {
+        if let now { return cached == nil ? nil : now() - fetchedAtMs }
+        return fetchedAt.map { Int((DispatchTime.now().uptimeNanoseconds - $0.uptimeNanoseconds) / 1_000_000) }
+    }
+
+    public func type(_ text: String) throws { try base.type(text) }
+    public func press(_ key: Key) throws { try base.press(key) }
+    public var screenLagMs: Int { lagMs }
+
+    public func snapshot() -> ScreenSnapshot? {
+        if let age = ageMs(), age < lagMs, let cached { return cached }
+        cached = base.snapshot()
+        fetchedAt = .now()
+        fetchedAtMs = now?() ?? 0
+        return cached
+    }
+
+    public func screen() -> [String]? { snapshot()?.lines }
+
+    public func freshSnapshot() -> ScreenSnapshot? {
+        if now == nil, let age = ageMs(), age < lagMs { Thread.sleep(forTimeInterval: Double(lagMs - age) / 1000) }
+        cached = nil
+        return snapshot()
     }
 }
