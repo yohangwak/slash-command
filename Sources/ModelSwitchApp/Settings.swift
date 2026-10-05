@@ -148,8 +148,8 @@ struct SettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Toggle("claude 의 「Switch model?」 확인 창을 자동으로 받아들인다", isOn: $model.acceptSwitchPrompt)
-            Text("claude 는 대화 도중 모델을 바꾸면 대화 기록을 새 모델로 다시 읽는다고 알리고 한 번 더 묻습니다. 꺼 두면 그 창에서 직접 Enter 를 눌러야 바뀝니다.")
+            Toggle("claude 의 확인 창(Switch model? · Change effort level?)을 자동으로 받아들인다", isOn: $model.acceptSwitchPrompt)
+            Text("claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 대화 기록을 다시 읽는다고 알리고 한 번 더 묻습니다. 꺼 두면 그 창에서 직접 Enter 를 눌러야 바뀝니다.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 

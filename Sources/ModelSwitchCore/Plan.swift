@@ -40,7 +40,7 @@ public enum Step: Equatable, Sendable {
     /// 같은 문구가 기준에 이미 있었으면 그 줄이 «새로 생겼거나» 기본값 파일이 «변했을» 때만 인정한다. 쓰던 글이 있었으면 그것이 «돌아왔음»도 본다
     /// — 그래야 다음 Ctrl+S 가 복원과 겹치지 않는다.
     /// `command`("/model") 를 주면, 그 명령 바로 아래에 다른 답이 붙었을 때(예: Model 'x' not found) 기다리지 않고 그 말로 끝낸다.
-    case expectResult(prefix: String, command: String? = nil, acceptSwitchTo: String? = nil, timeoutMs: Int, failure: String)
+    case expectResult(prefix: String, command: String? = nil, acceptSwitchTo: [String] = [], timeoutMs: Int, failure: String)
     /// codex 선택창에서 `label` 행에 커서를 «둔다». 화면에서 커서(`›`)가 어느 행에 있는지 읽고 그만큼만 움직인 뒤 다시 읽어 확인한다.
     /// 그 행이 없고 `via` 행이 있으면(예: More reasoning…) 그 하위 목록으로 들어가서 찾는다.
     case selectRow(label: String, via: String?, timeoutMs: Int, abort: [Step], failure: String)
@@ -55,10 +55,13 @@ public enum Step: Equatable, Sendable {
     case stepRow(up: Bool, timeoutMs: Int, abort: [Step])
     /// 선택창이 닫히고 그 에이전트의 입력창이 다시 «보임»을 확인한다. claude 는 쓰던 글이 돌아온 것까지 본다.
     ///
-    /// claude 는 대화 도중 모델을 바꾸면 「Switch model?」 확인 창을 띄운다(대화 기록을 새 모델로 다시 읽는다는 안내).
-    /// 기본은 그 창에 아무것도 보내지 않고 사용자가 고르게 한다. `acceptSwitchTo` 가 있으면(설정에서 켰을 때)
-    /// 그 창이 «이 모델로» 바꾸겠느냐고 묻고 커서가 Yes 에 있을 때만 Enter 로 받아들인다.
-    case expectInput(agent: Agent, acceptSwitchTo: String? = nil, timeoutMs: Int, abort: [Step], failure: String)
+    /// claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 확인 창을 띄운다(「Switch model?」·「Change effort level?」
+    /// — 대화 기록을 다시 읽는다는 안내). 기본은 그 창에 아무것도 보내지 않고 사용자가 고르게 한다.
+    /// `acceptSwitchTo` 가 있으면(설정에서 켰을 때) 그 창이 «이 값들 중 하나로» 바꾸겠느냐고 묻고 커서가 Yes 에 있을 때만
+    /// Enter 로 받아들인다. `Step.steppedEffort` 는 「방금 `stepEffort` 가 옮겨 놓은 단계」를 뜻한다.
+    case expectInput(agent: Agent, acceptSwitchTo: [String] = [], timeoutMs: Int, abort: [Step], failure: String)
+
+    public static let steppedEffort = "{stepped-effort}"
     /// 선택창이 «보이는 동안만» Esc 로 닫는다. 선택창이 없으면 아무것도 보내지 않는다 — 작업 중인 codex 에 Esc 는 작업 중단이다.
     case closePicker
     /// 기준(`arm`) 뒤에 새로 생긴, `prefix` 로 시작하는 마지막 줄을 결과로 남긴다(없으면 넘어간다).
@@ -99,7 +102,7 @@ public enum Plans {
                     failure: "claude 모델 선택창에 「이 세션만」(s) 선택지가 없어 전환하지 않았습니다."),
             .arm,
             .text(saveAsDefault ? "\r" : "s"),
-            .expectInput(agent: .claude, acceptSwitchTo: acceptSwitch ? modelLabel : nil, timeoutMs: 3000, abort: [.closePicker],
+            .expectInput(agent: .claude, acceptSwitchTo: acceptSwitch ? [modelLabel, effort] : [], timeoutMs: 3000, abort: [.closePicker],
                          failure: "claude 입력창이 돌아오지 않아 멈췄습니다."),
             .capture(prefix: "Set model to"),
             .capture(prefix: "Kept model as"),
@@ -139,7 +142,7 @@ public enum Plans {
     }
 
     /// claude: 모델은 그대로 두고 effort 만 한 단계 옮긴다. 같은 선택창에서 → · ← 한 번이다.
-    public static func claudeEffortStep(up: Bool, saveAsDefault: Bool) -> [Step] {
+    public static func claudeEffortStep(up: Bool, saveAsDefault: Bool, acceptSwitch: Bool = false) -> [Step] {
         let footer = "s to use this session only"
         return [
             .text("\u{13}/model\r"),
@@ -152,7 +155,7 @@ public enum Plans {
                     failure: "claude 모델 선택창에 「이 세션만」(s) 선택지가 없어 바꾸지 않았습니다."),
             .arm,
             .text(saveAsDefault ? "\r" : "s"),
-            .expectInput(agent: .claude, timeoutMs: 3000, abort: [.closePicker],
+            .expectInput(agent: .claude, acceptSwitchTo: acceptSwitch ? [Step.steppedEffort] : [], timeoutMs: 3000, abort: [.closePicker],
                          failure: "claude 입력창이 돌아오지 않아 멈췄습니다."),
             .capture(prefix: "Set model to"),
             .capture(prefix: "Kept model as"),
@@ -167,11 +170,11 @@ public enum Plans {
             // 고정 대기 대신 결과 줄이 «보임»을 확인하고 다음으로 간다 — 응답은 0.2초 안에 온다.
             .arm,
             .text("\u{13}/model \(preset.model)\r"),
-            .expectResult(prefix: "Set model to", command: "/model", acceptSwitchTo: acceptSwitch ? ClaudeModels.rowLabel(preset.model) : nil, timeoutMs: 3000,
+            .expectResult(prefix: "Set model to", command: "/model", acceptSwitchTo: acceptSwitch ? [ClaudeModels.rowLabel(preset.model)] : [], timeoutMs: 3000,
                           failure: "claude 가 /model \(preset.model) 에 응답하지 않았습니다."),
             .arm,
             .text("\u{13}/effort \(preset.effort)\r"),
-            .expectResult(prefix: "Set effort level", command: "/effort", timeoutMs: 3000,
+            .expectResult(prefix: "Set effort level", command: "/effort", acceptSwitchTo: acceptSwitch ? [preset.effort] : [], timeoutMs: 3000,
                           failure: "claude 가 /effort \(preset.effort) 에 응답하지 않았습니다."),
         ]
     }

@@ -77,11 +77,23 @@ public enum Detector {
         }
         // 제목을 직접 바꿔 둔 탭은 제목으로 못 가린다. 그 폴더에서 도는 에이전트가 한 종류뿐이면 그것으로 본다.
         let kinds = AgentProcesses.kinds(inDirectory: cwd)
+        // 같은 폴더에서 claude 와 codex 가 따로 도는 경우: 이 터미널 화면에 어느 쪽 입력창이 보이는지로 가린다.
+        if kinds.count > 1, let lines = GhosttyIO(terminalID: id).screen(), let agent = agent(onScreen: lines) {
+            return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
+        }
         guard kinds.count == 1, let agent = kinds.first else {
             let reason = kinds.isEmpty ? "claude·codex 세션이 아닙니다" : "claude 와 codex 가 같은 폴더에서 같이 돌고 있어 구분할 수 없습니다"
             throw ModelSwitchError("Ghostty 맨 앞 터미널(\(name))은 \(reason).")
         }
         return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
+    }
+
+    /// 화면에 입력창이 보이는 쪽. 둘 다 보이거나 둘 다 안 보이면 nil.
+    static func agent(onScreen lines: [String]) -> Agent? {
+        let claude = Readiness.claudePromptVisible(lines)
+        let codex = Readiness.codexComposerVisible(lines)
+        guard claude != codex else { return nil }
+        return claude ? .claude : .codex
     }
 
     static func agent(inTitle title: String) -> Agent? {

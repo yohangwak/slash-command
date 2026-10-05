@@ -8,7 +8,7 @@ modelswitch — 맨 앞 터미널의 claude·codex 모델과 effort 를 프리�
   modelswitch effort <up|down> [대상] [--trace]   모델은 그대로, effort 만 한 단계
   modelswitch run <번호> <claude|codex> [--dry-run] [인자…]   그 프리셋으로 새 세션을 이 터미널에서 연다
   modelswitch where                   지금 맨 앞 터미널과 에이전트
-  modelswitch doctor [대상] [--screen]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
+  modelswitch doctor [대상] [--screen [--lines N]]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
   modelswitch list                    프리셋 목록
   modelswitch plan <번호> <claude|codex>   보낼 키 순서만 출력(실행하지 않음)
   modelswitch path                    프리셋 파일 위치
@@ -89,6 +89,9 @@ do {
         let target = try explicitTarget(args) ?? Detector.frontmost()
         trace?.mark("대상찾기")
         defer { if let trace { print("시간: " + trace.report) } }
+        switcher.onAwaitingUser = { value in
+            FileHandle.standardError.write(Data("claude 가 \(value) 로 바꿀지 묻고 있습니다 — 그 터미널에서 Enter(바꿈) 나 2(취소)를 골라 주세요…\n".utf8))
+        }
         let result = try switcher.stepEffort(up: args[1] == "up", on: target)
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
@@ -121,7 +124,8 @@ do {
             print("화면 읽기    됨 (\(screen.count)줄)")
             print("입력창       \(Readiness.inputVisible(agent: target.agent, screen: screen) ? "보임 — 전환 가능" : "안 보임 — 전환하지 않음")")
             if args.contains("--screen") {
-                screen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.suffix(8).forEach { print("  | " + $0.prefix(100)) }
+                let count = value(after: "--lines", in: args).flatMap(Int.init) ?? 8
+                screen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.suffix(count).forEach { print("  | " + $0.prefix(140)) }
             }
         } else {
             print("화면 읽기    안 됨 — 전환하지 않음")
