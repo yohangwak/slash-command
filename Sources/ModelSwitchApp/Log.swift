@@ -1,10 +1,10 @@
 import Foundation
 
-/// `~/Library/Logs/Gear/gear.log` 에 한 줄씩 남긴다. 무엇을 눌렀고 어떻게 끝났는지 나중에 확인하기 위한 것.
+/// `~/Library/Logs/ModelSwitch/modelswitch.log` 에 한 줄씩 남긴다. 무엇을 눌렀고 어떻게 끝났는지 나중에 확인하기 위한 것.
 enum Log {
     private static let url = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/Gear/gear.log")
-    private static let queue = DispatchQueue(label: "gear.log")
+        .appendingPathComponent("Library/Logs/ModelSwitch/modelswitch.log")
+    private static let queue = DispatchQueue(label: "modelswitch.log")
     private static let formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.timeZone = .current

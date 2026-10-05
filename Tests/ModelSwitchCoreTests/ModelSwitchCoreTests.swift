@@ -1,5 +1,5 @@
 import XCTest
-@testable import GearCore
+@testable import ModelSwitchCore
 
 final class FakeIO: TerminalIO {
     var sent: [String] = []
@@ -83,7 +83,7 @@ final class CodexModelsTests: XCTestCase {
 
     func testDecodesCacheFile() throws {
         let json = #"{"models":[{"slug":"m","display_name":"M","visibility":"list","priority":1,"supported_reasoning_levels":[{"effort":"low","description":"x"},{"effort":"high"}]}]}"#
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("gear-models-\(UUID().uuidString).json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-models-\(UUID().uuidString).json")
         try Data(json.utf8).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
         XCTAssertEqual(try CodexModels.load(from: url).listed.first?.efforts, ["low", "high"])
@@ -106,7 +106,7 @@ final class RunnerTests: XCTestCase {
         let io = FakeIO()
         io.screens = [["nothing"]]
         XCTAssertThrowsError(try run([.text("a"), .expect(needle: "Select Model", timeoutMs: 400, abort: [.key(.escape)], failure: "열리지 않음"), .text("b")], io: io)) {
-            XCTAssertEqual($0 as? GearError, GearError("열리지 않음"))
+            XCTAssertEqual($0 as? ModelSwitchError, ModelSwitchError("열리지 않음"))
         }
         XCTAssertEqual(io.sent, ["a", "\u{1B}"])
     }
@@ -210,7 +210,7 @@ final class ClaudeDefaultsTests: XCTestCase {
     }
 
     func testRestoreWritesFileAndKeepsPermissions() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("gear-settings-\(UUID().uuidString).json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-settings-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try Data(original.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
@@ -230,7 +230,7 @@ final class ClaudeDefaultsTests: XCTestCase {
 final class ConfigTests: XCTestCase {
     func testDecodeAppliesDefaults() throws {
         let json = #"{"slots":[{"name":"a","claude":{"model":"opus","effort":"high"}}]}"#
-        let config = try JSONDecoder().decode(GearConfig.self, from: Data(json.utf8))
+        let config = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(json.utf8))
         XCTAssertTrue(config.keepDefaults)
         XCTAssertEqual(config.modifiers, ["option", "shift"])
         XCTAssertEqual(config.modifierSymbols, "⌥⇧")
@@ -239,11 +239,11 @@ final class ConfigTests: XCTestCase {
     }
 
     func testStoreCreatesStarterAndRoundTrips() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("gear-\(UUID().uuidString)/presets.json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-\(UUID().uuidString)/presets.json")
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let store = ConfigStore(url: url)
         XCTAssertEqual(try store.load(), .starter)
-        var edited = GearConfig.starter
+        var edited = ModelSwitchConfig.starter
         edited.slots.removeLast()
         try store.save(edited)
         XCTAssertEqual(try store.load(), edited)
@@ -352,7 +352,7 @@ final class SwitcherApplyTests: XCTestCase {
     }
 
     func tempSettings(_ text: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("gear-apply-\(UUID().uuidString).json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-apply-\(UUID().uuidString).json")
         try Data(text.utf8).write(to: url)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
         return url

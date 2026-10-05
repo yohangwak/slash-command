@@ -34,7 +34,7 @@ public struct OrcaIO: TerminalIO {
         let result = Proc.run(orca, ["terminal", "send", "--terminal", handle] + args + ["--json"],
                               env: OrcaIO.cleanEnv, cwd: "/", timeout: 15)
         guard result.ok else {
-            throw GearError("Orca 터미널에 입력하지 못했습니다: \(Self.errorSummary(result))")
+            throw ModelSwitchError("Orca 터미널에 입력하지 못했습니다: \(Self.errorSummary(result))")
         }
     }
 
@@ -127,7 +127,7 @@ public struct GhosttyIO: TerminalIO {
         let result = GhosttyIO.osascript(script)
         guard result.ok, result.out.trimmingCharacters(in: .whitespacesAndNewlines) == "true" else {
             let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw GearError("Ghostty 에 입력하지 못했습니다: \(detail.isEmpty ? "대상 터미널이 더 이상 맨 앞 창에 없습니다" : detail)")
+            throw ModelSwitchError("Ghostty 에 입력하지 못했습니다: \(detail.isEmpty ? "대상 터미널이 더 이상 맨 앞 창에 없습니다" : detail)")
         }
     }
 

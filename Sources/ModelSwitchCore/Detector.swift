@@ -35,7 +35,7 @@ public enum Detector {
     public static func frontmost() throws -> Target {
         guard let app = NSWorkspace.shared.frontmostApplication,
               let bundleID = app.bundleIdentifier else {
-            throw GearError("맨 앞 앱을 알 수 없습니다.")
+            throw ModelSwitchError("맨 앞 앱을 알 수 없습니다.")
         }
         return try target(bundleID: bundleID, appName: app.localizedName ?? bundleID)
     }
@@ -45,7 +45,7 @@ public enum Detector {
         case ghosttyBundleID: return try ghostty()
         case orcaBundleID: return try orca()
         default:
-            throw GearError("\(appName) 는 지원하지 않습니다. Ghostty 나 Orca 터미널에서 눌러 주세요.")
+            throw ModelSwitchError("\(appName) 는 지원하지 않습니다. Ghostty 나 Orca 터미널에서 눌러 주세요.")
         }
     }
 
@@ -62,11 +62,11 @@ public enum Detector {
         let result = GhosttyIO.osascript(script)
         guard result.ok else {
             let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw GearError("Ghostty 의 맨 앞 터미널을 읽지 못했습니다: \(detail)")
+            throw ModelSwitchError("Ghostty 의 맨 앞 터미널을 읽지 못했습니다: \(detail)")
         }
         let parts = result.out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 2, !parts[0].isEmpty else {
-            throw GearError("Ghostty 에 열린 창이 없습니다.")
+            throw ModelSwitchError("Ghostty 에 열린 창이 없습니다.")
         }
         let id = parts[0]
         let name = parts[1]
@@ -79,7 +79,7 @@ public enum Detector {
         let kinds = AgentProcesses.kinds(inDirectory: cwd)
         guard kinds.count == 1, let agent = kinds.first else {
             let reason = kinds.isEmpty ? "claude·codex 세션이 아닙니다" : "claude 와 codex 가 같은 폴더에서 같이 돌고 있어 구분할 수 없습니다"
-            throw GearError("Ghostty 맨 앞 터미널(\(name))은 \(reason).")
+            throw ModelSwitchError("Ghostty 맨 앞 터미널(\(name))은 \(reason).")
         }
         return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
     }
@@ -101,7 +101,7 @@ public enum Detector {
 
     public static func orca() throws -> Target {
         guard let orca = Proc.locate("orca") else {
-            throw GearError("orca 명령을 찾지 못했습니다.")
+            throw ModelSwitchError("orca 명령을 찾지 못했습니다.")
         }
         let active = try OrcaState.active()
         let result = Proc.run(orca, ["terminal", "list", "--include-visual-layouts", "--json"],
@@ -109,7 +109,7 @@ public enum Detector {
         guard result.ok,
               let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
               let payload = json["result"] as? [String: Any] else {
-            throw GearError("Orca 터미널 목록을 읽지 못했습니다: \(OrcaIO.errorSummary(result))")
+            throw ModelSwitchError("Orca 터미널 목록을 읽지 못했습니다: \(OrcaIO.errorSummary(result))")
         }
         return try OrcaState.target(in: payload, active: active, processAgent: AgentProcesses.agent(orcaHandle:))
     }
@@ -154,14 +154,14 @@ public enum OrcaState {
         from profile_state_documents where domain = 'workspaceSession'
         """
         let result = Proc.run("/usr/bin/sqlite3", ["-readonly", "file:\(database.path)?mode=ro", query], timeout: 5)
-        let unknown = GearError("Orca 화면에 떠 있는 워크스페이스를 알아내지 못했습니다(Orca 업데이트로 상태 저장 형식이 바뀌었을 수 있습니다).")
+        let unknown = ModelSwitchError("Orca 화면에 떠 있는 워크스페이스를 알아내지 못했습니다(Orca 업데이트로 상태 저장 형식이 바뀌었을 수 있습니다).")
         guard result.ok,
               let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
               let worktree = json["worktree"] as? String, !worktree.isEmpty else {
             throw unknown
         }
         guard let tab = json["tab"] as? String, !tab.isEmpty else {
-            throw GearError("Orca 맨 앞 탭이 터미널이 아닙니다.")
+            throw ModelSwitchError("Orca 맨 앞 탭이 터미널이 아닙니다.")
         }
         return Active(worktreeID: worktree, tabID: tab)
     }
@@ -174,24 +174,24 @@ public enum OrcaState {
                        processAgent: (String) -> Agent? = { _ in nil }) throws -> Target {
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
         guard let layout = layouts.first(where: { $0["worktreeId"] as? String == active.worktreeID }) else {
-            throw GearError("Orca 맨 앞 워크스페이스에 열린 터미널이 없습니다.")
+            throw ModelSwitchError("Orca 맨 앞 워크스페이스에 열린 터미널이 없습니다.")
         }
         guard let tab = tabs(in: layout["root"]).first(where: { $0["tabId"] as? String == active.tabID }) else {
-            throw GearError("Orca 맨 앞 탭이 터미널이 아닙니다.")
+            throw ModelSwitchError("Orca 맨 앞 탭이 터미널이 아닙니다.")
         }
         let leaves = terminals(in: tab["panes"])
         let activeLeaf = tab["activeLeafId"] as? String
         guard let pane = leaves.first(where: { $0["leafId"] as? String == activeLeaf })
                 ?? leaves.first(where: { $0["active"] as? Bool == true }),
               let handle = pane["handle"] as? String else {
-            throw GearError("Orca 맨 앞 탭에서 활성 터미널을 찾지 못했습니다.")
+            throw ModelSwitchError("Orca 맨 앞 탭에서 활성 터미널을 찾지 못했습니다.")
         }
         let listed = (payload["terminals"] as? [[String: Any]] ?? []).first { $0["handle"] as? String == handle }
         let title = (listed?["title"] as? String) ?? (pane["title"] as? String) ?? handle
         let folder = (layout["worktreePath"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent }
         let label = [title, folder].compactMap { $0 }.joined(separator: " · ")
         guard let agent = processAgent(handle) ?? (listed?["agentIdentity"] as? String).flatMap(Agent.init(rawValue:)) else {
-            throw GearError("Orca 맨 앞 터미널(\(label))은 claude·codex 세션이 아닙니다.")
+            throw ModelSwitchError("Orca 맨 앞 터미널(\(label))은 claude·codex 세션이 아닙니다.")
         }
         return Target(host: .orca(handle: handle), agent: agent, label: label)
     }

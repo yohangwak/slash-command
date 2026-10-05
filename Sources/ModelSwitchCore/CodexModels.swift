@@ -64,7 +64,7 @@ public struct CodexModels: Sendable {
             let data = try Data(contentsOf: url)
             return CodexModels(models: try JSONDecoder().decode(Cache.self, from: data).models)
         } catch {
-            throw GearError("codex 모델 목록을 읽지 못했습니다: \(url.path) — \(error.localizedDescription)")
+            throw ModelSwitchError("codex 모델 목록을 읽지 못했습니다: \(url.path) — \(error.localizedDescription)")
         }
     }
 
@@ -72,22 +72,22 @@ public struct CodexModels: Sendable {
     public func position(of preset: AgentPreset) throws -> (modelIndex: Int, effortRow: Int) {
         guard let offset = listed.firstIndex(where: { $0.slug == preset.model }) else {
             let known = listed.map(\.slug).joined(separator: ", ")
-            throw GearError("codex 모델 '\(preset.model)' 이 선택창 목록에 없습니다. 가능한 값: \(known)")
+            throw ModelSwitchError("codex 모델 '\(preset.model)' 이 선택창 목록에 없습니다. 가능한 값: \(known)")
         }
         let modelIndex = offset + 1
         guard modelIndex <= 9 else {
-            throw GearError("codex 모델 '\(preset.model)' 은 선택창 \(modelIndex)번째라 숫자 키로 고를 수 없습니다.")
+            throw ModelSwitchError("codex 모델 '\(preset.model)' 은 선택창 \(modelIndex)번째라 숫자 키로 고를 수 없습니다.")
         }
         let efforts = listed[offset].efforts
         guard let effortOffset = efforts.firstIndex(of: preset.effort) else {
-            throw GearError("codex 모델 '\(preset.model)' 은 effort '\(preset.effort)' 를 지원하지 않습니다. 가능한 값: \(efforts.joined(separator: ", "))")
+            throw ModelSwitchError("codex 모델 '\(preset.model)' 은 effort '\(preset.effort)' 를 지원하지 않습니다. 가능한 값: \(efforts.joined(separator: ", "))")
         }
         // 선택창은 앞의 4단계를 1~4행에, 나머지를 5행(More reasoning…) 하위에 둔다.
         guard efforts.count > 4 else {
-            throw GearError("codex 모델 '\(preset.model)' 은 effort 목록에 기준 행이 없어 아직 지원하지 않습니다.")
+            throw ModelSwitchError("codex 모델 '\(preset.model)' 은 effort 목록에 기준 행이 없어 아직 지원하지 않습니다.")
         }
         guard effortOffset < 4 else {
-            throw GearError("codex effort '\(preset.effort)' (More reasoning 하위)는 아직 지원하지 않습니다. low·medium·high·xhigh 중에서 골라 주세요.")
+            throw ModelSwitchError("codex effort '\(preset.effort)' (More reasoning 하위)는 아직 지원하지 않습니다. low·medium·high·xhigh 중에서 골라 주세요.")
         }
         return (modelIndex, effortOffset + 1)
     }

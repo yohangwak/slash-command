@@ -1,4 +1,4 @@
-# Gear
+# ModelSwitch
 
 Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 claude 인지 codex 인지에 맞춰
 그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱.
@@ -10,9 +10,9 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 | 무엇 | 어떻게 |
 |---|---|
 | 전환 | Ghostty 나 Orca 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 결과가 잠깐 뜬다 |
-| 프리셋 편집 | 메뉴 막대 톱니 → 「프리셋 편집…」 (파일은 `~/.config/gear/presets.json`) |
-| 터미널에서 | `gear list` · `gear where` · `gear doctor --screen` · `gear apply 2` |
-| 기록 | `~/Library/Logs/Gear/gear.log` |
+| 프리셋 편집 | 메뉴 막대 톱니 → 「프리셋 편집…」 (파일은 `~/.config/modelswitch/presets.json`) |
+| 터미널에서 | `modelswitch list` · `modelswitch where` · `modelswitch doctor --screen` · `modelswitch apply 2` |
+| 기록 | `~/Library/Logs/ModelSwitch/modelswitch.log` |
 
 번호는 「의도」다 — 같은 번호가 claude 에서는 claude 모델, codex 에서는 codex 모델로 간다.
 한쪽 설정이 없는 번호는 그 에이전트에서 아무것도 하지 않는다.
@@ -36,13 +36,13 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 ## 설치
 
 ```sh
-./scripts/build-app.sh --install   # ~/Applications/Gear.app 에 설치하고 실행, ~/.local/bin/gear 링크
+./scripts/build-app.sh --install   # ~/Applications/ModelSwitch.app 에 설치하고 실행, ~/.local/bin/modelswitch 링크
 ```
 
 처음 한 번 허용할 것:
 
-- **자동화**(Gear → Ghostty): Ghostty 에서 처음 누를 때 묻는다. 터미널에 명령을 입력하는 데 쓴다.
-- **손쉬운 사용**(Gear): Ghostty 화면을 읽는 데 쓴다. Orca 만 쓰면 필요 없다.
+- **자동화**(ModelSwitch → Ghostty): Ghostty 에서 처음 누를 때 묻는다. 터미널에 명령을 입력하는 데 쓴다.
+- **손쉬운 사용**(ModelSwitch): Ghostty 화면을 읽는 데 쓴다. Orca 만 쓰면 필요 없다.
 
 ## 어떻게 동작하나
 
@@ -76,9 +76,9 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 ## 개발
 
 ```sh
-swift build && swift test          # 핵심 로직은 GearCore, 테스트 표본은 Tests/GearCoreTests/Fixtures
-.build/debug/gear plan 1 codex     # 보낼 키 순서만 출력
-.build/debug/gear apply 2 --orca <핸들> --agent claude   # 대상을 직접 지정(시험용)
+swift build && swift test          # 핵심 로직은 ModelSwitchCore, 테스트 표본은 Tests/ModelSwitchCoreTests/Fixtures
+.build/debug/modelswitch plan 1 codex     # 보낼 키 순서만 출력
+.build/debug/modelswitch apply 2 --orca <핸들> --agent claude   # 대상을 직접 지정(시험용)
 ```
 
-구조: `GearCore`(프리셋·감지·입력·판정·기본값 복원) · `gear`(명령줄) · `GearApp`(메뉴 막대·단축키·편집 화면).
+구조: `ModelSwitchCore`(프리셋·감지·입력·판정·기본값 복원) · `modelswitch`(명령줄) · `ModelSwitchApp`(메뉴 막대·단축키·편집 화면).

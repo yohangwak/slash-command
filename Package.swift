@@ -2,17 +2,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "Gear",
+    name: "ModelSwitch",
     platforms: [.macOS(.v13)],
     products: [
-        .library(name: "GearCore", targets: ["GearCore"]),
-        .executable(name: "gear", targets: ["gear"]),
-        .executable(name: "GearApp", targets: ["GearApp"]),
+        .library(name: "ModelSwitchCore", targets: ["ModelSwitchCore"]),
+        .executable(name: "modelswitch", targets: ["modelswitch"]),
+        .executable(name: "ModelSwitchApp", targets: ["ModelSwitchApp"]),
     ],
     targets: [
-        .target(name: "GearCore"),
-        .executableTarget(name: "gear", dependencies: ["GearCore"]),
-        .executableTarget(name: "GearApp", dependencies: ["GearCore"]),
-        .testTarget(name: "GearCoreTests", dependencies: ["GearCore"], resources: [.copy("Fixtures")]),
+        .target(name: "ModelSwitchCore"),
+        .executableTarget(name: "modelswitch", dependencies: ["ModelSwitchCore"]),
+        .executableTarget(name: "ModelSwitchApp", dependencies: ["ModelSwitchCore"]),
+        .testTarget(name: "ModelSwitchCoreTests", dependencies: ["ModelSwitchCore"], resources: [.copy("Fixtures")]),
     ]
 )

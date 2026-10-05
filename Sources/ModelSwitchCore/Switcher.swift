@@ -13,13 +13,13 @@ public struct SwitchResult: Equatable, Sendable {
 }
 
 public struct Switcher {
-    public var config: GearConfig
+    public var config: ModelSwitchConfig
     public var claudeDefaults: ClaudeDefaults
     public var codexModels: () throws -> CodexModels
     public var makeIO: (Target) throws -> TerminalIO
     public var sleep: (Int) -> Void
 
-    public init(config: GearConfig,
+    public init(config: ModelSwitchConfig,
                 claudeDefaults: ClaudeDefaults = ClaudeDefaults(),
                 codexModels: @escaping () throws -> CodexModels = { try CodexModels.load() },
                 makeIO: @escaping (Target) throws -> TerminalIO = Switcher.terminalIO,
@@ -36,7 +36,7 @@ public struct Switcher {
         case .ghostty(let terminalID):
             return GhosttyIO(terminalID: terminalID)
         case .orca(let handle):
-            guard let orca = Proc.locate("orca") else { throw GearError("orca 명령을 찾지 못했습니다.") }
+            guard let orca = Proc.locate("orca") else { throw ModelSwitchError("orca 명령을 찾지 못했습니다.") }
             return OrcaIO(orca: orca, handle: handle)
         }
     }
@@ -44,7 +44,7 @@ public struct Switcher {
     static func unreadable(_ host: TerminalHost) -> String {
         switch host {
         case .ghostty:
-            return "Ghostty 화면을 읽지 못해 전환하지 않았습니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 Gear 를 허용해 주세요."
+            return "Ghostty 화면을 읽지 못해 전환하지 않았습니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 ModelSwitch 를 허용해 주세요."
         case .orca:
             return "Orca 터미널 화면을 읽지 못해 전환하지 않았습니다."
         }
@@ -53,11 +53,11 @@ public struct Switcher {
     /// `slot` 은 1부터.
     public func plan(slot: Int, agent: Agent) throws -> (slot: Slot, preset: AgentPreset, steps: [Step]) {
         guard slot >= 1, slot <= config.slots.count else {
-            throw GearError("\(slot)번 프리셋이 없습니다(지금 \(config.slots.count)개).")
+            throw ModelSwitchError("\(slot)번 프리셋이 없습니다(지금 \(config.slots.count)개).")
         }
         let chosen = config.slots[slot - 1]
         guard let preset = chosen.preset(for: agent) else {
-            throw GearError("\(slot)번 '\(chosen.name)' 에는 \(agent.rawValue) 설정이 없습니다.")
+            throw ModelSwitchError("\(slot)번 '\(chosen.name)' 에는 \(agent.rawValue) 설정이 없습니다.")
         }
         switch agent {
         case .claude:
@@ -74,14 +74,14 @@ public struct Switcher {
 
         // 입력창이 보일 때만 보낸다 — 권한 확인 창 같은 것이 떠 있으면 우리가 보낸 Enter 가 그 창을 승인해 버린다.
         guard let screen = io.screen() else {
-            throw GearError(Switcher.unreadable(target.host))
+            throw ModelSwitchError(Switcher.unreadable(target.host))
         }
         guard Readiness.inputVisible(agent: target.agent, screen: screen) else {
-            throw GearError("\(target.agent.rawValue) 입력창이 보이지 않아 전환하지 않았습니다. 권한 확인 창이나 선택창이 떠 있으면 먼저 처리해 주세요.")
+            throw ModelSwitchError("\(target.agent.rawValue) 입력창이 보이지 않아 전환하지 않았습니다. 권한 확인 창이나 선택창이 떠 있으면 먼저 처리해 주세요.")
         }
         // codex 는 쓰던 글을 한 줄까지만 치웠다 되돌릴 수 있다. 여러 줄이면 남은 줄이 명령과 섞이므로 손대지 않는다.
         if target.agent == .codex, let draft = io.draft(), draft.contains("\n") {
-            throw GearError("codex 입력창에 여러 줄 초안이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+            throw ModelSwitchError("codex 입력창에 여러 줄 초안이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
         }
 
         let keep = config.keepDefaults && target.agent == .claude
@@ -125,7 +125,7 @@ public struct Runner {
             case .expect(let needle, let timeoutMs, let abort, let failure):
                 if try !waitFor(needle, timeoutMs: timeoutMs) {
                     try? run(abort)
-                    throw GearError(failure)
+                    throw ModelSwitchError(failure)
                 }
             }
         }
@@ -135,7 +135,7 @@ public struct Runner {
         let interval = 200
         var waited = 0
         while true {
-            guard let lines = io.screen() else { throw GearError("터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let lines = io.screen() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
             if lines.contains(where: { $0.contains(needle) }) { return true }
             if waited >= timeoutMs { return false }
             sleep(interval)

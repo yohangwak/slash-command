@@ -1,19 +1,19 @@
 import AppKit
-import GearCore
+import ModelSwitchCore
 import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = ConfigStore()
     private let hotKeys = HotKeyCenter()
     private let hud = HUD()
-    private let worker = DispatchQueue(label: "gear.apply")
+    private let worker = DispatchQueue(label: "modelswitch.apply")
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "gearshape.2", accessibilityDescription: "Gear")
+        statusItem.button?.image = NSImage(systemSymbolName: "gearshape.2", accessibilityDescription: "ModelSwitch")
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if bundleID == Detector.ghosttyBundleID, !GhosttyScreen.trusted(prompt: true) {
             Log.write("실패 \(slot): 손쉬운 사용 권한 없음")
             hud.show("손쉬운 사용 권한이 필요합니다",
-                     detail: "Ghostty 화면을 읽어 입력창 상태를 확인합니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 Gear 를 켠 뒤 다시 눌러 주세요.",
+                     detail: "Ghostty 화면을 읽어 입력창 상태를 확인합니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 ModelSwitch 를 켠 뒤 다시 눌러 주세요.",
                      seconds: 6)
             return
         }
@@ -131,7 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
         menu.addItem(.separator())
-        menu.addItem(item("Gear 종료", #selector(quit), key: "q"))
+        menu.addItem(item("ModelSwitch 종료", #selector(quit), key: "q"))
     }
 
     private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {

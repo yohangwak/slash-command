@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.yohangwak.gear</string>
+    <string>com.yohangwak.modelswitch</string>
     <key>CFBundleName</key>
-    <string>Gear</string>
+    <string>ModelSwitch</string>
     <key>CFBundleDisplayName</key>
-    <string>Gear</string>
+    <string>ModelSwitch</string>
     <key>CFBundleExecutable</key>
-    <string>Gear</string>
+    <string>ModelSwitch</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
