@@ -1,0 +1,23 @@
+{
+  "draft": null,
+  "tail": [
+    "  >_ OpenAI Codex (v0.160.0)",
+    "     ~/orca/workspaces/ai-assistant/model-picker",
+    "  You bring the idea. I’ll bring the brackets.",
+    "› 셸에서 'touch /tmp/probe",
+    "  approval-probe' 를 실행해줘. 다른 건 하지 마.",
+    "• 지정한 touch 명령만 실행하겠습니다.",
+    "• Running touch /tmp/probe",
+    "    + Show details",
+    "  Would you like to run the following command?",
+    "  Environment: local",
+    "  Reason: 읽기 전용 샌드박스 밖에서 지정한 파일을 touch하도록 허용하시겠습니까?",
+    "  $ touch",
+    "  /tmp/probe",
+    "› 1. Yes, proceed (y)",
+    "  2. Yes, and don't ask again for commands that start with `touch /tmp/probe",
+    "     picker/4995a3f7-51b1-4f18-ad0f-a25d8595652d/scratchpad/fx/approval-probe` (p)",
+    "  3. No, and tell Codex what to do differently (esc)",
+    "  Press enter to confirm or esc to cancel"
+  ]
+}
