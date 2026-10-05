@@ -50,6 +50,7 @@ func describe(_ step: Step) -> String {
     case .selectRow(let label, let via, let timeoutMs, _, _):
         return "행    커서를 \(label.debugDescription) 행에\(via.map { " (없으면 \($0.debugDescription) 하위에서)" } ?? "") (최대 \(timeoutMs)ms)"
     case .setEffort(let level, let timeoutMs, _, _): return "effort 선택창의 effort 줄을 \(level.debugDescription) 로 (최대 \(timeoutMs)ms)"
+    case .stepRow(let up, let timeoutMs, _): return "행    지금 값의 한 단계 \(up ? "위" : "아래") 행에 커서 (최대 \(timeoutMs)ms)"
     case .expectCurrentRow: return "확인  커서가 지금 쓰는 모델(✔) 행에 있음"
     case .stepEffort(let up, let timeoutMs, _): return "effort 한 단계 \(up ? "올림(→)" : "내림(←)") (최대 \(timeoutMs)ms)"
     case .expectInput(let agent, _, let timeoutMs, _, _): return "확인  선택창이 닫히고 \(agent.rawValue) 입력창이 보임 (최대 \(timeoutMs)ms)"

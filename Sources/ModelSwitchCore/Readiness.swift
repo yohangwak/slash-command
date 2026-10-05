@@ -206,21 +206,6 @@ public enum Picker {
     }
 }
 
-public enum CodexScreen {
-    /// 입력창 아래 상태 줄(`  GPT-6.1-Sol high · ~/path`)에서 지금 모델 이름과 effort.
-    /// `known` 에 있는 모델 이름일 때만 돌려준다 — 다른 글을 상태 줄로 잘못 읽지 않기 위해서다.
-    public static func status(_ lines: [String], known: [String]) -> (model: String, effort: String)? {
-        for line in lines.reversed() {
-            let text = line.trimmingCharacters(in: .whitespaces)
-            guard let dot = text.range(of: " · ") else { continue }
-            let words = text[..<dot.lowerBound].split(separator: " ")
-            guard words.count == 2, known.contains(String(words[0])) else { continue }
-            return (String(words[0]), String(words[1]))
-        }
-        return nil
-    }
-}
-
 /// claude 프리셋의 모델 값을 선택창 행 이름으로 바꾼다.
 public enum ClaudeModels {
     /// "opus" → "opus"(맨 위 Opus 행) · "claude-opus-5-5" → "opus 5.5" · "Opus 5.5" → "opus 5.5".

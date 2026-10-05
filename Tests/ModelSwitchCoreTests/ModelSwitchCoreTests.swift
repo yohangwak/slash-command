@@ -260,42 +260,57 @@ final class FakePicker: TerminalIO {
     var sent: [String] = []
     /// 확정된 방식: "s"(이 세션만) 또는 "enter"/"number"(기본값까지 저장).
     var confirmedBy: String?
+    /// 마지막으로 확정한 행(소문자).
     var chosen: String?
-    let efforts = ["Low (default)", "Medium", "High (current)", "Extra high", "More reasoning…"]
-    let advanced = ["Max", "Ultra"]
+    /// 지금 effort(소문자 행 이름). `(current)` 표시가 여기에 붙는다.
+    var current = "high"
+    var efforts = ["Low", "Medium", "High", "Extra high"]
+    var advanced = ["Max", "Ultra"]
     /// 참이면 화면이 한 박자 늦게 따라온다(키를 보낸 직후 읽으면 이전 화면).
     var lagging = false
-    /// 입력창 아래 상태 줄.
-    var statusLine = "  GPT-Sol · ~/x"
     private var stale: [String]?
     private var commandTyped = false
 
+    private var outer: [String] { efforts + (advanced.isEmpty ? [] : ["More reasoning…"]) }
+    private var currentIsAdvanced: Bool { advanced.contains { $0.lowercased() == current } }
+
+    private func mark(_ name: String) -> String {
+        let isCurrent = name.lowercased() == current || (name.hasPrefix("More") && currentIsAdvanced)
+        return name + (name == "Low" ? " (default)" : "") + (isCurrent ? " (current)" : "")
+    }
+
     private func render() -> [String] {
-        func list(_ header: String, _ items: [String], footer: String) -> [String] {
-            ["• Model changed to gpt-old high for this session only", "  " + header]
-                + items.enumerated().map { "\($0.offset == cursor ? "›" : " ") \($0.offset + 1). \($0.element)   설명" }
+        func list(_ header: [String], _ items: [String], footer: String) -> [String] {
+            ["• Model changed to gpt-old high for this session only"] + header
+                + items.enumerated().map { "\($0.offset == cursor ? "›" : " ") \($0.offset + 1). \(mark($0.element))   설명" }
                 + ["  " + footer]
         }
         switch stage {
         case .composer:
             return (chosen.map { ["• Model changed to gpt-sol \($0) for this session only"] } ?? [])
-                + [commandTyped ? "› /model  choose what model and reasoning effort to use" : "› Ask Codex to do anything", statusLine]
-        case .models: return list("Select Model and Effort", ["GPT-Sol (current)", "GPT-Astra"], footer: "enter select · esc back")
+                + [commandTyped ? "› /model  choose what model and reasoning effort to use" : "› Ask Codex to do anything", "  GPT-Sol · ~/x"]
+        case .models:
+            return ["  Select Model and Effort", "\(cursor == 0 ? "›" : " ") 1. GPT-Sol (current)   설명", "\(cursor == 1 ? "›" : " ") 2. GPT-Astra   설명", "  enter select · esc back"]
         case .efforts:
-            return list("Select Reasoning Level for GPT-Sol", efforts,
-                        footer: cursor == 4 ? "enter select · esc back" : "enter default · s session · esc back")
+            let onMore = cursor == efforts.count
+            return list(["  Select Reasoning Level for GPT-Sol"], outer,
+                        footer: onMore ? "enter select · esc back" : "enter default · s session · esc back")
         case .advanced:
-            return ["  Advanced Reasoning", "  ⚠ Consumes usage limits faster"]
-                + advanced.enumerated().map { "\($0.offset == cursor ? "›" : " ") \($0.offset + 1). \($0.element)    설명" }
-                + ["  enter default · s session · esc back"]
+            return list(["  Advanced Reasoning", "  ⚠ Consumes usage limits faster"], advanced, footer: "enter default · s session · esc back")
         }
     }
 
     private func confirm(_ how: String) {
         let items = stage == .advanced ? advanced : efforts
-        chosen = items[cursor].lowercased().replacingOccurrences(of: " (current)", with: "")
+        chosen = items[cursor].lowercased()
+        current = items[cursor].lowercased()
         confirmedBy = how
         stage = .composer
+    }
+
+    private func openEfforts() {
+        stage = .efforts
+        cursor = currentIsAdvanced ? efforts.count : (efforts.firstIndex { $0.lowercased() == current } ?? 0)
     }
 
     func type(_ text: String) throws {
@@ -311,14 +326,18 @@ final class FakePicker: TerminalIO {
             if rest.hasPrefix("\u{1B}[A") { cursor = max(0, cursor - 1); rest = rest.dropFirst(3); continue }
             if rest.hasPrefix("\u{1B}[B") { cursor += 1; rest = rest.dropFirst(3); continue }
             let key = rest.removeFirst()
+            let onMore = stage == .efforts && cursor == efforts.count
             switch (stage, key) {
-            case (.models, "1"): stage = .efforts; cursor = 2
-            case (.efforts, "s") where cursor < 4: confirm("s")
+            case (.models, "1"): openEfforts()
+            case (.models, "\r") where cursor == 0: openEfforts()
+            case (.efforts, "s") where !onMore: confirm("s")
             case (.advanced, "s"): confirm("s")
-            case (.efforts, "\r") where cursor == 4, (.efforts, "5"): stage = .advanced; cursor = 0
+            case (.efforts, "\r") where onMore:
+                stage = .advanced
+                cursor = advanced.firstIndex { $0.lowercased() == current } ?? 0
             case (.efforts, "\r"), (.advanced, "\r"): confirm("enter")
             case (.efforts, _) where key.isNumber, (.advanced, _) where key.isNumber: confirm("number")
-            case (.advanced, "\u{1B}"): stage = .efforts; cursor = 4
+            case (.advanced, "\u{1B}"): stage = .efforts; cursor = efforts.count
             case (.efforts, "\u{1B}"): stage = .models; cursor = 0
             case (.models, "\u{1B}"): stage = .composer
             default: break
@@ -382,7 +401,7 @@ final class PickerTests: XCTestCase {
     }
 
     func testPicksEachEffortForThisSessionOnly() throws {
-        for (label, expected) in [("Low", "low (default)"), ("Medium", "medium"), ("High", "high"), ("Extra high", "extra high")] {
+        for (label, expected) in [("Low", "low"), ("Medium", "medium"), ("High", "high"), ("Extra high", "extra high")] {
             let picker = FakePicker()
             let confirmations = try run(label, picker: picker)
             XCTAssertEqual(picker.chosen, expected, label)
@@ -405,7 +424,7 @@ final class PickerTests: XCTestCase {
         let picker = FakePicker()
         picker.lagging = true
         _ = try run("Low", picker: picker)
-        XCTAssertEqual(picker.chosen, "low (default)")
+        XCTAssertEqual(picker.chosen, "low")
         XCTAssertEqual(picker.confirmedBy, "s")
     }
 
@@ -1025,10 +1044,10 @@ final class SwitcherApplyTests: XCTestCase {
 final class EffortStepTests: XCTestCase {
     let target = Target(host: .orca(handle: "term_x"), agent: .claude, label: "x")
 
-    func switcher(io: TerminalIO, keepDefaults: Bool = true, codex: CodexModels = CodexModels(models: [])) -> Switcher {
+    func switcher(io: TerminalIO, keepDefaults: Bool = true) -> Switcher {
         Switcher(config: ModelSwitchConfig(keepDefaults: keepDefaults, slots: []),
                  claudeDefaults: ClaudeDefaults(url: URL(fileURLWithPath: "/nonexistent/settings.json")),
-                 codexModels: { codex }, makeIO: { _ in io }, sleep: { _ in })
+                 codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { _ in })
     }
 
     func testClaudeMovesOneLevelAndKeepsTheModel() throws {
@@ -1079,34 +1098,49 @@ final class EffortStepTests: XCTestCase {
         XCTAssertEqual(claude.model, "Custom Model")
     }
 
-    func testCodexReadsTheStatusLineAndPicksTheNeighbour() throws {
-        let models = CodexModels(models: [
-            .init(slug: "gpt-sol", displayName: "GPT-Sol", priority: 1, efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]),
-        ])
-        XCTAssertEqual(try models.neighbour(displayName: "GPT-Sol", effort: "high", up: true), AgentPreset(model: "gpt-sol", effort: "xhigh"))
-        XCTAssertEqual(try models.neighbour(displayName: "GPT-Sol", effort: "max", up: false), AgentPreset(model: "gpt-sol", effort: "xhigh"))
-        XCTAssertThrowsError(try models.neighbour(displayName: "GPT-Sol", effort: "ultra", up: true)) {
+    let codex = Target(host: .orca(handle: "term_c"), agent: .codex, label: "c")
+
+    func testCodexWalksEveryLevelUpAndDownThroughMoreReasoning() throws {
+        let picker = FakePicker()
+        picker.current = "low"
+        var seen: [String] = []
+        for _ in 0..<5 {
+            _ = try switcher(io: picker).stepEffort(up: true, on: codex)
+            XCTAssertEqual(picker.confirmedBy, "s")
+            seen.append(picker.current)
+        }
+        XCTAssertEqual(seen, ["medium", "high", "extra high", "max", "ultra"])
+        XCTAssertThrowsError(try switcher(io: picker).stepEffort(up: true, on: codex)) {
+            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true, "\($0)")
+        }
+        XCTAssertEqual(picker.stage, .composer, "끝이면 선택창을 닫고 나온다")
+        seen = []
+        for _ in 0..<5 {
+            _ = try switcher(io: picker).stepEffort(up: false, on: codex)
+            seen.append(picker.current)
+        }
+        XCTAssertEqual(seen, ["max", "extra high", "high", "medium", "low"])
+        XCTAssertThrowsError(try switcher(io: picker).stepEffort(up: false, on: codex)) {
             XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true)
         }
-        XCTAssertThrowsError(try models.neighbour(displayName: "GPT-Sol", effort: "low", up: false))
-
-        let screen = ["• Model changed to gpt-sol high for this session only", "› 쓰던 글 · 가운뎃점이 든 글", "  GPT-Sol xhigh · ~/orca/workspaces/x", "  ? for shortcuts"]
-        let status = try XCTUnwrap(CodexScreen.status(screen, known: ["GPT-Sol"]))
-        XCTAssertEqual(status.model, "GPT-Sol")
-        XCTAssertEqual(status.effort, "xhigh")
-        XCTAssertNil(CodexScreen.status(["› 글 high · 뭔가"], known: ["GPT-Sol"]), "아는 모델 이름일 때만 상태 줄로 본다")
-        XCTAssertNil(CodexScreen.status(["      M A X"], known: ["GPT-Sol"]))
+        XCTAssertEqual(picker.current, "low")
     }
 
-    func testCodexStepRunsTheUsualPickerForTheNeighbour() throws {
+    func testCodexStopsAtTheLastRowOfAModelWithoutMoreReasoning() {
         let picker = FakePicker()
-        picker.statusLine = "  GPT-Sol high · ~/x"
-        let models = CodexModels(models: [
-            .init(slug: "gpt-sol", displayName: "GPT-Sol", priority: 1, efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]),
-        ])
-        let codex = Target(host: .orca(handle: "term_c"), agent: .codex, label: "c")
-        _ = try switcher(io: picker, codex: models).stepEffort(up: true, on: codex)
-        XCTAssertEqual(picker.chosen, "extra high")
+        picker.advanced = []
+        picker.current = "extra high"
+        XCTAssertThrowsError(try switcher(io: picker).stepEffort(up: true, on: codex)) {
+            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true)
+        }
+        XCTAssertNil(picker.confirmedBy)
+    }
+
+    func testCodexNeverConfirmsWithANumberOrEnter() throws {
+        let picker = FakePicker()
+        picker.current = "extra high"
+        _ = try switcher(io: picker).stepEffort(up: true, on: codex)   // More reasoning… 으로 들어가는 Enter 는 확정이 아니다
+        XCTAssertEqual(picker.current, "max")
         XCTAssertEqual(picker.confirmedBy, "s")
     }
 }

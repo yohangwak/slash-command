@@ -236,24 +236,8 @@ public struct Switcher {
             if let draft = first.draft, draft.contains("\n") {
                 throw ModelSwitchError("codex 입력창에 여러 줄 초안이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
             }
-            // codex 는 입력창 아래 상태 줄에 지금 모델과 effort 를 보여 준다.
-            let models = try codexModels()
-            let known = models.listed.compactMap(\.displayName)
-            // max·ultra 로 바꾼 직후에는 상태 줄 자리에 잠깐 장식 글자가 지나간다(약 1.5초) — 그동안은 다시 읽는다.
-            var status = CodexScreen.status(first.lines, known: known)
-            var waited = 0
-            while status == nil, waited < 2500 {
-                timedSleep(100)
-                waited += 100
-                status = io.screen().flatMap { CodexScreen.status($0, known: known) }
-            }
-            guard let now = status else {
-                throw ModelSwitchError("codex 화면에서 지금 모델과 effort 를 읽지 못했습니다.")
-            }
-            preset = try models.neighbour(displayName: now.model, effort: now.effort, up: up)
-            let selection = try models.selection(of: preset)
-            steps = Plans.codex(modelIndex: selection.modelIndex, displayName: selection.displayName,
-                                effortLabel: selection.effortLabel)
+            steps = Plans.codexEffortStep(up: up)
+            preset = AgentPreset(model: "codex", effort: up ? "한 단계 위" : "한 단계 아래")
         }
         let confirmations = try Runner(io: io, sleep: timedSleep, initial: first).run(steps)
         return SwitchResult(target: target, slotName: "", preset: preset,
@@ -407,6 +391,12 @@ public struct Runner {
                     // 선택창이 닫힌 뒤의 결과 줄에 effort 가 안 나오는 경우에 대비해 여기서 본 값을 남긴다.
                     confirmations.append("Set effort level to \(level)")
                 case .stopped(let reason, let atEdge):
+                    var error = try aborted(abort, reason)
+                    error.nothingToDo = atEdge
+                    throw error
+                }
+            case .stepRow(let up, let timeoutMs, let abort):
+                if case .stopped(let reason, let atEdge) = try stepRow(up: up, timeoutMs: timeoutMs) {
                     var error = try aborted(abort, reason)
                     error.nothingToDo = atEdge
                     throw error
@@ -679,6 +669,69 @@ public struct Runner {
             return .stopped("이미 가장 \(up ? "높은" : "낮은") 단계(\(now))입니다.", atEdge: true)
         }
         return .moved(after)
+    }
+
+    /// codex effort 목록에서 `(current)` 행의 바로 위(effort 내림)·아래(effort 올림) 행에 커서를 둔다.
+    /// 목록은 Low … Extra high 다음에 「More reasoning…」이 있고, 그 아래 목록에 Max · Ultra 가 있다.
+    private func stepRow(up: Bool, timeoutMs: Int) throws -> StepOutcome {
+        let more = "More reasoning"
+        func edge(_ label: String) -> StepOutcome {
+            .stopped("이미 가장 \(up ? "높은" : "낮은") 단계(\(label))입니다.", atEdge: true)
+        }
+        var rows: [Picker.Row] = []
+        guard try poll(timeoutMs: timeoutMs, { lines in
+            rows = Picker.rows(lines)
+            return rows.contains(where: \.current)
+        }), let current = rows.firstIndex(where: \.current) else {
+            return .stopped("codex effort 목록에서 지금 값을 찾지 못했습니다.")
+        }
+        let moreIndex = Picker.index(of: more, in: rows)
+        let plain = rows.indices.filter { $0 != moreIndex }
+
+        if current != moreIndex {
+            // 지금 값이 이 목록(Low … Extra high)에 있다.
+            guard let at = plain.firstIndex(of: current) else { return .stopped("codex effort 목록을 읽지 못했습니다.") }
+            if !up {
+                guard at > 0 else { return edge(rows[current].label) }
+                return try moveCursor(to: rows[plain[at - 1]].label, timeoutMs: timeoutMs) ? .moved(rows[plain[at - 1]].label) : .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.")
+            }
+            if at + 1 < plain.count {
+                return try moveCursor(to: rows[plain[at + 1]].label, timeoutMs: timeoutMs) ? .moved(rows[plain[at + 1]].label) : .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.")
+            }
+            // 이 목록의 마지막이다 — 다음 단계는 More reasoning… 아래의 첫 행이다.
+            guard moreIndex != nil else { return edge(rows[current].label) }
+            guard try moveCursor(to: more, timeoutMs: timeoutMs) else { return .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.") }
+            try io.press(.enter)
+            var inner: [Picker.Row] = []
+            guard try poll(timeoutMs: timeoutMs, { lines in
+                inner = Picker.rows(lines)
+                return lines.contains { $0.contains("Advanced Reasoning") } && !inner.isEmpty
+            }), let first = inner.first else { return .stopped("codex 의 More reasoning 목록이 열리지 않았습니다.") }
+            return try moveCursor(to: first.label, timeoutMs: timeoutMs) ? .moved(first.label) : .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.")
+        }
+
+        // 지금 값이 More reasoning… 아래(Max · Ultra)에 있다.
+        guard try moveCursor(to: more, timeoutMs: timeoutMs) else { return .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.") }
+        try io.press(.enter)
+        var inner: [Picker.Row] = []
+        guard try poll(timeoutMs: timeoutMs, { lines in
+            inner = Picker.rows(lines)
+            return lines.contains { $0.contains("Advanced Reasoning") } && inner.contains(where: \.current)
+        }), let at = inner.firstIndex(where: \.current) else { return .stopped("codex 의 More reasoning 목록에서 지금 값을 찾지 못했습니다.") }
+        if up {
+            guard at + 1 < inner.count else { return edge(inner[at].label) }
+            return try moveCursor(to: inner[at + 1].label, timeoutMs: timeoutMs) ? .moved(inner[at + 1].label) : .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.")
+        }
+        if at > 0 {
+            return try moveCursor(to: inner[at - 1].label, timeoutMs: timeoutMs) ? .moved(inner[at - 1].label) : .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.")
+        }
+        // 아래 목록의 첫 행이다 — 한 단계 아래는 바깥 목록의 마지막 행(Extra high)이다.
+        guard let last = plain.last else { return edge(inner[at].label) }
+        try io.press(.escape)
+        guard try poll(timeoutMs: timeoutMs, { $0.contains { $0.contains("Select Reasoning Level") } }) else {
+            return .stopped("codex effort 목록으로 돌아가지 못했습니다.")
+        }
+        return try moveCursor(to: rows[last].label, timeoutMs: timeoutMs) ? .moved(rows[last].label) : .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.")
     }
 
     /// 선택창이 닫히고 입력창이 다시 보일 때까지 기다린다.

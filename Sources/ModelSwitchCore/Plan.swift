@@ -51,6 +51,8 @@ public enum Step: Equatable, Sendable {
     case expectCurrentRow(abort: [Step], failure: String)
     /// claude 선택창의 effort 를 한 단계 올리거나 내린다. 이미 끝이면 아무것도 바꾸지 않고 그렇게 알린다.
     case stepEffort(up: Bool, timeoutMs: Int, abort: [Step])
+    /// codex effort 목록에서 지금 값(`(current)`)의 바로 위·아래 행에 커서를 둔다. Max·Ultra 는 More reasoning… 아래에 있다.
+    case stepRow(up: Bool, timeoutMs: Int, abort: [Step])
     /// 선택창이 닫히고 그 에이전트의 입력창이 다시 «보임»을 확인한다. claude 는 쓰던 글이 돌아온 것까지 본다.
     ///
     /// claude 는 대화 도중 모델을 바꾸면 「Switch model?」 확인 창을 띄운다(대화 기록을 새 모델로 다시 읽는다는 안내).
@@ -90,6 +92,38 @@ public enum Plans {
             .capture(prefix: "Set model to"),
             .capture(prefix: "Kept model as"),
         ]
+    }
+
+    /// codex: 모델은 그대로 두고 effort 만 한 단계 옮긴다.
+    ///
+    /// 지금 값은 선택창의 `(current)` 표시로 안다. 입력창 아래 상태 줄도 값을 보여 주지만, max·ultra 로 바꾼 직후
+    /// 한동안 옛 값을 보여 줘서(0.160.0 실측) 연달아 누르면 엉뚱한 단계로 간다.
+    public static func codexEffortStep(up: Bool) -> [Step] {
+        let restoreDraft: [Step] = [.text("\u{19}\u{7F}")]
+        let leave: [Step] = [.closePicker] + restoreDraft
+        return [
+            .text("\u{05} \u{01}\u{0B}/model"),
+            .expect(needle: "choose what model and reasoning effort",
+                    timeoutMs: 2500,
+                    abort: [.text(String(repeating: "\u{7F}", count: 6))] + restoreDraft,
+                    failure: "codex 입력창에 여러 줄 초안이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요."),
+            .key(.enter),
+            .expect(needle: "Select Model and Effort", timeoutMs: 4000, abort: leave,
+                    failure: "codex 모델 선택창이 열리지 않았습니다."),
+            // 모델 목록의 커서는 지금 모델에서 시작한다. 그 행이 맞을 때만 Enter 로 들어간다.
+            .expectCurrentRow(abort: leave, failure: "codex 모델 선택창의 커서가 지금 모델에 있지 않아 바꾸지 않았습니다."),
+            .key(.enter),
+            .expect(needle: "Select Reasoning Level", timeoutMs: 4000, abort: leave,
+                    failure: "codex effort 목록이 열리지 않았습니다."),
+            .stepRow(up: up, timeoutMs: 3000, abort: leave),
+            .expect(needle: "s session", timeoutMs: 1000, abort: leave,
+                    failure: "codex 선택창에 「이 세션만」(s) 선택지가 없어 바꾸지 않았습니다."),
+            .arm,
+            .text("s"),
+            .expectInput(agent: .codex, timeoutMs: 3000, abort: [.closePicker],
+                         failure: "codex 입력창이 돌아오지 않아 멈췄습니다. 쓰던 글이 있었다면 Ctrl+Y 로 되살릴 수 있습니다."),
+            .capture(prefix: "Model changed to"),
+        ] + restoreDraft
     }
 
     /// claude: 모델은 그대로 두고 effort 만 한 단계 옮긴다. 같은 선택창에서 → · ← 한 번이다.
