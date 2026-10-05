@@ -45,10 +45,11 @@ func describe(_ step: Step) -> String {
     case .wait(let ms): return "대기  \(ms)ms"
     case .expect(let needle, let timeoutMs, _, _): return "확인  화면에 \(needle.debugDescription) (최대 \(timeoutMs)ms)"
     case .arm: return "기준  기본값 파일 수정 시각"
-    case .expectResult(let prefix, let timeoutMs, _): return "확인  결과 줄 \(prefix.debugDescription)… (최대 \(timeoutMs)ms)"
+    case .expectResult(let prefix, _, let timeoutMs, _): return "확인  결과 줄 \(prefix.debugDescription)… (최대 \(timeoutMs)ms)"
     case .selectRow(let label, let via, let timeoutMs, _, _):
         return "행    커서를 \(label.debugDescription) 행에\(via.map { " (없으면 \($0.debugDescription) 하위에서)" } ?? "") (최대 \(timeoutMs)ms)"
-    case .expectComposer(let timeoutMs, _, _): return "확인  선택창이 닫히고 입력창이 보임 (최대 \(timeoutMs)ms)"
+    case .setEffort(let level, let timeoutMs, _, _): return "effort 선택창의 effort 줄을 \(level.debugDescription) 로 (최대 \(timeoutMs)ms)"
+    case .expectInput(let agent, _, let timeoutMs, _, _): return "확인  선택창이 닫히고 \(agent.rawValue) 입력창이 보임 (최대 \(timeoutMs)ms)"
     case .closePicker: return "닫기  선택창이 보이는 동안만 Esc"
     case .capture(let prefix): return "기록  \(prefix.debugDescription)… 줄"
     }
@@ -101,6 +102,10 @@ do {
         let planned = try Switcher(config: try store.load()).plan(slot: slot, agent: agent)
         print("\(agent.rawValue) \(planned.preset.model) · \(planned.preset.effort)")
         planned.steps.forEach { print("  " + describe($0)) }
+        if let fallback = planned.fallback {
+            print("선택창에 그 모델 행이 없으면(기본값을 바꿨다가 되돌린다):")
+            fallback.forEach { print("  " + describe($0)) }
+        }
     case "path":
         print(store.url.path)
     default:

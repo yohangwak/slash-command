@@ -93,6 +93,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     } else {
                         self.hud.show(result.summary, detail: detail)
                     }
+                case .failure(let error as ModelSwitchError) where error.awaitingUser:
+                    Log.write("확인 대기 \(slot): \(error)")
+                    self.hud.show("Enter 로 확정해 주세요", detail: "\(error)", seconds: 6)
                 case .failure(let error):
                     Log.write("실패 \(slot): \(error)")
                     self.hud.show("전환하지 않았습니다", detail: "\(error)", seconds: 4)

@@ -33,6 +33,7 @@ struct EditableSlot: Identifiable {
 final class SettingsModel: ObservableObject {
     @Published var slots: [EditableSlot] = []
     @Published var keepDefaults = true
+    @Published var acceptSwitchPrompt = false
     @Published var modifiers: Set<String> = Set(ModelSwitchConfig.defaultModifiers)
     @Published var status = ""
 
@@ -60,6 +61,7 @@ final class SettingsModel: ObservableObject {
             let config = try store.load()
             slots = config.slots.map(EditableSlot.init)
             keepDefaults = config.keepDefaults
+            acceptSwitchPrompt = config.acceptSwitchPrompt
             modifiers = Set(config.modifiers)
             status = ""
         } catch {
@@ -88,6 +90,7 @@ final class SettingsModel: ObservableObject {
         }
         do {
             try store.save(ModelSwitchConfig(keepDefaults: keepDefaults,
+                                      acceptSwitchPrompt: acceptSwitchPrompt,
                                       modifiers: ModelSwitchConfig.knownModifiers.filter(modifiers.contains),
                                       slots: slots.map(\.slot)))
             status = "저장했습니다."
@@ -135,8 +138,13 @@ struct SettingsView: View {
                 Text("+ 번호").foregroundStyle(.secondary)
             }
 
-            Toggle("전환 뒤에도 새 세션 기본값은 그대로 둔다", isOn: $model.keepDefaults)
-            Text("claude 의 /model·/effort 는 새로 여는 세션의 기본값까지 바꿉니다. 켜 두면 전환 직후 기본값만 원래대로 되돌립니다.")
+            Toggle("이 세션만 바꾼다(새 세션 기본값은 그대로)", isOn: $model.keepDefaults)
+            Text("켜 두면 claude·codex 선택창에서 「이 세션만」으로 확정합니다. 끄면 claude 는 새로 여는 세션의 기본값까지 바뀝니다.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Toggle("claude 의 「Switch model?」 확인 창을 자동으로 받아들인다", isOn: $model.acceptSwitchPrompt)
+            Text("claude 는 대화 도중 모델을 바꾸면 대화 기록을 새 모델로 다시 읽는다고 알리고 한 번 더 묻습니다. 꺼 두면 그 창에서 직접 Enter 를 눌러야 바뀝니다.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 

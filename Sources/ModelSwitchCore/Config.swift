@@ -63,6 +63,9 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     public var version: Int
     /// 전환 뒤 「새 세션 기본값」을 전환 전 값으로 되돌린다(claude 의 /model·/effort 는 기본값까지 저장한다).
     public var keepDefaults: Bool
+    /// claude 는 대화 도중 모델을 바꾸면 「Switch model?」 확인 창을 띄운다(대화 기록을 새 모델로 다시 읽는다는 안내).
+    /// 참이면 그 창이 우리가 고른 모델을 물을 때 Enter 로 받아들인다. 거짓(기본)이면 창을 그대로 두고 사용자가 고르게 한다.
+    public var acceptSwitchPrompt: Bool
     /// 번호 키와 함께 누를 조합 키. `shift`·`option`·`control`·`command` 중에서.
     public var modifiers: [String]
     public var slots: [Slot]
@@ -70,10 +73,11 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     public static let defaultModifiers = ["option", "shift"]
     public static let knownModifiers = ["control", "option", "shift", "command"]
 
-    public init(version: Int = 1, keepDefaults: Bool = true,
+    public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = false,
                 modifiers: [String] = ModelSwitchConfig.defaultModifiers, slots: [Slot]) {
         self.version = version
         self.keepDefaults = keepDefaults
+        self.acceptSwitchPrompt = acceptSwitchPrompt
         self.modifiers = modifiers
         self.slots = slots
     }
@@ -88,6 +92,7 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         keepDefaults = try c.decodeIfPresent(Bool.self, forKey: .keepDefaults) ?? true
+        acceptSwitchPrompt = try c.decodeIfPresent(Bool.self, forKey: .acceptSwitchPrompt) ?? false
         let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? ModelSwitchConfig.defaultModifiers
         modifiers = ModelSwitchConfig.knownModifiers.filter(wanted.contains)
         // 조합 키 없이 숫자만 잡으면 터미널에 숫자를 칠 수 없게 된다.
@@ -167,6 +172,10 @@ public struct ConfigStore: Sendable {
 
 public struct ModelSwitchError: Error, CustomStringConvertible, Equatable {
     public let message: String
+    /// 선택창을 닫고 입력창으로 돌아온 것까지 확인한 실패 — 아무것도 바뀌지 않았으므로 다른 방법으로 다시 해도 된다.
+    public var cleanlyAborted = false
+    /// 실패가 아니라 사용자의 확인을 기다리는 상태(claude 의 「Switch model?」 창이 떠 있다).
+    public var awaitingUser = false
 
     public init(_ message: String) {
         self.message = message

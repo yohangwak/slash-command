@@ -52,7 +52,7 @@ final class PlanTests: XCTestCase {
         // 고정 대기 없이 결과 줄을 확인하고 넘어간다.
         XCTAssertFalse(steps.contains { if case .wait = $0 { return true } else { return false } })
         let prefixes = steps.compactMap { step -> String? in
-            if case .expectResult(let prefix, _, _) = step { return prefix }
+            if case .expectResult(let prefix, _, _, _) = step { return prefix }
             return nil
         }
         XCTAssertEqual(prefixes, ["Set model to", "Set effort level"])
@@ -169,13 +169,26 @@ final class RunnerTests: XCTestCase {
         try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 300, failure: "f")])
     }
 
-    func testExpectResultFallsBackAfterGraceWhenTheFileNeverChanges() throws {
-        // claude 가 기본값 파일을 다른 곳에 두는 환경: 파일 신호가 끝내 안 온다. 멈추지 않고 여유 시간 뒤에 진행한다.
+    func testExpectResultAcceptsASecondIdenticalLine() throws {
+        // 기본값 파일 신호가 없어도, 같은 문구의 줄이 하나 더 생기면 새 결과다.
         let io = FakeIO()
         let stale = ["  ⎿  Set model to Sonnet 5.5", rule, "❯"]
-        io.screens = [stale]
+        io.screens = [stale, ["  ⎿  Set model to Sonnet 5.5", "❯ /model sonnet", "  ⎿  Set model to Sonnet 5.5", rule, "❯"]]
+        let runner = Runner(io: io, sleep: { _ in }, initial: ScreenSnapshot(lines: stale, draft: ""))
+        try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 300, failure: "f")])
+    }
+
+    func testExpectResultStopsAtOnceWhenTheCommandWasRefused() {
+        // 예전 전환의 줄이 화면에 남아 있어도, 이번 명령 바로 아래에 다른 답이 붙었으면 실패다(예전 줄을 성공으로 읽지 않는다).
+        let io = FakeIO()
+        let stale = ["❯ /model", "  ⎿  Set model to Opus 5 for this session only with low effort", rule, "❯"]
+        io.screens = [stale, stale + [], ["  ⎿  Set model to Opus 5 for this session only with low effort",
+                                           "❯ /model no-such", "  ⎿  Model 'no-such' not found", rule, "❯"]]
         let runner = Runner(io: io, sleep: { _ in }, stamp: { 7 }, initial: ScreenSnapshot(lines: stale, draft: ""))
-        try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 3000, failure: "f")])
+        XCTAssertThrowsError(try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 3000, failure: "응답 없음"), .text("next")])) {
+            XCTAssertTrue("\($0)".contains("Model 'no-such' not found"), "\($0)")
+        }
+        XCTAssertEqual(io.sent, ["go"], "다음 명령을 보내지 않는다")
     }
 
     func testExpectResultWaitsUntilDraftIsBack() throws {
@@ -321,7 +334,7 @@ final class FakePicker: TerminalIO {
     }
 }
 
-final class CodexPickerTests: XCTestCase {
+final class PickerTests: XCTestCase {
     let efforts = [
         "• Model changed to gpt-6.1-sol high for this session only",
         "  Select Reasoning Level for GPT-6.1-Sol",
@@ -334,17 +347,19 @@ final class CodexPickerTests: XCTestCase {
     ]
 
     func testReadsRowsAndCursor() {
-        let rows = CodexPicker.rows(efforts)
+        let rows = Picker.rows(efforts)
         XCTAssertEqual(rows.map(\.label), ["Low", "Medium", "High", "Extra high", "More reasoning…"])
         XCTAssertEqual(rows.map(\.number), [1, 2, 3, 4, 5])
         XCTAssertEqual(rows.firstIndex(where: \.selected), 2)
-        XCTAssertTrue(CodexPicker.matches(rows[2], "high"))
-        XCTAssertFalse(CodexPicker.matches(rows[3], "High"), "Extra high 는 High 가 아니다")
-        XCTAssertTrue(CodexPicker.matches(rows[4], "More reasoning"))
+        XCTAssertEqual(Picker.index(of: "high", in: rows), 2, "Extra high 는 High 가 아니다")
+        XCTAssertEqual(Picker.index(of: "Extra high", in: rows), 3)
+        XCTAssertEqual(Picker.index(of: "More reasoning", in: rows), 4)
+        XCTAssertNil(Picker.index(of: "Max", in: rows))
+        XCTAssertEqual(rows.map(\.current), [false, false, true, false, false])
     }
 
     func testReadsSubmenuBelowTheWarningLine() {
-        let rows = CodexPicker.rows(["  Advanced Reasoning", "  ⚠ Consumes usage limits faster",
+        let rows = Picker.rows(["  Advanced Reasoning", "  ⚠ Consumes usage limits faster",
                                      "› 1. Max    For difficult problems", "  2. Ultra  For demanding work",
                                      "  enter default · s session · esc back"])
         XCTAssertEqual(rows.map(\.label), ["Max", "Ultra"])
@@ -353,11 +368,11 @@ final class CodexPickerTests: XCTestCase {
 
     func testNumberedRowsWithoutOurHeaderAreNotAPicker() throws {
         // 승인 창도 번호 행을 쓴다 — 거기에 위·아래·s·Esc 를 보내면 안 된다.
-        XCTAssertFalse(CodexPicker.isOpen(["  Would you like to run the following command?", "› 1. Yes, proceed", "  2. No"]))
-        XCTAssertFalse(CodexPicker.isOpen(["› Ask Codex to do anything"]))
+        XCTAssertFalse(Picker.isOpen(["  Would you like to run the following command?", "› 1. Yes, proceed", "  2. No"]))
+        XCTAssertFalse(Picker.isOpen(["› Ask Codex to do anything"]))
         let url = try XCTUnwrap(Bundle.module.url(forResource: "codex-approval", withExtension: "json", subdirectory: "Fixtures"))
         struct Fixture: Decodable { let tail: [String] }
-        XCTAssertFalse(CodexPicker.isOpen(try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail))
+        XCTAssertFalse(Picker.isOpen(try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail))
     }
 
     func run(_ effort: String, picker: FakePicker) throws -> [String] {
@@ -693,15 +708,156 @@ final class OrcaStateTests: XCTestCase {
     }
 }
 
+/// claude 흉내. 화면은 2026-10-06 claude 2.1.289 에서 받은 것과 같은 꼴로 그린다.
+final class FakeClaude: TerminalIO {
+    enum Stage: Equatable { case prompt, picker, confirm }
+    var stage = Stage.prompt
+    var rows = ["Default (recommended)", "Opus 5.5", "Fable 5.1", "Sonnet 5.5", "Haiku 4.5", "Opus 5"]
+    var efforts = ["low", "medium", "high", "xhigh", "max"]
+    var model = "Opus 5.5"
+    var effort = "high"
+    var cursor = 0
+    var pickerEffort = 0
+    var draft = ""
+    var stashed: String?
+    var line = ""
+    var results: [String] = []
+    var sent: [String] = []
+    /// 대화 도중 모델을 바꿀 때 한 번 더 묻는다("Switch model?").
+    var asksBeforeSwitching = false
+    /// 작업 중에는 결과가 대화 줄이 아니라 알림 줄로 뜬다.
+    var busy = false
+    /// 확정 방식: "s"(이 세션만) · "enter"(기본값으로 저장) · "command"(/model X)
+    var confirmedBy: String?
+    /// `/model X`·`/effort Y`·Enter 확정이 기본값을 쓰는 파일.
+    var settings: URL?
+    private var writes = 0
+    private let rule = String(repeating: "─", count: 30)
+
+    private func saveDefault(_ model: String) {
+        guard let settings else { return }
+        writes += 1
+        try? Data("{\n  \"model\": \"\(model)\"\n}".utf8).write(to: settings)
+        try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 2_000_000 + Double(writes))],
+                                               ofItemAtPath: settings.path)
+    }
+
+    private func supportsEffort(_ model: String) -> Bool { !model.hasPrefix("Haiku") }
+
+    private func finishCommand() {
+        stage = .prompt
+        if let stashed { draft = stashed }
+        stashed = nil
+    }
+
+    private func confirm(session: Bool) {
+        model = rows[cursor]
+        var text = "Set model to \(model)" + (session ? " for this session only" : "")
+        if supportsEffort(model) {
+            effort = efforts[pickerEffort]
+            text += " with \(effort) effort"
+        }
+        if !session { text += " and saved as your default for new sessions"; saveDefault(model) }
+        results.append(text)
+        confirmedBy = session ? "s" : "enter"
+        finishCommand()
+    }
+
+    private func run(_ command: String) {
+        if command == "/model" {
+            stage = .picker
+            cursor = rows.firstIndex(of: model) ?? 0
+            pickerEffort = efforts.firstIndex(of: effort) ?? 0
+        } else if command.hasPrefix("/model ") {
+            let wanted = String(command.dropFirst("/model ".count)).lowercased()
+            if let found = rows.first(where: { $0.lowercased().hasPrefix(wanted) }) {
+                model = found
+                results.append("Set model to \(found) and saved as your default for new sessions")
+                saveDefault(found)
+                confirmedBy = "command"
+            } else {
+                results.append("Model '\(wanted)' not found")
+            }
+            finishCommand()
+        } else if command.hasPrefix("/effort ") {
+            effort = String(command.dropFirst("/effort ".count))
+            results.append("Set effort level to \(effort) (saved as your default for new sessions): …")
+            saveDefault(model)
+            finishCommand()
+        }
+    }
+
+    func type(_ text: String) throws {
+        sent.append(text)
+        var rest = Substring(text)
+        while !rest.isEmpty {
+            let arrows: [(String, () -> Void)] = [
+                ("\u{1B}[A", { self.cursor = max(0, self.cursor - 1) }),
+                ("\u{1B}[B", { self.cursor = min(self.rows.count - 1, self.cursor + 1) }),
+                ("\u{1B}[C", { self.pickerEffort = (self.pickerEffort + 1) % self.efforts.count }),
+                ("\u{1B}[D", { self.pickerEffort = (self.pickerEffort + self.efforts.count - 1) % self.efforts.count }),
+            ]
+            if let arrow = arrows.first(where: { rest.hasPrefix($0.0) }) {
+                if stage == .picker { arrow.1() }
+                rest = rest.dropFirst(arrow.0.count)
+                continue
+            }
+            let key = rest.removeFirst()
+            switch (stage, key) {
+            case (.prompt, "\u{13}"): stashed = draft; draft = ""
+            case (.prompt, "\r"): let command = line; line = ""; run(command)
+            case (.prompt, _): line.append(key)
+            case (.picker, "s"), (.picker, "\r"):
+                if asksBeforeSwitching, rows[cursor] != model, key == "s" { stage = .confirm } else { confirm(session: key == "s") }
+            case (.picker, "\u{1B}"): finishCommand()
+            case (.confirm, "\r"): confirm(session: true)
+            default: break
+            }
+        }
+    }
+
+    func press(_ key: Key) throws { try type(key.bytes) }
+
+    func screen() -> [String]? {
+        let shown = results.suffix(3).map { busy ? String(repeating: " ", count: 20) + $0 : "  ⎿  " + $0 }
+        switch stage {
+        case .prompt:
+            return shown + [rule, "❯", rule, "  ⏵⏵ auto mode on"]
+        case .picker:
+            let list = rows.enumerated().map { index, name in
+                "   \(index == cursor ? "❯" : " ") \(index + 1).  \(name)\(name == model ? " ✔" : "")             설명"
+            }
+            let level = efforts[pickerEffort]
+            let effortLine = supportsEffort(rows[cursor])
+                ? "   ● \(level == "xhigh" ? "xHigh" : level.capitalized) effort ←/→ to adjust"
+                : "   ○ Effort not supported for \(rows[cursor])"
+            return shown + ["   Select model", "   Switch between Claude models. Your pick becomes the default for new sessions."]
+                + list + [effortLine, "   Enter to set as default · s to use this session only · Esc to cancel"]
+        case .confirm:
+            return shown + ["   Switch model?", "   Your next response will be slower and use more tokens",
+                            "   ❯ 1. Yes, switch to \(rows[cursor])", "     2. No, go back"]
+        }
+    }
+
+    func snapshot() -> ScreenSnapshot? {
+        screen().map { ScreenSnapshot(lines: $0, draft: draft) }
+    }
+}
+
 final class SwitcherApplyTests: XCTestCase {
     let target = Target(host: .orca(handle: "term_x"), agent: .claude, label: "x")
 
-    func switcher(io: FakeIO, settings: URL) -> Switcher {
-        Switcher(config: .starter, claudeDefaults: ClaudeDefaults(url: settings),
+    func config(_ model: String, _ effort: String, keepDefaults: Bool = true, accept: Bool = false) -> ModelSwitchConfig {
+        ModelSwitchConfig(keepDefaults: keepDefaults, acceptSwitchPrompt: accept,
+                          slots: [Slot(claude: AgentPreset(model: model, effort: effort))])
+    }
+
+    func switcher(_ config: ModelSwitchConfig, io: TerminalIO, settings: URL) -> Switcher {
+        Switcher(config: config, claudeDefaults: ClaudeDefaults(url: settings),
                  codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { _ in })
     }
 
-    func tempSettings(_ text: String) throws -> URL {
+    func tempSettings(_ text: String = "{\n  \"model\": \"opus\"\n}") throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-apply-\(UUID().uuidString).json")
         try Data(text.utf8).write(to: url)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
@@ -711,53 +867,129 @@ final class SwitcherApplyTests: XCTestCase {
     func testSendsNothingWhenPermissionDialogIsShowing() throws {
         let io = FakeIO()
         io.screens = [["╌╌╌╌", " Do you want to proceed?", " ❯ 1. Yes", "   2. No"]]
-        XCTAssertThrowsError(try switcher(io: io, settings: tempSettings("{}")).apply(slot: 2, to: target))
+        XCTAssertThrowsError(try switcher(config("sonnet", "high"), io: io, settings: tempSettings()).apply(slot: 1, to: target))
         XCTAssertEqual(io.sent, [])
     }
 
     func testSendsNothingWhenScreenIsUnreadable() throws {
         let io = FakeIO()
-        XCTAssertThrowsError(try switcher(io: io, settings: tempSettings("{}")).apply(slot: 2, to: target))
+        XCTAssertThrowsError(try switcher(config("sonnet", "high"), io: io, settings: tempSettings()).apply(slot: 1, to: target))
         XCTAssertEqual(io.sent, [])
     }
 
-    func testAppliesAndRestoresDefaultsChangedDuringSwitch() throws {
-        let original = "{\n  \"model\": \"opus\"\n}"
-        let settings = try tempSettings(original)
-        let io = FakeIO()
-        let rule = String(repeating: "─", count: 10)
-        io.screens = [[rule, "❯", rule]]
-        // claude 가 명령을 처리하며 결과 줄을 찍고 기본값을 바꿔 쓰는 것을 흉내 낸다(쓸 때마다 수정 시각이 달라진다).
-        var tick = 0
-        io.onType = { text in
-            tick += 1
-            let model = text.contains("/model sonnet")
-            let json = model ? "{\n  \"model\": \"sonnet\"\n}" : "{\n  \"model\": \"sonnet\"\n}"
-            try? Data(json.utf8).write(to: settings)
-            try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000_000 + Double(tick))],
-                                                   ofItemAtPath: settings.path)
-            io.screens = [[model ? "  ⎿  Set model to Sonnet 5.5 and saved as your default" : "  ⎿  Set effort level to high (saved as your default)", rule, "❯"]]
-        }
-
-        let result = try switcher(io: io, settings: settings).apply(slot: 2, to: target)
-        XCTAssertEqual(io.sent, ["\u{13}/model sonnet\r", "\u{13}/effort high\r"])
-        XCTAssertEqual(result.preset, AgentPreset(model: "sonnet", effort: "high"))
-        XCTAssertNil(result.warning)
-        XCTAssertEqual(result.summary, "Sonnet 5.5 · high", "알림 제목은 보낸 값이 아니라 claude 가 알려 준 이름")
-        XCTAssertTrue(result.confirmed)
-        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), original)
+    func testPicksModelAndEffortForThisSessionOnly() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.draft = "쓰던 글"
+        let result = try switcher(config("sonnet", "medium"), io: claude, settings: settings).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Sonnet 5.5")
+        XCTAssertEqual(claude.effort, "medium")
+        XCTAssertEqual(claude.confirmedBy, "s", "기본값까지 저장하는 방식으로 확정하면 안 된다")
+        XCTAssertEqual(claude.draft, "쓰던 글")
+        XCTAssertEqual(result.summary, "Sonnet 5.5 · medium")
+        XCTAssertNil(result.pendingRestore, "기본값을 건드리지 않았으니 되돌릴 것도 없다")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}")
     }
 
-    func testRestoresDefaultsEvenWhenTheSwitchStopsHalfway() throws {
+    func testEffortWrapsAroundToReachALowerLevel() throws {
+        let claude = FakeClaude()
+        claude.effort = "max"
+        _ = try switcher(config("opus", "low"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.effort, "low")
+        XCTAssertEqual(claude.model, "Opus 5.5")
+    }
+
+    func testFullModelIDPicksThatVersionNotTheNewest() throws {
+        let claude = FakeClaude()
+        _ = try switcher(config("claude-opus-5", "high"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Opus 5", "Opus 5.5 가 아니라")
+    }
+
+    func testModelWithoutEffortStillSwitches() throws {
+        let claude = FakeClaude()
+        let result = try switcher(config("haiku", "high"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Haiku 4.5")
+        XCTAssertEqual(result.summary, "Haiku 4.5", "적용되지 않은 effort 를 알림에 쓰지 않는다")
+    }
+
+    func testSavesAsDefaultWhenAskedTo() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        _ = try switcher(config("fable", "xhigh", keepDefaults: false), io: claude, settings: settings).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.confirmedBy, "enter")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"Fable 5.1\"\n}")
+    }
+
+    func testLeavesTheSwitchConfirmationToTheUserByDefault() throws {
+        let claude = FakeClaude()
+        claude.asksBeforeSwitching = true
+        XCTAssertThrowsError(try switcher(config("sonnet", "high"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)) {
+            XCTAssertEqual(($0 as? ModelSwitchError)?.awaitingUser, true)
+            XCTAssertTrue("\($0)".contains("Sonnet 5.5"))
+        }
+        XCTAssertEqual(claude.stage, .confirm, "확인 창은 그대로 둔다")
+        XCTAssertEqual(claude.sent.last, "s", "확인 창에는 아무것도 보내지 않았다")
+        XCTAssertEqual(claude.model, "Opus 5.5")
+    }
+
+    func testAcceptsTheSwitchConfirmationOnlyWhenEnabled() throws {
+        let claude = FakeClaude()
+        claude.asksBeforeSwitching = true
+        let result = try switcher(config("sonnet", "high", accept: true), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Sonnet 5.5")
+        XCTAssertEqual(claude.sent.filter { $0 == "\r" }.count, 1)
+        XCTAssertEqual(result.summary, "Sonnet 5.5 · high")
+    }
+
+    func testNeverAcceptsAConfirmationForAnotherModel() throws {
+        let io = FakeIO()
+        io.screens = [["   Switch model?", "   ❯ 1. Yes, switch to Sonnet 5.5", "     2. No, go back"]]
+        XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }).run([
+            .expectInput(agent: .claude, acceptSwitchTo: "opus", timeoutMs: 200, abort: [], failure: "f"),
+        ]))
+        XCTAssertEqual(io.sent, [])
+        // 커서가 No 에 있으면 그 창으로 보지 않는다.
+        XCTAssertNil(ClaudeScreen.switchPrompt(["   Switch model?", "     1. Yes, switch to Opus 5.5", "   ❯ 2. No, go back"]))
+        XCTAssertEqual(ClaudeScreen.switchPrompt(io.screens![0]), "Sonnet 5.5")
+    }
+
+    func testWorksWhileClaudeIsBusy() throws {
+        let claude = FakeClaude()
+        claude.busy = true
+        let result = try switcher(config("fable", "max"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
+        XCTAssertEqual(result.summary, "Fable 5.1 · max")
+    }
+
+    func testFallsBackToCommandsWhenThePickerLacksTheModelAndRestoresDefaults() throws {
         let original = "{\n  \"model\": \"opus\"\n}"
         let settings = try tempSettings(original)
-        let io = FakeIO()
-        let rule = String(repeating: "─", count: 10)
-        io.screens = [[rule, "❯", rule]]
-        // /model 은 기본값을 바꿨지만 결과 줄이 끝내 안 보인다(예: 그 사이 확인 창이 떴다).
-        io.onType = { _ in try? Data("{\n  \"model\": \"sonnet\"\n}".utf8).write(to: settings) }
-        XCTAssertThrowsError(try switcher(io: io, settings: settings).apply(slot: 2, to: target))
-        XCTAssertEqual(io.sent, ["\u{13}/model sonnet\r"], "첫 명령이 확인되지 않으면 다음 명령을 보내지 않는다")
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.draft = "쓰던 글"
+        // 선택창 목록에는 없지만 `/model` 명령은 아는 모델(목록 아래로 밀려난 옛 모델을 흉내).
+        let hidden = "Opus 4.7"
+        claude.rows.removeAll { $0 == hidden }
+        let io = HidingRows(claude: claude, hidden: hidden)
+        let result = try switcher(config("opus 4.7", "high"), io: io, settings: settings).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, hidden)
+        XCTAssertEqual(claude.confirmedBy, "command")
+        XCTAssertEqual(claude.draft, "쓰던 글")
+        XCTAssertEqual(result.summary, "Opus 4.7 · high")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), original, "명령은 기본값을 바꾸므로 되돌린다")
+        XCTAssertEqual(claude.sent.filter { $0 == "\u{1B}" }.count, 1, "선택창은 Esc 한 번으로 닫는다")
+    }
+
+    func testReportsWhatClaudeSaidWhenTheModelDoesNotExist() throws {
+        let original = "{\n  \"model\": \"opus\"\n}"
+        let settings = try tempSettings(original)
+        let claude = FakeClaude()
+        claude.settings = settings
+        XCTAssertThrowsError(try switcher(config("no-such", "high"), io: claude, settings: settings).apply(slot: 1, to: target)) {
+            XCTAssertTrue("\($0)".contains("not found"), "\($0)")
+        }
+        XCTAssertEqual(claude.model, "Opus 5.5")
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), original)
     }
 
@@ -766,12 +998,79 @@ final class SwitcherApplyTests: XCTestCase {
             SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "opus", effort: "xhigh"),
                          warning: nil, confirmations: lines, pendingRestore: nil).summary
         }
+        XCTAssertEqual(summary(["Set model to Opus 5.5 for this session only with xhigh effort"]), "Opus 5.5 · xhigh")
         // 작업 중 알림 줄은 잘려 온다.
         XCTAssertEqual(summary(["Set model to Opus 5.5 and", "Set effort level to high (saved as your default for new sessions): Compre"]),
                        "Opus 5.5 · high")
         XCTAssertEqual(summary(["Set model to Opus 5.5 and saved as your default for new sessions"]), "Opus 5.5 · xhigh")
+        XCTAssertEqual(summary(["Effort not supported for Haiku 4.5", "Set model to Haiku 4.5 for this session only"]), "Haiku 4.5")
+        XCTAssertEqual(summary(["Set model to Opus 5.5 for this session only"]), "Opus 5.5 · xhigh", "effort 가 그대로면 claude 는 말하지 않는다")
+        XCTAssertEqual(summary(["Kept model as Opus 5.5"]), "Opus 5.5 · xhigh")
         XCTAssertEqual(summary(["Model changed to gpt-6.1-sol max for this session only"]), "gpt-6.1-sol · max")
         XCTAssertEqual(summary([]), "opus · xhigh", "확인 문구가 없으면 프리셋 값")
+    }
+}
+
+/// 선택창 목록에는 없지만 `/model` 명령으로는 고를 수 있는 모델을 만든다.
+final class HidingRows: TerminalIO {
+    let claude: FakeClaude
+    let hidden: String
+    init(claude: FakeClaude, hidden: String) { self.claude = claude; self.hidden = hidden }
+
+    func type(_ text: String) throws {
+        // 명령으로 올 때만 그 모델을 알게 한다.
+        if text.contains("/model \(hidden.lowercased())") { claude.rows.append(hidden) }
+        try claude.type(text)
+    }
+    func press(_ key: Key) throws { try type(key.bytes) }
+    func screen() -> [String]? { claude.screen() }
+    func snapshot() -> ScreenSnapshot? { claude.snapshot() }
+}
+
+final class ClaudePickerTests: XCTestCase {
+    /// 2026-10-06 claude 2.1.289 화면 그대로.
+    let picker = [
+        "   Select model",
+        "   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, specify with --model.",
+        "     1.  Default (recommended)  Sonnet 5.5 · Efficient for routine tasks",
+        "   ❯ 2.  Opus 5.5 ✔             For complex work and everyday tasks",
+        "     3.  Fable 5.1              For your toughest challenges",
+        "     4.  Sonnet 5.5             Most efficient for simpler tasks",
+        "     5.  Haiku 4.5              Fastest for quick answers",
+        "     6.  Sonnet 5               Efficient for routine tasks",
+        "     7.  Opus 5                 Best for everyday, complex tasks",
+        "   ↓ 10. Opus 4.7               Best for everyday, complex tasks",
+        "      … +2 models",
+        "   ◉ xHigh effort ←/→ to adjust",
+        "   Enter to set as default · s to use this session only · Esc to cancel",
+    ]
+
+    func testReadsRowsCursorAndCurrentMark() {
+        let rows = Picker.rows(picker)
+        XCTAssertEqual(rows.map(\.label), ["Default (recommended)", "Opus 5.5", "Fable 5.1", "Sonnet 5.5", "Haiku 4.5", "Sonnet 5", "Opus 5", "Opus 4.7"])
+        XCTAssertEqual(rows.map(\.number), [1, 2, 3, 4, 5, 6, 7, 10])
+        XCTAssertEqual(rows.firstIndex(where: \.selected), 1)
+        XCTAssertEqual(rows.firstIndex(where: \.current), 1)
+    }
+
+    func testFindsTheRowForAPresetModel() {
+        let rows = Picker.rows(picker)
+        XCTAssertEqual(Picker.index(of: ClaudeModels.rowLabel("opus"), in: rows), 1, "별칭은 맨 위(최신) 행")
+        XCTAssertEqual(Picker.index(of: ClaudeModels.rowLabel("sonnet"), in: rows), 3, "Default 행이 아니라 Sonnet 5.5 행")
+        XCTAssertEqual(Picker.index(of: ClaudeModels.rowLabel("claude-opus-5"), in: rows), 6, "Opus 5.5 가 아니라 Opus 5")
+        XCTAssertEqual(Picker.index(of: ClaudeModels.rowLabel("claude-sonnet-5-5"), in: rows), 3)
+        XCTAssertEqual(Picker.index(of: ClaudeModels.rowLabel("claude-haiku-4-5-20251001"), in: rows), 4)
+        XCTAssertEqual(Picker.index(of: ClaudeModels.rowLabel("Opus 4.7"), in: rows), 7)
+        XCTAssertNil(Picker.index(of: ClaudeModels.rowLabel("opus[1m]"), in: rows))
+        XCTAssertNil(Picker.index(of: ClaudeModels.rowLabel("gpt-6"), in: rows))
+    }
+
+    func testReadsTheEffortLine() {
+        XCTAssertEqual(Picker.claudeEffort(picker), "xhigh")
+        XCTAssertEqual(Picker.claudeEffort(["   ◐ Medium effort (default) ←/→ to adjust"]), "medium")
+        XCTAssertEqual(Picker.claudeEffort(["   ◈ Max effort ←/→ to adjust", "   May use excessive tokens resulting in long response times."]), "max")
+        XCTAssertNil(Picker.claudeEffort(["   ○ Effort not supported for Haiku 4.5"]))
+        XCTAssertTrue(Picker.claudeEffortUnsupported(["   ○ Effort not supported for Haiku 4.5"]))
     }
 }
 
