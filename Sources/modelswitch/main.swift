@@ -4,7 +4,7 @@ import ModelSwitchCore
 let usage = """
 modelswitch — 맨 앞 터미널의 claude·codex 모델과 effort 를 프리셋으로 바꾼다
 
-  modelswitch apply <번호> [대상]     프리셋 적용
+  modelswitch apply <번호> [대상] [--trace]   프리셋 적용(--trace: 단계별 시간)
   modelswitch where                   지금 맨 앞 터미널과 에이전트
   modelswitch doctor [대상] [--screen]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
   modelswitch list                    프리셋 목록
@@ -44,6 +44,8 @@ func describe(_ step: Step) -> String {
     case .key(let key): return "키    \(key)"
     case .wait(let ms): return "대기  \(ms)ms"
     case .expect(let needle, let timeoutMs, _, _): return "확인  화면에 \(needle.debugDescription) (최대 \(timeoutMs)ms)"
+    case .arm: return "기준  기본값 파일 수정 시각"
+    case .expectResult(let prefix, let timeoutMs, _): return "확인  결과 줄 \(prefix.debugDescription)… (최대 \(timeoutMs)ms)"
     }
 }
 
@@ -54,11 +56,16 @@ do {
     switch args.first {
     case "apply":
         guard args.count >= 2, let slot = Int(args[1]) else { fail("번호가 필요합니다.\n\n\(usage)") }
-        let switcher = Switcher(config: try store.load())
+        var switcher = Switcher(config: try store.load())
+        let trace = args.contains("--trace") ? Trace() : nil
+        switcher.trace = trace
         let target = try explicitTarget(args) ?? Detector.frontmost()
+        trace?.mark("대상찾기")
+        defer { if let trace { print("시간: " + trace.report) } }
         let result = try switcher.apply(slot: slot, to: target)
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
+        if let confirmation = result.confirmationSummary { print("확인: \(confirmation)") }
         if let warning = result.warning { print("⚠️ \(warning)") }
     case "where":
         let target = try Detector.frontmost()

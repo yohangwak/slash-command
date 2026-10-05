@@ -29,6 +29,13 @@ public enum Step: Equatable, Sendable {
     case wait(ms: Int)
     /// 화면에 `needle` 이 «있음»을 확인한다. 시간 안에 안 보이면 `abort` 를 실행하고 `failure` 로 중단한다.
     case expect(needle: String, timeoutMs: Int, abort: [Step], failure: String)
+    /// 명령을 보내기 직전의 상태(화면의 마지막 결과 줄, claude 기본값 파일의 수정 시각)를 기준으로 잡는다.
+    /// 다음 `expectResult` 가 «이번 명령의» 결과인지 가리는 데 쓴다.
+    case arm
+    /// 마지막 결과 줄(`⎿ …`)이 `prefix` 로 시작하고 입력창이 다시 «보임»을 확인한다.
+    /// 같은 문구가 기준에 이미 있었으면 기본값 파일이 «변함»까지 본다. 쓰던 글이 있었으면 그것이 «돌아왔음»도 본다
+    /// — 그래야 다음 Ctrl+S 가 복원과 겹치지 않는다.
+    case expectResult(prefix: String, timeoutMs: Int, failure: String)
 }
 
 public enum Plans {
@@ -36,10 +43,16 @@ public enum Plans {
     /// 명령이 끝나면 claude 가 보관한 글을 되돌리므로 두 번째 명령 앞에서 다시 보관한다.
     public static func claude(_ preset: AgentPreset) -> [Step] {
         [
-            .key(.ctrl("s")), .wait(ms: 350),
-            .text("/model \(preset.model)"), .key(.enter), .wait(ms: 1200),
-            .key(.ctrl("s")), .wait(ms: 350),
-            .text("/effort \(preset.effort)"), .key(.enter), .wait(ms: 600),
+            // Ctrl+S 와 명령과 Enter 를 한 번에 쓴다(2026-10-06 실측: 한 덩이여도 글이 보관·복원되고 명령이 실행된다).
+            // 고정 대기 대신 결과 줄이 «보임»을 확인하고 다음으로 간다 — 응답은 0.2초 안에 온다.
+            .arm,
+            .text("\u{13}/model \(preset.model)\r"),
+            .expectResult(prefix: "Set model to", timeoutMs: 3000,
+                          failure: "claude 가 /model \(preset.model) 에 응답하지 않았습니다."),
+            .arm,
+            .text("\u{13}/effort \(preset.effort)\r"),
+            .expectResult(prefix: "Set effort level", timeoutMs: 3000,
+                          failure: "claude 가 /effort \(preset.effort) 에 응답하지 않았습니다."),
         ]
     }
 

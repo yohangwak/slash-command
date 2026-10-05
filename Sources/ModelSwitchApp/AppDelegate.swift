@@ -71,27 +71,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hud.show("\(slot)번 프리셋 적용 중…", seconds: nil)
 
         worker.async { [store] in
+            let trace = Trace()
+            var switcher: Switcher?
             let outcome = Result { () throws -> SwitchResult in
-                let switcher = Switcher(config: try store.load())
+                var made = Switcher(config: try store.load())
+                made.trace = trace
+                switcher = made
                 let target = try Detector.target(bundleID: bundleID, appName: appName)
-                return try switcher.apply(slot: slot, to: target)
+                trace.mark("대상찾기")
+                return try made.apply(slot: slot, to: target, deferFinalCheck: true)
             }
+            // 알림을 먼저 띄운다 — 기본값 재확인(0.25초)은 그 뒤에 한다.
             DispatchQueue.main.async {
-                self.busy = false
                 switch outcome {
                 case .success(let result):
-                    Log.write("적용 \(slot): \(result.summary) → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
-                    let where_ = "\(result.target.agent.rawValue) · \(result.target.host.appName) · \(result.target.label)"
+                    Log.write("적용 \(slot): \(result.summary) → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.confirmationSummary.map { " [" + $0 + "]" } ?? "")\(result.warning.map { " ⚠️ " + $0 } ?? "")")
+                    var detail = "\(result.target.agent.rawValue) · \(result.target.host.appName) · \(result.target.label)"
+                    if let confirmation = result.confirmationSummary { detail += "\n\(confirmation)" }
                     if let warning = result.warning {
-                        self.hud.show(result.summary, detail: "\(where_)\n⚠️ \(warning)", seconds: 4)
+                        self.hud.show(result.summary, detail: "\(detail)\n⚠️ \(warning)", seconds: 4)
                     } else {
-                        self.hud.show(result.summary, detail: where_)
+                        self.hud.show(result.summary, detail: detail)
                     }
                 case .failure(let error):
                     Log.write("실패 \(slot): \(error)")
                     self.hud.show("전환하지 않았습니다", detail: "\(error)", seconds: 4)
                 }
             }
+            if case .success(let result) = outcome, let before = result.pendingRestore, let switcher,
+               let late = switcher.verifyRestore(before) {
+                Log.write("⚠️ \(late)")
+                DispatchQueue.main.async { self.hud.show(result.summary, detail: "⚠️ \(late)", seconds: 4) }
+            }
+            Log.write("시간 \(slot): \(trace.report)")
+            DispatchQueue.main.async { self.busy = false }
         }
     }
 

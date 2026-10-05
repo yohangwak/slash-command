@@ -100,10 +100,18 @@ public enum Detector {
     }
 
     public static func orca() throws -> Target {
-        guard let orca = Proc.locate("orca") else {
-            throw ModelSwitchError("orca 명령을 찾지 못했습니다.")
-        }
         let active = try OrcaState.active()
+        return try OrcaState.target(in: try orcaTerminals(), active: active, processAgent: AgentProcesses.agent(orcaHandle:))
+    }
+
+    /// 터미널 목록과 화면 배치. Orca 앱에 직접 묻고, 안 되면 `orca` 명령으로 묻는다.
+    static func orcaTerminals() throws -> [String: Any] {
+        if case .success(let payload) = OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) {
+            return payload
+        }
+        guard let orca = Proc.locate("orca") else {
+            throw ModelSwitchError("Orca 앱에 연결하지 못했고 orca 명령도 찾지 못했습니다.")
+        }
         let result = Proc.run(orca, ["terminal", "list", "--include-visual-layouts", "--json"],
                               env: OrcaIO.cleanEnv, cwd: "/", timeout: 10)
         guard result.ok,
@@ -111,7 +119,7 @@ public enum Detector {
               let payload = json["result"] as? [String: Any] else {
             throw ModelSwitchError("Orca 터미널 목록을 읽지 못했습니다: \(OrcaIO.errorSummary(result))")
         }
-        return try OrcaState.target(in: payload, active: active, processAgent: AgentProcesses.agent(orcaHandle:))
+        return payload
     }
 }
 
@@ -248,6 +256,18 @@ enum AgentProcesses {
     /// 에이전트가 다른 에이전트를 자식으로 띄운 경우(예: claude 가 `codex exec` 실행)는 바깥쪽 것을 고른다.
     /// 환경변수에는 비밀이 섞여 있을 수 있으므로 이 출력은 어디에도 남기지 않는다.
     static func agent(orcaHandle handle: String) -> Agent? {
+        let table = ProcessTable.snapshot()
+        if !table.entries.isEmpty {
+            let marker = "ORCA_TERMINAL_HANDLE=\(handle)"
+            let candidates = table.entries.compactMap { entry -> (pid: String, agent: Agent)? in
+                guard entry.environment.contains(marker),
+                      let agent = agent(forCommandLine: entry.arguments.joined(separator: " ")) else { return nil }
+                return (String(entry.pid), agent)
+            }
+            let parents = Dictionary(uniqueKeysWithValues: table.parents.map { (String($0.key), String($0.value)) })
+            return outermostAgent(candidates, parents: parents)
+        }
+        // 프로세스 안에서 못 읽으면 `ps` 로 같은 정보를 읽는다.
         let ps = Proc.run("/bin/ps", ["-axEww", "-o", "pid=,ppid=,tty=,command="], timeout: 5)
         guard ps.ok else { return nil }
         return agent(orcaHandle: handle, psOutput: ps.out)
@@ -268,6 +288,11 @@ enum AgentProcesses {
             guard after == nil || after == " ", let agent = agent(forCommandLine: rest) else { continue }
             candidates.append((pid, agent))
         }
+        return outermostAgent(candidates, parents: parents)
+    }
+
+    /// 후보 중 다른 후보의 자손이 아닌 것(바깥쪽)의 종류. 한 종류로 모이지 않으면 nil.
+    static func outermostAgent(_ candidates: [(pid: String, agent: Agent)], parents: [String: String]) -> Agent? {
         let pids = Set(candidates.map(\.pid))
         let outermost = candidates.filter { candidate in
             var current = parents[candidate.pid]

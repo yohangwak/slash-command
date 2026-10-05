@@ -8,19 +8,32 @@ public protocol TerminalIO {
     func screen() -> [String]?
     /// 입력창에 쓰던 글. 알 수 없으면 nil.
     func draft() -> String?
+    /// 화면과 초안을 한 번에. 따로 주는 터미널(Orca)은 한 번의 호출로 둘 다 준다.
+    func snapshot() -> ScreenSnapshot?
+}
+
+public struct ScreenSnapshot: Sendable {
+    public let lines: [String]
+    /// 입력창에 쓰던 글. 터미널이 따로 주지 않으면 nil.
+    public let draft: String?
 }
 
 public extension TerminalIO {
     func draft() -> String? { nil }
+
+    func snapshot() -> ScreenSnapshot? {
+        screen().map { ScreenSnapshot(lines: $0, draft: draft()) }
+    }
 }
 
 // MARK: - Orca
 
 public struct OrcaIO: TerminalIO {
-    public let orca: String
+    /// `orca` 명령의 위치. 앱에 직접 말을 걸지 못할 때만 쓴다.
+    public let orca: String?
     public let handle: String
 
-    public init(orca: String, handle: String) {
+    public init(orca: String?, handle: String) {
         self.orca = orca
         self.handle = handle
     }
@@ -30,8 +43,24 @@ public struct OrcaIO: TerminalIO {
         ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("ORCA_") }
     }
 
-    private func send(_ args: [String]) throws {
-        let result = Proc.run(orca, ["terminal", "send", "--terminal", handle] + args + ["--json"],
+    /// 바이트를 그대로 넣는다. Enter 도 `\r` 로 글에 넣어 보낸다.
+    private func send(_ text: String) throws {
+        let params: [String: Any] = ["terminal": handle, "text": text, "enter": false, "interrupt": false,
+                                     "client": ["id": "modelswitch", "type": "desktop"]]
+        switch OrcaRuntime.call("terminal.send", params) {
+        case .success(let result):
+            guard (result["send"] as? [String: Any])?["accepted"] as? Bool == true else {
+                throw ModelSwitchError("Orca 터미널이 입력을 받지 않았습니다.")
+            }
+            return
+        case .failure(.failed(let message)):
+            // 이미 들어갔을 수 있다 — 다른 길로 다시 보내지 않는다.
+            throw ModelSwitchError("Orca 터미널에 입력하지 못했습니다: \(message)")
+        case .failure(.unavailable):
+            break
+        }
+        guard let orca else { throw ModelSwitchError("Orca 앱에 연결하지 못했고 orca 명령도 찾지 못했습니다.") }
+        let result = Proc.run(orca, ["terminal", "send", "--terminal", handle, "--text", text, "--json"],
                               env: OrcaIO.cleanEnv, cwd: "/", timeout: 15)
         guard result.ok else {
             throw ModelSwitchError("Orca 터미널에 입력하지 못했습니다: \(Self.errorSummary(result))")
@@ -39,27 +68,26 @@ public struct OrcaIO: TerminalIO {
     }
 
     public func type(_ text: String) throws {
-        try send(["--text", text])
+        try send(text)
     }
 
     public func press(_ key: Key) throws {
-        if key == .enter {
-            try send(["--enter"])
-        } else {
-            try send(["--text", key.bytes])
-        }
+        try send(key.bytes)
     }
 
     private func readScreen() -> [String: Any]? {
-        let result = Proc.run(orca, ["terminal", "read", "--terminal", handle, "--screen", "--json"],
-                              env: OrcaIO.cleanEnv, cwd: "/", timeout: 10)
-        guard result.ok,
-              let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
-              let terminal = (json["result"] as? [String: Any])?["terminal"] as? [String: Any],
-              // "screen-unavailable" 은 화면이 아니라 누적 출력이라 판정에 쓰지 않는다.
-              terminal["source"] as? String == "screen" else {
-            return nil
+        var terminal: [String: Any]?
+        if case .success(let result) = OrcaRuntime.call("terminal.read", ["terminal": handle, "screen": true]) {
+            terminal = result["terminal"] as? [String: Any]
+        } else if let orca {
+            let result = Proc.run(orca, ["terminal", "read", "--terminal", handle, "--screen", "--json"],
+                                  env: OrcaIO.cleanEnv, cwd: "/", timeout: 10)
+            if result.ok, let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any] {
+                terminal = (json["result"] as? [String: Any])?["terminal"] as? [String: Any]
+            }
         }
+        // "screen-unavailable" 은 화면이 아니라 누적 출력이라 판정에 쓰지 않는다.
+        guard let terminal, terminal["source"] as? String == "screen" else { return nil }
         return terminal
     }
 
@@ -67,9 +95,18 @@ public struct OrcaIO: TerminalIO {
         readScreen()?["tail"] as? [String]
     }
 
-    /// Orca 는 입력창의 글을 화면 줄에서 떼어 `draft` 로 따로 준다.
+    public func snapshot() -> ScreenSnapshot? {
+        guard let terminal = readScreen(), let lines = terminal["tail"] as? [String] else { return nil }
+        return ScreenSnapshot(lines: lines, draft: Self.draft(in: terminal))
+    }
+
+    /// Orca 는 입력창의 글을 화면 줄에서 떼어 `draft` 로 따로 준다. 입력창이 비어 있으면 항목 자체가 없다(2026-10-06 실측).
     public func draft() -> String? {
-        readScreen()?["draft"] as? String
+        readScreen().map(Self.draft(in:))
+    }
+
+    static func draft(in terminal: [String: Any]) -> String {
+        terminal["draft"] as? String ?? ""
     }
 
     static func errorSummary(_ result: ProcResult) -> String {

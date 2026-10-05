@@ -35,3 +35,16 @@ public enum Readiness {
         return !digits.isEmpty && rest.dropFirst(digits.count).hasPrefix(".")
     }
 }
+
+public enum ClaudeScreen {
+    /// 화면에서 마지막 결과 줄(`⎿ …`)의 내용. 없으면 nil.
+    public static func lastResult(_ lines: [String]) -> String? {
+        for line in lines.reversed() {
+            let text = line.trimmingCharacters(in: .whitespaces)
+            if text.hasPrefix("⎿") {
+                return String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return nil
+    }
+}

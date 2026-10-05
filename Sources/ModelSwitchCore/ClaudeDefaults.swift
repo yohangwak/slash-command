@@ -19,6 +19,12 @@ public struct ClaudeDefaults: Sendable {
         case failed(String)
     }
 
+    /// 파일의 수정 시각(마이크로초). claude 는 `/model`·`/effort` 마다 값이 같아도 이 파일을 다시 쓴다(2.1.289 실측).
+    public func stamp() -> Int64? {
+        guard let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date else { return nil }
+        return Int64(date.timeIntervalSince1970 * 1_000_000)
+    }
+
     public func snapshot() -> Data? {
         try? Data(contentsOf: url)
     }

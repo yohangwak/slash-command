@@ -8,8 +8,14 @@ final class FakeIO: TerminalIO {
     private var reads = 0
 
     var onEnter: (() -> Void)?
+    /// Orca 처럼 초안을 따로 주는 터미널 흉내. nil 이면 초안을 모른다.
+    var drafts: [String?]?
+    private var draftReads = 0
+    var draftReadCount: Int { draftReads }
 
-    func type(_ text: String) throws { sent.append(text) }
+    var onType: ((String) -> Void)?
+
+    func type(_ text: String) throws { sent.append(text); onType?(text) }
     func press(_ key: Key) throws {
         sent.append(key.bytes)
         if key == .enter { onEnter?() }
@@ -18,6 +24,12 @@ final class FakeIO: TerminalIO {
         guard let screens else { return nil }
         defer { reads += 1 }
         return screens[min(reads, screens.count - 1)]
+    }
+    func snapshot() -> ScreenSnapshot? {
+        guard let lines = screen() else { return nil }
+        guard let drafts else { return ScreenSnapshot(lines: lines, draft: nil) }
+        defer { draftReads += 1 }
+        return ScreenSnapshot(lines: lines, draft: drafts[min(draftReads, drafts.count - 1)])
     }
 }
 
@@ -29,16 +41,20 @@ final class PlanTests: XCTestCase {
         XCTAssertEqual(Key.enter.bytes, "\r")
     }
 
-    func testClaudePlanStashesBeforeEachCommand() {
+    func testClaudePlanStashesBeforeEachCommandAndWaitsForResult() {
         let steps = Plans.claude(AgentPreset(model: "opus", effort: "xhigh"))
         let inputs = steps.compactMap { step -> String? in
-            switch step {
-            case .text(let text): return text
-            case .key(let key): return key.bytes
-            default: return nil
-            }
+            if case .text(let text) = step { return text }
+            return nil
         }
-        XCTAssertEqual(inputs, ["\u{13}", "/model opus", "\r", "\u{13}", "/effort xhigh", "\r"])
+        XCTAssertEqual(inputs, ["\u{13}/model opus\r", "\u{13}/effort xhigh\r"])
+        // 고정 대기 없이 결과 줄을 확인하고 넘어간다.
+        XCTAssertFalse(steps.contains { if case .wait = $0 { return true } else { return false } })
+        let prefixes = steps.compactMap { step -> String? in
+            if case .expectResult(let prefix, _, _) = step { return prefix }
+            return nil
+        }
+        XCTAssertEqual(prefixes, ["Set model to", "Set effort level"])
     }
 
     func testCodexPlanMovesUpFromAnchorRow() {
@@ -111,10 +127,145 @@ final class RunnerTests: XCTestCase {
         XCTAssertEqual(io.sent, ["a", "\u{1B}"])
     }
 
+    private let rule = String(repeating: "─", count: 20)
+
+    func testExpectResultWaitsForNewResultLineAndSignal() throws {
+        let io = FakeIO()
+        // 처음엔 이전 전환의 결과 줄이 남아 있고, 그다음 이번 명령의 결과가 뜬다.
+        io.screens = [["  ⎿  Set effort level to high", rule, "❯"], ["  ⎿  Set model to Sonnet 5.5 and saved", rule, "❯"]]
+        var stamps: [Int64?] = [1, 1, 2]
+        let runner = Runner(io: io, sleep: { _ in }, stamp: { stamps.count > 1 ? stamps.removeFirst() : stamps[0] })
+        let result = try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 1000, failure: "f")])
+        XCTAssertEqual(result, ["Set model to Sonnet 5.5 and saved"])
+    }
+
+    func testExpectResultDoesNotTrustAResultLineThatWasAlreadyThere() {
+        let io = FakeIO()
+        let stale = ["  ⎿  Set model to Sonnet 5.5", rule, "❯"]
+        io.screens = [stale]
+        // 같은 문구가 명령 전부터 떠 있었고 기본값 파일도 그대로다 — 이번 명령의 결과라는 근거가 없다.
+        let runner = Runner(io: io, sleep: { _ in }, stamp: { 7 }, initial: ScreenSnapshot(lines: stale, draft: ""))
+        XCTAssertThrowsError(try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 300, failure: "응답 없음")])) {
+            XCTAssertTrue("\($0)".hasPrefix("응답 없음"))
+        }
+    }
+
+    func testExpectResultAcceptsAlreadyShownLineOnceTheFileChanges() throws {
+        let io = FakeIO()
+        let stale = ["  ⎿  Set model to Sonnet 5.5", rule, "❯"]
+        io.screens = [stale]
+        var stamps: [Int64?] = [7, 7, 7, 8]
+        let runner = Runner(io: io, sleep: { _ in }, stamp: { stamps.count > 1 ? stamps.removeFirst() : stamps[0] },
+                            initial: ScreenSnapshot(lines: stale, draft: ""))
+        try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 300, failure: "f")])
+    }
+
+    func testExpectResultFallsBackAfterGraceWhenTheFileNeverChanges() throws {
+        // claude 가 기본값 파일을 다른 곳에 두는 환경: 파일 신호가 끝내 안 온다. 멈추지 않고 여유 시간 뒤에 진행한다.
+        let io = FakeIO()
+        let stale = ["  ⎿  Set model to Sonnet 5.5", rule, "❯"]
+        io.screens = [stale]
+        let runner = Runner(io: io, sleep: { _ in }, stamp: { 7 }, initial: ScreenSnapshot(lines: stale, draft: ""))
+        try runner.run([.arm, .text("go"), .expectResult(prefix: "Set model to", timeoutMs: 3000, failure: "f")])
+    }
+
+    func testExpectResultWaitsUntilDraftIsBack() throws {
+        let io = FakeIO()
+        io.screens = [["  ⎿  Set model to X", rule, "❯"]]
+        io.drafts = ["", "", "내 초안 그리고 더 친 글"]
+        let runner = Runner(io: io, sleep: { _ in }, initial: ScreenSnapshot(lines: [rule, "❯"], draft: "내 초안"))
+        try runner.run([.expectResult(prefix: "Set model to", timeoutMs: 1000, failure: "f")])
+        XCTAssertEqual(io.draftReadCount, 3, "초안이 돌아오기 전에는 다음 단계로 가지 않는다(그 사이 더 친 글은 문제 삼지 않는다)")
+    }
+
+    func testExpectResultStopsWhenADialogReplacedThePrompt() {
+        let io = FakeIO()
+        // 결과 줄은 떴지만 그 사이 권한 확인 창이 떴다 — 다음 명령의 Enter 가 그 창을 누르면 안 된다.
+        io.screens = [["  ⎿  Set model to X", "╌╌╌╌", " Do you want to proceed?", " ❯ 1. Yes", "   2. No"]]
+        XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }).run([
+            .text("a"), .expectResult(prefix: "Set model to", timeoutMs: 300, failure: "f"), .text("b"),
+        ]))
+        XCTAssertEqual(io.sent, ["a"])
+    }
+
+    func testExpectResultFailureCarriesWhatTheScreenSaid() {
+        let io = FakeIO()
+        io.screens = [["  ⎿  Model 'xyz' not found", rule, "❯"]]
+        XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }).run([.expectResult(prefix: "Set model to", timeoutMs: 200, failure: "응답 없음")])) {
+            XCTAssertTrue("\($0)".contains("Model 'xyz' not found"))
+        }
+    }
+
     func testUnreadableScreenStopsInsteadOfSendingBlind() {
         let io = FakeIO()
         XCTAssertThrowsError(try run([.expect(needle: "x", timeoutMs: 400, abort: [.text("X")], failure: "f"), .text("b")], io: io))
         XCTAssertEqual(io.sent, [], "화면을 못 읽으면 뒤 단계도 정리 단계도 보내지 않는다")
+    }
+}
+
+final class ProcessTableTests: XCTestCase {
+    func procargs(argc: Int32, _ parts: [String], padding: Int = 3) -> [UInt8] {
+        var bytes = withUnsafeBytes(of: argc) { Array($0) }
+        bytes += Array("/path/to/exe".utf8) + [UInt8](repeating: 0, count: padding)
+        for part in parts { bytes += Array(part.utf8) + [0] }
+        return bytes + [0, 0]
+    }
+
+    func testParsesArgumentsThenEnvironment() throws {
+        let parsed = try XCTUnwrap(ProcessTable.parse(procargs: procargs(argc: 2, ["claude", "--model", "A=1", "ORCA_TERMINAL_HANDLE=term_x"])))
+        XCTAssertEqual(parsed.arguments, ["claude", "--model"])
+        XCTAssertEqual(parsed.environment, ["A=1", "ORCA_TERMINAL_HANDLE=term_x"])
+    }
+
+    func testKeepsEmptyArgumentsAndRejectsTruncatedData() throws {
+        let parsed = try XCTUnwrap(ProcessTable.parse(procargs: procargs(argc: 3, ["codex", "", "x", "E=1"])))
+        XCTAssertEqual(parsed.arguments, ["codex", "", "x"])
+        XCTAssertEqual(parsed.environment, ["E=1"])
+        XCTAssertNil(ProcessTable.parse(procargs: procargs(argc: 5, ["only", "two"])))
+        XCTAssertNil(ProcessTable.parse(procargs: [1, 0]))
+    }
+
+    /// 양성 대조군: 이 테스트 프로세스 자신은 반드시 읽혀야 한다 — 못 읽으면 「에이전트 없음」이 거짓으로 나온다.
+    func testReadsThisProcess() throws {
+        let own = try XCTUnwrap(ProcessTable.commandLine(of: getpid()))
+        XCTAssertEqual(own.arguments.first, CommandLine.arguments.first)
+        XCTAssertTrue(own.environment.contains { $0.hasPrefix("PATH=") })
+        XCTAssertTrue(ProcessTable.allPIDs().contains(getpid()))
+        XCTAssertNotNil(ProcessTable.snapshot().parents[getpid()])
+    }
+}
+
+final class OrcaRuntimeTests: XCTestCase {
+    func testMetadataNeedsUnixSocketAndToken() {
+        let good = #"{"runtimeId":"r1","authToken":"t","transports":[{"kind":"websocket","endpoint":"ws://x"},{"kind":"unix","endpoint":"/tmp/o.sock"}]}"#
+        XCTAssertEqual(OrcaRuntime.metadata(from: Data(good.utf8))?.socketPath, "/tmp/o.sock")
+        let legacy = #"{"authToken":"t","transport":{"kind":"unix","endpoint":"/tmp/old.sock"}}"#
+        XCTAssertEqual(OrcaRuntime.metadata(from: Data(legacy.utf8))?.socketPath, "/tmp/old.sock")
+        XCTAssertNil(OrcaRuntime.metadata(from: Data(#"{"authToken":"t","transports":[{"kind":"websocket","endpoint":"ws://x"}]}"#.utf8)))
+        XCTAssertNil(OrcaRuntime.metadata(from: Data(#"{"transports":[{"kind":"unix","endpoint":"/tmp/o.sock"}]}"#.utf8)))
+        XCTAssertNil(OrcaRuntime.metadata(from: Data("not json".utf8)))
+    }
+
+    func outcome(_ line: String, runtimeID: String? = "r1") -> Result<[String: Any], OrcaRuntime.Failure>? {
+        if case .done(let result) = OrcaRuntime.frame(Data(line.utf8), expectingID: "abc", runtimeID: runtimeID) { return result }
+        return nil
+    }
+
+    func testFrameSkipsKeepalivesAndBlankLines() {
+        XCTAssertNil(outcome(#"{"_keepalive":true}"#))
+        XCTAssertNil(outcome("  "))
+    }
+
+    func testFrameReturnsResultOnlyForOurRequest() throws {
+        let ok = try XCTUnwrap(outcome(#"{"id":"abc","ok":true,"result":{"send":{"accepted":true}},"_meta":{"runtimeId":"r1"}}"#)).get()
+        XCTAssertEqual((ok["send"] as? [String: Any])?["accepted"] as? Bool, true)
+        // 응답이 왔다는 것은 요청이 전달됐다는 뜻이다 — 전부 「다시 보내지 않는」 실패여야 한다.
+        for line in [#"{"id":"other","ok":true,"result":{}}"#,
+                     #"{"id":"abc","ok":true,"result":{},"_meta":{"runtimeId":"r2"}}"#,
+                     #"{"id":"abc","ok":false,"error":{"code":"terminal_not_found","message":"없음"}}"#,
+                     "garbage"] {
+            guard case .failure(.failed) = try XCTUnwrap(outcome(line)) else { return XCTFail(line) }
+        }
     }
 }
 
@@ -375,14 +526,25 @@ final class SwitcherApplyTests: XCTestCase {
         let original = "{\n  \"model\": \"opus\"\n}"
         let settings = try tempSettings(original)
         let io = FakeIO()
-        io.screens = [["────", "❯", "────"]]
-        // claude 가 /model 을 처리하며 기본값을 바꿔 쓰는 것을 흉내 낸다.
-        io.onEnter = { try? Data("{\n  \"model\": \"sonnet\"\n}".utf8).write(to: settings) }
+        let rule = String(repeating: "─", count: 10)
+        io.screens = [[rule, "❯", rule]]
+        // claude 가 명령을 처리하며 결과 줄을 찍고 기본값을 바꿔 쓰는 것을 흉내 낸다(쓸 때마다 수정 시각이 달라진다).
+        var tick = 0
+        io.onType = { text in
+            tick += 1
+            let model = text.contains("/model sonnet")
+            let json = model ? "{\n  \"model\": \"sonnet\"\n}" : "{\n  \"model\": \"sonnet\"\n}"
+            try? Data(json.utf8).write(to: settings)
+            try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_000_000 + Double(tick))],
+                                                   ofItemAtPath: settings.path)
+            io.screens = [[model ? "  ⎿  Set model to Sonnet 5.5 and saved as your default" : "  ⎿  Set effort level to high (saved as your default)", rule, "❯"]]
+        }
 
         let result = try switcher(io: io, settings: settings).apply(slot: 2, to: target)
-        XCTAssertEqual(io.sent, ["\u{13}", "/model sonnet", "\r", "\u{13}", "/effort high", "\r"])
+        XCTAssertEqual(io.sent, ["\u{13}/model sonnet\r", "\u{13}/effort high\r"])
         XCTAssertEqual(result.preset, AgentPreset(model: "sonnet", effort: "high"))
         XCTAssertNil(result.warning)
+        XCTAssertEqual(result.confirmationSummary, "Set model to Sonnet 5.5 · Set effort level to high")
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), original)
     }
 }
