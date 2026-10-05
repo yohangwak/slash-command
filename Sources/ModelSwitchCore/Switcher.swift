@@ -97,6 +97,9 @@ struct TracingIO: TerminalIO {
 
 public struct Switcher {
     public var trace: Trace?
+    /// claude 가 「Switch model?」을 묻고 있고 우리가 답하지 않기로 했을 때 불린다(인자는 모델 이름).
+    /// 그 뒤로도 사용자가 고를 때까지 기다렸다가 나머지를 마무리한다.
+    public var onAwaitingUser: ((String) -> Void)?
     public var config: ModelSwitchConfig
     public var claudeDefaults: ClaudeDefaults
     public var codexModels: () throws -> CodexModels
@@ -211,7 +214,12 @@ public struct Switcher {
             return try applyCommands(planned, io: io, target: target, screen: first, sleep: timedSleep, deferFinalCheck: deferFinalCheck)
         }
         do {
-            let confirmations = try Runner(io: io, sleep: timedSleep, initial: first).run(planned.steps)
+            var asked = false
+            var runner = Runner(io: io, sleep: timedSleep, initial: first)
+            runner.onAwaitingUser = { model in asked = true; self.onAwaitingUser?(model) }
+            let confirmations = try runner.run(planned.steps)
+            // 확인 창에서 「No, go back」을 고르면 claude 는 "Kept model as …" 만 남긴다.
+            if asked, !confirmations.contains(where: { $0.hasPrefix("Set model to") }) { throw Runner.declined() }
             return SwitchResult(target: target, slotName: planned.slot.name, preset: planned.preset,
                                 warning: nil, confirmations: confirmations, pendingRestore: nil)
         } catch let error as ModelSwitchError where error.cleanlyAborted && planned.fallback != nil {
@@ -254,13 +262,14 @@ public struct Switcher {
     private func applyCommands(_ planned: Planned, io: TerminalIO, target: Target, screen: ScreenSnapshot,
                                sleep timedSleep: @escaping (Int) -> Void, deferFinalCheck: Bool) throws -> SwitchResult {
         let before = config.keepDefaults ? claudeDefaults.snapshot() : nil
-        let runner = Runner(io: io, sleep: timedSleep, stamp: { claudeDefaults.stamp() }, initial: screen)
+        var runner = Runner(io: io, sleep: timedSleep, stamp: { claudeDefaults.stamp() }, initial: screen)
+        runner.onAwaitingUser = onAwaitingUser
         let confirmations: [String]
         do {
             confirmations = try runner.run(planned.fallback ?? [])
         } catch var error as ModelSwitchError where error.awaitingUser {
-            // 사용자가 확인 창에서 Yes 를 고르면 claude 가 그때 기본값을 쓴다 — 지금 되돌려 봐야 소용없다. 있는 그대로 알린다.
-            error = ModelSwitchError(error.message + " 이 모델은 선택창에 없어 명령으로 바꾸는 중이라, 확정하면 새 세션 기본값도 이 모델이 되고 effort 는 따로 맞춰야 합니다.")
+            // 기다리는 동안 답이 없었다. 나중에 Yes 를 고르면 claude 가 그때 기본값을 쓰고, 우리는 이미 손을 뗀 뒤다 — 있는 그대로 알린다.
+            error = ModelSwitchError(error.message + " 지금 확정하면 새 세션 기본값도 이 모델이 되고 effort 는 따로 맞춰야 합니다(취소하고 다시 누르면 둘 다 맞춰집니다).")
             error.awaitingUser = true
             throw error
         } catch {
@@ -310,6 +319,10 @@ public struct Runner {
     public let stamp: (() -> Int64?)?
     /// 실행 전 화면. 쓰던 글과, 이미 떠 있던 결과 줄을 여기서 안다.
     public let initial: ScreenSnapshot?
+
+    /// claude 의 「Switch model?」 창에 우리가 답하지 않을 때 불린다. 사용자가 고를 때까지 `awaitUserMs` 동안 기다린다.
+    public var onAwaitingUser: ((String) -> Void)?
+    static let awaitUserMs = 20_000
 
     /// 화면을 마지막으로 읽은 뒤 흐른 시간. 화면이 늦게 따라오는 터미널에서 「지금 읽으면 새 화면인가」를 아는 데 쓴다.
     private final class ReadClock {
@@ -408,7 +421,14 @@ public struct Runner {
                     throw error
                 }
             case .expectInput(let agent, let acceptSwitchTo, let timeoutMs, let abort, let failure):
-                if try !waitForInput(agent: agent, acceptSwitchTo: acceptSwitchTo, timeoutMs: timeoutMs) {
+                switch try waitForInput(agent: agent, acceptSwitchTo: acceptSwitchTo, timeoutMs: timeoutMs) {
+                case .ready:
+                    break
+                case .declined:
+                    // 「No, go back」은 선택창으로 되돌아간다 — 선택창을 닫고, 바꾸지 않았다고 알린다.
+                    _ = try? run(abort)
+                    throw Runner.declined()
+                case .timedOut:
                     if let asking = io.screen().flatMap(ClaudeScreen.switchPrompt) { throw Runner.awaitingSwitch(asking) }
                     _ = try? run(abort)
                     throw ModelSwitchError(failure)
@@ -445,6 +465,10 @@ public struct Runner {
         var simulated = 0
         var accepted = false
         let repliedBefore = ClaudeScreen.commandReply(armedLines, command: command)
+        // 확인 창이 떠서 사용자의 선택을 기다리는 중이면 그 모델 이름. 창이 사라진 시각도 본다.
+        var awaiting: String?
+        var goneAt: Int?
+        var deadline = timeoutMs
         while true {
             if (stamp?() ?? nil) != armedStamp {
                 // 파일을 쓴 직후에 claude 가 쓰던 글을 입력창에 되돌린다. 다음 Ctrl+S 가 그것과 겹치지 않게 잠깐 둔다.
@@ -452,22 +476,44 @@ public struct Runner {
                 clock.slept += 120
                 return
             }
+            let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
             if clock.elapsedMs() >= io.screenLagMs {
                 guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
                 clock.reset()
                 if command != nil, let reply = ClaudeScreen.commandReply(snap.lines, command: command),
                    reply != repliedBefore, !reply.hasPrefix(prefix), Readiness.claudePromptVisible(snap.lines) {
-                    throw ModelSwitchError("claude 가 받아들이지 않았습니다: \(reply.prefix(120))")
+                    throw Runner.refused(reply)
                 }
                 if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }
-                if !accepted, let asking = ClaudeScreen.switchPrompt(snap.lines) { throw Runner.awaitingSwitch(asking) }
+                if !accepted, let asking = ClaudeScreen.switchPrompt(snap.lines) {
+                    if awaiting == nil { onAwaitingUser?(asking); deadline = Runner.awaitUserMs }
+                    awaiting = asking
+                    goneAt = nil
+                } else if awaiting != nil {
+                    // 창이 사라졌다. Yes 였으면 곧 파일이 바뀐다. 조금 기다려도 안 바뀌면 No 였다.
+                    if let gone = goneAt, elapsed - gone >= 700 { throw Runner.declined() }
+                    goneAt = goneAt ?? elapsed
+                }
             }
-            let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
-            if max(real, simulated) >= timeoutMs { throw ModelSwitchError(failure) }
+            if elapsed >= deadline { throw awaiting.map(Runner.awaitingSwitch) ?? ModelSwitchError(failure) }
             sleep(15)
             simulated += 15
             clock.slept += 15
         }
+    }
+
+    /// 명령 바로 아래에 붙은, 우리가 기다리던 것이 아닌 답.
+    static func refused(_ reply: String) -> ModelSwitchError {
+        // 확인 창에서 취소하면 claude 는 "Kept model as …" 라고 남긴다 — 거절이 아니라 사용자의 선택이다.
+        if reply.hasPrefix("Kept model as") { return declined() }
+        return ModelSwitchError("claude 가 받아들이지 않았습니다: \(reply.prefix(120))")
+    }
+
+    /// 사용자가 확인 창에서 「No, go back」을 골랐다.
+    static func declined() -> ModelSwitchError {
+        var error = ModelSwitchError("확인 창에서 취소해 모델을 바꾸지 않았습니다.")
+        error.nothingToDo = true
+        return error
     }
 
     /// claude 가 모델을 바꿀지 묻고 있다 — 우리는 답하지 않고 사용자에게 넘긴다.
@@ -501,6 +547,9 @@ public struct Runner {
             snap.draft ?? ClaudeScreen.promptText(snap.lines) ?? ""
         }
         let draftBefore = initial.map(draft) ?? ""
+        var awaiting: String?
+        var goneAt: Int?
+        var deadline = timeoutMs
         while true {
             guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
             let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
@@ -518,11 +567,20 @@ public struct Runner {
             // 명령 바로 아래에 다른 답이 붙었으면(예: Model 'x' not found) 기다릴 것 없이 그 말로 끝낸다.
             if promptBack, command != nil, let reply = ClaudeScreen.commandReply(snap.lines, command: command),
                reply != repliedBefore, !reply.hasPrefix(prefix) {
-                throw ModelSwitchError("claude 가 받아들이지 않았습니다: \(reply.prefix(120))")
+                throw Runner.refused(reply)
             }
             if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }
-            if !accepted, let asking = ClaudeScreen.switchPrompt(snap.lines) { throw Runner.awaitingSwitch(asking) }
-            if elapsed >= timeoutMs {
+            if !accepted, let asking = ClaudeScreen.switchPrompt(snap.lines) {
+                if awaiting == nil { onAwaitingUser?(asking); deadline = Runner.awaitUserMs }
+                awaiting = asking
+                goneAt = nil
+            } else if awaiting != nil {
+                // 창이 사라졌는데 결과가 안 온다 — 「No, go back」이었다.
+                if let gone = goneAt, elapsed - gone >= 700 { throw Runner.declined() }
+                goneAt = goneAt ?? elapsed
+            }
+            if elapsed >= deadline, let awaiting { throw Runner.awaitingSwitch(awaiting) }
+            if elapsed >= deadline {
                 // claude 가 새로 뭐라고 했으면(예: Model 'x' not found) 그 말을 붙인다.
                 let said = ClaudeScreen.lastResult(snap.lines)
                 let detail = said.flatMap { $0 != saidBefore ? " (claude: \($0.prefix(80)))" : nil } ?? ""
@@ -741,7 +799,9 @@ public struct Runner {
     }
 
     /// 선택창이 닫히고 입력창이 다시 보일 때까지 기다린다.
-    private func waitForInput(agent: Agent, acceptSwitchTo: String?, timeoutMs: Int) throws -> Bool {
+    enum InputOutcome { case ready, declined, timedOut }
+
+    private func waitForInput(agent: Agent, acceptSwitchTo: String?, timeoutMs: Int) throws -> InputOutcome {
         func draft(_ snap: ScreenSnapshot) -> String {
             snap.draft ?? ClaudeScreen.promptText(snap.lines) ?? ""
         }
@@ -749,15 +809,24 @@ public struct Runner {
         let started = DispatchTime.now()
         var simulated = 0
         var accepted = false
+        var awaiting = false
+        var deadline = timeoutMs
         while true {
             guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
             let draftBack = draftBefore.isEmpty || !draft(snap).isEmpty
-            if !Picker.isOpen(snap.lines), Readiness.inputVisible(agent: agent, screen: snap.lines), draftBack { return true }
+            if !Picker.isOpen(snap.lines), Readiness.inputVisible(agent: agent, screen: snap.lines), draftBack { return .ready }
             if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }
-            // 받아들이지 않기로 한 확인 창이 떠 있으면 시간 끝까지 기다릴 이유가 없다.
-            if !accepted, ClaudeScreen.switchPrompt(snap.lines) != nil { return false }
+            // 받아들이지 않기로 한 확인 창이면 사용자에게 알리고, 고를 때까지 기다린다.
+            let asking = ClaudeScreen.switchPrompt(snap.lines)
+            if !accepted, !awaiting, let asking {
+                awaiting = true
+                onAwaitingUser?(asking)
+                deadline = Runner.awaitUserMs
+            }
+            // 확인 창이 사라지고 선택창이 다시 보이면 사용자가 「No, go back」을 고른 것이다.
+            if awaiting, asking == nil, Picker.isOpen(snap.lines) { return .declined }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
-            if max(real, simulated) >= timeoutMs { return false }
+            if max(real, simulated) >= deadline { return .timedOut }
             sleep(Runner.pollMs)
             simulated += Runner.pollMs
         }

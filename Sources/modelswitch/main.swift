@@ -70,6 +70,9 @@ do {
         var switcher = Switcher(config: try store.load())
         let trace = args.contains("--trace") ? Trace() : nil
         switcher.trace = trace
+        switcher.onAwaitingUser = { model in
+            FileHandle.standardError.write(Data("claude 가 \(model) 로 바꿀지 묻고 있습니다 — 그 터미널에서 Enter(바꿈) 나 2(취소)를 골라 주세요…\n".utf8))
+        }
         let target = try explicitTarget(args) ?? Detector.frontmost()
         trace?.mark("대상찾기")
         defer { if let trace { print("시간: " + trace.report) } }

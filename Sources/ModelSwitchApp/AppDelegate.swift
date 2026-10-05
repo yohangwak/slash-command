@@ -98,6 +98,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let outcome = Result { () throws -> SwitchResult in
                 var made = Switcher(config: try store.load())
                 made.trace = trace
+                // claude 가 모델을 바꿀지 되물으면 알리고, 고를 때까지 기다렸다가 마무리한다.
+                made.onAwaitingUser = { model in
+                    Log.write("확인 대기 \(action.label): \(model)")
+                    DispatchQueue.main.async {
+                        self.hud.show("Enter 로 확정해 주세요",
+                                      detail: "claude 가 \(model) 로 바꿀지 묻고 있습니다(대화 기록을 새 모델로 다시 읽습니다).", seconds: nil)
+                    }
+                }
                 switcher = made
                 let target = try Detector.target(bundleID: bundleID, appName: appName)
                 trace.mark("대상찾기")

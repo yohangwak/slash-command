@@ -792,6 +792,15 @@ final class FakeClaude: TerminalIO {
         finishCommand()
     }
 
+    private var askedByCommand = false
+
+    private func applyCommand(_ found: String) {
+        model = found
+        say("Set model to \(found) and saved as your default for new sessions")
+        saveDefault(found)
+        confirmedBy = "command"
+    }
+
     private func run(_ command: String) {
         self.command = command
         if command == "/model" {
@@ -801,10 +810,14 @@ final class FakeClaude: TerminalIO {
         } else if command.hasPrefix("/model ") {
             let wanted = String(command.dropFirst("/model ".count)).lowercased()
             if let found = rows.first(where: { $0.lowercased().hasPrefix(wanted) }) {
-                model = found
-                say("Set model to \(found) and saved as your default for new sessions")
-                saveDefault(found)
-                confirmedBy = "command"
+                if asksBeforeSwitching, found != model {
+                    // 명령으로 바꿀 때도 같은 확인 창이 뜬다. 답하기 전에는 아무것도 쓰지 않는다.
+                    cursor = rows.firstIndex(of: found) ?? 0
+                    askedByCommand = true
+                    stage = .confirm
+                    return
+                }
+                applyCommand(found)
             } else {
                 say("Model '\(wanted)' not found")
             }
@@ -839,8 +852,12 @@ final class FakeClaude: TerminalIO {
             case (.prompt, _): line.append(key)
             case (.picker, "s"), (.picker, "\r"):
                 if asksBeforeSwitching, rows[cursor] != model, key == "s" { stage = .confirm } else { confirm(session: key == "s") }
-            case (.picker, "\u{1B}"): finishCommand()
+            case (.picker, "\u{1B}"): say("Kept model as \(model)"); finishCommand()
+            case (.confirm, "\r") where askedByCommand: askedByCommand = false; applyCommand(rows[cursor]); finishCommand()
             case (.confirm, "\r"): confirm(session: true)
+            case (.confirm, "2"), (.confirm, "\u{1B}"):
+                // 선택창에서 온 질문이면 선택창으로 되돌아간다(2.1.289 실측). 명령에서 온 질문이면 그대로 끝난다.
+                if askedByCommand { askedByCommand = false; say("Kept model as \(model)"); finishCommand() } else { stage = .picker }
             default: break
             }
         }
@@ -962,6 +979,33 @@ final class SwitcherApplyTests: XCTestCase {
         XCTAssertEqual(claude.stage, .confirm, "확인 창은 그대로 둔다")
         XCTAssertEqual(claude.sent.last, "s", "확인 창에는 아무것도 보내지 않았다")
         XCTAssertEqual(claude.model, "Opus 5.5")
+    }
+
+    func testFinishesAfterTheUserConfirmsThemselves() throws {
+        let claude = FakeClaude()
+        claude.asksBeforeSwitching = true
+        claude.draft = "쓰던 글"
+        var switcher = switcher(config("sonnet", "medium"), io: claude, settings: try tempSettings())
+        var asked: [String] = []
+        // 알림을 본 사용자가 Enter 를 누른다.
+        switcher.onAwaitingUser = { model in asked.append(model); try? claude.type("\r") }
+        let result = try switcher.apply(slot: 1, to: target)
+        XCTAssertEqual(asked, ["Sonnet 5.5"])
+        XCTAssertEqual(claude.model, "Sonnet 5.5")
+        XCTAssertEqual(result.summary, "Sonnet 5.5 · medium", "사용자가 고른 뒤의 결과를 알린다")
+        XCTAssertEqual(claude.draft, "쓰던 글")
+    }
+
+    func testReportsThatNothingChangedWhenTheUserSaysNo() throws {
+        let claude = FakeClaude()
+        claude.asksBeforeSwitching = true
+        var switcher = switcher(config("sonnet", "medium"), io: claude, settings: try tempSettings())
+        switcher.onAwaitingUser = { _ in try? claude.type("2") }
+        XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
+            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true, "\($0)")
+        }
+        XCTAssertEqual(claude.model, "Opus 5.5")
+        XCTAssertEqual(claude.stage, .prompt, "되돌아온 선택창은 닫아 준다")
     }
 
     func testAcceptsTheSwitchConfirmationOnlyWhenEnabled() throws {
@@ -1192,6 +1236,36 @@ final class LaggingTerminalTests: XCTestCase {
             XCTAssertTrue("\($0)".contains("not found"), "\($0)")
         }
         XCTAssertEqual(claude.sent, ["\u{13}/model sonnet\r"], "거절당했으면 다음 명령을 보내지 않는다")
+    }
+
+    func testWaitsForTheUsersAnswerThenFinishesAndRestoresDefaults() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.asksBeforeSwitching = true
+        var (switcher, _) = setUp(claude, settings: settings)
+        var asked = 0
+        switcher.onAwaitingUser = { _ in asked += 1; try? claude.type("\r") }
+        let result = try switcher.apply(slot: 1, to: target)
+        XCTAssertEqual(asked, 1)
+        XCTAssertEqual(claude.model, "Sonnet 5.5")
+        XCTAssertEqual(claude.effort, "medium", "사용자가 확정한 뒤 effort 까지 마저 맞춘다")
+        XCTAssertEqual(result.summary, "Sonnet 5.5 · medium")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}", "확정 뒤에 쓰인 기본값도 되돌린다")
+    }
+
+    func testStopsWhenTheUserDeclinesAndSendsNothingMore() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.asksBeforeSwitching = true
+        var (switcher, _) = setUp(claude, settings: settings)
+        switcher.onAwaitingUser = { _ in try? claude.type("2") }
+        XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
+            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true, "\($0)")
+        }
+        XCTAssertEqual(claude.model, "Opus 5.5")
+        XCTAssertEqual(claude.sent.filter { $0.contains("/effort") }, [], "모델을 안 바꿨는데 effort 만 바꾸지 않는다")
     }
 
     func testReadinessUsesAFreshScreenNotTheCachedOne() throws {
