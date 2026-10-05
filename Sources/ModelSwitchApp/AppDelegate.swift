@@ -85,9 +85,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.async {
                 switch outcome {
                 case .success(let result):
-                    Log.write("적용 \(slot): \(result.summary) → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.confirmationSummary.map { " [" + $0 + "]" } ?? "")\(result.warning.map { " ⚠️ " + $0 } ?? "")")
+                    Log.write("적용 \(slot): \(result.summary)\(result.confirmed ? "" : " (확인 문구 없음)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
                     var detail = "\(result.target.agent.rawValue) · \(result.target.host.appName) · \(result.target.label)"
-                    if let confirmation = result.confirmationSummary { detail += "\n\(confirmation)" }
+                    if !result.slotName.isEmpty { detail += "\n\(result.slotName)" }
                     if let warning = result.warning {
                         self.hud.show(result.summary, detail: "\(detail)\n⚠️ \(warning)", seconds: 4)
                     } else {
@@ -115,10 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         do {
             let config = try store.load()
             for (index, slot) in config.slots.enumerated() {
-                let parts = [slot.claude.map { "claude \($0.model)·\($0.effort)" },
-                             slot.codex.map { "codex \($0.model)·\($0.effort)" }].compactMap { $0 }
-                let item = NSMenuItem(title: "\(slot.name)   \(parts.joined(separator: "  /  "))",
-                                      action: #selector(menuApply(_:)), keyEquivalent: "\(index + 1)")
+                let item = NSMenuItem(title: slot.listing, action: #selector(menuApply(_:)), keyEquivalent: "\(index + 1)")
                 item.keyEquivalentModifierMask = NSEvent.ModifierFlags(config.modifiers.compactMap {
                     ["shift": .shift, "option": .option, "control": .control, "command": .command][$0]
                 })

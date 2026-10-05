@@ -743,7 +743,8 @@ final class SwitcherApplyTests: XCTestCase {
         XCTAssertEqual(io.sent, ["\u{13}/model sonnet\r", "\u{13}/effort high\r"])
         XCTAssertEqual(result.preset, AgentPreset(model: "sonnet", effort: "high"))
         XCTAssertNil(result.warning)
-        XCTAssertEqual(result.confirmationSummary, "Set model to Sonnet 5.5 · Set effort level to high")
+        XCTAssertEqual(result.summary, "Sonnet 5.5 · high", "알림 제목은 보낸 값이 아니라 claude 가 알려 준 이름")
+        XCTAssertTrue(result.confirmed)
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), original)
     }
 
@@ -760,15 +761,28 @@ final class SwitcherApplyTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), original)
     }
 
-    func testConfirmationSummaryTrimsTheTail() {
-        func summary(_ lines: [String]) -> String? {
-            SwitchResult(target: target, slotName: "s", preset: AgentPreset(model: "m", effort: "e"),
-                         warning: nil, confirmations: lines, pendingRestore: nil).confirmationSummary
+    func testSummaryUsesWhatTheAgentReported() {
+        func summary(_ lines: [String]) -> String {
+            SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "opus", effort: "xhigh"),
+                         warning: nil, confirmations: lines, pendingRestore: nil).summary
         }
-        XCTAssertEqual(summary(["Set model to Opus 5.5 and"]), "Set model to Opus 5.5")
-        XCTAssertEqual(summary(["Set model to Opus 5.5 and saved as your default for new sessions",
-                                "Set effort level to high (saved as your default for new sessions): Comprehensive"]),
-                       "Set model to Opus 5.5 · Set effort level to high")
-        XCTAssertNil(summary([]))
+        // 작업 중 알림 줄은 잘려 온다.
+        XCTAssertEqual(summary(["Set model to Opus 5.5 and", "Set effort level to high (saved as your default for new sessions): Compre"]),
+                       "Opus 5.5 · high")
+        XCTAssertEqual(summary(["Set model to Opus 5.5 and saved as your default for new sessions"]), "Opus 5.5 · xhigh")
+        XCTAssertEqual(summary(["Model changed to gpt-6.1-sol max for this session only"]), "gpt-6.1-sol · max")
+        XCTAssertEqual(summary([]), "opus · xhigh", "확인 문구가 없으면 프리셋 값")
+    }
+}
+
+final class SlotTests: XCTestCase {
+    func testNameIsOptionalInTheFile() throws {
+        let config = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(#"{"slots":[{"claude":{"model":"opus","effort":"high"}},{"name":"밤샘","codex":{"model":"gpt-x","effort":"max"}}]}"#.utf8))
+        XCTAssertEqual(config.slots[0].name, "")
+        XCTAssertEqual(config.slots[0].listing, "claude opus · high")
+        XCTAssertEqual(config.slots[1].listing, "codex gpt-x · max   — 밤샘")
+        let saved = String(data: try JSONEncoder().encode(config.slots[0]), encoding: .utf8) ?? ""
+        XCTAssertFalse(saved.contains("name"), "빈 이름은 파일에 쓰지 않는다")
+        XCTAssertEqual(try JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(config.slots[1])), config.slots[1])
     }
 }

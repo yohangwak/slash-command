@@ -11,21 +11,35 @@ public struct SwitchResult: Equatable, Sendable {
     /// 늦게 오는 기본값 쓰기를 한 번 더 확인해야 할 때의 전환 전 파일 내용(`Switcher.verifyRestore`).
     public let pendingRestore: Data?
 
+    /// 알림 제목. 에이전트가 화면에 알려 준 이름이 있으면 그것을("Opus 5.5 · high"), 없으면 프리셋 값을("opus · high") 쓴다.
     public var summary: String {
-        "\(slotName) — \(preset.model) · \(preset.effort)"
-    }
-
-    /// 확인 문구에서 "… and saved as your default" 같은 꼬리를 떼어 알림에 쓸 만하게 줄인다.
-    public var confirmationSummary: String? {
-        guard !confirmations.isEmpty else { return nil }
-        return confirmations.map { line in
+        var model: String?
+        var effort: String?
+        for line in confirmations {
             // 작업 중 알림 줄은 폭에 맞춰 잘려 온다("… Opus 5.5 and") — 꼬리가 어디서 끊겼든 떼어 낸다.
             var text = line + " "
             for cut in [" and ", " (saved", " for this session", ":"] {
                 if let range = text.range(of: cut) { text = String(text[..<range.lowerBound]) }
             }
-            return text.trimmingCharacters(in: .whitespaces)
-        }.joined(separator: " · ")
+            text = text.trimmingCharacters(in: .whitespaces)
+            if text.hasPrefix("Set model to ") {
+                model = String(text.dropFirst("Set model to ".count))
+            } else if text.hasPrefix("Set effort level to ") {
+                effort = String(text.dropFirst("Set effort level to ".count))
+            } else if text.hasPrefix("Model changed to ") {
+                // codex: "Model changed to gpt-6.1-sol high"
+                let words = text.dropFirst("Model changed to ".count).split(separator: " ")
+                if words.count == 2 { model = String(words[0]); effort = String(words[1]) }
+            }
+        }
+        return "\(nonEmpty(model) ?? preset.model) · \(nonEmpty(effort) ?? preset.effort)"
+    }
+
+    /// 에이전트가 결과를 화면으로 확인해 줬는가(`summary` 가 보낸 값이 아니라 확인된 값인가).
+    public var confirmed: Bool { !confirmations.isEmpty }
+
+    private func nonEmpty(_ text: String?) -> String? {
+        text.flatMap { $0.isEmpty ? nil : $0 }
     }
 }
 
@@ -108,7 +122,7 @@ public struct Switcher {
         }
         let chosen = config.slots[slot - 1]
         guard let preset = chosen.preset(for: agent) else {
-            throw ModelSwitchError("\(slot)번 '\(chosen.name)' 에는 \(agent.rawValue) 설정이 없습니다.")
+            throw ModelSwitchError("\(slot)번 프리셋에는 \(agent.rawValue) 설정이 없습니다.")
         }
         switch agent {
         case .claude:

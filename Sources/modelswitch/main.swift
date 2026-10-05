@@ -70,7 +70,7 @@ do {
         let result = try switcher.apply(slot: slot, to: target)
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
-        if let confirmation = result.confirmationSummary { print("확인: \(confirmation)") }
+        if !result.confirmed { print("(에이전트의 확인 문구는 보지 못했습니다)") }
         if let warning = result.warning { print("⚠️ \(warning)") }
     case "where":
         let target = try Detector.frontmost()
@@ -92,16 +92,14 @@ do {
     case "list":
         let config = try store.load()
         for (index, slot) in config.slots.enumerated() {
-            let claude = slot.claude.map { "\($0.model) · \($0.effort)" } ?? "—"
-            let codex = slot.codex.map { "\($0.model) · \($0.effort)" } ?? "—"
-            print("\(index + 1)  \(slot.name)\tclaude: \(claude)\tcodex: \(codex)")
+            print("\(index + 1)  \(slot.listing)")
         }
     case "plan":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
             fail("modelswitch plan <번호> <claude|codex>")
         }
         let planned = try Switcher(config: try store.load()).plan(slot: slot, agent: agent)
-        print("\(planned.slot.name) — \(planned.preset.model) · \(planned.preset.effort)")
+        print("\(agent.rawValue) \(planned.preset.model) · \(planned.preset.effort)")
         planned.steps.forEach { print("  " + describe($0)) }
     case "path":
         print(store.url.path)

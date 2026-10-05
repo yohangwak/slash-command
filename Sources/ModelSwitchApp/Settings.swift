@@ -42,7 +42,7 @@ final class SettingsModel: ObservableObject {
 
     static let claudeModels = ["fable", "opus", "sonnet", "haiku"]
     static let claudeEfforts = ["low", "medium", "high", "xhigh", "max"]
-    static let codexEfforts = ["low", "medium", "high", "xhigh"]
+    static let codexEfforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
 
     init(store: ConfigStore, onSaved: @escaping () -> Void) {
         self.store = store
@@ -69,18 +69,13 @@ final class SettingsModel: ObservableObject {
 
     func add() {
         guard slots.count < ModelSwitchConfig.maxSlots else { return }
-        var slot = EditableSlot(Slot(name: "프리셋 \(slots.count + 1)",
-                                     claude: AgentPreset(model: "opus", effort: "high")))
+        var slot = EditableSlot(Slot(claude: AgentPreset(model: "opus", effort: "high")))
         slot.codexModel = codexModels.first ?? ""
         slots.append(slot)
     }
 
     func save() {
         for (index, slot) in slots.enumerated() {
-            if slot.name.trimmingCharacters(in: .whitespaces).isEmpty {
-                status = "\(index + 1)번 프리셋의 이름이 비어 있습니다."
-                return
-            }
             if slot.claudeOn && slot.claudeModel.trimmingCharacters(in: .whitespaces).isEmpty
                 || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty {
                 status = "\(index + 1)번 프리셋의 모델이 비어 있습니다."
@@ -168,7 +163,7 @@ private struct SlotRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(shortcut).font(.system(.body, design: .monospaced)).foregroundStyle(.secondary)
-                    TextField("이름", text: $slot.name).textFieldStyle(.roundedBorder).frame(width: 180)
+                    TextField("이름(선택)", text: $slot.name).textFieldStyle(.roundedBorder).frame(width: 180)
                     Spacer()
                     Button(role: .destructive, action: onDelete) { Image(systemName: "trash") }
                         .buttonStyle(.borderless).help("이 프리셋 삭제")

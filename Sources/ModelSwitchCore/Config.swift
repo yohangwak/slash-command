@@ -16,14 +16,31 @@ public struct AgentPreset: Codable, Equatable, Sendable {
 }
 
 public struct Slot: Codable, Equatable, Sendable {
+    /// 붙이고 싶을 때만 쓰는 이름. 비어 있으면 모델·effort 로 부른다.
     public var name: String
     public var claude: AgentPreset?
     public var codex: AgentPreset?
 
-    public init(name: String, claude: AgentPreset? = nil, codex: AgentPreset? = nil) {
+    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil) {
         self.name = name
         self.claude = claude
         self.codex = codex
+    }
+
+    enum CodingKeys: String, CodingKey { case name, claude, codex }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        claude = try c.decodeIfPresent(AgentPreset.self, forKey: .claude)
+        codex = try c.decodeIfPresent(AgentPreset.self, forKey: .codex)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        if !name.isEmpty { try c.encode(name, forKey: .name) }
+        try c.encodeIfPresent(claude, forKey: .claude)
+        try c.encodeIfPresent(codex, forKey: .codex)
     }
 
     public func preset(for agent: Agent) -> AgentPreset? {
@@ -31,6 +48,14 @@ public struct Slot: Codable, Equatable, Sendable {
         case .claude: return claude
         case .codex: return codex
         }
+    }
+
+    /// 목록에 보여 줄 한 줄: `claude opus · high  /  codex gpt-6-astra · high`, 이름이 있으면 뒤에 붙인다.
+    public var listing: String {
+        let parts = [claude.map { "claude \($0.model) · \($0.effort)" },
+                     codex.map { "codex \($0.model) · \($0.effort)" }].compactMap { $0 }
+        let body = parts.isEmpty ? "(설정 없음)" : parts.joined(separator: "  /  ")
+        return name.isEmpty ? body : "\(body)   — \(name)"
     }
 }
 
@@ -73,14 +98,11 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     public static let maxSlots = 9
 
     public static let starter = ModelSwitchConfig(slots: [
-        Slot(name: "기본",
-             claude: AgentPreset(model: "opus", effort: "high"),
+        Slot(claude: AgentPreset(model: "opus", effort: "high"),
              codex: AgentPreset(model: "gpt-6-astra", effort: "high")),
-        Slot(name: "가볍게",
-             claude: AgentPreset(model: "sonnet", effort: "high"),
+        Slot(claude: AgentPreset(model: "sonnet", effort: "high"),
              codex: AgentPreset(model: "gpt-6.1-sol", effort: "high")),
-        Slot(name: "최고",
-             claude: AgentPreset(model: "fable", effort: "high"),
+        Slot(claude: AgentPreset(model: "fable", effort: "high"),
              codex: nil),
     ])
 }
