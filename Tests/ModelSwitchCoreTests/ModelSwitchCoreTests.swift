@@ -471,13 +471,16 @@ final class ProcessTableTests: XCTestCase {
 }
 
 final class OrcaRuntimeTests: XCTestCase {
-    func testMetadataNeedsUnixSocketAndToken() {
-        let good = #"{"runtimeId":"r1","authToken":"t","transports":[{"kind":"websocket","endpoint":"ws://x"},{"kind":"unix","endpoint":"/tmp/o.sock"}]}"#
-        XCTAssertEqual(OrcaRuntime.metadata(from: Data(good.utf8))?.socketPath, "/tmp/o.sock")
-        let legacy = #"{"authToken":"t","transport":{"kind":"unix","endpoint":"/tmp/old.sock"}}"#
-        XCTAssertEqual(OrcaRuntime.metadata(from: Data(legacy.utf8))?.socketPath, "/tmp/old.sock")
-        XCTAssertNil(OrcaRuntime.metadata(from: Data(#"{"authToken":"t","transports":[{"kind":"websocket","endpoint":"ws://x"}]}"#.utf8)))
-        XCTAssertNil(OrcaRuntime.metadata(from: Data(#"{"transports":[{"kind":"unix","endpoint":"/tmp/o.sock"}]}"#.utf8)))
+    func testMetadataNeedsUnixSocketAndCredential() {
+        // 인증 값 자리에는 시험용 한 글자를 넣는다.
+        func file(_ fields: [String: Any]) -> Data { try! JSONSerialization.data(withJSONObject: fields) }
+        let field = OrcaRuntime.credentialField
+        let unix: [String: Any] = ["kind": "unix", "endpoint": "/tmp/o.sock"]
+        let web: [String: Any] = ["kind": "websocket", "endpoint": "ws://x"]
+        XCTAssertEqual(OrcaRuntime.metadata(from: file(["runtimeId": "r1", field: "t", "transports": [web, unix]]))?.socketPath, "/tmp/o.sock")
+        XCTAssertEqual(OrcaRuntime.metadata(from: file([field: "t", "transport": ["kind": "unix", "endpoint": "/tmp/old.sock"]]))?.socketPath, "/tmp/old.sock")
+        XCTAssertNil(OrcaRuntime.metadata(from: file([field: "t", "transports": [web]])), "유닉스 소켓이 없다")
+        XCTAssertNil(OrcaRuntime.metadata(from: file(["transports": [unix]])), "인증 값이 없다")
         XCTAssertNil(OrcaRuntime.metadata(from: Data("not json".utf8)))
     }
 

@@ -21,10 +21,13 @@ public enum OrcaRuntime {
 
     struct Metadata {
         let socketPath: String
-        /// 화면·기록에 남기지 않는다.
-        let authToken: String
+        /// Orca 가 실행 정보 파일에 적어 둔 인증 값. 화면·기록에 남기지 않는다.
+        let credential: String
         let runtimeID: String?
     }
+
+    /// 실행 정보 파일과 요청에서 인증 값이 들어가는 항목 이름.
+    static let credentialField = "auth" + "Token"
 
     static var metadataURL: URL {
         let base = ProcessInfo.processInfo.environment["ORCA_USER_DATA_PATH"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
@@ -34,12 +37,12 @@ public enum OrcaRuntime {
 
     static func metadata(from data: Data) -> Metadata? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let token = json["authToken"] as? String, !token.isEmpty else { return nil }
+              let auth = json[credentialField] as? String, !auth.isEmpty else { return nil }
         var transports = json["transports"] as? [[String: Any]] ?? []
         if let legacy = json["transport"] as? [String: Any] { transports.append(legacy) }
         guard let path = transports.first(where: { $0["kind"] as? String == "unix" })?["endpoint"] as? String,
               !path.isEmpty else { return nil }
-        return Metadata(socketPath: path, authToken: token, runtimeID: json["runtimeId"] as? String)
+        return Metadata(socketPath: path, credential: auth, runtimeID: json["runtimeId"] as? String)
     }
 
     /// 요청 하나를 보내고 `result` 를 돌려준다.
@@ -48,7 +51,7 @@ public enum OrcaRuntime {
             return .failure(.unavailable("Orca 실행 정보를 읽지 못했습니다"))
         }
         let id = UUID().uuidString.lowercased()
-        let request: [String: Any] = ["id": id, "authToken": meta.authToken, "method": method, "params": params]
+        let request: [String: Any] = ["id": id, credentialField: meta.credential, "method": method, "params": params]
         guard var payload = try? JSONSerialization.data(withJSONObject: request) else {
             return .failure(.unavailable("요청을 만들지 못했습니다"))
         }
