@@ -31,7 +31,8 @@ if [ "${1:-}" = "--install" ]; then
     if [ -d "$HOME/.local/bin" ] && { [ -L "$link" ] || [ ! -e "$link" ]; }; then
         ln -sf "$dest/Contents/MacOS/modelswitch-cli" "$link"
     fi
-    open "$dest"
+    # 방금 끈 앱을 바로 다시 열면 가끔 실패한다(-600). 잠깐 두고 한 번 더 연다.
+    open "$dest" 2>/dev/null || { sleep 2; open "$dest"; }
     echo "설치: $dest"
 else
     echo "완료: $app"
