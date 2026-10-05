@@ -1,0 +1,126 @@
+# ModelSwitch
+
+Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 claude 인지 codex 인지에 맞춰
+그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱. **⇧⌥=** · **⇧⌥-** 는 모델은 그대로 두고 effort 만 한 단계 올리고 내린다.
+
+`/model`·`/effort` 를 매번 치는 대신 단축키 한 번. 대화 도중에도 되고, 쓰던 글은 그대로 남고, 새 세션 기본값은 바뀌지 않는다.
+
+## 쓰기
+
+| 무엇 | 어떻게 |
+|---|---|
+| 전환 | Ghostty 나 Orca 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
+| effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
+| 프리셋 편집 | 메뉴 막대 톱니 → 「프리셋 편집…」 (파일은 `~/.config/modelswitch/presets.json`) |
+| 새 세션 | `modelswitch run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`) |
+| 터미널에서 | `modelswitch list` · `where` · `doctor --screen` · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
+| 기록 | `~/Library/Logs/ModelSwitch/modelswitch.log` (누른 것, 결과, 단계별 걸린 시간) |
+
+번호는 「의도」다 — 같은 번호가 claude 에서는 claude 모델, codex 에서는 codex 모델로 간다.
+한쪽 설정이 없는 번호는 그 에이전트에서 아무것도 하지 않는다.
+
+```json
+{
+  "version": 1,
+  "keepDefaults": true,
+  "acceptSwitchPrompt": false,
+  "effortKeys": true,
+  "modifiers": ["option", "shift"],
+  "slots": [
+    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6-astra", "effort": "high" } },
+    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.1-sol", "effort": "high" } },
+    { "name": "밤샘", "claude": { "model": "fable", "effort": "max" } }
+  ]
+}
+```
+
+- claude `model`: 별칭(`fable`·`opus`·`sonnet`·`haiku` — 그 계열의 최신), 선택창에 보이는 이름(`Opus 5`), 또는 전체 모델 id(`claude-opus-5`). `effort`: `low`·`medium`·`high`·`xhigh`·`max`.
+- codex `model`: `/model` 선택창에 보이는 모델의 slug. `effort`: `low`·`medium`·`high`·`xhigh`·`max`·`ultra`(모델이 지원하는 것).
+- `name` 은 붙이고 싶을 때만. 없으면 모델·effort 로 보여 준다.
+- `keepDefaults`(기본 켬): 이 세션만 바꾼다. 끄면 claude 는 새 세션 기본값까지 바꾼다.
+- `acceptSwitchPrompt`(기본 끔): 아래 「claude 의 확인 창」.
+
+## 설치
+
+```sh
+./scripts/build-app.sh --install   # ~/Applications/ModelSwitch.app 에 설치하고 실행, ~/.local/bin/modelswitch 링크
+```
+
+처음 한 번 허용할 것(Ghostty 를 쓸 때만. Orca 만 쓰면 필요 없다):
+
+- **자동화**(ModelSwitch → Ghostty): 터미널에 글자를 넣는 데 쓴다.
+- **손쉬운 사용**(ModelSwitch): Ghostty 화면을 읽는 데 쓴다.
+
+## 어떻게 동작하나
+
+1. **단축키** — Carbon 전역 핫키. 키 위치로 잡으므로 한글 입력 상태와 무관하다. Ghostty·Orca 가 맨 앞일 때만 등록해서 다른 앱에서는 그 조합이 원래대로 동작한다.
+2. **대상 찾기**
+   - Ghostty: AppleScript 로 맨 앞 터미널의 id·제목·폴더를 읽는다. 제목에 `claude`/`codex` 가 없으면 그 폴더에서 도는 에이전트 프로세스로 가린다.
+   - Orca: 화면에 떠 있는 워크스페이스는 Orca 상태 DB(`profile-state.db` 의 `workspaceSession`)에서, 그 안의 활성 탭·터미널은 터미널 목록에서 읽는다. 에이전트 종류는 그 터미널에서 도는 프로세스로 가린다(목록의 `agentIdentity` 는 대기 중에 비어 온다).
+3. **입력창 확인** — 화면을 읽어 에이전트의 입력창이 «보일 때만» 보낸다(아래 「안전」).
+4. **전환** — 두 에이전트 모두 `/model` 선택창을 화면으로 읽으며 조작한다: 커서가 어느 행에 있는지 읽고, 그만큼만 움직이고, 도착한 것을 다시 읽어 확인한 뒤 **「이 세션만」(`s`)으로 확정**한다.
+   - claude: 모델 행으로 커서를 옮기고, effort 줄(`● High effort ←/→`)을 목표 단계로 맞춘다. 결과 줄(`Set model to Opus 5.5 for this session only with high effort`)이 알림에 뜬다.
+   - codex: 모델은 숫자 키, effort 는 커서로 고른다(effort 를 숫자 키로 고르면 기본값까지 저장된다). `max`·`ultra` 는 「More reasoning…」 아래에서 찾는다.
+   - 쓰던 글: claude 는 `Ctrl+S` 로 보관했다 claude 가 되돌리고, codex 는 kill 버퍼로 옮겼다 되돌린다(한 줄일 때만).
+
+글자·키는 합성 키 입력이 아니라 터미널에 바이트로 직접 쓴다(Ghostty `perform action "text:…"`, Orca 는 앱의 런타임 소켓 — 안 되면 `orca terminal send`).
+
+### claude 의 확인 창
+
+claude 는 방금 응답한 대화에서 모델을 바꾸면 `Switch model?` 을 띄운다(대화 기록을 새 모델로 다시 읽는다는 안내).
+기본은 그 창에 **아무것도 보내지 않는다** — 알림이 「Enter 로 확정해 주세요」라고 알리고, 고를 때까지(20초) 기다렸다가 결과를 알린다.
+`acceptSwitchPrompt` 를 켜면, 그 창이 «우리가 고른 그 모델»을 묻고 커서가 Yes 에 있을 때만 Enter 로 받아들인다.
+
+### 선택창을 못 쓰는 경우
+
+- claude 선택창에 그 모델 행이 없으면(오래된 모델, 맞춤 id) 선택창을 닫고 `/model X`·`/effort Y` 명령으로 한다. 이 명령은 새 세션 기본값(`~/.claude/settings.json`)까지 바꾸므로, 전환 전 내용을 잡아 뒀다가 기본값 항목만 되돌린다.
+- **Ghostty 의 claude** 는 항상 이 명령 방식이다. Ghostty 는 접근성으로 내주는 화면 글자를 0.5초 동안 그대로 다시 주기 때문에 선택창을 단계마다 확인하면 2.4~3.8초가 걸린다. 그래서 화면 대신 「claude 가 기본값 파일을 다시 썼다」를 명령이 실행된 신호로 쓴다.
+
+## 걸리는 시간 (2026-10-06, 집 맥, claude 2.1.289 · codex 0.160.0/0.160.1 · Orca 1.4.220 · Ghostty 1.3.1)
+
+| | 처음(2026-10-05) | 지금 |
+|---|---|---|
+| Orca · claude | 6.4초 | 0.08~0.35초 |
+| Orca · codex | 2.65초 | 0.15~0.30초 |
+| Orca · effort 한 단계 | — | 0.1~0.4초 |
+| Orca · 맨 앞 터미널 찾기 | 0.45초 | 0.08~0.10초 |
+| Ghostty · codex | 미측정 | 2.2~3.2초 (단계마다 화면이 0.5초 늦게 따라온다) |
+| Ghostty · claude | 미측정 | 약 0.55초 예상 — 같은 경로를 Orca 세션에 0.52초 지연을 걸어 잰 값. **Ghostty 실기 미검증** |
+
+줄인 것: 고정 대기(4.9초)를 화면 확인으로 교체 · `orca` 명령 실행(회당 0.2초)을 앱 소켓 직접 호출(1ms 안쪽)로 · `ps` 실행(0.2초)을 프로세스 안 조회로 · `osascript` 실행(0.2~0.3초)을 프로세스 안 AppleScript 로.
+`modelswitch apply <번호> --trace` 가 단계별 시간을 찍는다.
+
+## 안전
+
+- **입력창이 안 보이면 아무것도 보내지 않는다.** 권한 확인 창·승인 창·선택창이 떠 있을 때 Enter 를 보내면 그 창의 기본 선택지가 눌린다. 판정은 「창이 없다」가 아니라 「입력창이 보인다」다(`Readiness.swift`, 실제 화면 표본으로 테스트).
+- **화면을 못 읽으면 보내지 않는다.** 확인 없이 보내는 경로는 없다.
+- **낡은 화면으로 판단하지 않는다.** Ghostty 의 첫 판단은 0.5초 보관이 지난 새 화면으로만 한다. (2026-10-06: 시험 중 낡은 화면을 믿고 열려 있는 claude 선택창에 Enter 를 보내, 커서 행이 새 세션 기본 모델로 저장됐다.)
+- **읽는 터미널과 쓰는 터미널이 같아야 한다.** Ghostty 는 읽기·쓰기 모두 대상이 지금도 포커스 터미널일 때만 한다.
+- **Esc 는 우리가 연 선택창이 보이는 동안에만 누른다.** 작업 중인 에이전트에 Esc 는 작업 중단이다.
+- 선택창의 번호 행은 우리가 아는 머리말(`Select model`, `Select Reasoning Level` …) 아래에 있을 때만 선택창으로 본다 — 승인 창도 번호 행을 쓴다.
+- effort 한 단계는 끝 단계에서 누르지 않는다(claude 선택창은 끝에서 반대쪽 끝으로 돈다). claude 는 커서가 「지금 쓰는 모델」(`✔`) 행에 있을 때만 확정한다.
+- 결과 줄은 «이번에 새로 생긴 것»만 결과로 친다. 예전 전환의 줄이 화면에 남아 있어도 성공으로 읽지 않는다.
+
+## 한계
+
+- codex 선택창의 모델 순서는 `~/.codex/models_cache.json` 에서 계산한다. 10번째 이후 모델은 숫자 키로 고를 수 없다.
+- claude 선택창에서 화면 아래로 밀려난 모델(`… +2 models`)은 명령 방식으로 간다(기본값을 바꿨다 되돌린다).
+- Orca 의 「화면에 떠 있는 워크스페이스」는 공개 인터페이스가 아닌 상태 DB 에서 읽는다. 형식이 바뀌면 추측하지 않고 실패한다. 워크스페이스를 옮긴 직후 DB 가 얼마나 늦게 따라오는지는 재지 못했다 — 알림에 대상 이름이 뜨는 것이 방어다.
+- Orca 앱 소켓도 공개 인터페이스가 아니다(`orca` 명령이 쓰는 통로). 못 쓰면 `orca` 명령으로 되돌아간다(회당 0.2초).
+- Ghostty 의 codex 는 2~3초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다.
+- Orca 플로팅 터미널, Terminal.app·iTerm 등 다른 터미널은 지원하지 않는다.
+- 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다.
+
+## 개발
+
+```sh
+swift build && swift test                  # 핵심 로직은 ModelSwitchCore, 화면 표본은 Tests/…/Fixtures, 선택창 흉내는 테스트 안의 FakeClaude·FakePicker
+.build/debug/modelswitch plan 1 codex      # 보낼 단계만 출력
+.build/debug/modelswitch apply 2 --orca <핸들> --agent claude --trace   # 대상을 직접 지정(시험용)
+MODELSWITCH_SCREEN_LAG_MS=520 .build/debug/modelswitch apply 1 --orca <핸들> --agent claude   # Ghostty 용 경로를 Orca 세션에서
+MODELSWITCH_CONFIG=/path/presets.json …    # 다른 프리셋 파일
+```
+
+시험할 때: 대상을 직접 지정한 시험은 감지 경로를 안 탄다(`where`·`doctor` 로 따로 본다) · 명령 방식 시험은 «지금 기본값과 같은 값»으로만 하고 끝나면 `shasum ~/.claude/settings.json` 을 처음과 대조한다 · 시험 세션에 글자를 보내기 전에 화면을 먼저 읽는다.
+
+구조: `ModelSwitchCore`(프리셋·감지·입력·화면 판정·단계 실행·기본값 복원) · `modelswitch`(명령줄) · `ModelSwitchApp`(메뉴 막대·단축키·알림·편집 화면).

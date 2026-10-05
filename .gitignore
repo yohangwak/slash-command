@@ -7,3 +7,9 @@
 
 node_modules/
 .DS_Store
+
+# SwiftPM
+.build/
+dist/
+*.xcodeproj
+.swiftpm/
