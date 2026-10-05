@@ -1,3 +1,4 @@
+import Carbon
 import Foundation
 
 /// 한 터미널에 글자·키를 넣고, 가능하면 화면을 읽는다.
@@ -131,8 +132,33 @@ public struct GhosttyIO: TerminalIO {
         self.terminalID = terminalID
     }
 
+    /// AppleScript 를 이 프로세스 안에서 실행한다. `osascript` 를 띄우면 한 번에 0.2~0.3초가 든다(2026-10-06 실측).
+    /// 결과는 `osascript` 가 찍던 것과 같은 꼴(참·거짓은 "true"·"false")로 돌려준다.
     static func osascript(_ script: String) -> ProcResult {
-        Proc.run("/usr/bin/osascript", ["-e", script], timeout: 10)
+        // NSAppleScript 는 주 스레드에서만 쓰게 돼 있다.
+        if Thread.isMainThread { return runAppleScript(script) }
+        return DispatchQueue.main.sync { runAppleScript(script) }
+    }
+
+    private static func runAppleScript(_ source: String) -> ProcResult {
+        guard let script = NSAppleScript(source: source) else {
+            return Proc.run("/usr/bin/osascript", ["-e", source], timeout: 10)
+        }
+        var error: NSDictionary?
+        let value = script.executeAndReturnError(&error)
+        if let error {
+            let message = (error[NSAppleScript.errorMessage] as? String) ?? "AppleScript 오류"
+            let number = (error[NSAppleScript.errorNumber] as? Int).map { " (\($0))" } ?? ""
+            return ProcResult(status: 1, out: "", err: message + number, timedOut: false)
+        }
+        let out: String
+        switch value.descriptorType {
+        case typeTrue: out = "true"
+        case typeFalse: out = "false"
+        case typeBoolean: out = value.booleanValue ? "true" : "false"
+        default: out = value.stringValue ?? ""
+        }
+        return ProcResult(status: 0, out: out, err: "", timedOut: false)
     }
 
     static func quoted(_ text: String) -> String {

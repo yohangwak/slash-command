@@ -50,6 +50,16 @@ public enum ClaudeScreen {
         }
     }
 
+    /// 입력창에 보이는 글(첫 줄). 입력창이 없으면 nil, 비어 있으면 빈 문자열.
+    /// 초안을 따로 주지 않는 터미널(Ghostty)에서 쓰던 글이 돌아왔는지 보는 데 쓴다.
+    public static func promptText(_ lines: [String]) -> String? {
+        let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        for (index, line) in shown.enumerated() where line.hasPrefix("❯") && index > 0 && shown[index - 1].hasPrefix("─") {
+            return String(line.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+        return nil
+    }
+
     /// 화면에서 마지막 대화 결과 줄(`⎿ …`)의 내용. 없으면 nil. 실패했을 때 claude 가 뭐라고 했는지 보여 주는 데 쓴다.
     public static func lastResult(_ lines: [String]) -> String? {
         for line in lines.reversed() {

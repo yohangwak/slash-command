@@ -272,7 +272,11 @@ public struct Runner {
         // 같은 문구가 명령 전부터 화면에 있었으면 화면만으로는 새 결과인지 알 수 없다.
         let stale = !ClaudeScreen.results(armedLines, prefix: prefix).isEmpty
         let saidBefore = ClaudeScreen.lastResult(armedLines)
-        let draftBefore = initial?.draft ?? ""
+        // 초안을 따로 주는 터미널(Orca)은 그 값을, 아니면 화면의 입력창 줄을 본다.
+        func draft(_ snap: ScreenSnapshot) -> String {
+            snap.draft ?? ClaudeScreen.promptText(snap.lines) ?? ""
+        }
+        let draftBefore = initial.map(draft) ?? ""
         while true {
             guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
             let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
@@ -282,10 +286,8 @@ public struct Runner {
             // 입력창이 다시 «보임» — 다음 명령의 Enter 가 그 사이 뜬 확인 창을 누르지 않게 한다.
             let promptBack = Readiness.claudePromptVisible(snap.lines)
             // 쓰던 글이 있었으면 그것이 입력창에 «돌아왔음». 그 사이 사용자가 더 쳤을 수 있어 같은지는 따지지 않는다.
-            let draftBack = draftBefore.isEmpty || snap.draft == nil || !(snap.draft ?? "").isEmpty
+            let draftBack = draftBefore.isEmpty || !draft(snap).isEmpty
             if let result = ClaudeScreen.results(snap.lines, prefix: prefix).last, fresh, promptBack, draftBack {
-                // 초안을 따로 주지 않는 터미널에서는 복원이 끝났는지 볼 수 없어 잠깐 기다린다.
-                if snap.draft == nil { sleep(150) }
                 return (result, snap.lines)
             }
             if elapsed >= timeoutMs {

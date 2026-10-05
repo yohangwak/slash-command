@@ -6,6 +6,7 @@ final class FakeIO: TerminalIO {
     /// nil 이면 화면을 못 읽는 터미널.
     var screens: [[String]]?
     private var reads = 0
+    var readCount: Int { reads }
 
     var onEnter: (() -> Void)?
     /// Orca 처럼 초안을 따로 주는 터미널 흉내. nil 이면 초안을 모른다.
@@ -192,6 +193,17 @@ final class RunnerTests: XCTestCase {
         io.screens = [["  ⎿  $ sleep 20 (5s)", "✻ Beaming… (11s)", "                 Set model to Opus 5.5 and", rule, "❯"]]
         let result = try Runner(io: io, sleep: { _ in }).run([.expectResult(prefix: "Set model to", timeoutMs: 300, failure: "f")])
         XCTAssertEqual(result, ["Set model to Opus 5.5 and"])
+    }
+
+    func testExpectResultWaitsForDraftOnScreenWhenTheTerminalGivesNoDraft() throws {
+        // Ghostty 는 초안을 따로 주지 않는다 — 입력창 줄에 글이 다시 «보임»으로 판단한다.
+        let io = FakeIO()
+        io.screens = [["  ⎿  Set model to X", rule, "❯ "], ["  ⎿  Set model to X", rule, "❯ "], ["  ⎿  Set model to X", rule, "❯ 쓰던 글"]]
+        let runner = Runner(io: io, sleep: { _ in }, initial: ScreenSnapshot(lines: [rule, "❯ 쓰던 글"], draft: nil))
+        try runner.run([.expectResult(prefix: "Set model to", timeoutMs: 1000, failure: "f"), .text("next")])
+        XCTAssertEqual(io.readCount, 3)
+        XCTAssertEqual(ClaudeScreen.promptText([rule, "❯ "]), "")
+        XCTAssertNil(ClaudeScreen.promptText([" ❯ 1. Yes"]))
     }
 
     func testExpectResultStopsWhenADialogReplacedThePrompt() {
