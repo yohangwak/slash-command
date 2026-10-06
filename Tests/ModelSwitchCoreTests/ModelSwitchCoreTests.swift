@@ -1558,3 +1558,40 @@ final class SlotTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(config.slots[1])), config.slots[1])
     }
 }
+
+final class AgentVersionTests: XCTestCase {
+    func testParsesVersionOutputOfBothAgents() {
+        XCTAssertEqual(AgentVersions.parse(versionOutput: "2.1.291 (Claude Code)\n"), "2.1.291")
+        XCTAssertEqual(AgentVersions.parse(versionOutput: "codex-cli 0.160.1\n"), "0.160.1")
+        XCTAssertNil(AgentVersions.parse(versionOutput: "command not found"), "숫자 세 토막이 없으면 판을 지어내지 않는다")
+        XCTAssertNil(AgentVersions.parse(versionOutput: "1.2 beta"))
+    }
+
+    func testReadsVersionFromInstallPath() {
+        XCTAssertEqual(AgentVersions.version(inCommandLine: "/Users/x/.local/share/claude/versions/2.1.289 --model opus"), "2.1.289")
+        XCTAssertEqual(AgentVersions.version(inCommandLine: "/Users/x/.codex/packages/standalone/releases/0.160.0/bin/codex -m x"), "0.160.0")
+        XCTAssertEqual(AgentVersions.version(inCommandLine: "/Users/x/.codex/packages/standalone/releases/0.160.1-aarch64-apple-darwin/bin/codex"), "0.160.1")
+        XCTAssertNil(AgentVersions.version(inCommandLine: "/Users/x/.codex/packages/standalone/releases/latest/bin/codex"))
+        XCTAssertEqual(AgentVersions.version(inCommandLine: "/Users/x/.codex/packages/standalone/releases/0.160.0-alpha.6-aarch64-apple-darwin/bin/codex"), "0.160.0-alpha.6")
+        let prerelease = AgentVersions.Report(agent: .codex, installed: "0.160.0", running: ["0.160.0-alpha.6"])
+        XCTAssertEqual(prerelease.untested, ["0.160.0-alpha.6"], "시험판은 확인한 안정판이 아니다")
+        XCTAssertNil(AgentVersions.version(inCommandLine: "/opt/homebrew/bin/codex -m x"), "경로에 판이 없으면 모른다고 한다")
+    }
+
+    func testFlagsVersionsWeNeverSaw() {
+        let seen = AgentVersions.Report(agent: .claude, installed: "2.1.289", running: ["2.1.283"])
+        XCTAssertEqual(seen.untested, [])
+        let newer = AgentVersions.Report(agent: .claude, installed: "2.1.999", running: ["2.1.289"])
+        XCTAssertEqual(newer.untested, ["2.1.999"], "양성 대조군: 확인 안 한 판은 반드시 걸린다")
+        XCTAssertTrue(newer.lines.contains { $0.contains("2.1.999") && $0.contains("확인 못 한 판") })
+        let unknown = AgentVersions.Report(agent: .codex, installed: nil, running: [])
+        XCTAssertEqual(unknown.untested, [], "설치 판을 못 읽은 것과 확인 못 한 판은 다르다")
+        XCTAssertFalse(unknown.lines.contains { $0.contains("확인한 판입니다") }, "근거가 없으면 확인했다고 말하지 않는다")
+        XCTAssertTrue(unknown.lines.contains { $0.contains("판을 읽지 못한 것") })
+        let hidden = AgentVersions.Report(agent: .claude, installed: "2.1.289", running: ["알 수 없음"])
+        XCTAssertFalse(hidden.lines.contains { $0.contains("확인한 판입니다") }, "설치 판이 확인된 판이어도 실행 중인 세션의 판을 모르면 확인했다고 하지 않는다")
+        XCTAssertTrue(hidden.lines.contains { $0.contains("실행 중인 claude 일부") })
+        let clean = AgentVersions.Report(agent: .claude, installed: "2.1.289", running: ["2.1.288"])
+        XCTAssertTrue(clean.lines.contains { $0.contains("확인한 판입니다") }, "양성 대조군: 모두 읽혔고 확인한 판이면 그렇게 말한다")
+    }
+}
