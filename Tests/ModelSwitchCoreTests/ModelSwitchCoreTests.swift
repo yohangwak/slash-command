@@ -68,7 +68,7 @@ final class PlanTests: XCTestCase {
         XCTAssertEqual(typed.filter { $0.allSatisfy(\.isNumber) }, ["2"])
         XCTAssertTrue(typed.contains("s"), "세션 한정(s)으로 확정해야 기본값을 안 건드린다")
         XCTAssertTrue(steps.contains { if case .selectRow(label: "High", via: "More reasoning", _, _, _) = $0 { return true } else { return false } })
-        XCTAssertTrue(steps.contains { if case .expect(needle: "Select Reasoning Level for GPT-6-Astra", _, _, _) = $0 { return true } else { return false } })
+        XCTAssertTrue(steps.contains { if case .expectPicker(header: "Select Reasoning Level for GPT-6-Astra", _, _, _, _) = $0 { return true } else { return false } })
         XCTAssertFalse(steps.contains { if case .wait = $0 { return true } else { return false } }, "고정 대기 없음")
         XCTAssertFalse(steps.contains(.key(.escape)), "Esc 는 선택창이 보일 때만(closePicker) — 작업 중 Esc 는 작업을 끊는다")
     }
@@ -761,6 +761,8 @@ final class FakeClaude: TerminalIO {
         if busy { notice = text } else { transcript += ["❯ \(command)", "  ⎿  \(text)"] }
     }
     var sent: [String] = []
+    /// 참이면 들어온 글자를 전부 버린다(입력이 이 세션에 닿지 않은 상황).
+    var ignoresInput = false
     /// 대화 도중 모델을 바꿀 때 한 번 더 묻는다("Switch model?").
     var asksBeforeSwitching = false
     /// 대화 도중 effort 만 바꿀 때도 한 번 더 묻는다("Change effort level?").
@@ -849,6 +851,7 @@ final class FakeClaude: TerminalIO {
 
     func type(_ text: String) throws {
         sent.append(text)
+        if ignoresInput { return }
         var rest = Substring(text)
         while !rest.isEmpty {
             let arrows: [(String, () -> Void)] = [
@@ -1334,6 +1337,45 @@ final class LaggingTerminalTests: XCTestCase {
         XCTAssertEqual(claude.sent.filter { $0.contains("/effort") }, [], "모델을 안 바꿨는데 effort 만 바꾸지 않는다")
     }
 
+    /// 레드팀(codex) 주장 확인: 그 설정 파일은 다른 claude 세션도 쓴다. 우리 명령은 실행되지 않았는데
+    /// 남이 파일을 건드린 것만으로 성공으로 치면 안 된다.
+    func testAnotherSessionWritingTheSettingsFileIsNotOurSuccess() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.ignoresInput = true      // 우리 명령이 먹지 않는 상황(예: 입력이 다른 곳으로 갔다)
+        var clock = 0
+        let io = LaggingIO(base: claude, lagMs: 500)
+        io.now = { clock }
+        var touches = 0
+        let config = ModelSwitchConfig(slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))])
+        let switcher = Switcher(config: config, claudeDefaults: ClaudeDefaults(url: settings),
+                                codexModels: { CodexModels(models: []) }, makeIO: { _ in io },
+                                sleep: { ms in
+                                    clock += ms
+                                    // 다른 세션이 같은 파일을 다시 쓴다(내용은 그 세션의 것).
+                                    touches += 1
+                                    try? Data("{\n  \"model\": \"fable\"\n}".utf8).write(to: settings)
+                                    try? FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 3_000_000 + Double(touches))],
+                                                                           ofItemAtPath: settings.path)
+                                })
+        XCTAssertThrowsError(try switcher.apply(slot: 1, to: target), "남이 쓴 파일을 우리 명령의 성공으로 읽었다")
+        XCTAssertEqual(claude.model, "Opus 5.5")
+    }
+
+    func testRepeatingTheSameSwitchIsStillConfirmedByTheEchoedCommand() throws {
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        let (switcher, _) = setUp(claude, settings: settings)
+        // 같은 전환을 여러 번 — 화면(마지막 6줄)이 같은 줄로 가득 차서 줄 수로는 새 결과를 못 가린다.
+        for _ in 0..<4 {
+            XCTAssertEqual(try switcher.apply(slot: 1, to: target).summary, "Sonnet 5.5 · medium")
+        }
+        XCTAssertEqual(ClaudeScreen.reply(toCommand: "/model sonnet", in: ["❯ /model sonnet", "  ⎿  Set model to Sonnet 5.5", "❯ "]), "Set model to Sonnet 5.5")
+        XCTAssertNil(ClaudeScreen.reply(toCommand: "/model opus", in: ["❯ /model sonnet", "  ⎿  Set model to Sonnet 5.5"]))
+    }
+
     func testReadinessUsesAFreshScreenNotTheCachedOne() throws {
         let settings = try tempSettings()
         let claude = FakeClaude()
@@ -1359,6 +1401,90 @@ final class HidingRows: TerminalIO {
     func press(_ key: Key) throws { try type(key.bytes) }
     func screen() -> [String]? { claude.screen() }
     func snapshot() -> ScreenSnapshot? { claude.snapshot() }
+}
+
+/// 레드팀(codex) 주장 확인: 대화 내용에 선택창·입력창처럼 보이는 글이 있을 때.
+/// 표본은 2026-10-06 실제 claude 2.1.291 화면 — 대답 안에 선택창 모양 글이 있고, 그 아래에 진짜 권한 확인 창이 떠 있다.
+final class SpoofedScreenTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testTextThatLooksLikeAPickerIsNotAPicker() throws {
+        let lines = try screen("claude-permission-fake-picker")
+        XCTAssertTrue(lines.contains { $0.contains("Select model") }, "표본에 가짜 선택창 글이 있어야 한다")
+        XCTAssertFalse(Readiness.claudePromptVisible(lines), "권한 확인 창이 떠 있다")
+        XCTAssertEqual(Picker.rows(lines), [], "대화 속 글을 선택창으로 읽으면 그 행을 보고 화살표와 s 를 보낸다")
+        XCTAssertFalse(Picker.isOpen(lines))
+    }
+}
+
+final class AnchoredPickerTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    /// 실제 화면: 대화 속에 가짜 선택창 글이 있고, 그 아래에 진짜 선택창이 열려 있다.
+    func testReadsTheRealPickerAtTheBottomNotTheLookalikeAbove() throws {
+        let open = try XCTUnwrap(Picker.open(try screen("claude-picker-below-fake-picker")))
+        XCTAssertEqual(open.rows.count, 10, "가짜는 2행, 진짜는 10행")
+        XCTAssertEqual(open.rows.first(where: \.selected)?.label, "Sonnet 5.5", "가짜의 커서는 Opus 5.5 에 있다")
+        XCTAssertTrue(open.header.hasPrefix("Select model"))
+        XCTAssertTrue(open.footer.contains("s to use this session only"))
+    }
+
+    /// 실제 화면: 62칸으로 좁힌 claude 선택창 — 행 설명과 맨 아랫줄 안내가 다음 줄로 접힌다.
+    func testReadsAClaudePickerWhoseLinesWrap() throws {
+        let open = try XCTUnwrap(Picker.open(try screen("claude-picker-narrow")))
+        XCTAssertEqual(open.rows.map(\.number), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        XCTAssertEqual(open.rows.first(where: \.selected)?.label, "Sonnet 5.5")
+        XCTAssertTrue(open.footer.contains("s to use this session only"), open.footer)
+        XCTAssertEqual(Picker.claudeEffort(try screen("claude-picker-narrow")), "high")
+    }
+
+    /// 실제 화면: 58칸으로 좁힌 codex effort 목록.
+    func testReadsACodexPickerWhoseLinesWrap() throws {
+        let open = try XCTUnwrap(Picker.open(try screen("codex-efforts-narrow")))
+        XCTAssertEqual(open.rows.map(\.label), ["Low", "Medium", "High", "Extra high", "More reasoning…"])
+        XCTAssertEqual(open.rows.firstIndex(where: \.selected), 2)
+        XCTAssertTrue(open.header.hasPrefix("Select Reasoning Level for GPT-6.1-Sol"))
+        XCTAssertTrue(open.footer.contains("s session"))
+    }
+
+    func testLatestResultIsTheReplyToTheLastCommandNotAnOlderLine() {
+        let rule = String(repeating: "─", count: 20)
+        let prefixes = ["Set model to", "Kept model as"]
+        // 62칸 실제 화면 꼴: 예전 줄들이 위에 있고, 마지막 명령의 답은 다음 줄로 접혀 있다.
+        let idle = ["❯ /model", "  ⎿  Kept model as Sonnet 5.5",
+                    "❯ /model", "  ⎿  Set model to Fable 5.1 for this session only with max", "     effort",
+                    "                    ◈ max · /effort", rule, "❯", rule, "  상태 줄"]
+        XCTAssertEqual(ClaudeScreen.latestResult(idle, command: "/model", prefixes: prefixes),
+                       "Set model to Fable 5.1 for this session only with max effort")
+        // 작업 중: 입력창 위의 알림 줄.
+        let busy = ["❯ /model", "  ⎿  Kept model as Sonnet 5.5", "✳ Nucleating… (8s)",
+                    "            Set model to Opus 5.5 for this session only with high effort", rule, "❯", rule]
+        XCTAssertEqual(ClaudeScreen.latestResult(busy, command: "/model", prefixes: prefixes),
+                       "Set model to Opus 5.5 for this session only with high effort")
+        XCTAssertNil(ClaudeScreen.latestResult(["⏺ 대답", rule, "❯", rule], command: "/model", prefixes: prefixes))
+    }
+
+    func testPromptAndComposerMustBeAtTheBottom() {
+        let rule = String(repeating: "─", count: 20)
+        // 위쪽에 입력창 모양이 남아 있고 아래에는 다른 것이 떠 있다.
+        let stale = [rule, "❯ ", rule] + (1...9).map { " 창의 \($0)번째 줄" }
+        XCTAssertFalse(Readiness.claudePromptVisible(stale))
+        XCTAssertTrue(Readiness.claudePromptVisible([rule, "❯ 첫 줄", "  둘째 줄", "  셋째 줄", rule, "  상태 줄", "  ⏵⏵ auto mode on"]), "여러 줄 초안")
+        // codex: 지난 대화의 `› 내가 보낸 글` 은 입력창이 아니다.
+        XCTAssertFalse(Readiness.codexComposerVisible(["› 아까 보낸 글", "• 대답", "  Would you like to run this?", "■ 번호 없는 창"]))
+        XCTAssertTrue(Readiness.codexComposerVisible(["› 아까 보낸 글", "• 대답", "› ", "  GPT-6-Sol high · ~/x", "  ? for shortcuts"]))
+        XCTAssertTrue(Readiness.codexComposerVisible(["› 첫 줄", "  둘째 줄", "  GPT-6-Sol high · ~/x"]), "여러 줄 초안")
+    }
 }
 
 final class ClaudePickerTests: XCTestCase {
