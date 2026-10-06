@@ -106,11 +106,22 @@ public enum AgentVersions {
         let components = first.split(separator: "/").map(String.init)
         for (index, component) in components.enumerated() where component == "versions" || component == "releases" {
             // codex 의 설치 폴더는 `0.160.1-aarch64-apple-darwin` 처럼 플랫폼이 붙기도 한다.
-            guard index + 1 < components.count,
-                  let head = components[index + 1].split(separator: "-", maxSplits: 1).first.map(String.init),
-                  isVersion(head) else { continue }
-            return head
+            // 플랫폼만 떼고, 시험판 표시(`0.160.0-alpha.6`)는 남긴다 — 확인한 안정판으로 오인하면 안 된다.
+            guard index + 1 < components.count, let found = release(from: components[index + 1]) else { continue }
+            return found
         }
         return nil
+    }
+
+    /// 폴더 이름에서 판을 뽑는다: `0.160.1` · `0.160.1-aarch64-apple-darwin` → `0.160.1`, `0.160.0-alpha.6-aarch64-apple-darwin` → `0.160.0-alpha.6`.
+    static func release(from folder: String) -> String? {
+        var name = folder
+        for platform in ["-aarch64-", "-x86_64-"] {
+            if let range = name.range(of: platform) { name = String(name[..<range.lowerBound]) }
+        }
+        let parts = name.split(separator: "-", maxSplits: 1).map(String.init)
+        guard let head = parts.first, isVersion(head) else { return nil }
+        if parts.count == 2, parts[1].isEmpty || !parts[1].allSatisfy({ $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" }) { return nil }
+        return name
     }
 }
