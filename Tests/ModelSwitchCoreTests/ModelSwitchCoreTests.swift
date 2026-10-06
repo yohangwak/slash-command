@@ -995,7 +995,7 @@ final class SwitcherApplyTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"Fable 5.1\"\n}")
     }
 
-    func testLeavesTheSwitchConfirmationToTheUserByDefault() throws {
+    func testLeavesTheSwitchConfirmationToTheUserWhenTurnedOff() throws {
         let claude = FakeClaude()
         claude.asksBeforeSwitching = true
         XCTAssertThrowsError(try switcher(config("sonnet", "high"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)) {
@@ -1034,7 +1034,7 @@ final class SwitcherApplyTests: XCTestCase {
         XCTAssertEqual(claude.stage, .prompt, "되돌아온 선택창은 닫아 준다")
     }
 
-    func testAcceptsTheSwitchConfirmationOnlyWhenEnabled() throws {
+    func testAcceptsTheSwitchConfirmationForTheChosenModel() throws {
         let claude = FakeClaude()
         claude.asksBeforeSwitching = true
         let result = try switcher(config("sonnet", "high", accept: true), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
@@ -1114,8 +1114,8 @@ final class SwitcherApplyTests: XCTestCase {
 final class EffortStepTests: XCTestCase {
     let target = Target(host: .orca(handle: "term_x"), agent: .claude, label: "x")
 
-    func switcher(io: TerminalIO, keepDefaults: Bool = true) -> Switcher {
-        Switcher(config: ModelSwitchConfig(keepDefaults: keepDefaults, slots: []),
+    func switcher(io: TerminalIO, keepDefaults: Bool = true, accept: Bool = false) -> Switcher {
+        Switcher(config: ModelSwitchConfig(keepDefaults: keepDefaults, acceptSwitchPrompt: accept, slots: []),
                  claudeDefaults: ClaudeDefaults(url: URL(fileURLWithPath: "/nonexistent/settings.json")),
                  codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { _ in })
     }
@@ -1136,7 +1136,7 @@ final class EffortStepTests: XCTestCase {
         XCTAssertEqual(claude.effort, "medium")
     }
 
-    func testClaudeEffortConfirmationIsLeftToTheUserThenFinished() throws {
+    func testClaudeEffortConfirmationIsLeftToTheUserWhenTurnedOff() throws {
         let claude = FakeClaude()
         claude.asksBeforeEffortChange = true
         var switcher = switcher(io: claude)
@@ -1422,7 +1422,9 @@ final class SlotTests: XCTestCase {
         let config = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(#"{"slots":[{"claude":{"model":"opus","effort":"high"}},{"name":"밤샘","codex":{"model":"gpt-x","effort":"max"}}]}"#.utf8))
         XCTAssertEqual(config.slots[0].name, "")
         XCTAssertTrue(config.effortKeys, "옛 파일에 없는 항목은 기본값")
-        XCTAssertFalse(config.acceptSwitchPrompt, "확인 창 자동 수락은 켜야만 켜진다")
+        XCTAssertTrue(config.acceptSwitchPrompt, "확인 창은 기본으로 받아들인다(우리가 고른 값을 물을 때만)")
+        let off = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(#"{"acceptSwitchPrompt":false,"slots":[]}"#.utf8))
+        XCTAssertFalse(off.acceptSwitchPrompt)
         XCTAssertEqual(config.slots[0].listing, "claude opus · high")
         XCTAssertEqual(config.slots[1].listing, "codex gpt-x · max   — 밤샘")
         let saved = String(data: try JSONEncoder().encode(config.slots[0]), encoding: .utf8) ?? ""

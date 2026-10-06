@@ -63,8 +63,9 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     public var version: Int
     /// 전환 뒤 「새 세션 기본값」을 전환 전 값으로 되돌린다(claude 의 /model·/effort 는 기본값까지 저장한다).
     public var keepDefaults: Bool
-    /// claude 는 대화 도중 모델을 바꾸면 「Switch model?」 확인 창을 띄운다(대화 기록을 새 모델로 다시 읽는다는 안내).
-    /// 참이면 그 창이 우리가 고른 모델을 물을 때 Enter 로 받아들인다. 거짓(기본)이면 창을 그대로 두고 사용자가 고르게 한다.
+    /// claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 확인 창을 띄운다(「Switch model?」·「Change effort level?」
+    /// — 대화 기록을 다시 읽는다는 안내). 참(기본)이면 그 창이 «우리가 고른 그 값»을 묻고 커서가 Yes 에 있을 때만
+    /// Enter 로 받아들인다 — 단축키를 누른 것이 이미 그 답이다(2026-10-06 요한님 결정). 거짓이면 창을 그대로 두고 사용자가 고르게 한다.
     public var acceptSwitchPrompt: Bool
     /// 조합 키 + `=`(올림) · `-`(내림) 으로 모델은 그대로 두고 effort 만 한 단계 바꾼다.
     public var effortKeys: Bool
@@ -75,7 +76,7 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     public static let defaultModifiers = ["option", "shift"]
     public static let knownModifiers = ["control", "option", "shift", "command"]
 
-    public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = false, effortKeys: Bool = true,
+    public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = true, effortKeys: Bool = true,
                 modifiers: [String] = ModelSwitchConfig.defaultModifiers, slots: [Slot]) {
         self.version = version
         self.keepDefaults = keepDefaults
@@ -95,7 +96,7 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         keepDefaults = try c.decodeIfPresent(Bool.self, forKey: .keepDefaults) ?? true
-        acceptSwitchPrompt = try c.decodeIfPresent(Bool.self, forKey: .acceptSwitchPrompt) ?? false
+        acceptSwitchPrompt = try c.decodeIfPresent(Bool.self, forKey: .acceptSwitchPrompt) ?? true
         effortKeys = try c.decodeIfPresent(Bool.self, forKey: .effortKeys) ?? true
         let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? ModelSwitchConfig.defaultModifiers
         modifiers = ModelSwitchConfig.knownModifiers.filter(wanted.contains)

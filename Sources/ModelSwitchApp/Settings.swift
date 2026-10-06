@@ -33,7 +33,7 @@ struct EditableSlot: Identifiable {
 final class SettingsModel: ObservableObject {
     @Published var slots: [EditableSlot] = []
     @Published var keepDefaults = true
-    @Published var acceptSwitchPrompt = false
+    @Published var acceptSwitchPrompt = true
     @Published var effortKeys = true
     @Published var modifiers: Set<String> = Set(ModelSwitchConfig.defaultModifiers)
     @Published var status = ""
@@ -149,7 +149,7 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Toggle("claude 의 확인 창(Switch model? · Change effort level?)을 자동으로 받아들인다", isOn: $model.acceptSwitchPrompt)
-            Text("claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 대화 기록을 다시 읽는다고 알리고 한 번 더 묻습니다. 꺼 두면 그 창에서 직접 Enter 를 눌러야 바뀝니다.")
+            Text("claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 대화 기록을 다시 읽는다고 알리고 한 번 더 묻습니다. 켜 두면 우리가 고른 그 값을 물을 때만 받아들이고, 꺼 두면 그 창에서 직접 Enter 를 눌러야 바뀝니다.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 

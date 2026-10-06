@@ -11,7 +11,7 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 |---|---|
 | 전환 | Ghostty 나 Orca 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
-| 프리셋 편집 | 메뉴 막대 톱니 → 「프리셋 편집…」 (파일은 `~/.config/modelswitch/presets.json`) |
+| 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋 편집…」 (파일은 `~/.config/modelswitch/presets.json`) |
 | 새 세션 | `modelswitch run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`) |
 | 터미널에서 | `modelswitch list` · `where` · `doctor --screen` · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
 | 기록 | `~/Library/Logs/ModelSwitch/modelswitch.log` (누른 것, 결과, 단계별 걸린 시간) |
@@ -23,7 +23,7 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 {
   "version": 1,
   "keepDefaults": true,
-  "acceptSwitchPrompt": false,
+  "acceptSwitchPrompt": true,
   "effortKeys": true,
   "modifiers": ["option", "shift"],
   "slots": [
@@ -38,12 +38,13 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 - codex `model`: `/model` 선택창에 보이는 모델의 slug. `effort`: `low`·`medium`·`high`·`xhigh`·`max`·`ultra`(모델이 지원하는 것).
 - `name` 은 붙이고 싶을 때만. 없으면 모델·effort 로 보여 준다.
 - `keepDefaults`(기본 켬): 이 세션만 바꾼다. 끄면 claude 는 새 세션 기본값까지 바꾼다.
-- `acceptSwitchPrompt`(기본 끔): 아래 「claude 의 확인 창」.
+- `acceptSwitchPrompt`(기본 켬): 아래 「claude 의 확인 창」.
 
 ## 설치
 
 ```sh
 ./scripts/build-app.sh --install   # ~/Applications/ModelSwitch.app 에 설치하고 실행, ~/.local/bin/modelswitch 링크
+~/Applications/ModelSwitch.app/Contents/MacOS/ModelSwitch --login-item on   # 로그인할 때 실행(메뉴에서도 켠다)
 ```
 
 처음 한 번 허용할 것(Ghostty 를 쓸 때만. Orca 만 쓰면 필요 없다):
@@ -68,8 +69,8 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 ### claude 의 확인 창
 
 claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Switch model?` · `Change effort level?` 을 띄운다(대화 기록을 다시 읽는다는 안내).
-기본은 그 창에 **아무것도 보내지 않는다** — 알림이 「Enter 로 확정해 주세요」라고 알리고, 고를 때까지(20초) 기다렸다가 결과를 알린다.
-`acceptSwitchPrompt` 를 켜면, 그 창이 «우리가 고른 그 값»을 묻고 커서가 Yes 에 있을 때만 Enter 로 받아들인다.
+기본은 **받아들인다** — 단, 그 창이 «우리가 고른 그 값»(모델 이름이나 effort 단계)을 묻고 커서가 Yes 에 있을 때만 Enter 를 보낸다. 다른 창에는 아무것도 보내지 않는다.
+`acceptSwitchPrompt` 를 끄면 그 창에 아무것도 보내지 않는다 — 알림이 「Enter 로 확정해 주세요」라고 알리고, 고를 때까지(20초) 기다렸다가 결과를 알린다.
 
 ### 선택창을 못 쓰는 경우
 

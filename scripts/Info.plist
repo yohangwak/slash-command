@@ -8,6 +8,8 @@
     <string>ModelSwitch</string>
     <key>CFBundleDisplayName</key>
     <string>ModelSwitch</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>ModelSwitch</string>
     <key>CFBundlePackageType</key>
