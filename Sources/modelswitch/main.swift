@@ -139,6 +139,7 @@ do {
         let target = try explicitTarget(args) ?? Detector.frontmost()
         print("대상        \(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         if case .ghostty = target.host { print("손쉬운 사용  \(GhosttyScreen.trusted() ? "허용됨" : "허용 안 됨")") }
+        AgentVersions.report(for: target.agent).lines.forEach { print($0) }
         let io = try Switcher.terminalIO(for: target)
         if let screen = io.screen() {
             print("화면 읽기    됨 (\(screen.count)줄)")

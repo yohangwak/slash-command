@@ -8,7 +8,7 @@
 - 문구가 전부 한국어로 코드에 박혀 있다(알림·메뉴·편집 화면·오류). 핵심 모듈의 오류도 한국어 문장이다.
 - 터미널과 에이전트는 `enum` + `switch` 로 갈린다(`TerminalHost`, `Agent`). 「터미널」(맨 앞 세션 찾기 · 글자 쓰기 · 화면 읽기 · 화면 지연)과 「에이전트」(입력창 판정 · 전환 단계 · 결과 문구)는 코드에서 이미 서로를 모른다.
 - 프리셋 파일은 에이전트 이름이 필드로 고정돼 있다(`{"claude": {...}, "codex": {...}}`).
-- 화면 문구에 기댄다: claude `Select model` · `s to use this session only` · `Set model to` · `Switch model?`, codex `Select Model and Effort` · `Select Reasoning Level` · `s session` · `Model changed to`. claude 2.1.283·2.1.288(읽기만)·2.1.289, codex 0.156.0·0.160.0·0.160.1 에서 확인.
+- 화면 문구에 기댄다: claude `Select model` · `s to use this session only` · `Set model to` · `Switch model?`, codex `Select Model and Effort` · `Select Reasoning Level` · `s session` · `Model changed to`. claude 2.1.283·2.1.288(읽기만)·2.1.289·2.1.291, codex 0.156.0·0.160.0·0.160.1 에서 확인.
 - 터미널별 실측: Orca 는 앱 소켓으로 읽기 0.5ms · 쓰기 1ms(비공개 통로, 인증 값을 파일에서 읽는다). Ghostty 는 화면 글자를 0.5초 보관해 검증 한 단계가 0.5초다. Orca 는 「지금 보이는 탭」이 1.5~2.5초 늦다.
 - 서명은 Apple Development 인증서. 공증·Developer ID 는 해 본 적 없다.
 - 다른 터미널(iTerm2 · Terminal.app · tmux · kitty · WezTerm · VS Code)과 다른 에이전트(gemini · cursor-agent 등)는 **하나도 실측하지 않았다.**
@@ -169,8 +169,8 @@ Developer ID 서명 + 공증 → GitHub 릴리스의 zip → 자체 Homebrew tap
 ## 고친 순서 (정본)
 
 1. ~~자리 나누기~~ → **뒤로.** 먼저 새 터미널 하나를 실제로 붙여 본다(무엇을 붙일지는 대상 사용자가 정해진 뒤).
-2. 지금 제품의 계약을 문서로: 읽기와 쓰기 사이에 무엇을 다시 확인하는가, 무엇을 성공의 증거로 치는가(화면의 «우리 명령의 답»), 무엇을 기록하지 않는가.
-3. 버전 대조(`doctor`) — 실행 중인 프로세스의 버전으로.
+2. ✅ (2026-10-07 `docs/CONTRACT.md`) 지금 제품의 계약을 문서로: 읽기와 쓰기 사이에 무엇을 다시 확인하는가, 무엇을 성공의 증거로 치는가(화면의 «우리 명령의 답»), 무엇을 기록하지 않는가.
+3. ✅ (2026-10-07) 버전 대조(`doctor`) — 설치된 판 + 실행 중인 프로세스의 판(실행 파일 경로에서)을 확인한 판 목록(`AgentVersions.tested`)과 대조. claude 2.1.291 은 Orca 시험 터미널에서 프리셋 3종·effort 올림/내림을 확인해 목록에 넣었다(0.25초대, 기본값 파일 해시 불변).
 4. 붙여 본 결과로 자리 나누기 → 프리셋 파일 v2 → 문구를 영어 기준으로(영어 · 한국어).
 5. (승인 뒤) 깨끗한 계정에서 서명·공증 설치와 권한 거부 흐름을 먼저 재고, 그다음 나머지 언어·cask.
 
