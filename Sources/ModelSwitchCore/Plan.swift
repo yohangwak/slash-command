@@ -32,7 +32,10 @@ public enum Step: Equatable, Sendable {
     case key(Key)
     case wait(ms: Int)
     /// 화면에 `needle` 이 «있음»을 확인한다. 시간 안에 안 보이면 `abort` 를 실행하고 `failure` 로 중단한다.
-    case expect(needle: String, timeoutMs: Int, abort: [Step], failure: String)
+    /// `bottom` 을 주면 화면의 마지막 그 몇 줄 안에 있어야 한다 — 대화 내용에 같은 글이 있을 수 있다.
+    case expect(needle: String, bottom: Int? = nil, timeoutMs: Int, abort: [Step], failure: String)
+    /// 화면 맨 아래에 우리 선택창이 «떠 있음»을 확인한다: 머리말이 `header` 로 시작하고 안내 줄에 `footer` 가 있다(준 것만 본다).
+    case expectPicker(header: String?, footer: String?, timeoutMs: Int, abort: [Step], failure: String)
     /// 명령을 보내기 직전의 상태(화면, claude 기본값 파일의 수정 시각)를 기준으로 잡는다.
     /// 뒤의 `expectResult`·`capture` 가 «이번 명령의» 결과인지 가리는 데 쓴다.
     case arm
@@ -64,8 +67,9 @@ public enum Step: Equatable, Sendable {
     public static let steppedEffort = "{stepped-effort}"
     /// 선택창이 «보이는 동안만» Esc 로 닫는다. 선택창이 없으면 아무것도 보내지 않는다 — 작업 중인 codex 에 Esc 는 작업 중단이다.
     case closePicker
-    /// 기준(`arm`) 뒤에 새로 생긴, `prefix` 로 시작하는 마지막 줄을 결과로 남긴다(없으면 넘어간다).
-    case capture(prefix: String)
+    /// 방금 끝난 전환의 결과 문구를 남긴다(없으면 넘어간다).
+    /// `afterCommand` 를 주면(claude) 그 명령 아래의 답이나 입력창 위 알림 줄에서, 아니면(codex) 화면의 마지막 그런 줄에서 찾는다.
+    case capture(prefixes: [String], afterCommand: String? = nil)
 }
 
 public enum Launch {
@@ -92,20 +96,19 @@ public enum Plans {
             // Ctrl+S 로 쓰던 글을 보관하고 선택창을 연다. 선택창이 닫히면(확정이든 Esc 든) claude 가 글을 되돌린다.
             .text("\u{13}/model\r"),
             // 여기서 실패하면 화면에 뭐가 떠 있는지 모른다 — 아무 키도 더 보내지 않는다.
-            .expect(needle: footer, timeoutMs: 3000, abort: [],
-                    failure: "claude 모델 선택창이 열리지 않았습니다."),
+            .expectPicker(header: "Select model", footer: footer, timeoutMs: 3000, abort: [],
+                          failure: "claude 모델 선택창이 열리지 않았습니다."),
             .selectRow(label: modelLabel, via: nil, timeoutMs: 2000, abort: [.closePicker],
                        failure: "claude 모델 선택창에 '\(modelLabel)' 행이 없습니다."),
             .setEffort(level: effort, timeoutMs: 2500, abort: [.closePicker],
                        failure: "claude 모델 선택창에서 effort 를 '\(effort)' 로 맞추지 못했습니다."),
-            .expect(needle: footer, timeoutMs: 1000, abort: [.closePicker],
-                    failure: "claude 모델 선택창에 「이 세션만」(s) 선택지가 없어 전환하지 않았습니다."),
+            .expectPicker(header: "Select model", footer: footer, timeoutMs: 1000, abort: [.closePicker],
+                          failure: "claude 모델 선택창에 「이 세션만」(s) 선택지가 없어 전환하지 않았습니다."),
             .arm,
             .text(saveAsDefault ? "\r" : "s"),
             .expectInput(agent: .claude, acceptSwitchTo: acceptSwitch ? [modelLabel, effort] : [], timeoutMs: 3000, abort: [.closePicker],
                          failure: "claude 입력창이 돌아오지 않아 멈췄습니다."),
-            .capture(prefix: "Set model to"),
-            .capture(prefix: "Kept model as"),
+            .capture(prefixes: ["Set model to", "Kept model as"], afterCommand: "/model"),
         ]
     }
 
@@ -118,26 +121,26 @@ public enum Plans {
         let leave: [Step] = [.closePicker] + restoreDraft
         return [
             .text("\u{05} \u{01}\u{0B}/model"),
-            .expect(needle: "choose what model and reasoning effort",
+            .expect(needle: "choose what model and reasoning effort", bottom: 5,
                     timeoutMs: 2500,
                     abort: [.text(String(repeating: "\u{7F}", count: 6))] + restoreDraft,
                     failure: "codex 입력창에 여러 줄 초안이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요."),
             .key(.enter),
-            .expect(needle: "Select Model and Effort", timeoutMs: 4000, abort: leave,
-                    failure: "codex 모델 선택창이 열리지 않았습니다."),
+            .expectPicker(header: "Select Model and Effort", footer: nil, timeoutMs: 4000, abort: leave,
+                          failure: "codex 모델 선택창이 열리지 않았습니다."),
             // 모델 목록의 커서는 지금 모델에서 시작한다. 그 행이 맞을 때만 Enter 로 들어간다.
             .expectCurrentRow(abort: leave, failure: "codex 모델 선택창의 커서가 지금 모델에 있지 않아 바꾸지 않았습니다."),
             .key(.enter),
-            .expect(needle: "Select Reasoning Level", timeoutMs: 4000, abort: leave,
-                    failure: "codex effort 목록이 열리지 않았습니다."),
+            .expectPicker(header: "Select Reasoning Level", footer: nil, timeoutMs: 4000, abort: leave,
+                          failure: "codex effort 목록이 열리지 않았습니다."),
             .stepRow(up: up, timeoutMs: 3000, abort: leave),
-            .expect(needle: "s session", timeoutMs: 1000, abort: leave,
-                    failure: "codex 선택창에 「이 세션만」(s) 선택지가 없어 바꾸지 않았습니다."),
+            .expectPicker(header: nil, footer: "s session", timeoutMs: 1000, abort: leave,
+                          failure: "codex 선택창에 「이 세션만」(s) 선택지가 없어 바꾸지 않았습니다."),
             .arm,
             .text("s"),
             .expectInput(agent: .codex, timeoutMs: 3000, abort: [.closePicker],
                          failure: "codex 입력창이 돌아오지 않아 멈췄습니다. 쓰던 글이 있었다면 Ctrl+Y 로 되살릴 수 있습니다."),
-            .capture(prefix: "Model changed to"),
+            .capture(prefixes: ["Model changed to"]),
         ] + restoreDraft
     }
 
@@ -146,19 +149,18 @@ public enum Plans {
         let footer = "s to use this session only"
         return [
             .text("\u{13}/model\r"),
-            .expect(needle: footer, timeoutMs: 3000, abort: [],
-                    failure: "claude 모델 선택창이 열리지 않았습니다."),
+            .expectPicker(header: "Select model", footer: footer, timeoutMs: 3000, abort: [],
+                          failure: "claude 모델 선택창이 열리지 않았습니다."),
             .expectCurrentRow(abort: [.closePicker],
                               failure: "지금 쓰는 모델이 선택창 목록에 없어 effort 만 바꿀 수 없습니다. /effort 로 바꿔 주세요."),
             .stepEffort(up: up, timeoutMs: 2500, abort: [.closePicker]),
-            .expect(needle: footer, timeoutMs: 1000, abort: [.closePicker],
-                    failure: "claude 모델 선택창에 「이 세션만」(s) 선택지가 없어 바꾸지 않았습니다."),
+            .expectPicker(header: "Select model", footer: footer, timeoutMs: 1000, abort: [.closePicker],
+                          failure: "claude 모델 선택창에 「이 세션만」(s) 선택지가 없어 바꾸지 않았습니다."),
             .arm,
             .text(saveAsDefault ? "\r" : "s"),
             .expectInput(agent: .claude, acceptSwitchTo: acceptSwitch ? [Step.steppedEffort] : [], timeoutMs: 3000, abort: [.closePicker],
                          failure: "claude 입력창이 돌아오지 않아 멈췄습니다."),
-            .capture(prefix: "Set model to"),
-            .capture(prefix: "Kept model as"),
+            .capture(prefixes: ["Set model to", "Kept model as"], afterCommand: "/model"),
         ]
     }
 
@@ -190,35 +192,30 @@ public enum Plans {
             // 쓰던 글 한 줄을 kill 버퍼로 옮긴다(Ctrl+E, 공백, Ctrl+A, Ctrl+K).
             // 공백을 붙여 두면 빈 입력창에서도 Ctrl+Y 가 옛 내용을 꺼내지 않는다.
             .text("\u{05} \u{01}\u{0B}/model"),
-            .expect(needle: "choose what model and reasoning effort",
+            .expect(needle: "choose what model and reasoning effort", bottom: 5,
                     timeoutMs: 2500,
                     abort: [.text(String(repeating: "\u{7F}", count: 6))] + restoreDraft,
                     failure: "codex 입력창에 여러 줄 초안이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요."),
             .key(.enter),
-            .expect(needle: "Select Model and Effort",
-                    timeoutMs: 4000,
-                    abort: leave,
-                    failure: "codex 모델 선택창이 열리지 않았습니다."),
+            .expectPicker(header: "Select Model and Effort", footer: nil, timeoutMs: 4000, abort: leave,
+                          failure: "codex 모델 선택창이 열리지 않았습니다."),
             .text(String(modelIndex)),
             // 머리말에 모델 이름이 나온다 — 숫자 키가 의도한 모델을 골랐는지까지 본다.
-            .expect(needle: "Select Reasoning Level" + (displayName.map { " for \($0)" } ?? ""),
-                    timeoutMs: 4000,
-                    abort: leave,
-                    failure: "codex effort 목록이 열리지 않았습니다(다른 모델이 골라졌을 수도 있습니다)."),
+            .expectPicker(header: "Select Reasoning Level" + (displayName.map { " for \($0)" } ?? ""), footer: nil,
+                          timeoutMs: 4000, abort: leave,
+                          failure: "codex effort 목록이 열리지 않았습니다(다른 모델이 골라졌을 수도 있습니다)."),
             .selectRow(label: effortLabel, via: "More reasoning",
                        timeoutMs: 3000,
                        abort: leave,
                        failure: "codex effort 목록에서 '\(effortLabel)' 행을 고르지 못했습니다."),
-            .expect(needle: "s session",
-                    timeoutMs: 1000,
-                    abort: leave,
-                    failure: "codex 선택창에 「이 세션만」(s) 선택지가 없어 전환하지 않았습니다."),
+            .expectPicker(header: nil, footer: "s session", timeoutMs: 1000, abort: leave,
+                          failure: "codex 선택창에 「이 세션만」(s) 선택지가 없어 전환하지 않았습니다."),
             .arm,
             .text("s"),
             // 여기서 실패하면 화면에 뭐가 떠 있는지 모른다 — 선택창이면 닫되, 쓰던 글을 되돌리는 키는 보내지 않는다.
             .expectInput(agent: .codex, timeoutMs: 3000, abort: [.closePicker],
                             failure: "codex 입력창이 돌아오지 않아 멈췄습니다. 쓰던 글이 있었다면 Ctrl+Y 로 되살릴 수 있습니다."),
-            .capture(prefix: "Model changed to"),
+            .capture(prefixes: ["Model changed to"]),
         ] + restoreDraft
     }
 }

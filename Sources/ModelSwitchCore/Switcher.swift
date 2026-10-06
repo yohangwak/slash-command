@@ -362,7 +362,9 @@ public struct Runner {
         var seenLines = initial?.lines ?? []
         var confirmations: [String] = []
         // 화면을 보지 않고(기본값 파일 신호만으로) 넘어간 결과들 — 끝나고 화면에서 문구를 찾는다.
-        var unseen: [String] = []
+        var unseen: [(prefix: String, command: String?)] = []
+        // 마지막으로 친 명령 줄("/model sonnet"). 끝에 화면에서 그 명령과 답을 찾는 데 쓴다.
+        var typedCommand: String?
         // `stepEffort` 가 옮겨 놓은 단계. 확인 창이 «그 단계»를 물을 때만 받아들이는 데 쓴다.
         var stepped: String?
         func wanted(_ values: [String]) -> [String] {
@@ -372,12 +374,23 @@ public struct Runner {
             switch step {
             case .text(let text):
                 try io.type(text)
+                let line = text.unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7F }.map(String.init).joined()
+                if line.hasPrefix("/") { typedCommand = line }
             case .key(let key):
                 try io.press(key)
             case .wait(let ms):
                 sleep(ms)
-            case .expect(let needle, let timeoutMs, let abort, let failure):
-                if try !waitFor(needle, timeoutMs: timeoutMs) {
+            case .expect(let needle, let bottom, let timeoutMs, let abort, let failure):
+                if try !waitFor(needle, bottom: bottom, timeoutMs: timeoutMs) {
+                    _ = try? run(abort)
+                    throw ModelSwitchError(failure)
+                }
+            case .expectPicker(let header, let footer, let timeoutMs, let abort, let failure):
+                let shown = try poll(timeoutMs: timeoutMs) { lines in
+                    guard let open = Picker.open(lines) else { return false }
+                    return (header.map { open.header.hasPrefix($0) } ?? true) && (footer.map { open.footer.contains($0) } ?? true)
+                }
+                if !shown {
                     _ = try? run(abort)
                     throw ModelSwitchError(failure)
                 }
@@ -391,7 +404,7 @@ public struct Runner {
                                                    timeoutMs: timeoutMs, failure: failure) {
                         confirmations.append(seen)
                     } else {
-                        unseen.append(prefix)
+                        unseen.append((prefix, typedCommand))
                     }
                 } else {
                     let found = try waitForResult(prefix: prefix, command: command, acceptSwitchTo: wanted(acceptSwitchTo),
@@ -447,22 +460,32 @@ public struct Runner {
                 }
             case .closePicker:
                 try closePicker()
-            case .capture(let prefix):
-                // `arm` 뒤에 새로 생긴 줄만 결과로 친다 — 예전 전환의 줄이 화면에 남아 있을 수 있다.
-                if let lines = io.screen() {
-                    let now = Runner.matching(lines, prefix: prefix)
-                    if Runner.isNew(now, since: Runner.matching(armedLines, prefix: prefix)), let found = now.last {
+            case .capture(let prefixes, let afterCommand):
+                guard let lines = io.screen() else { break }
+                if let afterCommand {
+                    if let found = ClaudeScreen.latestResult(lines, command: afterCommand, prefixes: prefixes),
+                       prefixes.contains(where: { found.hasPrefix($0) }) {
                         confirmations.append(found)
                     }
+                } else if let found = prefixes.compactMap({ Runner.matching(lines, prefix: $0).last }).last {
+                    confirmations.append(found)
                 }
             }
         }
-        if !unseen.isEmpty, let snap = freshSnapshot() {
+        if !unseen.isEmpty {
+            // 기본값 파일은 다른 claude 세션도 쓴다 — 파일이 바뀐 것만으로는 «우리 명령»이 실행됐다고 할 수 없다.
+            // 끝에 새 화면을 한 번 읽어, 이번에 생긴 결과 줄이 «보일 때만» 성공으로 친다.
+            guard let snap = freshSnapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 결과를 확인하지 못했습니다.") }
             let before = initial?.lines ?? []
-            for prefix in unseen {
+            for (prefix, command) in unseen {
                 let now = ClaudeScreen.results(snap.lines, prefix: prefix)
                 if Runner.isNew(now, since: ClaudeScreen.results(before, prefix: prefix)), let found = now.last {
                     confirmations.append(found)
+                } else if let command, let reply = ClaudeScreen.reply(toCommand: command, in: snap.lines), reply.hasPrefix(prefix) {
+                    // 같은 전환을 되풀이해 줄 수가 그대로여도, 우리가 친 그 명령 아래에 그 답이 있다.
+                    confirmations.append(reply)
+                } else {
+                    throw ModelSwitchError("명령을 보냈지만 claude 의 결과 문구(\(prefix) …)가 화면에 보이지 않습니다. 바뀌었는지 화면에서 확인해 주세요.")
                 }
             }
         }
@@ -612,8 +635,12 @@ public struct Runner {
         }
     }
 
-    private func waitFor(_ needle: String, timeoutMs: Int) throws -> Bool {
-        try poll(timeoutMs: timeoutMs) { lines in lines.contains { $0.contains(needle) } }
+    private func waitFor(_ needle: String, bottom: Int?, timeoutMs: Int) throws -> Bool {
+        try poll(timeoutMs: timeoutMs) { lines in
+            guard let bottom else { return lines.contains { $0.contains(needle) } }
+            let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            return shown.suffix(bottom).contains { $0.contains(needle) }
+        }
     }
 
     /// 화면이 `condition` 을 만족할 때까지 다시 읽는다. 시간 안에 만족하면 참.
@@ -790,7 +817,7 @@ public struct Runner {
             var inner: [Picker.Row] = []
             guard try poll(timeoutMs: timeoutMs, { lines in
                 inner = Picker.rows(lines)
-                return lines.contains { $0.contains("Advanced Reasoning") } && !inner.isEmpty
+                return Picker.open(lines)?.header.hasPrefix("Advanced Reasoning") == true && !inner.isEmpty
             }), let first = inner.first else { return .stopped("codex 의 More reasoning 목록이 열리지 않았습니다.") }
             return try moveCursor(to: first.label, timeoutMs: timeoutMs) ? .moved(first.label) : .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.")
         }
@@ -801,7 +828,7 @@ public struct Runner {
         var inner: [Picker.Row] = []
         guard try poll(timeoutMs: timeoutMs, { lines in
             inner = Picker.rows(lines)
-            return lines.contains { $0.contains("Advanced Reasoning") } && inner.contains(where: \.current)
+            return Picker.open(lines)?.header.hasPrefix("Advanced Reasoning") == true && inner.contains(where: \.current)
         }), let at = inner.firstIndex(where: \.current) else { return .stopped("codex 의 More reasoning 목록에서 지금 값을 찾지 못했습니다.") }
         if up {
             guard at + 1 < inner.count else { return edge(inner[at].label) }
@@ -813,7 +840,7 @@ public struct Runner {
         // 아래 목록의 첫 행이다 — 한 단계 아래는 바깥 목록의 마지막 행(Extra high)이다.
         guard let last = plain.last else { return edge(inner[at].label) }
         try io.press(.escape)
-        guard try poll(timeoutMs: timeoutMs, { $0.contains { $0.contains("Select Reasoning Level") } }) else {
+        guard try poll(timeoutMs: timeoutMs, { Picker.open($0)?.header.hasPrefix("Select Reasoning Level") == true }) else {
             return .stopped("codex effort 목록으로 돌아가지 못했습니다.")
         }
         return try moveCursor(to: rows[last].label, timeoutMs: timeoutMs) ? .moved(rows[last].label) : .stopped("codex effort 목록에서 커서를 옮기지 못했습니다.")

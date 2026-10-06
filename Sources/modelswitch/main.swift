@@ -45,7 +45,10 @@ func describe(_ step: Step) -> String {
     case .text(let text): return "입력  \(text.debugDescription)"
     case .key(let key): return "키    \(key)"
     case .wait(let ms): return "대기  \(ms)ms"
-    case .expect(let needle, let timeoutMs, _, _): return "확인  화면에 \(needle.debugDescription) (최대 \(timeoutMs)ms)"
+    case .expect(let needle, let bottom, let timeoutMs, _, _):
+        return "확인  화면\(bottom.map { " 맨 아래 \($0)줄" } ?? "")에 \(needle.debugDescription) (최대 \(timeoutMs)ms)"
+    case .expectPicker(let header, let footer, let timeoutMs, _, _):
+        return "확인  맨 아래에 선택창\(header.map { " \($0.debugDescription)" } ?? "")\(footer.map { ", 안내에 \($0.debugDescription)" } ?? "") (최대 \(timeoutMs)ms)"
     case .arm: return "기준  기본값 파일 수정 시각"
     case .expectResult(let prefix, _, _, let timeoutMs, _): return "확인  결과 줄 \(prefix.debugDescription)… (최대 \(timeoutMs)ms)"
     case .selectRow(let label, let via, let timeoutMs, _, _):
@@ -56,7 +59,7 @@ func describe(_ step: Step) -> String {
     case .stepEffort(let up, let timeoutMs, _): return "effort 한 단계 \(up ? "올림(→)" : "내림(←)") (최대 \(timeoutMs)ms)"
     case .expectInput(let agent, _, let timeoutMs, _, _): return "확인  선택창이 닫히고 \(agent.rawValue) 입력창이 보임 (최대 \(timeoutMs)ms)"
     case .closePicker: return "닫기  선택창이 보이는 동안만 Esc"
-    case .capture(let prefix): return "기록  \(prefix.debugDescription)… 줄"
+    case .capture(let prefixes, _): return "기록  결과 문구(\(prefixes.joined(separator: " / "))…)"
     }
 }
 
@@ -80,6 +83,7 @@ do {
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
         if !result.confirmed { print("(에이전트의 확인 문구는 보지 못했습니다)") }
+        if trace != nil { result.confirmations.forEach { print("확인 문구: \($0)") } }
         if let warning = result.warning { print("⚠️ \(warning)") }
     case "effort":
         guard args.count >= 2, ["up", "down"].contains(args[1]) else { fail("modelswitch effort <up|down> [대상]") }

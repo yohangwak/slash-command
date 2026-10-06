@@ -14,20 +14,33 @@ public enum Readiness {
 
     /// claude 의 입력창은 가로줄 바로 아래에서 `❯` 로 시작한다.
     /// 권한 확인 창의 선택 표시(` ❯ 1. Yes`)는 들여쓰기가 있고 위가 가로줄이 아니다.
+    ///
+    /// 입력창은 화면 맨 아래에 있다: 그 아래에는 (여러 줄 초안의 이어지는 줄과) 닫는 가로줄, 상태 줄 몇 개뿐이다.
+    /// 화면 위쪽에 남아 있는 비슷한 모양은 입력창으로 보지 않는다.
     static func claudePromptVisible(_ screen: [String]) -> Bool {
         let lines = screen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        for (index, line) in lines.enumerated() where line.hasPrefix("❯") && index > 0 {
-            if lines[index - 1].hasPrefix("─") { return true }
+        guard let at = lines.indices.last(where: { $0 > 0 && lines[$0].hasPrefix("❯") && lines[$0 - 1].hasPrefix("─") }) else {
+            return false
         }
-        return false
+        let below = lines[(at + 1)...]
+        if let closing = below.firstIndex(where: { $0.hasPrefix("─") }) {
+            // 닫는 가로줄까지는 초안의 이어지는 줄(들여쓴 줄)뿐이고, 그 아래는 상태 줄 몇 개다.
+            return lines[(at + 1)..<closing].allSatisfy { $0.hasPrefix(" ") } && lines.count - closing - 1 <= 5
+        }
+        return below.count <= 6
     }
 
     /// codex 의 입력창은 `›` 로 시작한다(effort 가 ultra 일 때는 `»` — 0.160.0 실측).
     /// 승인 창·선택창도 `›` 로 선택 행을 표시하지만 `› 1. …` 처럼 번호가 붙는다.
+    ///
+    /// 입력창은 화면 맨 아래에 있다: `›` 로 시작하는 «마지막» 줄이 입력창이어야 하고(지난 대화에도 `› 내가 보낸 글` 이 남는다),
+    /// 그 아래에는 들여쓴 줄(여러 줄 초안 · 상태 줄)만 있어야 한다.
     static func codexComposerVisible(_ screen: [String]) -> Bool {
-        let marked = screen.filter { $0.hasPrefix("›") || $0.hasPrefix("»") }
-        guard !marked.isEmpty else { return false }
-        return !marked.contains(where: isNumberedChoice)
+        let lines = screen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard let at = lines.indices.last(where: { lines[$0].hasPrefix("›") || lines[$0].hasPrefix("»") }) else { return false }
+        guard !isNumberedChoice(lines[at]) else { return false }
+        let below = lines[(at + 1)...]
+        return below.allSatisfy { $0.hasPrefix(" ") } && below.count <= 12
     }
 
     private static func isNumberedChoice(_ line: String) -> Bool {
@@ -93,6 +106,47 @@ public enum ClaudeScreen {
         return nil
     }
 
+    /// 방금 끝난 명령의 결과: 입력창 바로 위의 알림 줄(작업 중일 때)이거나, 마지막으로 친 그 명령(`❯ /model`) 아래의 답.
+    ///
+    /// 줄 수를 세어 「새로 생긴 줄」을 가리면 안 된다 — 선택창이 열렸다 닫히면 화면에 보이는 대화 범위가 달라져서,
+    /// 예전 줄이 새로 보이기도 한다(2026-10-06 실측: 예전 "Kept model as …" 를 이번 결과로 읽어 알림이 틀렸다).
+    /// 좁은 창에서 답이 다음 줄로 접히면 이어 붙인다.
+    public static func latestResult(_ lines: [String], command: String, prefixes: [String]) -> String? {
+        let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard let prompt = shown.indices.last(where: { $0 > 0 && shown[$0].hasPrefix("❯") && shown[$0 - 1].hasPrefix("─") }) else { return nil }
+        let rule = prompt - 1
+        // 작업 중: 입력창 위에 오른쪽 정렬된 알림 한 줄.
+        if rule > 0 {
+            let notice = shown[rule - 1].trimmingCharacters(in: .whitespaces)
+            if prefixes.contains(where: { notice.hasPrefix($0) }) { return notice }
+        }
+        // 한가할 때: 대화에 `❯ 명령` 과 그 아래 `⎿ 답`.
+        guard let echo = shown[..<rule].lastIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "❯ " + command }),
+              echo + 1 < rule else { return nil }
+        let first = shown[echo + 1].trimmingCharacters(in: .whitespaces)
+        guard first.hasPrefix("⎿") else { return nil }
+        var text = String(first.dropFirst()).trimmingCharacters(in: .whitespaces)
+        var index = echo + 2
+        // 접힌 줄은 답의 글과 같은 칸(5칸 들여쓰기)에서 시작한다. 더 깊이 들여쓴 줄은 오른쪽 정렬된 다른 표시다.
+        while index < rule, shown[index].prefix(while: { $0 == " " }).count == 5 {
+            text += " " + shown[index].trimmingCharacters(in: .whitespaces)
+            index += 1
+        }
+        return text
+    }
+
+    /// 우리가 친 그 명령 줄(`❯ /model sonnet`) 바로 아래에 붙은 답. 화면에 그 명령이 없으면 nil.
+    public static func reply(toCommand commandLine: String, in lines: [String]) -> String? {
+        let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        for index in shown.indices.reversed() where index + 1 < shown.count {
+            guard shown[index].trimmingCharacters(in: .whitespaces) == "❯ " + commandLine else { continue }
+            let next = shown[index + 1].trimmingCharacters(in: .whitespaces)
+            guard next.hasPrefix("⎿") else { return nil }
+            return String(next.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+        return nil
+    }
+
     /// 화면에서 마지막 대화 결과 줄(`⎿ …`)의 내용. 없으면 nil. 실패했을 때 claude 가 뭐라고 했는지 보여 주는 데 쓴다.
     public static func lastResult(_ lines: [String]) -> String? {
         for line in lines.reversed() {
@@ -124,30 +178,67 @@ public enum Picker {
     static let headers = ["Select Model and Effort", "Select Reasoning Level", "Advanced Reasoning",  // codex
                           "Select model"]                                                           // claude
 
-    /// 머리말 줄의 위치. 선택창이 아니면 nil.
-    static func headerIndex(_ lines: [String]) -> Int? {
-        lines.lastIndex { line in
-            let text = line.trimmingCharacters(in: .whitespaces)
-            return headers.contains { text.hasPrefix($0) }
+    /// 선택창 맨 아랫줄(안내)에만 나오는 문구. 승인 창의 안내("esc to cancel")와 겹치지 않는 것만 둔다.
+    static let footerMarks = ["s to use this session only", "Enter to set as default",              // claude
+                              "esc back"]                                                         // codex
+
+    /// 화면 «맨 아래»에 떠 있는 선택창.
+    public struct Open: Equatable, Sendable {
+        public let header: String
+        public let rows: [Row]
+        /// 맨 아랫줄 안내(좁은 창에서 두 줄로 접히면 이어 붙인다).
+        public let footer: String
+    }
+
+    /// 선택창은 화면의 맨 아래에 그려진다 — 맨 아랫줄이 선택창의 안내일 때만, 거기서 위로 올라가며 행과 머리말을 찾는다.
+    /// 대화 내용에 선택창처럼 보이는 글이 있어도(2026-10-06 실측: 그 글의 행을 읽고 화살표를 보낼 뻔했다) 그것은 맨 아래가 아니다.
+    /// 좁은 창에서는 행의 설명이 깊게 들여쓴 다음 줄로 접힌다 — 그런 줄은 건너뛴다.
+    public static func open(_ lines: [String]) -> Open? {
+        let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        // 안내 줄: 마지막 세 줄 안에 있어야 한다(접히면 두세 줄이 된다).
+        guard let footerAt = shown.indices.suffix(3).last(where: { index in footerMarks.contains { shown[index].contains($0) } }) else {
+            return nil
         }
+        let footerStart = shown.indices.suffix(3).first(where: { index in footerMarks.contains { shown[index].contains($0) } }) ?? footerAt
+        let footer = shown[footerStart...].map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: " ")
+
+        var index = footerStart - 1
+        // 행과 안내 사이: effort 줄 · 경고 · "… +2 models" · 마지막 행의 접힌 줄.
+        var skipped = 0
+        while index >= 0, row(shown[index]) == nil, skipped < 8 { index -= 1; skipped += 1 }
+        var rows: [Row] = []
+        while index >= 0 {
+            if let found = row(shown[index]) {
+                rows.insert(found, at: 0)
+            } else if !isContinuation(shown[index]) {
+                break
+            }
+            index -= 1
+        }
+        guard !rows.isEmpty else { return nil }
+        // 머리말과 행 사이: 설명 문장(좁으면 여러 줄) · codex 의 경고 줄.
+        skipped = 0
+        while index >= 0, skipped < 6 {
+            let text = shown[index].trimmingCharacters(in: .whitespaces)
+            if headers.contains(where: { text.hasPrefix($0) }) { return Open(header: text, rows: rows, footer: footer) }
+            index -= 1
+            skipped += 1
+        }
+        return nil
+    }
+
+    /// 접힌 줄: 번호 없이 깊게 들여쓴 줄(행의 설명이 넘친 것).
+    static func isContinuation(_ line: String) -> Bool {
+        line.prefix(while: { $0 == " " }).count >= 8
     }
 
     public static func isOpen(_ lines: [String]) -> Bool {
-        !rows(lines).isEmpty
+        open(lines) != nil
     }
 
-    /// 머리말 아래의 번호 행들. 선택창이 아니면 빈 배열.
+    /// 맨 아래 선택창의 번호 행들. 선택창이 아니면 빈 배열.
     public static func rows(_ lines: [String]) -> [Row] {
-        guard let header = headerIndex(lines) else { return [] }
-        var rows: [Row] = []
-        for line in lines[(header + 1)...] {
-            if let row = row(line) {
-                rows.append(row)
-            } else if !rows.isEmpty {
-                break
-            }
-        }
-        return rows
+        open(lines)?.rows ?? []
     }
 
     /// codex: `› 3. High (current)   설명` · `  4. Extra high       설명`
