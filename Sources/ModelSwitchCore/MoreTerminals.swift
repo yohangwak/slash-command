@@ -92,3 +92,72 @@ public struct WezTermIO: TerminalIO {
         return result.ok ? result.out.components(separatedBy: "\n") : nil
     }
 }
+
+/// iTerm2: AppleScript 의 `write text … newline NO` 로 바이트를 그대로 넣고 `contents` 로 화면을 읽는다.
+/// 실측(2026-10-07, 맥북, iTerm2 3.7.3): `^S/model⏎` · `ESC[A ESC[B` · 한글이 그대로 도착했고 붙여넣기 표시로 감싸지 않았다.
+/// 세션은 `unique id` 로 지정하므로 포커스가 다른 곳으로 옮겨져도 «읽은 세션에 쓴다».
+/// `contents` 는 스크롤백까지 돌려주므로 화면 «맨 아래» 판정에 그대로 쓸 수 있다(마지막 줄들이 지금 화면의 아래쪽).
+public struct ITermIO: TerminalIO {
+    public let sessionID: String
+
+    public init(sessionID: String) {
+        self.sessionID = sessionID
+    }
+
+    /// 바이트를 AppleScript 식으로: 보통 글자는 따옴표 문자열, 제어 문자는 `(ASCII character N)` 으로 잇는다.
+    static func expression(for text: String) -> String {
+        var parts: [String] = []
+        var literal = ""
+        func flush() { if !literal.isEmpty { parts.append(GhosttyIO.quoted(literal)); literal = "" } }
+        for scalar in text.unicodeScalars {
+            if scalar.value < 0x20 || scalar.value == 0x7F {
+                flush()
+                parts.append("(ASCII character \(scalar.value))")
+            } else {
+                literal.unicodeScalars.append(scalar)
+            }
+        }
+        flush()
+        return parts.isEmpty ? "\"\"" : parts.joined(separator: " & ")
+    }
+
+    /// 세션을 찾아 `body` 를 그 세션에서 실행하는 스크립트. 못 찾으면 오류.
+    static func script(sessionID: String, body: String) -> String {
+        """
+        tell application "iTerm2"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    repeat with s in sessions of t
+                        if (unique id of s) is \(GhosttyIO.quoted(sessionID)) then
+                            tell s
+                                \(body)
+                            end tell
+                        end if
+                    end repeat
+                end repeat
+            end repeat
+            error "iTerm2 세션을 찾지 못했습니다"
+        end tell
+        """
+    }
+
+    private func write(_ bytes: String) throws {
+        // `return` 이 있어야 찾은 뒤 반복을 끝낸다(없으면 아래의 «못 찾음» 오류까지 간다).
+        let body = "write text \(ITermIO.expression(for: bytes)) newline NO\nreturn \"true\""
+        let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, body: body))
+        guard result.ok, result.out == "true" else {
+            let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw ModelSwitchError("iTerm2 에 입력하지 못했습니다: \(detail.isEmpty ? "세션이 없습니다" : detail)")
+        }
+    }
+
+    public func type(_ text: String) throws { try write(text) }
+    public func press(_ key: Key) throws { try write(key.bytes) }
+
+    public func screen() -> [String]? {
+        let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, body: "return contents"))
+        guard result.ok else { return nil }
+        let lines = result.out.replacingOccurrences(of: "\r", with: "\n").components(separatedBy: "\n")
+        return lines
+    }
+}

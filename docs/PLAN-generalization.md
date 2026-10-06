@@ -153,7 +153,7 @@ Developer ID 서명 + 공증 → GitHub 릴리스의 zip → 자체 Homebrew tap
 | **tmux 3.7c** | `focus-events on` 인 채로 붙은 클라이언트는 `client_flags` 의 `focused` 가 «키 입력 없이» 창 포커스를 따라온다(실측). 기본값(off)에서는 둘 다 `focused` 로 나오고 `client_activity` 도 안 변한다 → 못 가린다 | `send-keys -H`(16진) · `-l` 모두 그대로, 7ms. 없는 대상은 실패(1) | `capture-pane -p` 7ms, 쓴 글이 13~40ms 뒤 보임 | 없음(ssh 에서도 됨) | claude: 프리셋 6종 · effort 단계 · 작업 중 · 없는 모델 거절 전부 맞음, 0.9~1.8초. codex: 프리셋 4종 · effort 5회 맞음, 1.3~1.8초. 초안·기본값 유지 |
 | **kitty 0.49.2** | `kitty @ ls` 가 `is_focused` · pid · 앞에서 도는 프로세스의 명령줄을 준다 | `send-text` 그대로, 26ms. 🔴 없는 창에도 성공(0)을 돌려준다 → 쓰기 전에 `ls` 로 확인 | `get-text` 29ms, 약 50ms 뒤 보임 | 없음. 단 사용자가 원격 제어(`allow_remote_control` + 소켓)를 켜야 한다 | claude: 프리셋 3종 · 없는 모델 · effort 올림/내림 맞음, 1.1~2.2초 |
 | **WezTerm 20240203** | `cli list`(tty · `is_active`) + `cli list-clients`(포커스 pane) | 🔴 기본은 붙여넣기 표시(`ESC[200~ … ESC[201~`)로 감싼다 → `--no-paste` 로 그대로, 15ms. 없는 pane 은 실패(1) | `get-text` 9ms, 약 23ms 뒤 보임 | 없음 | claude: 프리셋 3종 · 없는 모델 · effort 올림/내림 맞음, 0.9~2.0초 |
-| **iTerm2 3.7.3** | — | — | — | 첫 실행에서 「인터넷에서 받은 앱」 확인(눌렀다) 뒤, 시스템 권한 요청에서 멈춰 AppleScript 가 시간 초과 | **못 쟀다** — 맥북에서 iTerm2 를 한 번 열어 권한 창을 처리해야 한다 |
+| **iTerm2 3.7.3** | `current session of current window` 가 포커스 세션의 `unique id`·`tty` 를 «바로» 준다(맨 앞 터미널 찾기 가능) | `write text … newline NO` 가 바이트를 그대로 넣는다 — `^S/model⏎` · `ESC[A ESC[B` · 한글 모두 도착, 붙여넣기 표시로 감싸지 않음(레드팀 주장 7의 iTerm2 쪽도 **REFUTED**: 기본 `write text` 가 `newline NO` 로 raw) | `contents` 가 스크롤백 포함 전체 글을 준다(마지막 줄들이 지금 화면 아래). 읽고 쓰는 세션을 `unique id` 로 못 박으므로 포커스가 옮겨져도 «읽은 세션에 쓴다» | 처음 한 번 macOS 「자동화」 허용 | claude 2.1.292: 프리셋 3종 · effort 올림/내림 맞음 약 1.0초 · codex 0.160.1(`gpt-6.1-sol` 포함): 프리셋 · effort 맞음 약 1.1초. 기본값 파일(claude·codex) 불변. `where` 가 tty 의 에이전트로 대상을 찾음 |
 
 읽은 것:
 - 셋 다 화면을 «지금 것으로» 읽는다(Ghostty 의 0.5초 보관이 없다). 그래서 Ghostty 에서 3~4.6초 걸리는 codex 가 tmux 안에서는 1.3~1.8초다.
@@ -162,7 +162,7 @@ Developer ID 서명 + 공증 → GitHub 릴리스의 zip → 자체 Homebrew tap
 
 레드팀의 남은 주장 판정:
 - 6 (tmux `client_activity` 로는 맨 앞을 못 가린다) → **CONFIRMED**(기본 설정에서). 대안도 쟀다: `focus-events on` + `client_flags`.
-- 7 (`--no-paste` 가 없으면 감싸인다) → WezTerm 에서 **CONFIRMED**. iTerm2 `newline NO` 는 못 쟀다.
+- 7 (`--no-paste` 가 없으면 감싸인다) → WezTerm 에서 **CONFIRMED**. iTerm2: `write text … newline NO` 는 감싸지 않았다(2026-10-07 실측) → iTerm2 쪽은 REFUTED.
 - 8 (kitty `send-text` 는 못 보내도 성공) → **CONFIRMED**(codex 가 맞고 grok 의 반박이 틀렸다).
 - 9 (cask 자동 업데이트) → 그대로 PLAUSIBLE.
 

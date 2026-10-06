@@ -11,7 +11,7 @@ public enum AgentVersions {
     static let unknown = "알 수 없음"
 
     public static let tested: [Agent: Set<String>] = [
-        .claude: ["2.1.283", "2.1.288", "2.1.289", "2.1.291"],
+        .claude: ["2.1.283", "2.1.288", "2.1.289", "2.1.291", "2.1.292"],
         .codex: ["0.156.0", "0.160.0", "0.160.1"],
     ]
 

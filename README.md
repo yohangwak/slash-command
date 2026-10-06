@@ -1,6 +1,6 @@
 # ModelSwitch
 
-Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 claude 인지 codex 인지에 맞춰
+Ghostty·Orca·iTerm2 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 claude 인지 codex 인지에 맞춰
 그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱. **⇧⌥=** · **⇧⌥-** 는 모델은 그대로 두고 effort 만 한 단계 올리고 내린다.
 
 `/model`·`/effort` 를 매번 치는 대신 단축키 한 번. 대화 도중에도 되고, 쓰던 글은 그대로 남고, 새 세션 기본값은 바뀌지 않는다.
@@ -9,7 +9,7 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 
 | 무엇 | 어떻게 |
 |---|---|
-| 전환 | Ghostty 나 Orca 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
+| 전환 | Ghostty·Orca·iTerm2 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
 | 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋 편집…」 (파일은 `~/.config/modelswitch/presets.json`) |
 | 새 세션 | `modelswitch run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`) |
@@ -54,9 +54,10 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 
 ## 어떻게 동작하나
 
-1. **단축키** — Carbon 전역 핫키. 키 위치로 잡으므로 한글 입력 상태와 무관하다. Ghostty·Orca 가 맨 앞일 때만 등록해서 다른 앱에서는 그 조합이 원래대로 동작한다.
+1. **단축키** — Carbon 전역 핫키. 키 위치로 잡으므로 한글 입력 상태와 무관하다. Ghostty·Orca·iTerm2 가 맨 앞일 때만 등록해서 다른 앱에서는 그 조합이 원래대로 동작한다.
 2. **대상 찾기**
    - Ghostty: AppleScript 로 맨 앞 터미널의 id·제목·폴더를 읽는다. 제목에 `claude`/`codex` 가 없으면 그 폴더에서 도는 에이전트 프로세스로 가린다.
+   - iTerm2: AppleScript 로 맨 앞 창의 포커스 세션(`unique id`·`tty`)을 읽고, 그 tty 에서 도는 에이전트 프로세스로 가린다. 글자는 `write text … newline NO`, 화면은 `contents` 로 읽는다.
    - Orca: 화면에 떠 있는 워크스페이스는 Orca 상태 DB(`profile-state.db` 의 `workspaceSession`)에서, 그 안의 활성 탭·터미널은 터미널 목록에서 읽는다. 에이전트 종류는 그 터미널에서 도는 프로세스로 가린다(목록의 `agentIdentity` 는 대기 중에 비어 온다).
 3. **입력창 확인** — 화면을 읽어 에이전트의 입력창이 «보일 때만» 보낸다(아래 「안전」).
 4. **전환** — 두 에이전트 모두 `/model` 선택창을 화면으로 읽으며 조작한다: 커서가 어느 행에 있는지 읽고, 그만큼만 움직이고, 도착한 것을 다시 읽어 확인한 뒤 **「이 세션만」(`s`)으로 확정**한다.
@@ -118,8 +119,8 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - Orca 앱 소켓도 공개 인터페이스가 아니다(`orca` 명령이 쓰는 통로). 못 쓰면 `orca` 명령으로 되돌아간다(회당 0.2초).
 - Ghostty 의 codex 는 3~4.6초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다(다른 접근성 속성도 같은 보관본을 준다).
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
-- 단축키로 되는 터미널은 Ghostty 와 Orca 뿐이다. tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). iTerm2 · Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
-- 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
+- 단축키로 되는 터미널은 Ghostty · Orca · iTerm2 다(iTerm2 는 2026-10-07 맥북에서 claude·codex 전환과 맨 앞 세션 찾기 확인, 약 1초; 처음 한 번 「자동화」 허용 필요). tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다. 대상을 직접 지정하는 `--iterm <세션 unique id>` 도 있다.
+- 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
 
 ## 개발
 

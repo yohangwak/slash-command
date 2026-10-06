@@ -1595,3 +1595,23 @@ final class AgentVersionTests: XCTestCase {
         XCTAssertTrue(clean.lines.contains { $0.contains("확인한 판입니다") }, "양성 대조군: 모두 읽혔고 확인한 판이면 그렇게 말한다")
     }
 }
+
+final class TTYAgentTests: XCTestCase {
+    func testPicksOutermostAgentOnATTY() {
+        let ps = """
+          100     1 -zsh
+          200   100 claude --resume abc
+          300   200 /Users/x/.codex/packages/standalone/releases/0.160.1-aarch64-apple-darwin/bin/codex exec foo
+        """
+        XCTAssertEqual(AgentProcesses.agent(onTTYPsOutput: ps), .claude, "claude 가 띄운 codex 가 아니라 바깥쪽 claude")
+        XCTAssertNil(AgentProcesses.agent(onTTYPsOutput: "  100     1 -zsh\n  101   100 vim x"), "에이전트가 없으면 nil")
+        XCTAssertNil(AgentProcesses.agent(onTTYPsOutput: "  200   100 claude\n  210   100 codex"), "나란히 둘이면 가리지 않는다")
+    }
+
+    func testITermExpressionKeepsControlBytes() {
+        XCTAssertEqual(ITermIO.expression(for: "\u{13}/model\r"), "(ASCII character 19) & \"/model\" & (ASCII character 13)")
+        XCTAssertEqual(ITermIO.expression(for: "한글s"), "\"한글s\"")
+        XCTAssertEqual(ITermIO.expression(for: "a\"b\\c"), "\"a\\\"b\\\\c\"")
+        XCTAssertEqual(ITermIO.expression(for: ""), "\"\"")
+    }
+}

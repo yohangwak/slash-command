@@ -11,6 +11,8 @@ public enum TerminalHost: Equatable, Sendable {
     case kitty(socket: String, window: String)
     /// WezTerm pane id.
     case wezterm(pane: String)
+    /// iTerm2 세션의 `unique id`.
+    case iterm(sessionID: String)
 
     public var appName: String {
         switch self {
@@ -19,6 +21,7 @@ public enum TerminalHost: Equatable, Sendable {
         case .tmux: return "tmux"
         case .kitty: return "kitty"
         case .wezterm: return "WezTerm"
+        case .iterm: return "iTerm2"
         }
     }
 }
@@ -39,7 +42,8 @@ public struct Target: Equatable, Sendable {
 public enum Detector {
     public static let ghosttyBundleID = "com.mitchellh.ghostty"
     public static let orcaBundleID = "com.stablyai.orca"
-    public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID]
+    public static let itermBundleID = "com.googlecode.iterm2"
+    public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID, itermBundleID]
 
     /// 지금 맨 앞 앱의 맨 앞 터미널과 그 안의 에이전트.
     public static func frontmost() throws -> Target {
@@ -54,6 +58,7 @@ public enum Detector {
         switch bundleID {
         case ghosttyBundleID: return try ghostty()
         case orcaBundleID: return try orca()
+        case itermBundleID: return try iterm()
         default:
             throw ModelSwitchError("\(appName) 는 지원하지 않습니다. Ghostty 나 Orca 터미널에서 눌러 주세요.")
         }
@@ -96,6 +101,35 @@ public enum Detector {
             throw ModelSwitchError("Ghostty 맨 앞 터미널(\(name))은 \(reason).")
         }
         return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
+    }
+
+    // MARK: iTerm2
+
+    /// iTerm2 의 맨 앞 창이 포커스한 세션. 에이전트는 그 세션의 tty 에서 도는 프로세스로 가린다.
+    public static func iterm() throws -> Target {
+        let script = """
+        tell application "iTerm2"
+            if (count of windows) is 0 then return ""
+            tell current session of current window
+                return (unique id) & linefeed & (name) & linefeed & (tty)
+            end tell
+        end tell
+        """
+        let result = GhosttyIO.osascript(script)
+        guard result.ok else {
+            let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw ModelSwitchError("iTerm2 의 맨 앞 세션을 읽지 못했습니다: \(detail)")
+        }
+        let parts = result.out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count >= 3, !parts[0].isEmpty else { throw ModelSwitchError("iTerm2 에 열린 창이 없습니다.") }
+        let id = parts[0], name = parts[1], tty = parts[2]
+        if let agent = AgentProcesses.agent(onTTY: tty) {
+            return Target(host: .iterm(sessionID: id), agent: agent, label: name)
+        }
+        if let lines = ITermIO(sessionID: id).screen(), let agent = agent(onScreen: lines) {
+            return Target(host: .iterm(sessionID: id), agent: agent, label: name)
+        }
+        throw ModelSwitchError("iTerm2 맨 앞 세션(\(name))은 claude·codex 세션이 아니거나 구분할 수 없습니다.")
     }
 
     /// 화면에 입력창이 보이는 쪽. 둘 다 보이거나 둘 다 안 보이면 nil.
@@ -272,6 +306,27 @@ enum AgentProcesses {
             }
         }
         return Set(candidates.filter { cwdByPID[$0.pid] == wanted }.map(\.agent))
+    }
+
+    /// 그 tty(`/dev/ttys001`)에서 도는 에이전트 중 바깥쪽 것의 종류.
+    static func agent(onTTY tty: String) -> Agent? {
+        let name = tty.hasPrefix("/dev/") ? String(tty.dropFirst(5)) : tty
+        guard !name.isEmpty else { return nil }
+        let ps = Proc.run("/bin/ps", ["-t", name, "-o", "pid=,ppid=,command="], timeout: 5)
+        guard ps.ok else { return nil }
+        return agent(onTTYPsOutput: ps.out)
+    }
+
+    static func agent(onTTYPsOutput output: String) -> Agent? {
+        var parents: [String: String] = [:]
+        var candidates: [(pid: String, agent: Agent)] = []
+        for line in output.split(separator: "\n") {
+            let fields = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
+            guard fields.count == 3 else { continue }
+            parents[String(fields[0])] = String(fields[1])
+            if let agent = agent(forCommandLine: String(fields[2])) { candidates.append((String(fields[0]), agent)) }
+        }
+        return outermostAgent(candidates, parents: parents)
     }
 
     /// Orca 는 터미널마다 `ORCA_TERMINAL_HANDLE` 을 환경변수로 준다. 그 값을 가진 프로세스 중 에이전트를 찾는다.

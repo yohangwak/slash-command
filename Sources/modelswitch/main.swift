@@ -17,6 +17,7 @@ modelswitch — 맨 앞 터미널의 claude·codex 모델과 effort 를 프리�
   --orca <핸들> [--agent <claude|codex>]
   --ghostty <터미널 id> --agent <claude|codex>
 시험 단계(직접 지정할 때만, 단축키로는 아직 안 된다):
+  --iterm <세션 unique id> --agent <claude|codex>
   --tmux <pane> [--tmux-socket <이름>] --agent <claude|codex>
   --kitty <창 id> --kitty-socket unix:/경로 --agent <claude|codex>
   --wezterm <pane id> --agent <claude|codex>
@@ -41,6 +42,7 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         ("--tmux", { .tmux(socket: value(after: "--tmux-socket", in: args), pane: $0) }),
         ("--kitty", { id in value(after: "--kitty-socket", in: args).map { .kitty(socket: $0, window: id) } }),
         ("--wezterm", { .wezterm(pane: $0) }),
+        ("--iterm", { .iterm(sessionID: $0) }),
     ]
     for (flag, make) in more {
         guard let id = value(after: flag, in: args) else { continue }
@@ -133,7 +135,8 @@ do {
             fail("\(command[0]) 를 실행하지 못했습니다: \(String(cString: strerror(errno)))")
         }
     case "where":
-        let target = try Detector.frontmost()
+        // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다(ssh 로 시험할 때).
+        let target = try value(after: "--bundle", in: args).map { try Detector.target(bundleID: $0, appName: $0) } ?? Detector.frontmost()
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
     case "doctor":
         let target = try explicitTarget(args) ?? Detector.frontmost()
