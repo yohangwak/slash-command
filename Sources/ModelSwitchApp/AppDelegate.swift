@@ -13,7 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "gearshape.2", accessibilityDescription: "ModelSwitch")
+        statusItem.button?.image = NSImage(systemSymbolName: "switch.2", accessibilityDescription: "ModelSwitch")
+            ?? NSImage(systemSymbolName: "gearshape.2", accessibilityDescription: "ModelSwitch")
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
