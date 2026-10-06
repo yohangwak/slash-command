@@ -4,11 +4,21 @@ import Foundation
 public enum TerminalHost: Equatable, Sendable {
     case ghostty(terminalID: String)
     case orca(handle: String)
+    // 아래 셋은 시험 단계다: 대상을 명령줄에서 직접 지정할 때만 쓴다(단축키로 맨 앞 세션을 찾는 것은 아직 없다).
+    /// tmux pane(`%3`, `세션:창.칸`). `socket` 은 `tmux -L` 의 이름.
+    case tmux(socket: String?, pane: String)
+    /// kitty 창 id 와 원격 제어 소켓(`unix:/path`).
+    case kitty(socket: String, window: String)
+    /// WezTerm pane id.
+    case wezterm(pane: String)
 
     public var appName: String {
         switch self {
         case .ghostty: return "Ghostty"
         case .orca: return "Orca"
+        case .tmux: return "tmux"
+        case .kitty: return "kitty"
+        case .wezterm: return "WezTerm"
         }
     }
 }

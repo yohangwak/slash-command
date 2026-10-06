@@ -70,9 +70,9 @@ public enum Proc {
     }
 
     /// GUI 앱은 로그인 셸의 PATH 를 물려받지 않으므로 흔한 설치 위치를 직접 찾는다.
-    public static func locate(_ name: String) -> String? {
+    public static func locate(_ name: String, extra: [String] = []) -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        var dirs = ["/usr/local/bin", "/opt/homebrew/bin", "\(home)/.local/bin", "/usr/bin", "/bin"]
+        var dirs = ["/usr/local/bin", "/opt/homebrew/bin", "\(home)/.local/bin", "/usr/bin", "/bin"] + extra
         if let path = ProcessInfo.processInfo.environment["PATH"] {
             dirs.append(contentsOf: path.split(separator: ":").map(String.init))
         }

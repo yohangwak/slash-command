@@ -144,6 +144,28 @@ Developer ID 서명 + 공증 → GitHub 릴리스의 zip → 자체 Homebrew tap
 
 갈린 지점(합의로 지우지 않는다): 순서. codex 는 실패 주입 실험과 서명·공증을 앞으로, grok 은 계약을 이미 잰 Ghostty·Orca 에 맞추고 서명은 터미널 목록이 정해진 뒤로, gemini 는 tmux·iTerm2 실측을 맨 앞으로. **가를 숫자는 대상 사용자가 쓰는 터미널의 분포인데 우리에게 없다** — 아는 것은 「요한님 맥 세 대에 tmux·iTerm2·kitty·WezTerm 이 하나도 없다」(2026-10-06 조회)뿐이다.
 
+## 터미널 실측 (2026-10-07 07:00~07:20 KST, 맥북 — tmux·kitty·WezTerm·iTerm2 를 Homebrew 로 설치해서)
+
+방법: 받은 바이트를 16진수로 적는 수신기(붙여넣기 감싸기 2004 · 포커스 알림 1004 를 켠다)를 각 터미널에서 돌리고 `^S/model⏎` · `ESC[A ESC[B` · `한글s` 를 보냈다. 그다음 시험 단계의 연결(`--tmux` · `--kitty` · `--wezterm`, 명령줄 전용)로 실제 claude 2.1.289 · codex 0.156.0 을 전환했다.
+
+| | 맨 앞 세션을 안다 | 바이트를 쓴다 | 화면을 읽는다 | 맥 권한 | 실제 전환 |
+|---|---|---|---|---|---|
+| **tmux 3.7c** | `focus-events on` 인 채로 붙은 클라이언트는 `client_flags` 의 `focused` 가 «키 입력 없이» 창 포커스를 따라온다(실측). 기본값(off)에서는 둘 다 `focused` 로 나오고 `client_activity` 도 안 변한다 → 못 가린다 | `send-keys -H`(16진) · `-l` 모두 그대로, 7ms. 없는 대상은 실패(1) | `capture-pane -p` 7ms, 쓴 글이 13~40ms 뒤 보임 | 없음(ssh 에서도 됨) | claude: 프리셋 6종 · effort 단계 · 작업 중 · 없는 모델 거절 전부 맞음, 0.9~1.8초. codex: 프리셋 4종 · effort 5회 맞음, 1.3~1.8초. 초안·기본값 유지 |
+| **kitty 0.49.2** | `kitty @ ls` 가 `is_focused` · pid · 앞에서 도는 프로세스의 명령줄을 준다 | `send-text` 그대로, 26ms. 🔴 없는 창에도 성공(0)을 돌려준다 → 쓰기 전에 `ls` 로 확인 | `get-text` 29ms, 약 50ms 뒤 보임 | 없음. 단 사용자가 원격 제어(`allow_remote_control` + 소켓)를 켜야 한다 | claude: 프리셋 3종 · 없는 모델 · effort 올림/내림 맞음, 1.1~2.2초 |
+| **WezTerm 20240203** | `cli list`(tty · `is_active`) + `cli list-clients`(포커스 pane) | 🔴 기본은 붙여넣기 표시(`ESC[200~ … ESC[201~`)로 감싼다 → `--no-paste` 로 그대로, 15ms. 없는 pane 은 실패(1) | `get-text` 9ms, 약 23ms 뒤 보임 | 없음 | claude: 프리셋 3종 · 없는 모델 · effort 올림/내림 맞음, 0.9~2.0초 |
+| **iTerm2 3.7.3** | — | — | — | 첫 실행에서 「인터넷에서 받은 앱」 확인(눌렀다) 뒤, 시스템 권한 요청에서 멈춰 AppleScript 가 시간 초과 | **못 쟀다** — 맥북에서 iTerm2 를 한 번 열어 권한 창을 처리해야 한다 |
+
+읽은 것:
+- 셋 다 화면을 «지금 것으로» 읽는다(Ghostty 의 0.5초 보관이 없다). 그래서 Ghostty 에서 3~4.6초 걸리는 codex 가 tmux 안에서는 1.3~1.8초다.
+- 지금 걸리는 시간의 대부분은 호출마다 프로세스를 띄우는 비용이다(화면 읽기 14회에 1044ms = 회당 약 75ms; 셸에서 같은 명령은 28ms). Orca 에서 했던 것처럼 상주 연결(tmux 제어 모드 · kitty 소켓)로 바꾸면 줄어든다 — 아직 안 했다.
+- 「맨 앞 세션 찾기」는 터미널마다 방법이 다르고, tmux 는 터미널 앱 «안»에 있다: 맨 앞 터미널 앱의 포커스 탭 → 그 tty(또는 pid) → 그 tty 의 tmux 클라이언트 → 활성 pane. Ghostty 는 탭의 tty 를 주지 않아 `focus-events` 가 켜져 있을 때만 가릴 수 있다.
+
+레드팀의 남은 주장 판정:
+- 6 (tmux `client_activity` 로는 맨 앞을 못 가린다) → **CONFIRMED**(기본 설정에서). 대안도 쟀다: `focus-events on` + `client_flags`.
+- 7 (`--no-paste` 가 없으면 감싸인다) → WezTerm 에서 **CONFIRMED**. iTerm2 `newline NO` 는 못 쟀다.
+- 8 (kitty `send-text` 는 못 보내도 성공) → **CONFIRMED**(codex 가 맞고 grok 의 반박이 틀렸다).
+- 9 (cask 자동 업데이트) → 그대로 PLAUSIBLE.
+
 ## 고친 순서 (정본)
 
 1. ~~자리 나누기~~ → **뒤로.** 먼저 새 터미널 하나를 실제로 붙여 본다(무엇을 붙일지는 대상 사용자가 정해진 뒤).

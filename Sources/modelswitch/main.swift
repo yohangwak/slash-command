@@ -16,6 +16,10 @@ modelswitch — 맨 앞 터미널의 claude·codex 모델과 effort 를 프리�
 대상(생략하면 맨 앞 앱의 맨 앞 터미널):
   --orca <핸들> [--agent <claude|codex>]
   --ghostty <터미널 id> --agent <claude|codex>
+시험 단계(직접 지정할 때만, 단축키로는 아직 안 된다):
+  --tmux <pane> [--tmux-socket <이름>] --agent <claude|codex>
+  --kitty <창 id> --kitty-socket unix:/경로 --agent <claude|codex>
+  --wezterm <pane id> --agent <claude|codex>
 """
 
 func fail(_ message: String) -> Never {
@@ -31,8 +35,20 @@ func value(after flag: String, in args: [String]) -> String? {
 func explicitTarget(_ args: [String]) throws -> Target? {
     let orca = value(after: "--orca", in: args)
     let ghostty = value(after: "--ghostty", in: args)
-    guard orca != nil || ghostty != nil else { return nil }
     let named = value(after: "--agent", in: args).flatMap(Agent.init(rawValue:))
+    // 시험 단계의 터미널: 대상을 직접 지정해야 하고 에이전트도 적어야 한다.
+    let more: [(String, (String) -> TerminalHost?)] = [
+        ("--tmux", { .tmux(socket: value(after: "--tmux-socket", in: args), pane: $0) }),
+        ("--kitty", { id in value(after: "--kitty-socket", in: args).map { .kitty(socket: $0, window: id) } }),
+        ("--wezterm", { .wezterm(pane: $0) }),
+    ]
+    for (flag, make) in more {
+        guard let id = value(after: flag, in: args) else { continue }
+        guard let host = make(id) else { throw ModelSwitchError("--kitty 에는 --kitty-socket unix:/경로 가 필요합니다.") }
+        guard let named else { throw ModelSwitchError("\(flag) 에는 --agent claude|codex 를 붙여 주세요.") }
+        return Target(host: host, agent: named, label: id)
+    }
+    guard orca != nil || ghostty != nil else { return nil }
     guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
         throw ModelSwitchError("대상의 에이전트를 알 수 없습니다. --agent claude|codex 를 붙여 주세요.")
     }
