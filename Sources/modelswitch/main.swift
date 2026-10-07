@@ -8,6 +8,7 @@ modelswitch — 맨 앞 터미널의 claude·codex 모델과 effort 를 프리�
   modelswitch effort <up|down> [대상] [--trace]   모델은 그대로, effort 만 한 단계
   modelswitch run <번호> <claude|codex> [--dry-run] [인자…]   그 프리셋으로 새 세션을 이 터미널에서 연다
   modelswitch where                   지금 맨 앞 터미널과 에이전트
+  modelswitch probe-orca [--seconds N]  Orca 의 «지금 보이는 터미널» 신호들이 바뀐 시각을 같은 시계로 기록(시험용, 아무것도 보내지 않음)
   modelswitch doctor [대상] [--screen [--lines N]]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
   modelswitch list                    프리셋 목록
   modelswitch plan <번호> <claude|codex>   보낼 키 순서만 출력(실행하지 않음)
@@ -154,6 +155,8 @@ do {
         } else {
             print("화면 읽기    안 됨 — 전환하지 않음")
         }
+    case "probe-orca":
+        OrcaProbe.run(seconds: value(after: "--seconds", in: args).flatMap(Double.init) ?? 30)
     case "list":
         let config = try store.load()
         for (index, slot) in config.slots.enumerated() {
