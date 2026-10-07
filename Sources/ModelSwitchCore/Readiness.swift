@@ -10,6 +10,7 @@ public enum Readiness {
         case .claude: return claudePromptVisible(screen)
         case .codex: return codexComposerVisible(screen)
         case .grok: return GrokScreen.idle(screen)
+        case .cursor: return CursorScreen.idle(screen)
         }
     }
 

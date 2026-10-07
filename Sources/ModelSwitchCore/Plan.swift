@@ -8,6 +8,7 @@ public enum Key: Equatable, Sendable {
     case left
     case right
     case backspace
+    case tab
     case ctrl(Character)
 
     /// pty 에 그대로 쓰는 바이트.
@@ -20,6 +21,7 @@ public enum Key: Equatable, Sendable {
         case .right: return "\u{1B}[C"
         case .left: return "\u{1B}[D"
         case .backspace: return "\u{7F}"
+        case .tab: return "\t"
         case .ctrl(let c):
             let value = (c.asciiValue ?? 0x40) & 0x1F
             return String(UnicodeScalar(value))
@@ -82,6 +84,9 @@ public enum Launch {
             return ["codex", "-m", preset.model, "-c", "model_reasoning_effort=\"\(preset.effort)\""] + extra
         case .grok:
             return ["grok", "-m", preset.model, "--reasoning-effort", preset.effort] + extra
+        case .cursor:
+            // 새 세션 열 때 effort 를 줄 옵션이 없다(모델 id 만).
+            return ["cursor-agent", "--model", preset.model] + extra
         }
     }
 }

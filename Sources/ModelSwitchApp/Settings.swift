@@ -15,6 +15,9 @@ struct EditableSlot: Identifiable {
     var grokOn: Bool
     var grokModel: String
     var grokEffort: String
+    var cursorOn: Bool
+    var cursorModel: String
+    var cursorEffort: String
 
     init(_ slot: Slot) {
         name = slot.name
@@ -27,13 +30,17 @@ struct EditableSlot: Identifiable {
         grokOn = slot.grok != nil
         grokModel = slot.grok?.model ?? ""
         grokEffort = slot.grok?.effort ?? "high"
+        cursorOn = slot.cursor != nil
+        cursorModel = slot.cursor?.model ?? ""
+        cursorEffort = slot.cursor?.effort ?? "high"
     }
 
     var slot: Slot {
         Slot(name: name.trimmingCharacters(in: .whitespaces),
              claude: claudeOn ? AgentPreset(model: claudeModel.trimmingCharacters(in: .whitespaces), effort: claudeEffort) : nil,
              codex: codexOn ? AgentPreset(model: codexModel.trimmingCharacters(in: .whitespaces), effort: codexEffort) : nil,
-             grok: grokOn ? AgentPreset(model: grokModel.trimmingCharacters(in: .whitespaces), effort: grokEffort) : nil)
+             grok: grokOn ? AgentPreset(model: grokModel.trimmingCharacters(in: .whitespaces), effort: grokEffort) : nil,
+             cursor: cursorOn ? AgentPreset(model: cursorModel.trimmingCharacters(in: .whitespaces), effort: cursorEffort) : nil)
     }
 }
 
@@ -54,6 +61,8 @@ final class SettingsModel: ObservableObject {
     static let claudeEfforts = ["low", "medium", "high", "xhigh", "max"]
     static let codexEfforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
     static let grokEfforts = ["low", "medium", "high", "xhigh"]
+    static let cursorModels = ["Grok 4.7", "Claude Opus 5.5", "Claude Fable 5.1", "GPT-5.6 Sol", "Composer 2.5"]
+    static let cursorEfforts = ["low", "medium", "high", "xhigh", "max"]
 
     init(store: ConfigStore, onSaved: @escaping () -> Void) {
         self.store = store
@@ -93,7 +102,8 @@ final class SettingsModel: ObservableObject {
         for (index, slot) in slots.enumerated() {
             if slot.claudeOn && slot.claudeModel.trimmingCharacters(in: .whitespaces).isEmpty
                 || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.grokOn && slot.grokModel.trimmingCharacters(in: .whitespaces).isEmpty {
+                || slot.grokOn && slot.grokModel.trimmingCharacters(in: .whitespaces).isEmpty
+                || slot.cursorOn && slot.cursorModel.trimmingCharacters(in: .whitespaces).isEmpty {
                 status = "\(index + 1)번 프리셋의 모델이 비어 있습니다."
                 return
             }
@@ -122,7 +132,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("프리셋").font(.title2.weight(.semibold))
-            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
+            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -200,6 +210,8 @@ private struct SlotRow: View {
                          models: codexModels, efforts: SettingsModel.codexEfforts)
                 AgentRow(label: "grok", isOn: $slot.grokOn, model: $slot.grokModel, effort: $slot.grokEffort,
                          models: grokModels, efforts: SettingsModel.grokEfforts)
+                AgentRow(label: "cursor", isOn: $slot.cursorOn, model: $slot.cursorModel, effort: $slot.cursorEffort,
+                         models: SettingsModel.cursorModels, efforts: SettingsModel.cursorEfforts)
             }
             .padding(4)
         }

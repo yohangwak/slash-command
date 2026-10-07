@@ -4,6 +4,7 @@ public enum Agent: String, Codable, CaseIterable, Sendable {
     case claude
     case codex
     case grok
+    case cursor
 }
 
 public struct AgentPreset: Codable, Equatable, Sendable {
@@ -34,13 +35,18 @@ public struct Slot: Codable, Equatable, Sendable {
         get { presets[.grok] }
         set { presets[.grok] = newValue }
     }
+    public var cursor: AgentPreset? {
+        get { presets[.cursor] }
+        set { presets[.cursor] = newValue }
+    }
 
-    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil, grok: AgentPreset? = nil) {
+    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil, grok: AgentPreset? = nil, cursor: AgentPreset? = nil) {
         self.name = name
         self.presets = [:]
         self.claude = claude
         self.codex = codex
         self.grok = grok
+        self.cursor = cursor
     }
 
     /// 파일의 키는 `name` 과 에이전트 이름(`claude`·`codex`·`grok`…)이다. 모르는 키는 무시한다(나중 판이 쓴 파일을 읽을 수 있게).
