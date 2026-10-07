@@ -1795,6 +1795,14 @@ final class GrokScreenTests: XCTestCase {
         XCTAssertEqual(GrokScreen.draft(lines), "")
     }
 
+    func testWorkingScreenIsNotIdleEvenThoughTheBoxLooksEmpty() throws {
+        // 실제 화면: 질문을 보낸 직후 grok 이 작업 중이다. 입력 상자는 비어 보이고 안내 줄만 `Ctrl+c:cancel` 로 다르다.
+        let working = try screen("grok-working")
+        XCTAssertEqual(GrokScreen.draft(working), "")
+        XCTAssertFalse(GrokScreen.idle(working), "작업 중에 /model 을 치면 대기열에 들어가거나 작업과 섞인다")
+        XCTAssertTrue(GrokScreen.idle(try screen("grok-after-work")), "양성 대조군: 끝난 뒤에는 대기")
+    }
+
     func testDraftIsSeenAndBlocksSending() throws {
         let lines = try screen("grok-draft")
         XCTAssertEqual(GrokScreen.draft(lines), "abc draft")
@@ -2064,6 +2072,16 @@ final class CursorScreenTests: XCTestCase {
         let draft = try screen("cursor-draft")
         XCTAssertEqual(CursorScreen.draft(draft), "abc")
         XCTAssertFalse(CursorScreen.idle(draft))
+    }
+
+    func testWorkingAndAfterWorkScreens() throws {
+        // 실제 화면: 작업 중에는 입력 줄 위에 스피너(`⠰⠳ Working`)가 돌고, 끝난 뒤에는 자리 표시 문구가 «Add a follow-up» 이고 모델 줄에 사용량이 붙는다.
+        let working = try screen("cursor-working")
+        XCTAssertEqual(CursorScreen.draft(working), "")
+        XCTAssertFalse(CursorScreen.idle(working), "작업 중에는 /model 을 보내지 않는다")
+        let after = try screen("cursor-after-work")
+        XCTAssertTrue(CursorScreen.idle(after), "끝난 뒤에는 대기 — «Add a follow-up» 은 쓰던 글이 아니다")
+        XCTAssertEqual(CursorScreen.status(after), "Grok 4.7 256K High", "사용량(· 7.1%)은 모델 줄이 아니다")
     }
 
     func testListRowsCursorAndFilter() throws {

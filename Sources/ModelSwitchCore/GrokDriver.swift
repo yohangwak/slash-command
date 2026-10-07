@@ -61,12 +61,13 @@ public enum GrokScreen {
     }
 
     /// 입력 상자가 «비어 있고» 아무것도 열려 있지 않은 대기 상태. 안내 줄이 알려진 두 가지(입력 칸 / 대화 칸에 포커스)일 때만 인정한다 —
-    /// 작업 중이거나 선택창·명령 목록이 떠 있으면 안내 줄이 달라진다(`Enter:send …`).
+    /// 작업 중에는 안내 줄에 `Ctrl+c:cancel` 이 붙고(2026-10-07 실측: 입력 상자는 그대로 비어 보인다), 선택창·명령 목록·글을 쓰는 중에는
+    /// `Enter:send …` 가 붙는다. 처음 보는 안내 줄이면 대기가 아니다.
     public static func idle(_ screen: [String]) -> Bool {
         guard let box = box(screen) else { return false }
-        let footer = box.footer.replacingOccurrences(of: "  ", with: " ")
-        let known = footer.hasPrefix("Shift+Tab:mode") || footer.hasPrefix("Space:prompt")
-        return known && !footer.contains("Enter:send") && (box.input.isEmpty || placeholders.contains(box.input))
+        let footer = box.footer.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.joined(separator: " ")
+        let known = footer == "Shift+Tab:mode │ Ctrl+x:shortcuts" || (footer.hasPrefix("Space:prompt") && !footer.contains("cancel"))
+        return known && (box.input.isEmpty || placeholders.contains(box.input))
     }
 
     /// 입력 상자의 글(자리 표시 문구는 빈 글로 본다). 상자를 못 읽으면 nil.

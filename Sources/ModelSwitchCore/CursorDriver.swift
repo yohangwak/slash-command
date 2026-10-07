@@ -33,24 +33,31 @@ public enum CursorScreen {
     // MARK: 대기 상태
 
     /// 맨 아래: 경로 줄(`~/… · 브랜치`), 그 위 모델 줄(`Grok 4.7 256K Medium`), 그 위(빈 줄 몇 개 건너) 입력 줄(`→ …`).
-    static func bottom(_ screen: [String]) -> (input: String, status: String, path: String)? {
+    /// 대화가 시작되면 모델 줄 끝에 컨텍스트 사용량(`· 7.1%`)이 붙고(2026-10-07 실측) 입력 줄의 자리 표시 문구가 바뀐다.
+    static func bottom(_ screen: [String]) -> (input: String, status: String, path: String, busy: Bool)? {
         let lines = trimmed(screen)
         guard lines.count >= 3, let path = lines.last, path.contains(" · "), path.hasPrefix("~") || path.hasPrefix("/") else { return nil }
         var index = lines.count - 2
         while index >= 0, lines[index].isEmpty { index -= 1 }
         guard index >= 1 else { return nil }
-        let status = lines[index]
+        var status = lines[index]
+        if let usage = status.range(of: #" · \d+(\.\d+)?%$"#, options: .regularExpression) { status = String(status[..<usage.lowerBound]) }
         index -= 1
         while index >= 0, lines[index].isEmpty { index -= 1 }
         guard index >= 0, lines[index].hasPrefix("→") else { return nil }
-        let input = String(lines[index].dropFirst()).trimmingCharacters(in: .whitespaces)
-        return (input, status, path)
+        // 오른쪽에 붙는 힌트(`ctrl+c to stop`)는 두 칸 이상 떨어져 있다 — 입력 글은 그 앞까지만.
+        let input = (String(lines[index].dropFirst()).trimmingCharacters(in: .whitespaces).components(separatedBy: "  ").first ?? "").trimmingCharacters(in: .whitespaces)
+        // 입력 줄 바로 위(빈 줄 건너)에 점자 스피너가 돌면(`⠰⠳ Working`) 작업 중이다 — 입력 상자는 그대로 비어 보인다.
+        var above = index - 1
+        while above >= 0, lines[above].isEmpty { above -= 1 }
+        let busy = above >= 0 && (lines[above].unicodeScalars.first.map { (0x2800...0x28FF).contains($0.value) } ?? false)
+        return (input, status, path, busy)
     }
 
-    static let placeholders: Set<String> = ["Plan, search, build anything"]
+    static let placeholders: Set<String> = ["Plan, search, build anything", "Add a follow-up"]
 
     public static func idle(_ screen: [String]) -> Bool {
-        guard let bottom = bottom(screen) else { return false }
+        guard let bottom = bottom(screen), !bottom.busy else { return false }
         return bottom.input.isEmpty || placeholders.contains(bottom.input)
     }
 
