@@ -132,12 +132,10 @@ public enum Detector {
         throw ModelSwitchError("iTerm2 맨 앞 세션(\(name))은 지원하는 에이전트(claude·codex·grok·cursor·antigravity·opencode) 세션이 아니거나 구분할 수 없습니다.")
     }
 
-    /// 화면에 입력창이 보이는 쪽. 둘 다 보이거나 둘 다 안 보이면 nil.
+    /// 화면에 입력창이 «보이는» 에이전트. 하나로 정해지지 않으면(둘 다 보이거나 하나도 안 보이면) nil.
     static func agent(onScreen lines: [String]) -> Agent? {
-        let claude = Readiness.claudePromptVisible(lines)
-        let codex = Readiness.codexComposerVisible(lines)
-        guard claude != codex else { return nil }
-        return claude ? .claude : .codex
+        let visible = Agent.allCases.filter { Readiness.inputVisible(agent: $0, screen: lines) }
+        return visible.count == 1 ? visible.first : nil
     }
 
     static func agent(inTitle title: String) -> Agent? {

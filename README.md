@@ -1,7 +1,7 @@
 # ModelSwitch
 
-Ghostty·Orca·iTerm2 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 claude 인지 codex 인지에 맞춰
-그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱. **⇧⌥=** · **⇧⌥-** 는 모델은 그대로 두고 effort 만 한 단계 올리고 내린다.
+Ghostty·Orca·iTerm2 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 어느 에이전트인지에 맞춰
+그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱. 지원하는 에이전트: **claude · codex · grok · cursor-agent · antigravity(agy) · opencode**. **⇧⌥=** · **⇧⌥-** 는 모델은 그대로 두고 effort 만 한 단계 올리고 내린다.
 
 `/model`·`/effort` 를 매번 치는 대신 단축키 한 번. 대화 도중에도 되고, 쓰던 글은 그대로 남고, 새 세션 기본값은 바뀌지 않는다.
 
@@ -39,6 +39,25 @@ Ghostty·Orca·iTerm2 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨
 - `name` 은 붙이고 싶을 때만. 없으면 모델·effort 로 보여 준다.
 - `keepDefaults`(기본 켬): 이 세션만 바꾼다. 끄면 claude 는 새 세션 기본값까지 바꾼다.
 - `acceptSwitchPrompt`(기본 켬): 아래 「claude 의 확인 창」.
+
+## 지원하는 에이전트
+
+번호는 «의도» 라서 한 프리셋에 에이전트마다의 설정을 함께 둔다(`"claude": {…}, "grok": {…}` …). 맨 앞 세션의 에이전트에 해당하는 설정만 쓰고, 없으면 아무것도 하지 않는다.
+모델 칸은 에이전트가 화면에 보여 주는 이름이다(대소문자·기호는 무시: `claude-opus-5-5` = `Claude Opus 5.5`).
+
+| 에이전트 | 어떻게 바꾸나 | 기본값(새 세션) | 걸리는 시간 |
+|---|---|---|---|
+| claude | `/model` 선택창에서 모델·effort 를 맞추고 `s`(이 세션만) | 건드리지 않음 | Orca 0.1~0.35초 |
+| codex | `/model` 선택창, `s`(이 세션만) | 건드리지 않음 | Orca 0.15~0.3초 |
+| grok | `/model <모델> <effort>` 한 줄 | `~/.grok/config.toml` 의 `[models]` 두 키를 저장함 → 끝나고 되돌림 | 약 0.35초 |
+| cursor-agent | `/model` 목록에서 글자를 한 글자씩 쳐 걸러 고르고, Tab 으로 매개변수(Effort)를 맞춰 확정 | `cli-config.json` 의 모델 관련 네 키를 저장함 → 되돌림 | 약 0.7~1.3초 |
+| antigravity(agy) | `/model` 선택창의 커서와 Effort 슬라이더(←/→) | `settings.json` 의 `model` 을 저장함 → 되돌림 | 약 0.5초 |
+| opencode | `/models` 대화상자에서 «이름 + 제공자» 로 걸러 고르고 `/variants` 로 variant 를 맞춤 | `model.json` 의 `recent`·`variant` 를 저장함 → 되돌림 | 약 0.4~0.7초 |
+
+- claude·codex 외의 네 에이전트에는 「이 세션만」 확정이 없어서 새 세션 기본값까지 저장된다(2026-10-07 실측). 그래서 «전환 뒤 그 키들만 전환 전 값으로 되돌린다» — 다른 키나 다른 세션이 쓴 값은 건드리지 않고, 되돌려도 돌고 있는 세션은 모델을 유지한다(cursor 로 확인). `keepDefaults` 를 끄면 되돌리지 않는다.
+- 모두 «입력창이 비어 있고 작업 중이 아닐 때만» 보낸다. 작업 중 표시: grok 안내 줄의 `Ctrl+c:cancel`, cursor 입력줄 위의 스피너, agy 안내 줄의 `esc to cancel`, opencode 상자 아래의 `esc interrupt`. 쓰던 글이 있으면 보내지 않는다.
+- 명령을 친 뒤 «그 글이 입력창에 보이는지» 확인하고서야 Enter 를 보낸다. opencode 는 긴 답변이 끝난 뒤 입력창이 글자를 받지 않는 상태가 있는데(Ctrl+P → Esc 로 풀린다), 이때도 글이 안 보이면 아무것도 보내지 않고 멈춘다.
+- 시험한 판: grok 1.0.46 · cursor-agent 2026.10.01 · agy 1.3.1 · opencode 1.18.35. 다른 판이면 `doctor` 가 알려 준다.
 
 ## 설치
 
@@ -120,6 +139,7 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - Ghostty 의 codex 는 3~4.6초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다(다른 접근성 속성도 같은 보관본을 준다).
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
 - 단축키로 되는 터미널은 Ghostty · Orca · iTerm2 다(iTerm2 는 2026-10-07 맥북에서 claude·codex 전환과 맨 앞 세션 찾기 확인, 약 1초; 처음 한 번 「자동화」·「손쉬운 사용」 허용 필요. 입력 방송이 켜져 있거나 읽지 못하면 다른 칸에도 입력이 들어갈 수 있으므로 보내지 않는다. 방송은 창마다 켜지므로 맨 앞 창의 세션에만 보내고, 상태는 쓸 때마다 «앞 창 확인 → 메뉴 읽기 → 앞 창 확인» 으로 새로 읽는다. 남는 틈은 마지막 확인과 쓰기 사이의 몇 ms 이다). tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다. 대상을 직접 지정하는 `--iterm <세션 unique id>` 도 있다.
+- 새 에이전트들의 한계: cursor 의 매개변수 편집에서 Effort 말고 Context·Fast 는 건드리지 않는다 · cursor 는 목록이 10줄씩 보이므로 이름을 걸러서 찾는다(이름이 둘 이상 겹치면 정확히 같은 이름만 고른다) · agy 는 긴 출력 뒤에 입력창이 다시 그려지지 않을 때가 있어(Ctrl+L 로 풀린다) 그때는 «입력창이 보이지 않는다» 로 멈춘다 · opencode 의 목록 커서는 글자로 보이지 않아 «걸러낸 맨 위 행이 우리가 찾는 그 행일 때만» 고른다.
 - 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
 
 ## 개발
