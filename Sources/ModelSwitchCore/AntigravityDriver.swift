@@ -144,7 +144,7 @@ public struct AntigravityDefaults: Sendable {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/antigravity-cli/settings.json")
     }
 
-    public func snapshot() -> Data? { try? Data(contentsOf: url) }
+    public func snapshot() -> DefaultsSnapshot { DefaultsFile.snapshot(url) }
 
     public enum Outcome: Equatable, Sendable {
         case unchanged
@@ -152,35 +152,16 @@ public struct AntigravityDefaults: Sendable {
         case failed(String)
     }
 
-    /// `model` 키만 `before` 의 값(없었으면 없애기)으로 되돌린다. 나머지가 같으면 원래 바이트 그대로 쓴다.
-    public func restore(to before: Data) -> Outcome {
-        guard let current = try? Data(contentsOf: url) else { return .failed("antigravity 설정 파일을 읽지 못했습니다") }
-        if current == before { return .unchanged }
-        guard var now = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any],
-              let old = (try? JSONSerialization.jsonObject(with: before)) as? [String: Any] else {
-            return .failed("antigravity 설정 파일을 해석하지 못했습니다")
-        }
-        var rest = now
-        var oldRest = old
-        rest["model"] = nil
-        oldRest["model"] = nil
-        let output: Data
-        if NSDictionary(dictionary: rest).isEqual(to: oldRest) {
-            output = before
-        } else {
-            now["model"] = old["model"]
-            guard let data = try? JSONSerialization.data(withJSONObject: now, options: [.prettyPrinted, .withoutEscapingSlashes]) else {
-                return .failed("antigravity 설정 파일을 쓰지 못했습니다")
-            }
-            output = data
-        }
-        do {
-            try output.write(to: url, options: .atomic)
-            return .restored
-        } catch {
-            return .failed(error.localizedDescription)
+    /// 모델 관련 키만 전환 전 값으로 되돌린다(`DefaultsFile.restoreJSON`). 전환 전에 파일이 없었으면 그 키들을 없애고, 남는 것이 없으면 파일도 없앤다.
+    public func restore(to snapshot: DefaultsSnapshot) -> Outcome {
+        switch DefaultsFile.restoreJSON(url: url, keys: ["model"], to: snapshot, pretty: true, name: "antigravity") {
+        case .unchanged: return .unchanged
+        case .restored: return .restored
+        case .failed(let reason): return .failed(reason)
         }
     }
+
+    public func restore(to before: Data) -> Outcome { restore(to: .content(before)) }
 }
 
 public struct AntigravityDriver {
@@ -234,6 +215,8 @@ public struct AntigravityDriver {
     /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
     private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
         let before = keepDefaults ? defaults.snapshot() : nil
+        // 전환 전 값을 읽지 못했으면 되돌릴 수 없다 — 아무것도 보내기 전에 멈춘다. (파일이 «없던» 것은 괜찮다: 끝나고 다시 없앤다.)
+        try DefaultsFile.refuseIfUnreadable(before, name: "antigravity")
         do {
             return try body()
         } catch {
@@ -341,7 +324,7 @@ public struct AntigravityDriver {
         throw failure("antigravity effort 슬라이더를 맞추지 못했습니다.", nil)
     }
 
-    private func confirm(name: String, before: Data?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
+    private func confirm(name: String, before: DefaultsSnapshot?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
         let repliesBefore = AgyScreen.replies(io.freshSnapshot()?.lines ?? [])
         try io.press(.enter)
         guard let lines = try poll(timeoutMs: 4000, { lines in

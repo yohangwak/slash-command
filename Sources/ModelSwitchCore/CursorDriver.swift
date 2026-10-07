@@ -172,7 +172,7 @@ public struct CursorDefaults: Sendable {
 
     static let keys = ["model", "selectedModel", "modelSelectionHistory", "modelParameters"]
 
-    public func snapshot() -> Data? { try? Data(contentsOf: url) }
+    public func snapshot() -> DefaultsSnapshot { DefaultsFile.snapshot(url) }
 
     public enum Outcome: Equatable, Sendable {
         case unchanged
@@ -180,34 +180,16 @@ public struct CursorDefaults: Sendable {
         case failed(String)
     }
 
-    /// 지금 파일의 이 키들을 `before` 의 값으로 되돌린다. 키 밖이 같으면 원래 바이트 그대로 쓰고, 달라졌으면(다른 세션이 쓴 것) 그 값은 두고 이 키들만 바꾼다.
-    public func restore(to before: Data) -> Outcome {
-        guard let current = try? Data(contentsOf: url) else { return .failed("cursor 설정 파일을 읽지 못했습니다") }
-        if current == before { return .unchanged }
-        guard var now = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any],
-              let old = (try? JSONSerialization.jsonObject(with: before)) as? [String: Any] else {
-            return .failed("cursor 설정 파일을 해석하지 못했습니다")
-        }
-        var rest = now
-        var oldRest = old
-        for key in CursorDefaults.keys { rest[key] = nil; oldRest[key] = nil }
-        let output: Data
-        if NSDictionary(dictionary: rest).isEqual(to: oldRest) {
-            output = before
-        } else {
-            for key in CursorDefaults.keys { now[key] = old[key] }
-            guard let data = try? JSONSerialization.data(withJSONObject: now, options: [.prettyPrinted, .withoutEscapingSlashes]) else {
-                return .failed("cursor 설정 파일을 쓰지 못했습니다")
-            }
-            output = data
-        }
-        do {
-            try output.write(to: url, options: .atomic)
-            return .restored
-        } catch {
-            return .failed(error.localizedDescription)
+    /// 모델 관련 키만 전환 전 값으로 되돌린다(`DefaultsFile.restoreJSON`). 전환 전에 파일이 없었으면 그 키들을 없애고, 남는 것이 없으면 파일도 없앤다.
+    public func restore(to snapshot: DefaultsSnapshot) -> Outcome {
+        switch DefaultsFile.restoreJSON(url: url, keys: CursorDefaults.keys, to: snapshot, pretty: true, name: "cursor") {
+        case .unchanged: return .unchanged
+        case .restored: return .restored
+        case .failed(let reason): return .failed(reason)
         }
     }
+
+    public func restore(to before: Data) -> Outcome { restore(to: .content(before)) }
 }
 
 public struct CursorDriver {
@@ -279,6 +261,8 @@ public struct CursorDriver {
     /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
     private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
         let before = keepDefaults ? defaults.snapshot() : nil
+        // 전환 전 값을 읽지 못했으면 되돌릴 수 없다 — 아무것도 보내기 전에 멈춘다. (파일이 «없던» 것은 괜찮다: 끝나고 다시 없앤다.)
+        try DefaultsFile.refuseIfUnreadable(before, name: "cursor")
         do {
             return try body()
         } catch {
@@ -461,7 +445,7 @@ public struct CursorDriver {
     }
 
     /// `effortLabel` 이 nil 이면 effort 가 없는 모델이다 — 모델 이름만 확인한다.
-    private func confirm(name: String, effortLabel: String?, before: Data?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
+    private func confirm(name: String, effortLabel: String?, before: DefaultsSnapshot?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
         // 목록(편집에서 돌아온 경우 포함)에서 커서가 그 모델 행에 있을 때만 Enter 로 확정한다.
         if CursorScreen.editor(io.freshSnapshot()?.lines ?? []) != nil {
             try io.press(.escape)

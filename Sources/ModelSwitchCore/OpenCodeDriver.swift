@@ -132,6 +132,9 @@ public enum OpenCodeScreen {
     static func normalizeRow(_ text: String) -> String {
         var parts = text.components(separatedBy: "  ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         if let first = parts.first, first.hasSuffix("(Favorite)") { parts[0] = String(first.dropLast("(Favorite)".count)).trimmingCharacters(in: .whitespaces) }
+        // 맨 오른쪽의 값 표시 칸(`Free`·`$0.50`)은 모델의 이름이 아니다 — 입력 상자의 모델 줄에도 나오지 않는다.
+        // (2026-10-08 실측: 걸러내지 않은 목록의 무료 모델 행 오른쪽에 `Free` 칸이 따로 있다. 이름 «안» 의 Free 는 한 칸 공백이라 떨어지지 않는다.)
+        if parts.count >= 2, let last = parts.last, last == "Free" || last.range(of: #"^\$\d"#, options: .regularExpression) != nil { parts.removeLast() }
         return parts.joined(separator: " ")
     }
 
@@ -146,13 +149,49 @@ public struct OpenCodeDefaults: Sendable {
 
     public init(url: URL = OpenCodeDefaults.defaultURL) { self.url = url }
 
-    public static var defaultURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/state/opencode/model.json")
+    /// opencode 는 상태를 `$XDG_STATE_HOME/opencode/` 에 둔다(없으면 `~/.local/state`).
+    public static var defaultURL: URL { url(stateHome: nil, environment: ProcessInfo.processInfo.environment) }
+
+    static func url(stateHome: String?, environment: [String: String]) -> URL {
+        let home = stateHome ?? environment["XDG_STATE_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/state").path
+        return URL(fileURLWithPath: home).appendingPathComponent("opencode/model.json")
+    }
+
+    /// 돌고 있는 opencode 프로세스들이 쓰는 상태 폴더들(서로 다른 것만). `orcaHandle` 을 주면 그 Orca 터미널의 프로세스로 좁힌다.
+    /// ModelSwitch 자신의 환경이 아니라 «그 세션의» 환경을 본다 — 셸에서 XDG_STATE_HOME 을 바꿔 띄운 세션이면 기본값 파일도 거기 있다.
+    static func stateHomes(processes: [(arguments: [String], environment: [String])], orcaHandle: String?) -> [String] {
+        var candidates = processes.filter { AgentProcesses.agent(forCommandLine: $0.arguments.joined(separator: " ")) == .opencode }
+        if let orcaHandle {
+            let narrowed = candidates.filter { $0.environment.contains("ORCA_TERMINAL_HANDLE=\(orcaHandle)") }
+            if !narrowed.isEmpty { candidates = narrowed }
+        }
+        func value(_ name: String, in environment: [String]) -> String? {
+            environment.first { $0.hasPrefix(name + "=") }.map { String($0.dropFirst(name.count + 1)) }.flatMap { $0.isEmpty ? nil : $0 }
+        }
+        let homes = candidates.map { process -> String in
+            if let state = value("XDG_STATE_HOME", in: process.environment) { return state }
+            let home = value("HOME", in: process.environment) ?? FileManager.default.homeDirectoryForCurrentUser.path
+            return home + "/.local/state"
+        }
+        return Array(Set(homes)).sorted()
+    }
+
+    /// 그 세션의 기본값 파일. 세션들이 서로 다른 상태 폴더를 쓰고 어느 쪽인지 좁힐 수 없으면 — 엉뚱한 파일을 «지켰다» 고 말하지 않도록 — 던진다.
+    static func resolve(processes: [(arguments: [String], environment: [String])], orcaHandle: String?,
+                        environment: [String: String] = ProcessInfo.processInfo.environment) throws -> OpenCodeDefaults {
+        let homes = stateHomes(processes: processes, orcaHandle: orcaHandle)
+        switch homes.count {
+        case 0: return OpenCodeDefaults(url: url(stateHome: nil, environment: environment))
+        case 1: return OpenCodeDefaults(url: url(stateHome: homes[0], environment: environment))
+        default:
+            throw ModelSwitchError("opencode 세션들이 서로 다른 상태 폴더(XDG_STATE_HOME)를 쓰고 있어 어느 쪽의 새 세션 기본값을 지켜야 할지 정할 수 없어 전환하지 않았습니다(\(homes.joined(separator: ", "))).")
+        }
     }
 
     static let keys = ["recent", "variant"]
 
-    public func snapshot() -> Data? { try? Data(contentsOf: url) }
+    public func snapshot() -> DefaultsSnapshot { DefaultsFile.snapshot(url) }
 
     public enum Outcome: Equatable, Sendable {
         case unchanged
@@ -160,33 +199,16 @@ public struct OpenCodeDefaults: Sendable {
         case failed(String)
     }
 
-    public func restore(to before: Data) -> Outcome {
-        guard let current = try? Data(contentsOf: url) else { return .failed("opencode 상태 파일을 읽지 못했습니다") }
-        if current == before { return .unchanged }
-        guard var now = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any],
-              let old = (try? JSONSerialization.jsonObject(with: before)) as? [String: Any] else {
-            return .failed("opencode 상태 파일을 해석하지 못했습니다")
-        }
-        var rest = now
-        var oldRest = old
-        for key in OpenCodeDefaults.keys { rest[key] = nil; oldRest[key] = nil }
-        let output: Data
-        if NSDictionary(dictionary: rest).isEqual(to: oldRest) {
-            output = before
-        } else {
-            for key in OpenCodeDefaults.keys { now[key] = old[key] }
-            guard let data = try? JSONSerialization.data(withJSONObject: now, options: [.withoutEscapingSlashes]) else {
-                return .failed("opencode 상태 파일을 쓰지 못했습니다")
-            }
-            output = data
-        }
-        do {
-            try output.write(to: url, options: .atomic)
-            return .restored
-        } catch {
-            return .failed(error.localizedDescription)
+    /// 모델 관련 키만 전환 전 값으로 되돌린다(`DefaultsFile.restoreJSON`). 전환 전에 파일이 없었으면 그 키들을 없애고, 남는 것이 없으면 파일도 없앤다.
+    public func restore(to snapshot: DefaultsSnapshot) -> Outcome {
+        switch DefaultsFile.restoreJSON(url: url, keys: OpenCodeDefaults.keys, to: snapshot, pretty: false, name: "opencode") {
+        case .unchanged: return .unchanged
+        case .restored: return .restored
+        case .failed(let reason): return .failed(reason)
         }
     }
+
+    public func restore(to before: Data) -> Outcome { restore(to: .content(before)) }
 }
 
 public struct OpenCodeDriver {
@@ -242,6 +264,8 @@ public struct OpenCodeDriver {
     /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
     private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
         let before = keepDefaults ? defaults.snapshot() : nil
+        // 전환 전 값을 읽지 못했으면 되돌릴 수 없다 — 아무것도 보내기 전에 멈춘다. (파일이 «없던» 것은 괜찮다: 끝나고 다시 없앤다.)
+        try DefaultsFile.refuseIfUnreadable(before, name: "opencode")
         do {
             return try body()
         } catch {
@@ -283,8 +307,13 @@ public struct OpenCodeDriver {
             if let before { sleep(250); _ = defaults.restore(to: before) }
             return ModelSwitchError(message)
         }
+        // 지금 값: 대화상자의 `●` 가 있으면 그것. 저장해 둔 variant 가 없는 모델은 Default 로 돌면서도 아무 행에도 `●` 가 없다
+        // (2026-10-08 실측: DeepSeek V4 Pro) — 그때는 입력 상자의 모델 줄이 근거다(variant 가 적혀 있으면 그 행, 없으면 Default 행).
+        let shown = OpenCodeScreen.status(io.freshSnapshot()?.lines ?? [])?.variant
         try openDialog(command: "/variants", title: "Select variant", failure: fail)
-        guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []), let at = dialog.rows.firstIndex(where: \.current) else {
+        guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []),
+              let at = dialog.rows.firstIndex(where: \.current)
+                ?? dialog.rows.firstIndex(where: { OpenCodeScreen.key($0.text) == OpenCodeScreen.key(shown ?? "Default") }) else {
             throw fail("opencode variant 대화상자에서 지금 값을 읽지 못해 바꾸지 않았습니다.")
         }
         let next = at + (up ? 1 : -1)
@@ -360,7 +389,7 @@ public struct OpenCodeDriver {
         try chooseInOpenDialog(text: wanted.text, failure: failure)
     }
 
-    private func finish(before: Data?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
+    private func finish(before: DefaultsSnapshot?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
         guard let lines = try poll(timeoutMs: 4000, { OpenCodeScreen.idle($0) }), let status = OpenCodeScreen.status(lines) else {
             throw failure("opencode 입력창이 돌아오지 않아 멈췄습니다.", nil)
         }

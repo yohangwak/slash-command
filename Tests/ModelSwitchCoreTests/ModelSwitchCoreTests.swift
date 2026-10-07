@@ -1565,6 +1565,7 @@ final class AgentVersionTests: XCTestCase {
         XCTAssertEqual(AgentVersions.parse(versionOutput: "codex-cli 0.160.1\n"), "0.160.1")
         XCTAssertNil(AgentVersions.parse(versionOutput: "command not found"), "숫자 세 토막이 없으면 판을 지어내지 않는다")
         XCTAssertNil(AgentVersions.parse(versionOutput: "1.2 beta"))
+        XCTAssertEqual(AgentVersions.parse(versionOutput: "2026.10.01-14929f9\n"), "2026.10.01-14929f9", "cursor-agent")
     }
 
     func testReadsVersionFromInstallPath() {
@@ -2619,6 +2620,8 @@ final class FakeOpenCode: TerminalIO {
     var typed: [String] = []
     var presses: [Key] = []
     var focused = true
+    /// Default 를 «직접 고른» 모델. 저장해 둔 variant 가 없어 Default 로 도는 모델은 대화상자에 `●` 가 없다(실측).
+    var explicitDefault: Set<Int> = []
     let configURL: URL
 
     init(configURL: URL) { self.configURL = configURL }
@@ -2658,6 +2661,7 @@ final class FakeOpenCode: TerminalIO {
         case (.variants, .enter):
             guard let first = visibleVariants.first else { return }
             models[current].variant = first == "Default" ? nil : first
+            if first == "Default" { explicitDefault.insert(current) } else { explicitDefault.remove(current) }
             mode = .idle
             save()
         default: break
@@ -2688,7 +2692,8 @@ final class FakeOpenCode: TerminalIO {
         case .models:
             return overlay("Select model", visibleModels.map { (($0 == current ? "● " : "  ") + models[$0].name + "           " + models[$0].provider) })
         case .variants:
-            return overlay("Select variant", visibleVariants.map { ((models[current].variant ?? "Default") == $0 ? "● " : "  ") + $0 })
+            let marked = models[current].variant ?? (explicitDefault.contains(current) ? "Default" : nil)
+            return overlay("Select variant", visibleVariants.map { (marked == $0 ? "● " : "  ") + $0 })
         }
     }
 }
@@ -2914,5 +2919,144 @@ final class LaunchSupportTests: XCTestCase {
             let command = Launch.command(agent: agent, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"))
             XCTAssertFalse(command.contains("GLM-5.3-Flash OpenCode Go"), "화면 이름을 --model 에 넘기지 않는다")
         }
+    }
+}
+
+
+// MARK: - PR #10 리뷰에서 나온 것
+
+final class OpenCodeRealStateTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testImplicitDefaultHasNoCurrentMarker() throws {
+        // 실제 화면(2026-10-08): 저장해 둔 variant 가 없는 모델(DeepSeek V4 Pro)의 `/variants` — 어느 행에도 ● 가 없다.
+        for name in ["oc-variants-implicit", "oc-variants-auto"] {
+            let dialog = try XCTUnwrap(OpenCodeScreen.dialog(try screen(name)), name)
+            XCTAssertEqual(dialog.title, "Select variant")
+            XCTAssertEqual(dialog.rows.map(\.text), ["Default", "high", "max"], name)
+            XCTAssertNil(dialog.rows.firstIndex(where: \.current), name)
+        }
+        XCTAssertNil(try XCTUnwrap(OpenCodeScreen.status(try screen("oc-variants-implicit"))).variant, "모델 줄에도 variant 가 없다")
+    }
+
+    func testStepsUpFromAnImplicitDefault() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("oc-implicit-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let io = FakeOpenCode(configURL: url)
+        io.current = 1      // DeepSeek: variant 없음, Default 를 고른 적도 없음
+        let driver = OpenCodeDriver(io: io, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: false)
+        XCTAssertEqual(try driver.stepEffort(up: true).confirmations, ["Using DeepSeek V4.1 Flash OpenCode Go · low"], "Default 다음 단계로")
+        io.models[1].variant = nil
+        XCTAssertThrowsError(try driver.stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true, "Default 가 가장 낮다") }
+    }
+
+    func testPriceColumnIsNotPartOfTheModelIdentity() throws {
+        XCTAssertEqual(OpenCodeScreen.normalizeRow("Big Pickle                    OpenCode Zen        Free"), "Big Pickle OpenCode Zen")
+        XCTAssertEqual(OpenCodeScreen.normalizeRow("Muse Spark 1.3 Free OpenCode Zen                Free"), "Muse Spark 1.3 Free OpenCode Zen", "이름 안의 Free 는 남긴다")
+        XCTAssertEqual(OpenCodeScreen.normalizeRow("GPT-6.1 Sol            OpenRouter      $1.25"), "GPT-6.1 Sol OpenRouter")
+        XCTAssertEqual(OpenCodeScreen.normalizeRow("Free"), "Free", "칸이 하나뿐이면 그것이 이름이다")
+        // 실제 화면: 걸러낸 무료 모델 행(이 폭에서는 값 칸이 없다).
+        let dialog = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc-models-free")))
+        XCTAssertEqual(dialog.rows.first?.text, "Big Pickle OpenCode Zen")
+    }
+
+    func testStateHomeFollowsTheSessionsEnvironment() throws {
+        let plain = (arguments: ["opencode"], environment: ["HOME=/Users/x", "ORCA_TERMINAL_HANDLE=term_a"])
+        let custom = (arguments: ["opencode"], environment: ["HOME=/Users/x", "XDG_STATE_HOME=/data/state", "ORCA_TERMINAL_HANDLE=term_b"])
+        let other = (arguments: ["claude"], environment: ["XDG_STATE_HOME=/elsewhere"])
+        XCTAssertEqual(OpenCodeDefaults.stateHomes(processes: [plain, other], orcaHandle: nil), ["/Users/x/.local/state"], "opencode 가 아닌 프로세스는 보지 않는다")
+        XCTAssertEqual(try OpenCodeDefaults.resolve(processes: [custom], orcaHandle: nil).url.path, "/data/state/opencode/model.json")
+        // 둘이 다르면 Orca 핸들로 좁힌다.
+        XCTAssertEqual(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: "term_b").url.path, "/data/state/opencode/model.json")
+        XCTAssertEqual(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: "term_a").url.path, "/Users/x/.local/state/opencode/model.json")
+        // 좁힐 수 없으면 엉뚱한 파일을 지켰다고 하지 않고 멈춘다.
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: nil))
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: "term_zzz"))
+        // 도는 세션이 없으면 우리 환경을 따른다.
+        XCTAssertEqual(try OpenCodeDefaults.resolve(processes: [], orcaHandle: nil, environment: ["XDG_STATE_HOME": "/env/state"]).url.path, "/env/state/opencode/model.json")
+    }
+}
+
+/// 전환 전에 기본값 파일이 «없던» 경우와 «읽지 못한» 경우.
+final class AbsentOrUnreadableDefaultsTests: XCTestCase {
+    private func temp(_ name: String) -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("absent-\(UUID().uuidString)-\(name)")
+    }
+
+    func testAbsentFileGetsNoNewDefaultModel() throws {
+        // opencode: 처음 쓰는 사용자는 model.json 이 없다. 전환하면 opencode 가 만든다 — 끝나고 다시 없어야 한다.
+        let url = temp("oc.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let io = FakeOpenCode(configURL: url)
+        let driver = OpenCodeDriver(io: io, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: true)
+        let outcome = try driver.apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max"))
+        XCTAssertEqual(io.models[0].variant, "max", "양성 대조군: 전환은 됐다")
+        XCTAssertNil(outcome.warning)
+        // opencode 는 파일을 만들면서 다른 키(`favorite`)도 함께 쓴다 — 그건 새 세션의 모델을 정하지 않으므로 남겨도 된다.
+        // 새 세션 기본값을 정하는 두 키는 없어야 한다.
+        let left = (try? JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]) ?? [:]
+        XCTAssertNil(left["recent"], "없던 기본 모델이 생기면 안 된다")
+        XCTAssertNil(left["variant"])
+    }
+
+    func testAbsentFileKeepsWhatAnotherSessionWrote() throws {
+        let url = temp("generic.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["recent": [["modelID": "x"]], "variant": ["x": "high"], "favorite": [["modelID": "y"]]], options: [.sortedKeys]).write(to: url)
+        XCTAssertEqual(OpenCodeDefaults(url: url).restore(to: .absent), .restored)
+        let now = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertEqual(Array(now.keys), ["favorite"], "우리 키만 없애고 남의 키는 둔다")
+        XCTAssertEqual(OpenCodeDefaults(url: url).restore(to: .absent), .unchanged)
+    }
+
+    func testAbsentWorksForEveryAgentsFile() throws {
+        let grok = temp("grok.toml")
+        defer { try? FileManager.default.removeItem(at: grok) }
+        try "\n[models]\ndefault = \"grok-4.7\"\ndefault_reasoning_effort = \"high\"\n".write(to: grok, atomically: true, encoding: .utf8)
+        XCTAssertEqual(GrokDefaults(url: grok).restore(to: .absent), .restored)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: grok.path))
+
+        let cursor = temp("cursor.json")
+        defer { try? FileManager.default.removeItem(at: cursor) }
+        try JSONSerialization.data(withJSONObject: ["model": ["modelId": "a"], "selectedModel": ["modelId": "a"], "modelSelectionHistory": ["a"], "modelParameters": [:]]).write(to: cursor)
+        XCTAssertEqual(CursorDefaults(url: cursor).restore(to: .absent), .restored)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cursor.path))
+
+        let agy = temp("agy.json")
+        defer { try? FileManager.default.removeItem(at: agy) }
+        try JSONSerialization.data(withJSONObject: ["model": "Gemini", "theme": "dark"]).write(to: agy)
+        XCTAssertEqual(AntigravityDefaults(url: agy).restore(to: .absent), .restored)
+        XCTAssertEqual((try JSONSerialization.jsonObject(with: Data(contentsOf: agy)) as? [String: String]), ["theme": "dark"])
+    }
+
+    func testUnreadableFileRefusesBeforeTypingAnything() throws {
+        // 폴더는 «있지만 읽을 수 없는» 파일이다.
+        let url = temp("unreadable")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(DefaultsFile.snapshot(temp("nothing")), .absent)
+        guard case .unreadable = DefaultsFile.snapshot(url) else { return XCTFail("폴더는 읽지 못한 것으로 나와야 한다") }
+
+        let oc = FakeOpenCode(configURL: temp("unused"))
+        XCTAssertThrowsError(try OpenCodeDriver(io: oc, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: true)
+            .apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max")))
+        XCTAssertEqual(oc.typed, [], "되돌릴 값을 모르면 아무것도 보내지 않는다")
+
+        let grokFile = temp("unused.toml")
+        let grok = FakeGrok(configURL: grokFile)
+        let models = GrokModels(models: [.init(id: "grok-4.7", name: "Grok 4.7", efforts: ["low", "high", "xhigh"])])
+        XCTAssertThrowsError(try GrokDriver(io: grok, sleep: { _ in }, models: models, defaults: GrokDefaults(url: url), keepDefaults: true)
+            .apply(AgentPreset(model: "grok-4.7", effort: "xhigh")))
+        XCTAssertEqual(grok.typed, [])
+
+        // keepDefaults 를 끄면 그 파일을 볼 일이 없으므로 그대로 진행한다.
+        _ = try OpenCodeDriver(io: oc, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: false)
+            .apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max"))
+        XCTAssertEqual(oc.models[0].variant, "max")
     }
 }

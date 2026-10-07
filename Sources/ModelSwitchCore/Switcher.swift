@@ -125,7 +125,8 @@ public struct Switcher {
     public var grokDefaults: GrokDefaults
     public var cursorDefaults: CursorDefaults
     public var antigravityDefaults: AntigravityDefaults
-    public var opencodeDefaults: OpenCodeDefaults
+    /// nil(기본)이면 전환할 때마다 «그 세션이 쓰는» 상태 폴더를 찾는다(`OpenCodeDefaults.resolve`).
+    public var opencodeDefaults: OpenCodeDefaults?
     public var makeIO: (Target) throws -> TerminalIO
     public var sleep: (Int) -> Void
 
@@ -136,7 +137,7 @@ public struct Switcher {
                 grokDefaults: GrokDefaults = GrokDefaults(),
                 cursorDefaults: CursorDefaults = CursorDefaults(),
                 antigravityDefaults: AntigravityDefaults = AntigravityDefaults(),
-                opencodeDefaults: OpenCodeDefaults = OpenCodeDefaults(),
+                opencodeDefaults: OpenCodeDefaults? = nil,
                 makeIO: @escaping (Target) throws -> TerminalIO = Switcher.terminalIO,
                 sleep: @escaping (Int) -> Void = { Thread.sleep(forTimeInterval: Double($0) / 1000) }) {
         self.config = config
@@ -149,6 +150,16 @@ public struct Switcher {
         self.opencodeDefaults = opencodeDefaults
         self.makeIO = makeIO
         self.sleep = sleep
+    }
+
+    private func openCodeDefaults(for target: Target) throws -> OpenCodeDefaults {
+        if let opencodeDefaults { return opencodeDefaults }
+        // 기본값을 지키지 않기로 했으면 어느 파일인지 알 필요가 없다.
+        guard config.keepDefaults else { return OpenCodeDefaults() }
+        var handle: String?
+        if case .orca(let orca) = target.host { handle = orca }
+        let processes = ProcessTable.snapshot().entries.map { (arguments: $0.arguments, environment: $0.environment) }
+        return try OpenCodeDefaults.resolve(processes: processes, orcaHandle: handle)
     }
 
     public static func terminalIO(for target: Target) throws -> TerminalIO {
@@ -266,7 +277,7 @@ public struct Switcher {
                 let outcome = try AntigravityDriver(io: io, sleep: timed, defaults: antigravityDefaults, keepDefaults: config.keepDefaults).apply(planned.preset)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
             } else {
-                let outcome = try OpenCodeDriver(io: io, sleep: timed, defaults: opencodeDefaults, keepDefaults: config.keepDefaults).apply(planned.preset)
+                let outcome = try OpenCodeDriver(io: io, sleep: timed, defaults: try openCodeDefaults(for: target), keepDefaults: config.keepDefaults).apply(planned.preset)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
             }
             return SwitchResult(target: target, slotName: planned.slot.name, preset: planned.preset,
@@ -322,7 +333,7 @@ public struct Switcher {
                 let outcome = try AntigravityDriver(io: io, sleep: timedSleep, defaults: antigravityDefaults, keepDefaults: config.keepDefaults).stepEffort(up: up)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
             } else {
-                let outcome = try OpenCodeDriver(io: io, sleep: timedSleep, defaults: opencodeDefaults, keepDefaults: config.keepDefaults).stepEffort(up: up)
+                let outcome = try OpenCodeDriver(io: io, sleep: timedSleep, defaults: try openCodeDefaults(for: target), keepDefaults: config.keepDefaults).stepEffort(up: up)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
             }
             return SwitchResult(target: target, slotName: "", preset: AgentPreset(model: target.agent.rawValue, effort: up ? "한 단계 위" : "한 단계 아래"),

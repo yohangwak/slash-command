@@ -154,9 +154,7 @@ public struct GrokDefaults: Sendable {
 
     static let keys = ["default", "default_reasoning_effort"]
 
-    public func snapshot() -> String? {
-        (try? Data(contentsOf: url)).flatMap { String(data: $0, encoding: .utf8) }
-    }
+    public func snapshot() -> DefaultsSnapshot { DefaultsFile.snapshot(url) }
 
     public enum Outcome: Equatable, Sendable {
         case unchanged
@@ -164,18 +162,40 @@ public struct GrokDefaults: Sendable {
         case failed(String)
     }
 
-    /// 지금 파일에서 두 키만 `before` 의 값으로 되돌린다. 나머지(다른 키·다른 세션이 쓴 것)는 그대로 둔다.
-    public func restore(to before: String) -> Outcome {
-        guard let current = snapshot() else { return .failed("grok 설정 파일을 읽지 못했습니다") }
+    /// 지금 파일에서 두 키만 전환 전 값으로 되돌린다. 나머지(다른 키·다른 세션이 쓴 것)는 그대로 둔다.
+    /// 전환 전에 파일이 없었으면 두 키를 없애고, 남는 것이 없으면 파일도 없앤다.
+    public func restore(to snapshot: DefaultsSnapshot) -> Outcome {
+        let before: String
+        var wasAbsent = false
+        switch snapshot {
+        case .unreadable(let reason): return .failed("grok 설정 파일을 전환 전에 읽지 못했습니다: \(reason)")
+        case .absent: before = ""; wasAbsent = true
+        case .content(let data):
+            guard let text = String(data: data, encoding: .utf8) else { return .failed("grok 설정 파일(전환 전)이 UTF-8 이 아닙니다") }
+            before = text
+        }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            if wasAbsent { return .unchanged }
+            do { try before.write(to: url, atomically: true, encoding: .utf8); return .restored } catch { return .failed(error.localizedDescription) }
+        }
+        guard let current = (try? Data(contentsOf: url)).flatMap({ String(data: $0, encoding: .utf8) }) else {
+            return .failed("grok 설정 파일을 읽지 못했습니다")
+        }
         let fixed = GrokDefaults.restoring(current: current, from: before)
         if fixed == current { return .unchanged }
         do {
-            try fixed.write(to: url, atomically: true, encoding: .utf8)
+            if wasAbsent, fixed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                try FileManager.default.removeItem(at: url)
+            } else {
+                try fixed.write(to: url, atomically: true, encoding: .utf8)
+            }
             return .restored
         } catch {
             return .failed(error.localizedDescription)
         }
     }
+
+    public func restore(to before: String) -> Outcome { restore(to: .content(Data(before.utf8))) }
 
     // MARK: 텍스트 처리 (TOML 전체를 해석하지 않고 `[models]` 표의 두 줄만 다룬다)
 
@@ -287,6 +307,8 @@ public struct GrokDriver {
     /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
     private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
         let before = keepDefaults ? defaults.snapshot() : nil
+        // 전환 전 값을 읽지 못했으면 되돌릴 수 없다 — 아무것도 보내기 전에 멈춘다. (파일이 «없던» 것은 괜찮다: 끝나고 다시 없앤다.)
+        try DefaultsFile.refuseIfUnreadable(before, name: "grok")
         do {
             return try body()
         } catch {

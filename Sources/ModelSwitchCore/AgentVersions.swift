@@ -73,6 +73,8 @@ public enum AgentVersions {
         for token in versionOutput.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" }) {
             let text = token.trimmingCharacters(in: CharacterSet(charactersIn: "v()"))
             if isVersion(text) { return text }
+            // `2026.10.01-14929f9`(cursor-agent)처럼 뒤에 빌드 표시가 붙은 판.
+            if text.first?.isNumber == true, let tagged = release(from: text) { return tagged }
         }
         return nil
     }
