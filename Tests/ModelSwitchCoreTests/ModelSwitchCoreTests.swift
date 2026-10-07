@@ -1731,7 +1731,7 @@ final class OrcaViewTests: XCTestCase {
     func testResolvesTheVisibleTabWhileTheDatabaseStillSaysTheOldOne() {
         let layouts = [layout("w-other", ["Terminal 2", "Terminal 3"]), layout("w-initial", initialTitles)]
         for index in 0..<initialTitles.count {
-            let result = OrcaView.resolve(strip: strip(shownTitles, active: index, truncated: [3]), layouts: layouts, preferWorktree: "w-other")
+            let result = OrcaView.resolve(strip: strip(shownTitles, active: index, truncated: [3]), layouts: layouts)
             XCTAssertEqual(result, .tab(.init(worktreeID: "w-initial", tabID: "w-initial-t\(index)")), "탭 \(index)")
         }
     }
@@ -1743,12 +1743,13 @@ final class OrcaViewTests: XCTestCase {
         XCTAssertEqual(OrcaView.resolve(strip: strip(["a", "b"], active: 0), layouts: layouts), .noMatch)
     }
 
-    func testIdenticalStripsInTwoWorkspacesAreAmbiguousUnlessTheDatabaseNamesOne() {
+    func testIdenticalStripsInTwoWorkspacesAreAlwaysAmbiguous() {
         let layouts = [layout("w1", ["Terminal 2"]), layout("w2", ["Terminal 2"])]
         let one = strip(["Terminal 2"], active: 0)
         XCTAssertEqual(OrcaView.resolve(strip: one, layouts: layouts), .ambiguous(["w1", "w2"]))
-        XCTAssertEqual(OrcaView.resolve(strip: one, layouts: layouts, preferWorktree: "w2"), .tab(.init(worktreeID: "w2", tabID: "w2-t0")))
-        XCTAssertEqual(OrcaView.resolve(strip: one, layouts: layouts, preferWorktree: "w3"), .ambiguous(["w1", "w2"]), "후보 밖의 DB 값으로 고르지 않는다")
+        // 양성 대조군: 탭 제목이 하나라도 다르면 정해진다.
+        XCTAssertEqual(OrcaView.resolve(strip: one, layouts: [layout("w1", ["Terminal 2"]), layout("w2", ["Terminal 3"])]),
+                       .tab(.init(worktreeID: "w1", tabID: "w1-t0")))
     }
 
     func testNeedsExactlyOneActiveTab() {

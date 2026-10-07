@@ -141,11 +141,31 @@ public struct ITermIO: TerminalIO {
         """
     }
 
+    /// 이 세션이 iTerm2 의 맨 앞(현재) 창에 있으면 "true".
+    static func frontWindowCheck(sessionID: String) -> String {
+        """
+        tell application "iTerm2"
+            if (count of windows) is 0 then return "false"
+            repeat with t in tabs of current window
+                repeat with s in sessions of t
+                    if (unique id of s) is \(GhosttyIO.quoted(sessionID)) then return "true"
+                end repeat
+            end repeat
+            return "false"
+        end tell
+        """
+    }
+
     private func write(_ bytes: String) throws {
         // 입력 방송이 켜져 있으면 이 글이 다른 칸에도 들어간다 — 그 칸들은 확인한 적이 없으므로 보내지 않는다.
         // 방송 상태를 읽지 못해도(손쉬운 사용 권한 없음 등) «꺼져 있다» 고 말할 수 없으므로 보내지 않는다.
         // (시험용: MODELSWITCH_ITERM_SKIP_BROADCAST_CHECK=1 — 권한이 없는 ssh 세션에서 돌려 볼 때만.)
         if ProcessInfo.processInfo.environment["MODELSWITCH_ITERM_SKIP_BROADCAST_CHECK"] != "1" {
+            // 방송은 창마다 켜지고 메뉴는 맨 앞 창의 상태만 보여 준다 — 쓰는 세션이 맨 앞 창 안에 있어야 그 상태를 믿을 수 있다.
+            let inFront = GhosttyIO.osascript(ITermIO.frontWindowCheck(sessionID: sessionID))
+            guard inFront.ok, inFront.out == "true" else {
+                throw ModelSwitchError("iTerm2 의 맨 앞 창에 있는 세션이 아니라서 입력 방송 상태를 확인할 수 없어 보내지 않았습니다.")
+            }
             switch ITermBroadcast.state() {
             case .off: break
             case .on(let mode):

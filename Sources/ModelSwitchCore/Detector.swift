@@ -170,7 +170,7 @@ public enum Detector {
             return (try OrcaState.active(), "상태 DB(접근성으로 탭 줄을 읽지 못함)")
         }
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
-        switch OrcaView.resolve(strip: strip, layouts: layouts, preferWorktree: database?.worktreeID) {
+        switch OrcaView.resolve(strip: strip, layouts: layouts) {
         case .tab(let active):
             let note = (database == active) ? "접근성(DB 와 같음)" : "접근성(DB 와 다름 — DB 가 아직 옛 값)"
             return (active, note)

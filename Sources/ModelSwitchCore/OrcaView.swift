@@ -66,8 +66,8 @@ public enum OrcaView {
     }
 
     /// 탭 줄과 레이아웃(`terminal.list` 의 `visualLayouts`)을 맞춘다. 탭 수와 제목 순서가 모두 같아야 한다.
-    /// 후보가 둘 이상이면 `preferWorktree`(DB 가 말하는 워크스페이스)가 그 안에 있을 때만 그것을 고른다.
-    public static func resolve(strip: Strip, layouts: [[String: Any]], preferWorktree: String? = nil) -> Resolution {
+    /// 후보가 둘 이상이면 «모호» 다 — 늦은 상태 DB 로 고르지 않는다(DB 는 워크스페이스를 바꾼 직후 1.3~2.5초 옛 값이다).
+    public static func resolve(strip: Strip, layouts: [[String: Any]]) -> Resolution {
         guard !strip.tabs.isEmpty, let activeIndex = strip.tabs.firstIndex(where: \.active),
               strip.tabs.filter(\.active).count == 1 else { return .noMatch }
         var candidates: [(worktree: String, tabID: String)] = []
@@ -83,9 +83,6 @@ public enum OrcaView {
         case 0: return .noMatch
         case 1: return .tab(OrcaState.Active(worktreeID: candidates[0].worktree, tabID: candidates[0].tabID))
         default:
-            if let preferWorktree, let hit = candidates.first(where: { $0.worktree == preferWorktree }) {
-                return .tab(OrcaState.Active(worktreeID: hit.worktree, tabID: hit.tabID))
-            }
             return .ambiguous(candidates.map(\.worktree))
         }
     }
