@@ -1657,6 +1657,18 @@ final class ITermScreenTests: XCTestCase {
         XCTAssertEqual(screen, [korean, "끝"])
     }
 
+    func testAmbiguousWidthCharactersAreCountedAsWide() {
+        // 상자 선 50자: 폭이 1칸이면 1행, 2칸이면 100칸=2행. 2칸일 수 있으니 2행으로 센다 — 위쪽 줄을 덜 가져오는 쪽이 안전하다.
+        let box = String(repeating: "─", count: 50)
+        let screen = ITermIO.visibleLines(from: output(rows: 3, columns: 80, ["위", "중간", box, "끝"]))
+        XCTAssertEqual(screen, [box, "끝"])
+        // 입력창 판정에 필요한 맨 아래 5줄(구분선 2 + 입력 + 상태 2)은 25행 화면에서 그대로 남는다.
+        let separator = String(repeating: "─", count: 80)
+        let claude = ["old", separator, "❯ ", separator, "  (이름 없음) | modelswitch | Opus 5.5 · high", "  ⏵⏵ auto mode on (shift+tab to cycle)"]
+        let live = ITermIO.visibleLines(from: output(rows: 25, columns: 80, claude))
+        XCTAssertTrue(Readiness.claudePromptVisible(live ?? []))
+    }
+
     func testRefusesWhenRowsOrColumnsAreUnknown() {
         XCTAssertNil(ITermIO.visibleLines(from: "x\n80\nhello"))
         XCTAssertNil(ITermIO.visibleLines(from: "0\n80\nhello"))

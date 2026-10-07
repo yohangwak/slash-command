@@ -197,14 +197,11 @@ public struct ITermIO: TerminalIO {
         return kept.reversed()
     }
 
-    /// 터미널 칸 수로 센 폭(넉넉히): 한글·한자·이모지 등은 2칸.
+    /// 터미널 칸 수로 센 폭(넉넉히): ASCII 가 아닌 글자는 전부 2칸으로 센다.
+    /// 한글·한자·이모지는 실제로 2칸이고, 상자 선(`─`)·`❯` 같은 «모호한 폭» 글자는 설정에 따라 1칸 또는 2칸이다(iTerm2 의
+    /// Ambiguous characters are double-width). 폭을 적게 세면 접힌 줄이 차지하는 행을 덜 세어 위쪽 스크롤백을 화면으로 오인하므로
+    /// 많이 세는 쪽이 안전하다 — 입력창 판정은 맨 아래 몇 줄만 쓰니 위쪽 줄을 덜 가져와도 잃는 것이 없다.
     static func displayWidth(_ text: String) -> Int {
-        text.unicodeScalars.reduce(0) { total, scalar in
-            let v = scalar.value
-            let wide = (0x1100...0x115F).contains(v) || (0x2E80...0xA4CF).contains(v) || (0xAC00...0xD7A3).contains(v)
-                || (0xF900...0xFAFF).contains(v) || (0xFE30...0xFE6F).contains(v) || (0xFF00...0xFF60).contains(v)
-                || (0xFFE0...0xFFE6).contains(v) || (0x1F300...0x1FAFF).contains(v)
-            return total + (wide ? 2 : 1)
-        }
+        text.unicodeScalars.reduce(0) { $0 + ($1.isASCII ? 1 : 2) }
     }
 }
