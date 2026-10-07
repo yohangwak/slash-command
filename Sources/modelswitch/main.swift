@@ -2,7 +2,7 @@ import Foundation
 import ModelSwitchCore
 
 let usage = """
-modelswitch — 맨 앞 터미널의 claude·codex 모델과 effort 를 프리셋으로 바꾼다
+modelswitch — 맨 앞 터미널의 claude·codex·grok 모델과 effort 를 프리셋으로 바꾼다
 
   modelswitch apply <번호> [대상] [--trace]   프리셋 적용(--trace: 단계별 시간)
   modelswitch effort <up|down> [대상] [--trace]   모델은 그대로, effort 만 한 단계

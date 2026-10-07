@@ -40,6 +40,12 @@ public struct SwitchResult: Equatable, Sendable {
             } else if text.hasPrefix("Set effort level to ") {
                 effort = head(text.dropFirst("Set effort level to ".count), cuts: [" (", ":"])
                 effortKnown = true
+            } else if text.hasPrefix("Using ") {
+                // grok: "Using Grok 4.7 (xhigh)"
+                let (name, level) = GrokScreen.parse(label: String(text.dropFirst("Using ".count)).trimmingCharacters(in: .whitespaces))
+                model = name
+                effort = level
+                if level == nil { effortKnown = false }
             } else if text.hasPrefix("Model changed to ") {
                 // codex: "Model changed to gpt-6.1-sol high for this session only"
                 let words = head(text.dropFirst("Model changed to ".count), cuts: [" for this session"]).split(separator: " ")
@@ -103,17 +109,23 @@ public struct Switcher {
     public var config: ModelSwitchConfig
     public var claudeDefaults: ClaudeDefaults
     public var codexModels: () throws -> CodexModels
+    public var grokModels: () -> GrokModels
+    public var grokDefaults: GrokDefaults
     public var makeIO: (Target) throws -> TerminalIO
     public var sleep: (Int) -> Void
 
     public init(config: ModelSwitchConfig,
                 claudeDefaults: ClaudeDefaults = ClaudeDefaults(),
                 codexModels: @escaping () throws -> CodexModels = { try CodexModels.load() },
+                grokModels: @escaping () -> GrokModels = { GrokModels.load() },
+                grokDefaults: GrokDefaults = GrokDefaults(),
                 makeIO: @escaping (Target) throws -> TerminalIO = Switcher.terminalIO,
                 sleep: @escaping (Int) -> Void = { Thread.sleep(forTimeInterval: Double($0) / 1000) }) {
         self.config = config
         self.claudeDefaults = claudeDefaults
         self.codexModels = codexModels
+        self.grokModels = grokModels
+        self.grokDefaults = grokDefaults
         self.makeIO = makeIO
         self.sleep = sleep
     }
@@ -193,6 +205,9 @@ public struct Switcher {
             let steps = Plans.codex(modelIndex: selection.modelIndex, displayName: selection.displayName,
                                     effortLabel: selection.effortLabel)
             return Planned(slot: chosen, preset: preset, steps: steps, fallback: nil)
+        case .grok:
+            // grok 은 단계 목록이 아니라 `GrokDriver` 가 화면을 보며 진행한다.
+            return Planned(slot: chosen, preset: preset, steps: [], fallback: nil)
         }
     }
 
@@ -217,6 +232,14 @@ public struct Switcher {
         let raw = try makeIO(target)
         let io: TerminalIO = trace.map { TracingIO(base: raw, trace: $0) } ?? raw
 
+        if target.agent == .grok {
+            let traced = trace
+            let driver = GrokDriver(io: io, sleep: { ms in self.sleep(ms); traced?.mark("대기(\(ms))") },
+                                    models: grokModels(), defaults: grokDefaults, keepDefaults: config.keepDefaults)
+            let outcome = try driver.apply(planned.preset)
+            return SwitchResult(target: target, slotName: planned.slot.name, preset: planned.preset,
+                                warning: outcome.warning, confirmations: outcome.confirmations, pendingRestore: nil)
+        }
         let first = try readyScreen(io, target: target)
         // codex 는 쓰던 글을 한 줄까지만 치웠다 되돌릴 수 있다. 여러 줄이면 남은 줄이 명령과 섞이므로 손대지 않는다.
         if target.agent == .codex, let draft = first.draft, draft.contains("\n") {
@@ -252,9 +275,15 @@ public struct Switcher {
         trace?.mark("준비")
         let raw = try makeIO(target)
         let io: TerminalIO = trace.map { TracingIO(base: raw, trace: $0) } ?? raw
-        let first = try readyScreen(io, target: target)
         let traced = trace
         let timedSleep: (Int) -> Void = { ms in self.sleep(ms); traced?.mark("대기(\(ms))") }
+        if target.agent == .grok {
+            let driver = GrokDriver(io: io, sleep: timedSleep, models: grokModels(), defaults: grokDefaults, keepDefaults: config.keepDefaults)
+            let outcome = try driver.stepEffort(up: up)
+            return SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "grok", effort: up ? "한 단계 위" : "한 단계 아래"),
+                                warning: outcome.warning, confirmations: outcome.confirmations, pendingRestore: nil)
+        }
+        let first = try readyScreen(io, target: target)
 
         let steps: [Step]
         let preset: AgentPreset
@@ -269,6 +298,8 @@ public struct Switcher {
             }
             steps = Plans.codexEffortStep(up: up)
             preset = AgentPreset(model: "codex", effort: up ? "한 단계 위" : "한 단계 아래")
+        case .grok:
+            return try stepEffort(up: up, on: target)   // 위에서 처리했다(도달하지 않는다)
         }
         var runner = Runner(io: io, sleep: timedSleep, initial: first)
         runner.onAwaitingUser = onAwaitingUser

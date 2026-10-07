@@ -80,6 +80,8 @@ public enum Launch {
             return ["claude", "--model", preset.model, "--effort", preset.effort] + extra
         case .codex:
             return ["codex", "-m", preset.model, "-c", "model_reasoning_effort=\"\(preset.effort)\""] + extra
+        case .grok:
+            return ["grok", "-m", preset.model, "--reasoning-effort", preset.effort] + extra
         }
     }
 }

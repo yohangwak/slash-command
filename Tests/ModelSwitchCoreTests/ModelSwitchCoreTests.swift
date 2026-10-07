@@ -1774,3 +1774,274 @@ final class OrcaViewTests: XCTestCase {
         XCTAssertEqual(OrcaView.resolve(strip: strip(["긴 제목입니다"], active: 0), layouts: layouts), .noMatch, "잘리지 않은 제목은 정확히 같아야 한다")
     }
 }
+
+// MARK: - grok
+
+/// 실제 grok 1.0.46 화면(2026-10-07 집 맥)과 모델 목록·설정 표본.
+final class GrokScreenTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testIdleBoxIsReadyAndHasTheLabel() throws {
+        let lines = try screen("grok-idle")
+        let box = try XCTUnwrap(GrokScreen.box(lines))
+        XCTAssertEqual(box.input, "")
+        XCTAssertEqual(box.label, "Grok 4.7 (xhigh)")
+        XCTAssertTrue(GrokScreen.idle(lines))
+        XCTAssertEqual(GrokScreen.draft(lines), "")
+    }
+
+    func testDraftIsSeenAndBlocksSending() throws {
+        let lines = try screen("grok-draft")
+        XCTAssertEqual(GrokScreen.draft(lines), "abc draft")
+        XCTAssertFalse(GrokScreen.idle(lines), "쓰던 글이 있으면 명령과 섞인다")
+    }
+
+    func testOpenPickerAndLeftoverCommandAreNotIdle() throws {
+        XCTAssertFalse(GrokScreen.idle(try screen("grok-picker")), "선택창이 열려 있다")
+        let after = try screen("grok-after-esc")
+        XCTAssertEqual(GrokScreen.draft(after), "/model", "Esc 로 닫아도 입력창에 글이 남는다(실측)")
+        XCTAssertFalse(GrokScreen.idle(after))
+    }
+
+    func testClaudeAndCodexScreensAreNotGrok() throws {
+        for name in ["claude-idle", "codex-idle", "claude-draft"] {
+            XCTAssertFalse(GrokScreen.idle(try screen(name)), name)
+            XCTAssertNil(GrokScreen.box(try screen(name)), name)
+        }
+    }
+
+    func testParsesTheLabel() {
+        XCTAssertEqual(GrokScreen.parse(label: "Grok 4.7 (xhigh)").name, "Grok 4.7")
+        XCTAssertEqual(GrokScreen.parse(label: "Grok 4.7 (xhigh)").effort, "xhigh")
+        XCTAssertNil(GrokScreen.parse(label: "Grok Code").effort)
+    }
+
+    func testOldUnknownModelLineIsCountedSoNewOnesCanBeTold() {
+        let before = ["  Unknown model: grok-4.6", "  │ ❯", "  ╰──╯"]
+        XCTAssertEqual(GrokScreen.errorLines(before), ["Unknown model: grok-4.6"])
+        XCTAssertEqual(GrokScreen.errorLines(["hello"]), [])
+    }
+}
+
+final class GrokModelsAndDefaultsTests: XCTestCase {
+    func testParsesModelsAndOrdersEfforts() {
+        let json = """
+        {"models": {"grok-4.7": {"info": {"id": "grok-4.7", "name": "Grok 4.7", "supports_reasoning_effort": true,
+          "reasoning_efforts": [{"value": "xhigh"}, {"value": "high"}, {"value": "medium"}, {"value": "low"}]}},
+          "hidden": {"info": {"id": "x", "name": "X", "hidden": true}},
+          "plain": {"info": {"id": "grok-code", "name": "Grok Code", "supports_reasoning_effort": false}}}}
+        """
+        let models = GrokModels.parse(Data(json.utf8))
+        XCTAssertEqual(models.models.map(\.id), ["grok-4.7", "grok-code"], "숨김 모델은 뺀다")
+        XCTAssertEqual(models.resolve("grok-4.7")?.efforts, ["low", "medium", "high", "xhigh"])
+        XCTAssertEqual(models.resolve("Grok 4.7")?.id, "grok-4.7", "화면 이름으로도 찾는다")
+        XCTAssertEqual(models.resolve("grok-code")?.efforts, [])
+        XCTAssertNil(models.resolve("grok-9"))
+    }
+
+    private func original() throws -> String {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "grok-config-before", withExtension: "toml", subdirectory: "Fixtures"))
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func testRemovesTheAppendedModelsTableExactly() throws {
+        // 2026-10-07 실측: grok 이 «원래 파일 + 빈 줄 + [models] 표» 를 덧붙였다.
+        let before = try original()
+        let after = before + "\n[models]\ndefault = \"grok-4.7\"\ndefault_reasoning_effort = \"xhigh\"\n"
+        XCTAssertEqual(GrokDefaults.restoring(current: after, from: before), before, "바이트까지 같아야 한다")
+    }
+
+    func testPutsBackPreviousValuesAndKeepsOtherKeys() {
+        let before = "[ui]\nyolo = false\n\n[models]\ndefault = \"grok-4.6\"\ndefault_reasoning_effort = \"low\"\nallowed = 1\n"
+        let after = "[ui]\nyolo = true\n\n[models]\nallowed = 1\ndefault = \"grok-4.7\"\ndefault_reasoning_effort = \"xhigh\"\n"
+        let fixed = GrokDefaults.restoring(current: after, from: before)
+        XCTAssertTrue(fixed.contains("default = \"grok-4.6\""))
+        XCTAssertTrue(fixed.contains("default_reasoning_effort = \"low\""))
+        XCTAssertTrue(fixed.contains("yolo = true"), "다른 키(다른 세션이 쓴 것)는 건드리지 않는다")
+        XCTAssertFalse(fixed.contains("grok-4.7"))
+    }
+
+    func testNothingToDoWhenAlreadyOriginal() throws {
+        let before = try original()
+        XCTAssertEqual(GrokDefaults.restoring(current: before, from: before), before)
+    }
+
+    func testRestoreWritesTheFile() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("grok-\(UUID().uuidString).toml")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let before = try original()
+        try (before + "\n[models]\ndefault = \"x\"\n").write(to: url, atomically: true, encoding: .utf8)
+        let defaults = GrokDefaults(url: url)
+        XCTAssertEqual(defaults.restore(to: before), .restored)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), before)
+        XCTAssertEqual(defaults.restore(to: before), .unchanged)
+    }
+}
+
+/// grok 입력 상자와 `/model` 명령 흉내. 설정 파일도 실제처럼 `[models]` 를 덧붙인다.
+final class FakeGrok: TerminalIO {
+    var input = ""
+    var label: String
+    var busy = false
+    var errors: [String] = []
+    let known: [String: (name: String, efforts: [String])]
+    let configURL: URL
+    var typed: [String] = []
+    var ignoreEnter = false
+
+    init(label: String = "Grok 4.7 (high)", configURL: URL,
+         known: [String: (name: String, efforts: [String])] = ["grok-4.7": ("Grok 4.7", ["low", "medium", "high", "xhigh"])]) {
+        self.label = label
+        self.configURL = configURL
+        self.known = known
+    }
+
+    func type(_ text: String) throws { typed.append(text); input += text }
+    func press(_ key: Key) throws {
+        switch key {
+        case .backspace: if !input.isEmpty { input.removeLast() }
+        case .enter:
+            if ignoreEnter { return }
+            run()
+        default: break
+        }
+    }
+
+    private func run() {
+        defer { input = "" }
+        let words = input.split(separator: " ").map(String.init)
+        guard words.count >= 2, words[0] == "/model" else { return }
+        guard let model = known[words[1]] else { errors.append("  Unknown model: \(words[1])"); return }
+        let effort = words.count > 2 ? words[2] : nil
+        label = model.name + (effort.map { " (\($0))" } ?? "")
+        var text = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+        text += "\n[models]\ndefault = \"\(words[1])\"\n" + (effort.map { "default_reasoning_effort = \"\($0)\"\n" } ?? "")
+        try? text.write(to: configURL, atomically: true, encoding: .utf8)
+    }
+
+    func screen() -> [String]? {
+        var lines = ["  Read Terms and Privacy Policy."] + errors
+        let width = 60
+        lines.append("  ╭" + String(repeating: "─", count: width) + "╮")
+        lines.append("  │ ❯ " + input + String(repeating: " ", count: max(0, width - 3 - input.count)) + "│")
+        lines.append("  ╰" + String(repeating: "─", count: width - label.count - 4) + " \(label) ─╯")
+        lines.append(busy ? "  Esc:interrupt  │  Ctrl+x:shortcuts" : (input.isEmpty ? "  Shift+Tab:mode  │  Ctrl+x:shortcuts" : "  Enter:send  │  Shift+Tab:mode  │  Ctrl+x:shortcuts"))
+        return lines
+    }
+}
+
+final class GrokDriverTests: XCTestCase {
+    private var url: URL!
+    private var original = ""
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("grok-driver-\(UUID().uuidString).toml")
+        original = "[ui]\nyolo = false\n"
+        try original.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeGrok, keepDefaults: Bool = true) -> GrokDriver {
+        let models = GrokModels(models: [.init(id: "grok-4.7", name: "Grok 4.7", efforts: ["low", "medium", "high", "xhigh"]),
+                                         .init(id: "grok-code", name: "Grok Code", efforts: [])])
+        return GrokDriver(io: io, sleep: { _ in }, models: models, defaults: GrokDefaults(url: url), keepDefaults: keepDefaults)
+    }
+
+    func testSwitchesModelAndEffortAndPutsTheDefaultBack() throws {
+        let io = FakeGrok(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "xhigh"))
+        XCTAssertEqual(io.typed, ["/model grok-4.7 xhigh"])
+        XCTAssertEqual(outcome.confirmations, ["Using Grok 4.7 (xhigh)"])
+        XCTAssertNil(outcome.warning)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), original, "새 세션 기본값은 그대로여야 한다")
+    }
+
+    func testLeavesTheDefaultSavedWhenKeepDefaultsIsOff() throws {
+        let io = FakeGrok(configURL: url)
+        _ = try driver(io, keepDefaults: false).apply(AgentPreset(model: "grok-4.7", effort: "low"))
+        XCTAssertTrue(try String(contentsOf: url, encoding: .utf8).contains("default = \"grok-4.7\""))
+    }
+
+    func testUnknownModelIsRefusedBeforeTypingAnything() throws {
+        let io = FakeGrok(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-9", effort: "high")))
+        XCTAssertEqual(io.typed, [], "목록에 없는 모델은 보내지 않는다")
+    }
+
+    func testUnsupportedEffortIsRefusedBeforeTypingAnything() {
+        let io = FakeGrok(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "max")))
+        XCTAssertEqual(io.typed, [])
+    }
+
+    func testModelWithoutEffortSendsNoEffortWord() throws {
+        let io = FakeGrok(configURL: url, known: ["grok-code": ("Grok Code", [])])
+        let outcome = try driver(io).apply(AgentPreset(model: "grok-code", effort: "high"))
+        XCTAssertEqual(io.typed, ["/model grok-code"])
+        XCTAssertEqual(outcome.confirmations, ["Using Grok Code"])
+    }
+
+    func testRefusesWhenADraftIsInTheBox() throws {
+        let io = FakeGrok(configURL: url)
+        io.input = "작성 중인 글"
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "high")))
+        XCTAssertEqual(io.typed, [])
+        XCTAssertEqual(io.input, "작성 중인 글", "쓰던 글은 그대로")
+    }
+
+    func testRefusesWhileBusy() {
+        let io = FakeGrok(configURL: url)
+        io.busy = true
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "high")))
+        XCTAssertEqual(io.typed, [])
+    }
+
+    func testServerUnknownModelClearsOurTextAndRestoresDefaults() throws {
+        // 목록(캐시)에는 있으나 grok 이 모른다고 답하는 경우.
+        let io = FakeGrok(configURL: url, known: [:])
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "high"))) { error in
+            XCTAssertTrue("\(error)".contains("Unknown model"), "\(error)")
+        }
+        XCTAssertEqual(io.input, "")
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), original)
+    }
+
+    func testIgnoredEnterLeavesNoTextBehind() {
+        let io = FakeGrok(configURL: url)
+        io.ignoreEnter = true
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "xhigh")))
+        XCTAssertEqual(io.input, "", "응답이 없으면 우리가 쓴 글을 지우고 멈춘다")
+    }
+
+    func testStepsEffortUpAndDownAndStopsAtTheEnds() throws {
+        let io = FakeGrok(label: "Grok 4.7 (high)", configURL: url)
+        XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using Grok 4.7 (xhigh)"])
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Using Grok 4.7 (high)"])
+        io.label = "Grok 4.7 (low)"
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertEqual(io.typed.count, 2, "끝 단계에서는 아무것도 보내지 않는다")
+    }
+
+    func testSummaryUsesTheLabelGrokShowed() {
+        let target = Target(host: .orca(handle: "h"), agent: .grok, label: "t")
+        let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "grok-4.7", effort: "high"),
+                                  warning: nil, confirmations: ["Using Grok 4.7 (xhigh)"], pendingRestore: nil)
+        XCTAssertEqual(result.summary, "Grok 4.7 · xhigh")
+    }
+
+    func testSlotKeepsGrokPresetThroughTheFile() throws {
+        let slot = Slot(claude: AgentPreset(model: "opus", effort: "high"), grok: AgentPreset(model: "grok-4.7", effort: "xhigh"))
+        let decoded = try JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(slot))
+        XCTAssertEqual(decoded, slot)
+        XCTAssertEqual(decoded.listing, "claude opus · high  /  grok grok-4.7 · xhigh")
+        XCTAssertEqual(try JSONDecoder().decode(Slot.self, from: Data(#"{"claude":{"model":"a","effort":"b"},"future-agent":{"model":"x","effort":"y"}}"#.utf8)).claude?.model, "a",
+                       "모르는 에이전트 키는 무시한다")
+    }
+}

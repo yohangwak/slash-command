@@ -12,6 +12,9 @@ struct EditableSlot: Identifiable {
     var codexOn: Bool
     var codexModel: String
     var codexEffort: String
+    var grokOn: Bool
+    var grokModel: String
+    var grokEffort: String
 
     init(_ slot: Slot) {
         name = slot.name
@@ -21,12 +24,16 @@ struct EditableSlot: Identifiable {
         codexOn = slot.codex != nil
         codexModel = slot.codex?.model ?? ""
         codexEffort = slot.codex?.effort ?? "high"
+        grokOn = slot.grok != nil
+        grokModel = slot.grok?.model ?? ""
+        grokEffort = slot.grok?.effort ?? "high"
     }
 
     var slot: Slot {
         Slot(name: name.trimmingCharacters(in: .whitespaces),
              claude: claudeOn ? AgentPreset(model: claudeModel.trimmingCharacters(in: .whitespaces), effort: claudeEffort) : nil,
-             codex: codexOn ? AgentPreset(model: codexModel.trimmingCharacters(in: .whitespaces), effort: codexEffort) : nil)
+             codex: codexOn ? AgentPreset(model: codexModel.trimmingCharacters(in: .whitespaces), effort: codexEffort) : nil,
+             grok: grokOn ? AgentPreset(model: grokModel.trimmingCharacters(in: .whitespaces), effort: grokEffort) : nil)
     }
 }
 
@@ -41,15 +48,18 @@ final class SettingsModel: ObservableObject {
     let store: ConfigStore
     let onSaved: () -> Void
     let codexModels: [String]
+    let grokModels: [String]
 
     static let claudeModels = ["fable", "opus", "sonnet", "haiku"]
     static let claudeEfforts = ["low", "medium", "high", "xhigh", "max"]
     static let codexEfforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
+    static let grokEfforts = ["low", "medium", "high", "xhigh"]
 
     init(store: ConfigStore, onSaved: @escaping () -> Void) {
         self.store = store
         self.onSaved = onSaved
         codexModels = (try? CodexModels.load().listed.map(\.slug)) ?? []
+        grokModels = GrokModels.load().models.map(\.id)
         reload()
     }
 
@@ -75,13 +85,15 @@ final class SettingsModel: ObservableObject {
         guard slots.count < ModelSwitchConfig.maxSlots else { return }
         var slot = EditableSlot(Slot(claude: AgentPreset(model: "opus", effort: "high")))
         slot.codexModel = codexModels.first ?? ""
+        slot.grokModel = grokModels.first ?? ""
         slots.append(slot)
     }
 
     func save() {
         for (index, slot) in slots.enumerated() {
             if slot.claudeOn && slot.claudeModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty {
+                || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty
+                || slot.grokOn && slot.grokModel.trimmingCharacters(in: .whitespaces).isEmpty {
                 status = "\(index + 1)번 프리셋의 모델이 비어 있습니다."
                 return
             }
@@ -110,14 +122,14 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("프리셋").font(.title2.weight(.semibold))
-            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude 인지 codex 인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
+            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             ScrollView {
                 VStack(spacing: 10) {
                     ForEach(Array(model.slots.enumerated()), id: \.element.id) { index, _ in
-                        SlotRow(shortcut: "\(model.symbols)\(index + 1)", slot: $model.slots[index], codexModels: model.codexModels) {
+                        SlotRow(shortcut: "\(model.symbols)\(index + 1)", slot: $model.slots[index], codexModels: model.codexModels, grokModels: model.grokModels) {
                             model.slots.remove(at: index)
                         }
                     }
@@ -169,6 +181,7 @@ private struct SlotRow: View {
     let shortcut: String
     @Binding var slot: EditableSlot
     let codexModels: [String]
+    let grokModels: [String]
     let onDelete: () -> Void
 
     var body: some View {
@@ -185,6 +198,8 @@ private struct SlotRow: View {
                          models: SettingsModel.claudeModels, efforts: SettingsModel.claudeEfforts)
                 AgentRow(label: "codex", isOn: $slot.codexOn, model: $slot.codexModel, effort: $slot.codexEffort,
                          models: codexModels, efforts: SettingsModel.codexEfforts)
+                AgentRow(label: "grok", isOn: $slot.grokOn, model: $slot.grokModel, effort: $slot.grokEffort,
+                         models: grokModels, efforts: SettingsModel.grokEfforts)
             }
             .padding(4)
         }

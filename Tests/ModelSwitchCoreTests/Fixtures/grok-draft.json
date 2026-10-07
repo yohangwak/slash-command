@@ -1,0 +1,19 @@
+{
+  "draft": null,
+  "tail": [
+    "  yohangwak/initial worktree ~/o/w/modelswitch/initial [Click here to Upgrade]                                                   1.8K / 256K │ [Dashboard]",
+    "     Unknown model: grok-4.6",
+    "     Switched to Grok 4.7 (xhigh effort)",
+    "     Switched to Grok 4.7 (medium effort)",
+    "     Switched to Grok 4.7 (high effort)",
+    "     Switched to Grok 4.7 (xhigh effort)",
+    "  Help improve Grok                                                                                                                     [Opt out] [Opt in]",
+    "  Off by default. Opt-in to allow SpaceXAI to retain coding data, e.g., prompts, traces, & metrics, for training and debugging",
+    "  purposes. Change anytime via settings.",
+    "  Read Terms and Privacy Policy.",
+    "  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮",
+    "  │ ❯ abc draft                                                                                                                                          │",
+    "  ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── Grok 4.7 (xhigh) ─╯",
+    "  Enter:send  │  Opt+Enter:newline  │  Shift+Tab:mode  │  Ctrl+x:shortcuts"
+  ]
+}

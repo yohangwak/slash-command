@@ -9,6 +9,7 @@ public enum Readiness {
         switch agent {
         case .claude: return claudePromptVisible(screen)
         case .codex: return codexComposerVisible(screen)
+        case .grok: return GrokScreen.idle(screen)
         }
     }
 

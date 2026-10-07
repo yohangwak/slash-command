@@ -13,6 +13,7 @@ public enum AgentVersions {
     public static let tested: [Agent: Set<String>] = [
         .claude: ["2.1.283", "2.1.288", "2.1.289", "2.1.291", "2.1.292"],
         .codex: ["0.156.0", "0.160.0", "0.160.1"],
+        .grok: ["1.0.46"],
     ]
 
     public struct Report: Equatable, Sendable {
