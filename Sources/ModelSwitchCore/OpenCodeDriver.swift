@@ -180,9 +180,15 @@ public struct OpenCodeDefaults: Sendable {
     /// 그 세션의 기본값 파일. 세션들이 서로 다른 상태 폴더를 쓰고 어느 쪽인지 좁힐 수 없으면 — 엉뚱한 파일을 «지켰다» 고 말하지 않도록 — 던진다.
     static func resolve(processes: [(arguments: [String], environment: [String])], orcaHandle: String?,
                         environment: [String: String] = ProcessInfo.processInfo.environment) throws -> OpenCodeDefaults {
+        // `orcaHandle` 을 줬는데 그 터미널의 opencode 프로세스가 없으면 다른 세션의 것으로 대신하지 않는다.
+        if let orcaHandle, !processes.contains(where: { $0.environment.contains("ORCA_TERMINAL_HANDLE=\(orcaHandle)") && AgentProcesses.agent(forCommandLine: $0.arguments.joined(separator: " ")) == .opencode }) {
+            throw ModelSwitchError("이 Orca 터미널의 opencode 프로세스를 찾지 못해 어느 상태 폴더의 새 세션 기본값을 지켜야 할지 알 수 없어 전환하지 않았습니다.")
+        }
         let homes = stateHomes(processes: processes, orcaHandle: orcaHandle)
         switch homes.count {
-        case 0: return OpenCodeDefaults(url: url(stateHome: nil, environment: environment))
+        case 0:
+            // 그 세션의 프로세스를 못 찾았다 — 우리 환경의 폴더가 그 세션의 폴더라는 근거가 없다. 엉뚱한 파일을 «지켰다» 고 하지 않고 멈춘다.
+            throw ModelSwitchError("opencode 세션의 프로세스를 찾지 못해 어느 상태 폴더의 새 세션 기본값을 지켜야 할지 알 수 없어 전환하지 않았습니다.")
         case 1: return OpenCodeDefaults(url: url(stateHome: homes[0], environment: environment))
         default:
             throw ModelSwitchError("opencode 세션들이 서로 다른 상태 폴더(XDG_STATE_HOME)를 쓰고 있어 어느 쪽의 새 세션 기본값을 지켜야 할지 정할 수 없어 전환하지 않았습니다(\(homes.joined(separator: ", "))).")

@@ -2977,8 +2977,10 @@ final class OpenCodeRealStateTests: XCTestCase {
         // 좁힐 수 없으면 엉뚱한 파일을 지켰다고 하지 않고 멈춘다.
         XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: nil))
         XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: "term_zzz"))
-        // 도는 세션이 없으면 우리 환경을 따른다.
-        XCTAssertEqual(try OpenCodeDefaults.resolve(processes: [], orcaHandle: nil, environment: ["XDG_STATE_HOME": "/env/state"]).url.path, "/env/state/opencode/model.json")
+        // 그 세션의 프로세스를 못 찾으면 — 우리 환경의 폴더로 대신하지 않고 — 멈춘다.
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [], orcaHandle: nil, environment: ["XDG_STATE_HOME": "/env/state"]))
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [other], orcaHandle: "term_a"))
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [plain], orcaHandle: "term_other"), "다른 터미널의 세션으로 대신하지 않는다")
     }
 }
 
