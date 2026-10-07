@@ -47,6 +47,13 @@ public struct SwitchResult: Equatable, Sendable {
                 model = name
                 effort = level
                 if level == nil { effortKnown = false }
+            } else if text.hasPrefix("Model set to "), text.contains("("), !text.contains(" for this session"), !text.contains(" and saved") {
+                // antigravity: "Model set to Gemini 3.7 Flash (Medium)"
+                let rest = String(text.dropFirst("Model set to ".count)).trimmingCharacters(in: .whitespaces)
+                if let open = rest.lastIndex(of: "("), rest.hasSuffix(")") {
+                    model = String(rest[..<open]).trimmingCharacters(in: .whitespaces)
+                    effort = String(rest[rest.index(after: open)..<rest.index(before: rest.endIndex)])
+                }
             } else if text.hasPrefix("Model changed to ") {
                 // codex: "Model changed to gpt-6.1-sol high for this session only"
                 let words = head(text.dropFirst("Model changed to ".count), cuts: [" for this session"]).split(separator: " ")
@@ -113,6 +120,7 @@ public struct Switcher {
     public var grokModels: () -> GrokModels
     public var grokDefaults: GrokDefaults
     public var cursorDefaults: CursorDefaults
+    public var antigravityDefaults: AntigravityDefaults
     public var makeIO: (Target) throws -> TerminalIO
     public var sleep: (Int) -> Void
 
@@ -122,6 +130,7 @@ public struct Switcher {
                 grokModels: @escaping () -> GrokModels = { GrokModels.load() },
                 grokDefaults: GrokDefaults = GrokDefaults(),
                 cursorDefaults: CursorDefaults = CursorDefaults(),
+                antigravityDefaults: AntigravityDefaults = AntigravityDefaults(),
                 makeIO: @escaping (Target) throws -> TerminalIO = Switcher.terminalIO,
                 sleep: @escaping (Int) -> Void = { Thread.sleep(forTimeInterval: Double($0) / 1000) }) {
         self.config = config
@@ -130,6 +139,7 @@ public struct Switcher {
         self.grokModels = grokModels
         self.grokDefaults = grokDefaults
         self.cursorDefaults = cursorDefaults
+        self.antigravityDefaults = antigravityDefaults
         self.makeIO = makeIO
         self.sleep = sleep
     }
@@ -209,8 +219,8 @@ public struct Switcher {
             let steps = Plans.codex(modelIndex: selection.modelIndex, displayName: selection.displayName,
                                     effortLabel: selection.effortLabel)
             return Planned(slot: chosen, preset: preset, steps: steps, fallback: nil)
-        case .grok, .cursor:
-            // 이 에이전트들은 단계 목록이 아니라 전용 드라이버(`GrokDriver`·`CursorDriver`)가 화면을 보며 진행한다.
+        case .grok, .cursor, .antigravity:
+            // 이 에이전트들은 단계 목록이 아니라 전용 드라이버(`GrokDriver`·`CursorDriver`·`AntigravityDriver`)가 화면을 보며 진행한다.
             return Planned(slot: chosen, preset: preset, steps: [], fallback: nil)
         }
     }
@@ -236,7 +246,7 @@ public struct Switcher {
         let raw = try makeIO(target)
         let io: TerminalIO = trace.map { TracingIO(base: raw, trace: $0) } ?? raw
 
-        if target.agent == .grok || target.agent == .cursor {
+        if target.agent.usesDriver {
             let traced = trace
             let timed: (Int) -> Void = { ms in self.sleep(ms); traced?.mark("대기(\(ms))") }
             let warning: String?
@@ -244,8 +254,11 @@ public struct Switcher {
             if target.agent == .grok {
                 let outcome = try GrokDriver(io: io, sleep: timed, models: grokModels(), defaults: grokDefaults, keepDefaults: config.keepDefaults).apply(planned.preset)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
-            } else {
+            } else if target.agent == .cursor {
                 let outcome = try CursorDriver(io: io, sleep: timed, defaults: cursorDefaults, keepDefaults: config.keepDefaults).apply(planned.preset)
+                (warning, confirmations) = (outcome.warning, outcome.confirmations)
+            } else {
+                let outcome = try AntigravityDriver(io: io, sleep: timed, defaults: antigravityDefaults, keepDefaults: config.keepDefaults).apply(planned.preset)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
             }
             return SwitchResult(target: target, slotName: planned.slot.name, preset: planned.preset,
@@ -288,14 +301,17 @@ public struct Switcher {
         let io: TerminalIO = trace.map { TracingIO(base: raw, trace: $0) } ?? raw
         let traced = trace
         let timedSleep: (Int) -> Void = { ms in self.sleep(ms); traced?.mark("대기(\(ms))") }
-        if target.agent == .grok || target.agent == .cursor {
+        if target.agent.usesDriver {
             let warning: String?
             let confirmations: [String]
             if target.agent == .grok {
                 let outcome = try GrokDriver(io: io, sleep: timedSleep, models: grokModels(), defaults: grokDefaults, keepDefaults: config.keepDefaults).stepEffort(up: up)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
-            } else {
+            } else if target.agent == .cursor {
                 let outcome = try CursorDriver(io: io, sleep: timedSleep, defaults: cursorDefaults, keepDefaults: config.keepDefaults).stepEffort(up: up)
+                (warning, confirmations) = (outcome.warning, outcome.confirmations)
+            } else {
+                let outcome = try AntigravityDriver(io: io, sleep: timedSleep, defaults: antigravityDefaults, keepDefaults: config.keepDefaults).stepEffort(up: up)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
             }
             return SwitchResult(target: target, slotName: "", preset: AgentPreset(model: target.agent.rawValue, effort: up ? "한 단계 위" : "한 단계 아래"),
@@ -316,7 +332,7 @@ public struct Switcher {
             }
             steps = Plans.codexEffortStep(up: up)
             preset = AgentPreset(model: "codex", effort: up ? "한 단계 위" : "한 단계 아래")
-        case .grok, .cursor:
+        case .grok, .cursor, .antigravity:
             return try stepEffort(up: up, on: target)   // 위에서 처리했다(도달하지 않는다)
         }
         var runner = Runner(io: io, sleep: timedSleep, initial: first)

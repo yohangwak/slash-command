@@ -15,6 +15,7 @@ public enum AgentVersions {
         .codex: ["0.156.0", "0.160.0", "0.160.1"],
         .grok: ["1.0.46"],
         .cursor: ["2026.10.01-14929f9"],
+        .antigravity: ["1.3.1"],
     ]
 
     public struct Report: Equatable, Sendable {
@@ -60,7 +61,7 @@ public enum AgentVersions {
     // MARK: - 설치된 판
 
     public static func installed(_ agent: Agent) -> String? {
-        guard let exe = Proc.locate(agent.rawValue) else { return nil }
+        guard let exe = Proc.locate(agent.executable) else { return nil }
         let result = Proc.run(exe, ["--version"], timeout: 5)
         guard result.ok else { return nil }
         return parse(versionOutput: result.out)

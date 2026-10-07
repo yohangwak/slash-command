@@ -2385,3 +2385,254 @@ final class CursorDriverTests: XCTestCase {
         XCTAssertEqual(result.summary, "Grok 4.7 · Extra High")
     }
 }
+
+// MARK: - antigravity (agy)
+
+final class AgyScreenTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testIdleDraftAndWorking() throws {
+        XCTAssertTrue(AgyScreen.idle(try screen("agy-idle")))
+        XCTAssertTrue(AgyScreen.idle(try screen("agy-after-esc")))
+        XCTAssertTrue(AgyScreen.idle(try screen("agy-after-work")), "양성 대조군: 작업이 끝나면 대기")
+        let draft = try screen("agy-draft")
+        XCTAssertEqual(AgyScreen.draft(draft), "abc")
+        XCTAssertFalse(AgyScreen.idle(draft))
+        let working = try screen("agy-working")
+        XCTAssertEqual(AgyScreen.draft(working), "", "입력줄은 비어 보인다")
+        XCTAssertFalse(AgyScreen.idle(working), "작업 중(스피너·esc to cancel)에는 보내지 않는다")
+    }
+
+    func testTypingASlashCommandShowsTheCommandListButTheDraftIsStillRead() throws {
+        let typed = try screen("agy-typed-model")
+        XCTAssertEqual(AgyScreen.draft(typed), "/model", "명령 목록이 떠도 입력줄은 읽는다")
+        XCTAssertFalse(AgyScreen.idle(typed))
+    }
+
+    func testPickerRowsAndSlider() throws {
+        let lines = try screen("agy-picker")
+        let picker = try XCTUnwrap(AgyScreen.picker(lines))
+        XCTAssertEqual(picker.rows.map(\.name).prefix(4), ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro"])
+        XCTAssertEqual(picker.rows.first(where: \.cursor)?.name, "Gemini 3.8 Flash")
+        XCTAssertEqual(picker.rows.first(where: \.current)?.name, "Gemini 3.8 Flash")
+        XCTAssertTrue(picker.rows.contains { $0.name == "GPT-OSS 120B (Medium)" })
+        let slider = try XCTUnwrap(picker.slider)
+        XCTAssertEqual(slider.labels, ["low", "medium", "high"])
+        XCTAssertEqual(slider.selected, 2, "◉ 가 high 아래에 있다")
+        XCTAssertFalse(AgyScreen.idle(lines), "선택창이 열려 있다")
+    }
+
+    func testSliderStopsAreFilledOrHollowDependingOnTheSelection() throws {
+        // 가장 낮은 단계를 고른 뒤의 실제 화면: 단계마다 `◉`(선택) · `○`(그 위) 로 그려진다 — `●` 만 점으로 보면 단계가 1개로 읽힌다.
+        let slider = try XCTUnwrap(AgyScreen.picker(try screen("agy-picker-low"))?.slider)
+        XCTAssertEqual(slider.labels, ["low", "medium", "high"])
+        XCTAssertEqual(slider.selected, 0)
+    }
+
+    func testOtherAgentsAreNotAntigravity() throws {
+        for name in ["claude-idle", "codex-idle", "grok-idle", "cursor-idle"] {
+            XCTAssertFalse(AgyScreen.idle(try screen(name)), name)
+            XCTAssertNil(AgyScreen.picker(try screen(name)), name)
+        }
+        XCTAssertFalse(GrokScreen.idle(try screen("agy-idle")))
+        XCTAssertFalse(CursorScreen.idle(try screen("agy-idle")))
+    }
+}
+
+final class AntigravityDefaultsTests: XCTestCase {
+    func testRestoresOnlyTheModelKey() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("agy-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        func write(_ object: [String: Any]) throws { try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: url) }
+        try write(["model": "Gemini 3.8 Flash (High)", "theme": "dark"])
+        let before = try Data(contentsOf: url)
+        try write(["model": "Gemini 3.7 Flash (Medium)", "theme": "dark"])
+        XCTAssertEqual(AntigravityDefaults(url: url).restore(to: before), .restored)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        try write(["model": "Gemini 3.7 Flash (Medium)", "theme": "light"])
+        XCTAssertEqual(AntigravityDefaults(url: url).restore(to: before), .restored)
+        let now = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertEqual(now["model"] as? String, "Gemini 3.8 Flash (High)")
+        XCTAssertEqual(now["theme"] as? String, "light", "다른 키는 그대로")
+    }
+
+    func testRemovesTheKeyWhenItWasAbsentBefore() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("agy-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["theme": "dark"], options: [.sortedKeys]).write(to: url)
+        let before = try Data(contentsOf: url)
+        try JSONSerialization.data(withJSONObject: ["theme": "dark", "model": "X"], options: [.sortedKeys]).write(to: url)
+        XCTAssertEqual(AntigravityDefaults(url: url).restore(to: before), .restored)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+    }
+}
+
+/// agy 입력줄과 `/model` 선택창 흉내.
+final class FakeAgy: TerminalIO {
+    struct Model { let name: String; let efforts: [String]; var effort: Int }
+    var models = [Model(name: "Gemini 3.8 Flash", efforts: ["low", "medium", "high"], effort: 2),
+                  Model(name: "Gemini 3.7 Flash", efforts: ["medium", "high"], effort: 0),
+                  Model(name: "GPT-OSS 120B (Medium)", efforts: [], effort: 0)]
+    var current = 0
+    var picker = false
+    var cursor = 0
+    var input = ""
+    var busy = false
+    var echoes: [String] = []     // `> /model` 아래의 답들
+    var typed: [String] = []
+    var presses: [Key] = []
+    let configURL: URL
+    var wraps = false
+
+    init(configURL: URL) { self.configURL = configURL }
+
+    func type(_ text: String) throws { typed.append(text); if !picker { input += text } }
+
+    func press(_ key: Key) throws {
+        presses.append(key)
+        if !picker {
+            if key == .enter {
+                if input == "/model" { picker = true; cursor = current; echoes.append("") }
+                input = ""
+            } else if key == .backspace, !input.isEmpty { input.removeLast() }
+            return
+        }
+        switch key {
+        case .up: cursor = max(0, cursor - 1)
+        case .down: cursor = min(models.count - 1, cursor + 1)
+        case .left, .right:
+            let m = models[cursor]
+            guard !m.efforts.isEmpty else { return }
+            let step = key == .right ? 1 : -1
+            let next = models[cursor].effort + step
+            models[cursor].effort = wraps ? (next + m.efforts.count) % m.efforts.count : min(max(next, 0), m.efforts.count - 1)
+        case .escape: picker = false; echoes[echoes.count - 1] = "Exited /model command"
+        case .enter:
+            current = cursor
+            picker = false
+            let m = models[current]
+            echoes[echoes.count - 1] = "Model set to \(m.name)" + (m.efforts.isEmpty ? "" : " (\(m.efforts[m.effort].capitalized))")
+            let object: [String: Any] = ["model": echoes.last!.replacingOccurrences(of: "Model set to ", with: ""), "theme": "dark"]
+            try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: configURL)
+        default: break
+        }
+    }
+
+    func screen() -> [String]? {
+        let rule = String(repeating: "─", count: 60)
+        if picker {
+            var lines = ["Switch Model", "", "  Search:", " " + String(repeating: "─", count: 20), ""]
+            for (index, m) in models.enumerated() { lines.append((index == cursor ? "> " : "  ") + m.name + (index == current ? "      (current)" : "")) }
+            lines.append("")
+            let m = models[cursor]
+            if !m.efforts.isEmpty {
+                // 점은 단계마다 14칸 간격, 이름은 점 아래에 가운데 맞춤.
+                var dots = Array("  Effort  ◂ ")
+                var names = Array(String(repeating: " ", count: dots.count))
+                for (i, e) in m.efforts.enumerated() {
+                    dots += Array(i == m.effort ? "◉" : "●")
+                    names += Array(e)
+                    if i < m.efforts.count - 1 { dots += Array(String(repeating: "━", count: 14)); names += Array(String(repeating: " ", count: 14 - e.count + 0)) }
+                }
+                lines.append(String(dots) + " ▸")
+                lines.append(String(names))
+                // 이름이 점과 같은 열에 오도록 맞춘다(점 위치 = 이름 시작 열 + 0).
+            }
+            lines += ["", "Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back"]
+            return lines
+        }
+        var lines = echoes.flatMap { ["> /model", "  ⎿  \($0)"] }
+        if busy { lines += ["⣽  Working..."] }
+        lines += [rule, ">" + (input.isEmpty ? "" : " " + input), rule, busy ? "esc to cancel" : "? for shortcuts        \(models[current].name)"]
+        return lines
+    }
+}
+
+final class AntigravityDriverTests: XCTestCase {
+    private var url: URL!
+    private var original = Data()
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("agy-driver-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: ["model": "Gemini 3.8 Flash (High)", "theme": "dark"], options: [.sortedKeys]).write(to: url)
+        original = try Data(contentsOf: url)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeAgy, keepDefaults: Bool = true) -> AntigravityDriver {
+        AntigravityDriver(io: io, sleep: { _ in }, defaults: AntigravityDefaults(url: url), keepDefaults: keepDefaults)
+    }
+
+    func testSwitchesModelAndEffortThenRestoresTheDefault() throws {
+        let io = FakeAgy(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "Gemini 3.7 Flash", effort: "medium"))
+        XCTAssertEqual(outcome.confirmations, ["Model set to Gemini 3.7 Flash (Medium)"])
+        XCTAssertEqual(io.models[io.current].name, "Gemini 3.7 Flash")
+        XCTAssertEqual(try Data(contentsOf: url), original, "새 세션 기본값은 그대로여야 한다")
+    }
+
+    func testMovesTheSliderBothWaysAndNeverWrapsAround() throws {
+        let io = FakeAgy(configURL: url)
+        io.wraps = true      // 끝에서 반대쪽으로 도는 슬라이더여도(claude 처럼) 끝에서 더 누르지 않는다
+        _ = try driver(io).apply(AgentPreset(model: "Gemini 3.8 Flash", effort: "low"))
+        XCTAssertEqual(io.models[0].effort, 0)
+        XCTAssertEqual(io.presses.filter { $0 == .left || $0 == .right }.count, 2)
+    }
+
+    func testUnknownModelAndEffortAreRefusedAndThePickerIsClosed() {
+        let a = FakeAgy(configURL: url)
+        XCTAssertThrowsError(try driver(a).apply(AgentPreset(model: "No Such", effort: "high")))
+        XCTAssertFalse(a.picker)
+        XCTAssertEqual(a.current, 0)
+        let b = FakeAgy(configURL: url)
+        XCTAssertThrowsError(try driver(b).apply(AgentPreset(model: "Gemini 3.7 Flash", effort: "low")))
+        XCTAssertFalse(b.picker)
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testModelWithoutEffortSliderJustSelects() throws {
+        let io = FakeAgy(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "GPT-OSS 120B (Medium)", effort: "high"))
+        XCTAssertEqual(outcome.confirmations, ["Model set to GPT-OSS 120B (Medium)"])
+    }
+
+    func testRefusesWithADraftOrWhileWorking() {
+        let draft = FakeAgy(configURL: url)
+        draft.input = "쓰던 글"
+        XCTAssertThrowsError(try driver(draft).apply(AgentPreset(model: "Gemini 3.8 Flash", effort: "low")))
+        XCTAssertEqual(draft.typed, [])
+        let busy = FakeAgy(configURL: url)
+        busy.busy = true
+        XCTAssertThrowsError(try driver(busy).apply(AgentPreset(model: "Gemini 3.8 Flash", effort: "low")))
+        XCTAssertEqual(busy.typed, [])
+    }
+
+    func testStepsEffortAndStopsAtTheEnds() throws {
+        let io = FakeAgy(configURL: url)
+        io.wraps = true
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertFalse(io.picker, "끝 단계면 선택창을 닫고 아무것도 바꾸지 않는다")
+        XCTAssertEqual(io.models[0].effort, 2)
+        XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Model set to Gemini 3.8 Flash (Medium)"])
+        XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Model set to Gemini 3.8 Flash (Low)"])
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+    }
+
+    func testSummaryAndSlotForAntigravity() throws {
+        let target = Target(host: .orca(handle: "h"), agent: .antigravity, label: "t")
+        let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "x", effort: "high"),
+                                  warning: nil, confirmations: ["Model set to Gemini 3.7 Flash (Medium)"], pendingRestore: nil)
+        XCTAssertEqual(result.summary, "Gemini 3.7 Flash · Medium")
+        XCTAssertEqual(AgentProcesses.agent(forCommandLine: "agy"), .antigravity)
+        XCTAssertEqual(AgentProcesses.agent(forCommandLine: "/Users/x/.local/bin/cursor-agent --use-system-ca /x/index.js"), .cursor)
+        XCTAssertEqual(AgentProcesses.agent(forCommandLine: "grok"), .grok)
+        let slot = Slot(antigravity: AgentPreset(model: "Gemini 3.8 Flash", effort: "high"))
+        XCTAssertEqual(try JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(slot)), slot)
+    }
+}

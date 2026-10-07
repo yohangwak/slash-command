@@ -87,6 +87,8 @@ public enum Launch {
         case .cursor:
             // 새 세션 열 때 effort 를 줄 옵션이 없다(모델 id 만).
             return ["cursor-agent", "--model", preset.model] + extra
+        case .antigravity:
+            return ["agy", "--model", preset.model, "--effort", preset.effort] + extra
         }
     }
 }

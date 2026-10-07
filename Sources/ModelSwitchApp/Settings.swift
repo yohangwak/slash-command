@@ -18,6 +18,9 @@ struct EditableSlot: Identifiable {
     var cursorOn: Bool
     var cursorModel: String
     var cursorEffort: String
+    var antigravityOn: Bool
+    var antigravityModel: String
+    var antigravityEffort: String
 
     init(_ slot: Slot) {
         name = slot.name
@@ -33,6 +36,9 @@ struct EditableSlot: Identifiable {
         cursorOn = slot.cursor != nil
         cursorModel = slot.cursor?.model ?? ""
         cursorEffort = slot.cursor?.effort ?? "high"
+        antigravityOn = slot.antigravity != nil
+        antigravityModel = slot.antigravity?.model ?? ""
+        antigravityEffort = slot.antigravity?.effort ?? "high"
     }
 
     var slot: Slot {
@@ -40,7 +46,8 @@ struct EditableSlot: Identifiable {
              claude: claudeOn ? AgentPreset(model: claudeModel.trimmingCharacters(in: .whitespaces), effort: claudeEffort) : nil,
              codex: codexOn ? AgentPreset(model: codexModel.trimmingCharacters(in: .whitespaces), effort: codexEffort) : nil,
              grok: grokOn ? AgentPreset(model: grokModel.trimmingCharacters(in: .whitespaces), effort: grokEffort) : nil,
-             cursor: cursorOn ? AgentPreset(model: cursorModel.trimmingCharacters(in: .whitespaces), effort: cursorEffort) : nil)
+             cursor: cursorOn ? AgentPreset(model: cursorModel.trimmingCharacters(in: .whitespaces), effort: cursorEffort) : nil,
+             antigravity: antigravityOn ? AgentPreset(model: antigravityModel.trimmingCharacters(in: .whitespaces), effort: antigravityEffort) : nil)
     }
 }
 
@@ -63,6 +70,8 @@ final class SettingsModel: ObservableObject {
     static let grokEfforts = ["low", "medium", "high", "xhigh"]
     static let cursorModels = ["Grok 4.7", "Claude Opus 5.5", "Claude Fable 5.1", "GPT-5.6 Sol", "Composer 2.5"]
     static let cursorEfforts = ["low", "medium", "high", "xhigh", "max"]
+    static let antigravityModels = ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro", "Claude Opus 5.5", "Claude Sonnet 5.5"]
+    static let antigravityEfforts = ["low", "medium", "high"]
 
     init(store: ConfigStore, onSaved: @escaping () -> Void) {
         self.store = store
@@ -103,7 +112,8 @@ final class SettingsModel: ObservableObject {
             if slot.claudeOn && slot.claudeModel.trimmingCharacters(in: .whitespaces).isEmpty
                 || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty
                 || slot.grokOn && slot.grokModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.cursorOn && slot.cursorModel.trimmingCharacters(in: .whitespaces).isEmpty {
+                || slot.cursorOn && slot.cursorModel.trimmingCharacters(in: .whitespaces).isEmpty
+                || slot.antigravityOn && slot.antigravityModel.trimmingCharacters(in: .whitespaces).isEmpty {
                 status = "\(index + 1)번 프리셋의 모델이 비어 있습니다."
                 return
             }
@@ -132,7 +142,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("프리셋").font(.title2.weight(.semibold))
-            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
+            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -212,6 +222,8 @@ private struct SlotRow: View {
                          models: grokModels, efforts: SettingsModel.grokEfforts)
                 AgentRow(label: "cursor", isOn: $slot.cursorOn, model: $slot.cursorModel, effort: $slot.cursorEffort,
                          models: SettingsModel.cursorModels, efforts: SettingsModel.cursorEfforts)
+                AgentRow(label: "agy", isOn: $slot.antigravityOn, model: $slot.antigravityModel, effort: $slot.antigravityEffort,
+                         models: SettingsModel.antigravityModels, efforts: SettingsModel.antigravityEfforts)
             }
             .padding(4)
         }

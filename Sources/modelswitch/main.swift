@@ -9,7 +9,7 @@ modelswitch — 맨 앞 터미널의 claude·codex·grok 모델과 effort 를 �
   modelswitch run <번호> <claude|codex> [--dry-run] [인자…]   그 프리셋으로 새 세션을 이 터미널에서 연다
   modelswitch where                   지금 맨 앞 터미널과 에이전트
   modelswitch probe-orca [--seconds N]  Orca 의 «지금 보이는 터미널» 신호들이 바뀐 시각을 같은 시계로 기록(시험용, 아무것도 보내지 않음)
-  modelswitch doctor [대상] [--screen [--lines N]]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
+  modelswitch doctor [대상] [--screen [--lines N]] [--dump 파일.json]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
   modelswitch list                    프리셋 목록
   modelswitch plan <번호> <claude|codex>   보낼 키 순서만 출력(실행하지 않음)
   modelswitch path                    프리셋 파일 위치
@@ -151,6 +151,14 @@ do {
         if let screen = io.screen() {
             print("화면 읽기    됨 (\(screen.count)줄)")
             print("입력창       \(Readiness.inputVisible(agent: target.agent, screen: screen) ? "보임 — 전환 가능" : "안 보임 — 전환하지 않음")")
+            // 시험 표본을 만들 때: 제품이 읽는 «그대로» 의 화면을 파일로 저장한다(`orca terminal read` 의 tail 은 아래쪽 줄이 빠질 수 있다).
+            if let path = value(after: "--dump", in: args), let snapshot = io.snapshot() {
+                let object: [String: Any] = ["draft": snapshot.draft as Any, "tail": snapshot.lines]
+                if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted]) {
+                    try? data.write(to: URL(fileURLWithPath: path))
+                    print("화면 저장: \(path)")
+                }
+            }
             if args.contains("--screen") {
                 let count = value(after: "--lines", in: args).flatMap(Int.init) ?? 8
                 screen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.suffix(count).forEach { print("  | " + $0.prefix(140)) }

@@ -361,7 +361,7 @@ public struct CursorDriver {
             try typeSlowly(filter)
             typed = filter
             let expected = filter.lowercased()
-            guard let lines = try poll(timeoutMs: 2000, { CursorScreen.list($0)?.filter.lowercased() == expected }),
+            guard let lines = try poll(timeoutMs: 3500, { CursorScreen.list($0)?.filter.lowercased() == expected }),
                   let list = CursorScreen.list(lines) else {
                 throw failure("cursor 모델 목록이 '\(filter)' 로 걸러지지 않았습니다.", nil)
             }

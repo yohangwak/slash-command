@@ -5,6 +5,19 @@ public enum Agent: String, Codable, CaseIterable, Sendable {
     case codex
     case grok
     case cursor
+    case antigravity
+
+    /// 설치된 실행 파일 이름(`--version` 을 부를 때).
+    public var executable: String {
+        switch self {
+        case .cursor: return "cursor-agent"
+        case .antigravity: return "agy"
+        default: return rawValue
+        }
+    }
+
+    /// 단계 목록(`Step`)이 아니라 전용 드라이버가 화면을 보며 진행하는 에이전트.
+    public var usesDriver: Bool { self != .claude && self != .codex }
 }
 
 public struct AgentPreset: Codable, Equatable, Sendable {
@@ -39,14 +52,19 @@ public struct Slot: Codable, Equatable, Sendable {
         get { presets[.cursor] }
         set { presets[.cursor] = newValue }
     }
+    public var antigravity: AgentPreset? {
+        get { presets[.antigravity] }
+        set { presets[.antigravity] = newValue }
+    }
 
-    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil, grok: AgentPreset? = nil, cursor: AgentPreset? = nil) {
+    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil, grok: AgentPreset? = nil, cursor: AgentPreset? = nil, antigravity: AgentPreset? = nil) {
         self.name = name
         self.presets = [:]
         self.claude = claude
         self.codex = codex
         self.grok = grok
         self.cursor = cursor
+        self.antigravity = antigravity
     }
 
     /// 파일의 키는 `name` 과 에이전트 이름(`claude`·`codex`·`grok`…)이다. 모르는 키는 무시한다(나중 판이 쓴 파일을 읽을 수 있게).
