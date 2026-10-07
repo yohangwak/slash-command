@@ -1615,3 +1615,29 @@ final class TTYAgentTests: XCTestCase {
         XCTAssertEqual(ITermIO.expression(for: ""), "\"\"")
     }
 }
+
+final class ITermScreenTests: XCTestCase {
+    func testKeepsOnlyTheVisibleRows() {
+        let history = (1...5).map { "old \($0)" }
+        let output = "3\n" + (history + ["a", "b", "c"]).joined(separator: "\n") + "\n"
+        XCTAssertEqual(ITermIO.visibleLines(from: output), ["a", "b", "c"])
+    }
+
+    func testOldPromptInScrollbackIsNotTheCurrentScreen() {
+        // 지워진 화면(빈 줄 3개) 위 스크롤백에 예전 claude 입력창이 남아 있다 — 지금 화면에는 없다.
+        let scrollback = ["────────", "❯ ", "────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"]
+        let output = "3\n" + (scrollback + ["", "", ""]).joined(separator: "\n") + "\n"
+        let screen = ITermIO.visibleLines(from: output)
+        XCTAssertEqual(screen, ["", "", ""])
+        XCTAssertFalse(Readiness.claudePromptVisible(screen ?? []), "화면이 비었으면 입력창이 보이지 않는다")
+        // 양성 대조군: 같은 글이 정말 화면 아래에 있으면 보인다.
+        let live = ITermIO.visibleLines(from: "4\n" + scrollback.joined(separator: "\n") + "\n")
+        XCTAssertTrue(Readiness.claudePromptVisible(live ?? []))
+    }
+
+    func testRefusesWhenRowsAreUnknown() {
+        XCTAssertNil(ITermIO.visibleLines(from: "x\nhello"))
+        XCTAssertNil(ITermIO.visibleLines(from: "0\nhello"))
+        XCTAssertNil(ITermIO.visibleLines(from: ""))
+    }
+}

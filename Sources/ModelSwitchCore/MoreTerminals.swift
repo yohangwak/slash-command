@@ -155,9 +155,21 @@ public struct ITermIO: TerminalIO {
     public func press(_ key: Key) throws { try write(key.bytes) }
 
     public func screen() -> [String]? {
-        let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, body: "return contents"))
+        // `contents` 는 스크롤백까지 준다(2026-10-07 실측: 화면 25줄에 88줄) — 화면 «맨 아래» 판정에 쓰려면 지금 화면의 줄만 남겨야 한다.
+        // 줄 수(`rows`)는 같은 호출에서 읽어 둘이 어긋나지 않게 한다.
+        let body = "return ((rows as text) & linefeed & contents)"
+        let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, body: body))
         guard result.ok else { return nil }
-        let lines = result.out.replacingOccurrences(of: "\r", with: "\n").components(separatedBy: "\n")
-        return lines
+        return ITermIO.visibleLines(from: result.out)
+    }
+
+    /// `"<rows>\n<contents>"` 에서 지금 화면의 줄들. 줄 수를 못 읽으면 nil(스크롤백이 섞인 글을 현재 화면으로 쓰지 않는다).
+    static func visibleLines(from output: String) -> [String]? {
+        let text = output.replacingOccurrences(of: "\r", with: "\n")
+        guard let split = text.firstIndex(of: "\n"), let rows = Int(text[..<split]), rows > 0 else { return nil }
+        var lines = String(text[text.index(after: split)...]).components(separatedBy: "\n")
+        // 글 끝의 줄바꿈이 만드는 마지막 빈 원소는 화면 줄이 아니다.
+        if lines.last == "" { lines.removeLast() }
+        return Array(lines.suffix(rows))
     }
 }
