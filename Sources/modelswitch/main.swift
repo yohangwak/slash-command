@@ -18,7 +18,6 @@ modelswitch — 맨 앞 터미널의 claude·codex·grok 모델과 effort 를 �
   --orca <핸들> [--agent <claude|codex>]
   --ghostty <터미널 id> --agent <claude|codex>
 시험 단계(직접 지정할 때만, 단축키로는 아직 안 된다):
-  --iterm <세션 unique id> --agent <claude|codex>
   --tmux <pane> [--tmux-socket <이름>] --agent <claude|codex>
   --kitty <창 id> --kitty-socket unix:/경로 --agent <claude|codex>
   --wezterm <pane id> --agent <claude|codex>
@@ -43,7 +42,6 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         ("--tmux", { .tmux(socket: value(after: "--tmux-socket", in: args), pane: $0) }),
         ("--kitty", { id in value(after: "--kitty-socket", in: args).map { .kitty(socket: $0, window: id) } }),
         ("--wezterm", { .wezterm(pane: $0) }),
-        ("--iterm", { .iterm(sessionID: $0) }),
     ]
     for (flag, make) in more {
         guard let id = value(after: flag, in: args) else { continue }

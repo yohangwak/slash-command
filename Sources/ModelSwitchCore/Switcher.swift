@@ -175,8 +175,6 @@ public struct Switcher {
                 throw ModelSwitchError("wezterm 명령을 찾지 못했습니다.")
             }
             return WezTermIO(wezterm: wezterm, pane: pane)
-        case .iterm(let sessionID):
-            return ITermIO(sessionID: sessionID)
         }
     }
 
@@ -186,7 +184,7 @@ public struct Switcher {
             return "Ghostty 화면을 읽지 못해 전환하지 않았습니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 ModelSwitch 를 허용해 주세요."
         case .orca:
             return "Orca 터미널 화면을 읽지 못해 전환하지 않았습니다."
-        case .tmux, .kitty, .wezterm, .iterm:
+        case .tmux, .kitty, .wezterm:
             return "\(host.appName) 화면을 읽지 못해 전환하지 않았습니다. 대상이 아직 있는지 확인해 주세요."
         }
     }

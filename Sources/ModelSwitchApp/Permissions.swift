@@ -49,7 +49,7 @@ enum Permissions {
     }
 
     /// AppleScript 로 다루는 터미널들(이름, 번들 id).
-    static let automatedTerminals: [(name: String, bundleID: String)] = [("Ghostty", Detector.ghosttyBundleID), ("iTerm2", Detector.itermBundleID)]
+    static let automatedTerminals: [(name: String, bundleID: String)] = [("Ghostty", Detector.ghosttyBundleID)]
 }
 
 /// 편집 화면 맨 위의 「권한」 상자가 보는 상태. 창이 떠 있는 동안 1초마다 다시 읽어 — 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다.
@@ -92,7 +92,7 @@ struct PermissionsBox: View {
                 row(title: "손쉬운 사용 (Accessibility)",
                     ok: model.accessibility,
                     status: model.accessibility ? "켜짐" : "꺼짐",
-                    detail: "Ghostty 화면 읽기와 iTerm2 의 입력 방송 확인에 꼭 필요하고, Orca 에서는 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 알게 해 줍니다. 열리는 목록에서 ModelSwitch 의 스위치를 켜 주세요(목록에 없으면 아래 + 로 추가).",
+                    detail: "Ghostty 화면 읽기에 꼭 필요하고, Orca 에서는 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 알게 해 줍니다. 열리는 목록에서 ModelSwitch 의 스위치를 켜 주세요(목록에 없으면 아래 + 로 추가).",
                     button: model.accessibility ? "설정 보기" : "설정 열기…",
                     action: Permissions.openAccessibility)
                 ForEach(Permissions.automatedTerminals, id: \.bundleID) { terminal in

@@ -154,7 +154,7 @@ struct SettingsView: View {
             PermissionsBox(model: permissions)
 
             Text("프리셋").font(.title2.weight(.semibold))
-            Text("Ghostty·Orca·iTerm2 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy·opencode 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
+            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy·opencode 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
