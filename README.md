@@ -1,7 +1,7 @@
 # ModelSwitch
 
-Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 claude 인지 codex 인지에 맞춰
-그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱. **⇧⌥=** · **⇧⌥-** 는 모델은 그대로 두고 effort 만 한 단계 올리고 내린다.
+Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 어느 에이전트인지에 맞춰
+그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱. 지원하는 에이전트: **claude · codex · grok · cursor-agent · antigravity(agy) · opencode**. **⇧⌥=** · **⇧⌥-** 는 모델은 그대로 두고 effort 만 한 단계 올리고 내린다.
 
 `/model`·`/effort` 를 매번 치는 대신 단축키 한 번. 대화 도중에도 되고, 쓰던 글은 그대로 남고, 새 세션 기본값은 바뀌지 않는다.
 
@@ -9,10 +9,10 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 
 | 무엇 | 어떻게 |
 |---|---|
-| 전환 | Ghostty 나 Orca 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
+| 전환 | Ghostty·Orca 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
-| 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋 편집…」 (파일은 `~/.config/modelswitch/presets.json`) |
-| 새 세션 | `modelswitch run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`) |
+| 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋·권한…」 (파일은 `~/.config/modelswitch/presets.json`) |
+| 새 세션 | `modelswitch run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). claude·codex·grok 만 — cursor·agy·opencode 는 `--model` 이 받는 id 가 화면 이름과 달라 지원하지 않는다 |
 | 터미널에서 | `modelswitch list` · `where` · `doctor --screen`(대상·에이전트 판·화면 읽기·입력창 점검, 아무것도 보내지 않음) · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
 | 기록 | `~/Library/Logs/ModelSwitch/modelswitch.log` (누른 것, 결과, 단계별 걸린 시간) |
 
@@ -40,6 +40,26 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 - `keepDefaults`(기본 켬): 이 세션만 바꾼다. 끄면 claude 는 새 세션 기본값까지 바꾼다.
 - `acceptSwitchPrompt`(기본 켬): 아래 「claude 의 확인 창」.
 
+## 지원하는 에이전트
+
+번호는 «의도» 라서 한 프리셋에 에이전트마다의 설정을 함께 둔다(`"claude": {…}, "grok": {…}` …). 맨 앞 세션의 에이전트에 해당하는 설정만 쓰고, 없으면 아무것도 하지 않는다.
+모델 칸은 에이전트가 화면에 보여 주는 이름이다(대소문자·기호는 무시: `claude-opus-5-5` = `Claude Opus 5.5`).
+
+| 에이전트 | 어떻게 바꾸나 | 기본값(새 세션) | 걸리는 시간 |
+|---|---|---|---|
+| claude | `/model` 선택창에서 모델·effort 를 맞추고 `s`(이 세션만) | 건드리지 않음 | Orca 0.1~0.35초 |
+| codex | `/model` 선택창, `s`(이 세션만) | 건드리지 않음 | Orca 0.15~0.3초 |
+| grok | `/model <모델> <effort>` 한 줄 | `~/.grok/config.toml` 의 `[models]` 두 키를 저장함 → 끝나고 되돌림 | 약 0.35초 |
+| cursor-agent | `/model` 목록에서 글자를 한 글자씩 쳐 걸러 고르고, Tab 으로 매개변수(Effort)를 맞춰 확정 | `cli-config.json` 의 모델 관련 네 키를 저장함 → 되돌림 | 약 0.7~1.3초 |
+| antigravity(agy) | `/model` 선택창의 커서와 Effort 슬라이더(←/→) | `settings.json` 의 `model` 을 저장함 → 되돌림 | 약 0.5초 |
+| opencode | `/models` 대화상자에서 «이름 + 제공자» 로 걸러 고르고 `/variants` 로 variant 를 맞춤 | `model.json` 의 `recent`·`variant` 를 저장함 → 되돌림 | 약 0.4~0.7초 |
+
+- claude·codex 외의 네 에이전트에는 「이 세션만」 확정이 없어서 새 세션 기본값까지 저장된다(2026-10-07 실측). 그래서 «전환 뒤 그 키들만 전환 전 값으로 되돌린다» — 다른 키나 다른 세션이 쓴 값은 건드리지 않고, 되돌려도 돌고 있는 세션은 모델을 유지한다(cursor 로 확인). `keepDefaults` 를 끄면 되돌리지 않는다.
+- 전환 전에 기본값 파일이 «없었으면»(그 에이전트를 처음 쓰는 경우) 전환 뒤 그 키들을 다시 없앤다. 파일이 있는데 «읽지 못하면» 되돌릴 값을 모르므로 아무것도 보내지 않고 멈춘다. opencode 의 파일 위치는 ModelSwitch 가 아니라 «그 세션의» `XDG_STATE_HOME` 을 따른다(세션마다 다르고 어느 쪽인지 좁힐 수 없으면 멈춘다).
+- 모두 «입력창이 비어 있고 작업 중이 아닐 때만» 보낸다. 작업 중 표시: grok 안내 줄의 `Ctrl+c:cancel`, cursor 입력줄 위의 스피너, agy 안내 줄의 `esc to cancel`, opencode 상자 아래의 `esc interrupt`. 쓰던 글이 있으면 보내지 않는다.
+- 명령을 친 뒤 «그 글이 입력창에 보이는지» 확인하고서야 Enter 를 보낸다. opencode 는 긴 답변이 끝난 뒤 입력창이 글자를 받지 않는 상태가 있는데(Ctrl+P → Esc 로 풀린다), 이때도 글이 안 보이면 아무것도 보내지 않고 멈춘다.
+- 시험한 판: grok 1.0.46 · cursor-agent 2026.10.01 · agy 1.3.1 · opencode 1.18.35. 다른 판이면 `doctor` 가 알려 준다.
+
 ## 설치
 
 ```sh
@@ -47,10 +67,12 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 ~/Applications/ModelSwitch.app/Contents/MacOS/ModelSwitch --login-item on   # 로그인할 때 실행(메뉴에서도 켠다)
 ```
 
-처음 한 번 허용할 것(Ghostty 를 쓸 때만. Orca 만 쓰면 필요 없다):
+처음 한 번 허용할 것 — **앱이 그 설정 화면을 바로 열어 준다**(메뉴 막대 아이콘 → 「손쉬운 사용 켜기 — 설정 열기…」, 또는 「프리셋·권한…」 창 맨 위의 「권한」 상자의 버튼. 권한이 필요한 터미널에서 단축키를 눌러도 열린다):
 
-- **자동화**(ModelSwitch → Ghostty): 터미널에 글자를 넣는 데 쓴다.
-- **손쉬운 사용**(ModelSwitch): Ghostty 화면을 읽는 데 쓴다.
+- **손쉬운 사용 / Accessibility**(ModelSwitch): Ghostty 화면 읽기에 꼭 필요하다. Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
+- **자동화 / Automation**(ModelSwitch → Ghostty): 터미널에 글자를 넣는 데 쓴다. 처음 단축키를 누를 때 시스템이 묻는다.
+
+시스템 설정에는 «Accessibility» 가 두 곳이다 — 사이드바의 것은 장애 접근성 기능 화면이고, 필요한 것은 Privacy & Security 안의 앱 권한 목록이다. 그래서 말로 안내하지 않고 버튼으로 연다. 「권한」 상자는 상태(켜짐/꺼짐)를 1초마다 다시 읽어, 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다. `open -a ModelSwitch --args --settings` 로 그 창을 띄운 채 시작할 수 있다.
 
 ## 어떻게 동작하나
 
@@ -114,12 +136,13 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - codex 선택창의 모델 순서는 `~/.codex/models_cache.json` 에서 계산한다. 10번째 이후 모델은 숫자 키로 고를 수 없다.
 - claude 선택창에서 화면 아래로 밀려난 모델(`… +2 models`)은 명령 방식으로 간다(기본값을 바꿨다 되돌린다).
 - Orca 의 「화면에 떠 있는 워크스페이스」는 공개 인터페이스가 아닌 상태 DB 에서 읽는다. 형식이 바뀌면 추측하지 않고 실패한다.
-- 🔴 **Orca 에서 워크스페이스나 탭을 옮긴 뒤 약 2.5초 안에 누르면 «옮기기 전» 터미널로 간다.** 그 DB 가 화면보다 1.5~2.5초 늦게 써진다(맥북 실측, 워크스페이스 7회·탭 4회). 터미널 목록의 `activeTabId` 도 같이 늦고, 앱 소켓의 다른 조회(`ui.get`·`status.get`·`worktree.list`·`terminal.show`)에도 지금 보이는 탭은 없었다. 알림에 대상 이름이 뜨는 것이 지금의 유일한 방어다.
+- **Orca 에서 탭을 옮긴 직후:** 상태 DB 와 `terminal.list` 의 «활성 탭» 은 UI 보다 1.3~2.5초 늦다. 그래서 «손쉬운 사용» 권한이 있으면 Orca 의 탭 줄(접근성 트리, 활성 탭만 `text-foreground` 클래스)을 읽어 터미널 목록의 탭 제목 순서와 맞춘다 — 2026-10-07 같은 전환 7회에서 0.3초 뒤 7/7 맞음(DB 방식은 0/7). 권한이 없거나 탭 줄에 터미널이 아닌 탭이 섞여 맞지 않으면 옛 DB 방식으로 되돌아가고(지연 위험 그대로), 탭 제목 순서가 똑같은 워크스페이스가 둘이면 (늦은 DB 로 고르지 않고) 보내지 않는다. 분할 창의 활성 분할은 아직 목록 값을 쓴다.
 - Orca 앱 소켓도 공개 인터페이스가 아니다(`orca` 명령이 쓰는 통로). 못 쓰면 `orca` 명령으로 되돌아간다(회당 0.2초).
 - Ghostty 의 codex 는 3~4.6초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다(다른 접근성 속성도 같은 보관본을 준다).
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
-- 단축키로 되는 터미널은 Ghostty 와 Orca 뿐이다. tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). iTerm2 · Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
-- 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
+- 단축키로 되는 터미널은 Ghostty 와 Orca 다. tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). iTerm2 는 맥북에서 전환까지 확인했지만(약 1초) 입력 방송(Broadcast Input)이 켜져 있으면 다른 칸에도 입력이 들어가는 문제를 구조적으로 막지 못해 아직 넣지 않았다(별도 작업). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
+- 새 에이전트들의 한계: cursor 의 매개변수 편집에서 Effort 말고 Context·Fast 는 건드리지 않는다 · cursor 는 목록이 10줄씩 보이므로 이름을 걸러서 찾는다(이름이 둘 이상 겹치면 정확히 같은 이름만 고른다) · agy 는 긴 출력 뒤에 입력창이 다시 그려지지 않을 때가 있어(Ctrl+L 로 풀린다) 그때는 «입력창이 보이지 않는다» 로 멈춘다 · opencode 의 목록 커서는 글자로 보이지 않아 «걸러낸 맨 위 행이 우리가 찾는 그 행일 때만» 고른다. 그래서 즐겨찾기한 비슷한 이름의 모델이 위에 오면(`GLM-5.3` 을 찾는데 `GLM-5.3-Flash` 가 맨 위) 고르지 않고 멈춘다(2026-10-08 실측).
+- 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
 
 ## 개발
 

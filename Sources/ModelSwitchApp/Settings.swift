@@ -12,6 +12,18 @@ struct EditableSlot: Identifiable {
     var codexOn: Bool
     var codexModel: String
     var codexEffort: String
+    var grokOn: Bool
+    var grokModel: String
+    var grokEffort: String
+    var cursorOn: Bool
+    var cursorModel: String
+    var cursorEffort: String
+    var antigravityOn: Bool
+    var antigravityModel: String
+    var antigravityEffort: String
+    var opencodeOn: Bool
+    var opencodeModel: String
+    var opencodeEffort: String
 
     init(_ slot: Slot) {
         name = slot.name
@@ -21,12 +33,28 @@ struct EditableSlot: Identifiable {
         codexOn = slot.codex != nil
         codexModel = slot.codex?.model ?? ""
         codexEffort = slot.codex?.effort ?? "high"
+        grokOn = slot.grok != nil
+        grokModel = slot.grok?.model ?? ""
+        grokEffort = slot.grok?.effort ?? "high"
+        cursorOn = slot.cursor != nil
+        cursorModel = slot.cursor?.model ?? ""
+        cursorEffort = slot.cursor?.effort ?? "high"
+        antigravityOn = slot.antigravity != nil
+        antigravityModel = slot.antigravity?.model ?? ""
+        antigravityEffort = slot.antigravity?.effort ?? "high"
+        opencodeOn = slot.opencode != nil
+        opencodeModel = slot.opencode?.model ?? ""
+        opencodeEffort = slot.opencode?.effort ?? "high"
     }
 
     var slot: Slot {
         Slot(name: name.trimmingCharacters(in: .whitespaces),
              claude: claudeOn ? AgentPreset(model: claudeModel.trimmingCharacters(in: .whitespaces), effort: claudeEffort) : nil,
-             codex: codexOn ? AgentPreset(model: codexModel.trimmingCharacters(in: .whitespaces), effort: codexEffort) : nil)
+             codex: codexOn ? AgentPreset(model: codexModel.trimmingCharacters(in: .whitespaces), effort: codexEffort) : nil,
+             grok: grokOn ? AgentPreset(model: grokModel.trimmingCharacters(in: .whitespaces), effort: grokEffort) : nil,
+             cursor: cursorOn ? AgentPreset(model: cursorModel.trimmingCharacters(in: .whitespaces), effort: cursorEffort) : nil,
+             antigravity: antigravityOn ? AgentPreset(model: antigravityModel.trimmingCharacters(in: .whitespaces), effort: antigravityEffort) : nil,
+             opencode: opencodeOn ? AgentPreset(model: opencodeModel.trimmingCharacters(in: .whitespaces), effort: opencodeEffort) : nil)
     }
 }
 
@@ -41,15 +69,23 @@ final class SettingsModel: ObservableObject {
     let store: ConfigStore
     let onSaved: () -> Void
     let codexModels: [String]
+    let grokModels: [String]
 
     static let claudeModels = ["fable", "opus", "sonnet", "haiku"]
     static let claudeEfforts = ["low", "medium", "high", "xhigh", "max"]
     static let codexEfforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
+    static let grokEfforts = ["low", "medium", "high", "xhigh"]
+    static let cursorModels = ["Grok 4.7", "Claude Opus 5.5", "Claude Fable 5.1", "GPT-5.6 Sol", "Composer 2.5"]
+    static let cursorEfforts = ["low", "medium", "high", "xhigh", "max"]
+    static let antigravityModels = ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro", "Claude Opus 5.5", "Claude Sonnet 5.5"]
+    static let antigravityEfforts = ["low", "medium", "high"]
+    static let opencodeEfforts = ["Default", "low", "medium", "high", "max"]
 
     init(store: ConfigStore, onSaved: @escaping () -> Void) {
         self.store = store
         self.onSaved = onSaved
         codexModels = (try? CodexModels.load().listed.map(\.slug)) ?? []
+        grokModels = GrokModels.load().models.map(\.id)
         reload()
     }
 
@@ -75,13 +111,18 @@ final class SettingsModel: ObservableObject {
         guard slots.count < ModelSwitchConfig.maxSlots else { return }
         var slot = EditableSlot(Slot(claude: AgentPreset(model: "opus", effort: "high")))
         slot.codexModel = codexModels.first ?? ""
+        slot.grokModel = grokModels.first ?? ""
         slots.append(slot)
     }
 
     func save() {
         for (index, slot) in slots.enumerated() {
             if slot.claudeOn && slot.claudeModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty {
+                || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty
+                || slot.grokOn && slot.grokModel.trimmingCharacters(in: .whitespaces).isEmpty
+                || slot.cursorOn && slot.cursorModel.trimmingCharacters(in: .whitespaces).isEmpty
+                || slot.antigravityOn && slot.antigravityModel.trimmingCharacters(in: .whitespaces).isEmpty
+                || slot.opencodeOn && slot.opencodeModel.trimmingCharacters(in: .whitespaces).isEmpty {
                 status = "\(index + 1)번 프리셋의 모델이 비어 있습니다."
                 return
             }
@@ -106,18 +147,21 @@ final class SettingsModel: ObservableObject {
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
+    @ObservedObject var permissions: PermissionsModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            PermissionsBox(model: permissions)
+
             Text("프리셋").font(.title2.weight(.semibold))
-            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude 인지 codex 인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
+            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy·opencode 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             ScrollView {
                 VStack(spacing: 10) {
                     ForEach(Array(model.slots.enumerated()), id: \.element.id) { index, _ in
-                        SlotRow(shortcut: "\(model.symbols)\(index + 1)", slot: $model.slots[index], codexModels: model.codexModels) {
+                        SlotRow(shortcut: "\(model.symbols)\(index + 1)", slot: $model.slots[index], codexModels: model.codexModels, grokModels: model.grokModels) {
                             model.slots.remove(at: index)
                         }
                     }
@@ -169,6 +213,7 @@ private struct SlotRow: View {
     let shortcut: String
     @Binding var slot: EditableSlot
     let codexModels: [String]
+    let grokModels: [String]
     let onDelete: () -> Void
 
     var body: some View {
@@ -185,6 +230,14 @@ private struct SlotRow: View {
                          models: SettingsModel.claudeModels, efforts: SettingsModel.claudeEfforts)
                 AgentRow(label: "codex", isOn: $slot.codexOn, model: $slot.codexModel, effort: $slot.codexEffort,
                          models: codexModels, efforts: SettingsModel.codexEfforts)
+                AgentRow(label: "grok", isOn: $slot.grokOn, model: $slot.grokModel, effort: $slot.grokEffort,
+                         models: grokModels, efforts: SettingsModel.grokEfforts)
+                AgentRow(label: "cursor", isOn: $slot.cursorOn, model: $slot.cursorModel, effort: $slot.cursorEffort,
+                         models: SettingsModel.cursorModels, efforts: SettingsModel.cursorEfforts)
+                AgentRow(label: "agy", isOn: $slot.antigravityOn, model: $slot.antigravityModel, effort: $slot.antigravityEffort,
+                         models: SettingsModel.antigravityModels, efforts: SettingsModel.antigravityEfforts)
+                AgentRow(label: "opencode", isOn: $slot.opencodeOn, model: $slot.opencodeModel, effort: $slot.opencodeEffort,
+                         models: [], efforts: SettingsModel.opencodeEfforts)
             }
             .padding(4)
         }
@@ -222,15 +275,21 @@ private struct AgentRow: View {
 
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let model: SettingsModel
+    private let permissions = PermissionsModel()
     private var window: NSWindow?
 
     init(store: ConfigStore, onSaved: @escaping () -> Void) {
         model = SettingsModel(store: store, onSaved: onSaved)
     }
 
+    /// 창이 닫히면 권한 상태를 다시 읽는 것을 멈춘다.
+    func windowWillClose(_ notification: Notification) {
+        permissions.stop()
+    }
+
     func present() {
         if window == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, permissions: permissions)))
             window.title = "ModelSwitch"
             window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
@@ -239,6 +298,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             self.window = window
         }
         model.reload()
+        permissions.start()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }

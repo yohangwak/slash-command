@@ -153,7 +153,7 @@ Developer ID 서명 + 공증 → GitHub 릴리스의 zip → 자체 Homebrew tap
 | **tmux 3.7c** | `focus-events on` 인 채로 붙은 클라이언트는 `client_flags` 의 `focused` 가 «키 입력 없이» 창 포커스를 따라온다(실측). 기본값(off)에서는 둘 다 `focused` 로 나오고 `client_activity` 도 안 변한다 → 못 가린다 | `send-keys -H`(16진) · `-l` 모두 그대로, 7ms. 없는 대상은 실패(1) | `capture-pane -p` 7ms, 쓴 글이 13~40ms 뒤 보임 | 없음(ssh 에서도 됨) | claude: 프리셋 6종 · effort 단계 · 작업 중 · 없는 모델 거절 전부 맞음, 0.9~1.8초. codex: 프리셋 4종 · effort 5회 맞음, 1.3~1.8초. 초안·기본값 유지 |
 | **kitty 0.49.2** | `kitty @ ls` 가 `is_focused` · pid · 앞에서 도는 프로세스의 명령줄을 준다 | `send-text` 그대로, 26ms. 🔴 없는 창에도 성공(0)을 돌려준다 → 쓰기 전에 `ls` 로 확인 | `get-text` 29ms, 약 50ms 뒤 보임 | 없음. 단 사용자가 원격 제어(`allow_remote_control` + 소켓)를 켜야 한다 | claude: 프리셋 3종 · 없는 모델 · effort 올림/내림 맞음, 1.1~2.2초 |
 | **WezTerm 20240203** | `cli list`(tty · `is_active`) + `cli list-clients`(포커스 pane) | 🔴 기본은 붙여넣기 표시(`ESC[200~ … ESC[201~`)로 감싼다 → `--no-paste` 로 그대로, 15ms. 없는 pane 은 실패(1) | `get-text` 9ms, 약 23ms 뒤 보임 | 없음 | claude: 프리셋 3종 · 없는 모델 · effort 올림/내림 맞음, 0.9~2.0초 |
-| **iTerm2 3.7.3** | — | — | — | 첫 실행에서 「인터넷에서 받은 앱」 확인(눌렀다) 뒤, 시스템 권한 요청에서 멈춰 AppleScript 가 시간 초과 | **못 쟀다** — 맥북에서 iTerm2 를 한 번 열어 권한 창을 처리해야 한다 |
+| **iTerm2 3.7.3** | `current session of current window` 가 포커스 세션의 `unique id`·`tty` 를 «바로» 준다(맨 앞 터미널 찾기 가능) | `write text … newline NO` 가 바이트를 그대로 넣는다 — `^S/model⏎` · `ESC[A ESC[B` · 한글 모두 도착, 붙여넣기 표시로 감싸지 않음(레드팀 주장 7의 iTerm2 쪽도 **REFUTED**: 기본 `write text` 가 `newline NO` 로 raw) | `contents` 는 «스크롤백까지» 전체 글을 준다(실측: 화면 25줄에 88줄; `clear` 해도 스크롤백에 남음) → `rows`·`columns` 를 같은 호출로 읽어 맨 아래에서부터 «물리 행 수» 만큼만 쓴다(접힌 줄·넓은 글자는 넉넉히 셈). 읽고 쓰는 세션을 `unique id` 로 못 박으므로 포커스가 옮겨져도 «읽은 세션에 쓴다» | 처음 한 번 macOS 「자동화」 허용 | claude 2.1.292: 프리셋 3종 · effort 올림/내림 맞음 약 1.0초 · codex 0.160.1(`gpt-6.1-sol` 포함): 프리셋 · effort 맞음 약 1.1초. 기본값 파일(claude·codex) 불변. `where` 가 tty 의 에이전트로 대상을 찾음 |
 
 읽은 것:
 - 셋 다 화면을 «지금 것으로» 읽는다(Ghostty 의 0.5초 보관이 없다). 그래서 Ghostty 에서 3~4.6초 걸리는 codex 가 tmux 안에서는 1.3~1.8초다.
@@ -162,7 +162,7 @@ Developer ID 서명 + 공증 → GitHub 릴리스의 zip → 자체 Homebrew tap
 
 레드팀의 남은 주장 판정:
 - 6 (tmux `client_activity` 로는 맨 앞을 못 가린다) → **CONFIRMED**(기본 설정에서). 대안도 쟀다: `focus-events on` + `client_flags`.
-- 7 (`--no-paste` 가 없으면 감싸인다) → WezTerm 에서 **CONFIRMED**. iTerm2 `newline NO` 는 못 쟀다.
+- 7 (`--no-paste` 가 없으면 감싸인다) → WezTerm 에서 **CONFIRMED**. iTerm2: `write text … newline NO` 는 감싸지 않았다(2026-10-07 실측) → iTerm2 쪽은 REFUTED.
 - 8 (kitty `send-text` 는 못 보내도 성공) → **CONFIRMED**(codex 가 맞고 grok 의 반박이 틀렸다).
 - 9 (cask 자동 업데이트) → 그대로 PLAUSIBLE.
 
@@ -175,3 +175,26 @@ Developer ID 서명 + 공증 → GitHub 릴리스의 zip → 자체 Homebrew tap
 5. (승인 뒤) 깨끗한 계정에서 서명·공증 설치와 권한 거부 흐름을 먼저 재고, 그다음 나머지 언어·cask.
 
 요한님께 물을 것: **누구에게 줄 것인가**(쓰는 터미널이 무엇인가). 그것이 1번의 대상과 5번의 시기를 정한다.
+
+## Orca «지금 보이는 탭» — 해결 (2026-10-07)
+
+- 레드팀(codex·grok·gemini, `--parallel`): 셋 다 «보이는 터미널의 신원을 보증하는 독립 신호가 빠졌다» 로 수렴. 판정 6건 CONFIRMED 3 · PLAUSIBLE 3.
+- 실측: 같은 CLI 탭 전환 5회에서 상태 DB 가 1.3~1.7초 늦었고, 접근성 트리의 활성 탭 표시(`text-foreground`)는 0.25초 안에 따라왔다. 탭 줄 제목 순서는 `terminal.list` 레이아웃의 탭 제목 순서와 같다(AX 는 기호를 공백으로 읽고 긴 제목을 앞부분만 준다).
+- 구현: `OrcaView`(탭 줄 읽기 + 레이아웃 맞추기), `Detector.orcaActive`. 0.3초 뒤 7/7(옛 방식 0/7). 전체 `where` 는 약 0.2초.
+- 남은 한계: 분할 창의 활성 분할 · 터미널이 아닌 탭이 섞인 탭 줄(DB 로 되돌아감) · 탭 제목 순서가 같은 두 워크스페이스(보내지 않음) · 권한 없음(DB 로 되돌아감).
+- 사용자 보고(같은 날): claude 에서 전환 직후 바로 codex 탭에 가서 전환하면 claude 이름이 나옴 — 이 지연이 원인이었고 위 구현으로 닫힘(실제 클릭 경로는 사용자 재확인 필요).
+
+### PR #8 리뷰(pullfrog)로 고친 것 — 전부 코드를 읽어 참임을 확인
+- 같은 탭 제목 순서의 워크스페이스가 둘일 때 늦은 DB 로 고르던 것 → 항상 «모호»(보내지 않음). 회귀 테스트 추가.
+- iTerm2 방송 상태를 1초 캐시하던 것 → 쓸 때마다 새로 읽음(그 사이 켜질 수 있다).
+- 방송 메뉴는 «맨 앞 창» 상태 → 쓰는 세션이 맨 앞 창에 있을 때만 보냄(맥북에서 실제 세션 id 는 true, 가짜 id 는 false 확인).
+
+### PR #10 리뷰(pullfrog) 판정 — 2026-10-08
+| 주장 | 판정 | 무엇으로 |
+|---|---|---|
+| 기본값 파일이 없거나 못 읽으면 되돌리기가 통째로 빠진다 | CONFIRMED(코드) | `snapshot()` 이 nil 이면 모든 복원이 건너뛰어졌다 → 「없음」은 끝나고 키를 없애고, 「읽지 못함」은 보내기 전에 멈춘다 |
+| opencode 는 `XDG_STATE_HOME` 을 따르는데 경로가 고정이다 | CONFIRMED(코드) · 실기 미확인 | 이 맥에는 그 변수가 없어(셸 0개) 실제 다른 폴더로는 못 쟀다. 세션 프로세스의 환경에서 읽도록 고치고 단위 테스트 |
+| 저장한 variant 가 없으면 `/variants` 에 `●` 가 없다 | CONFIRMED(실측) | DeepSeek V4 Pro 를 골라 대화상자를 저장(`oc-variants-implicit.json`): Default·high·max 중 표시 없음 |
+| 걸러낸 무료 모델 행에 `Free` 칸이 붙어 이름 비교가 깨진다 | 이 폭에서는 REFUTED, 다른 폭은 PLAUSIBLE | `Big Pickle` 로 걸러 저장(`oc-models-free.json`): `Big Pickle … OpenCode Zen` 뿐, 값 칸 없음. 걸러내지 않은 목록에는 있다 → 값 칸을 떼도록 방어 |
+
+관측(원인 미확인): Orca 가 1.4.220 → 1.4.222 로 올라가며 다시 시작된 뒤, 시험 터미널들의 화면이 10줄 안팎으로 깨져 읽혔다(네 에이전트 모두 「입력창 안 보임」). cursor 는 그 직전까지 정상으로 읽혀 전환을 시작했고, 모델은 바뀌었으나(모델 줄 `Medium`) 입력줄이 다시 보이지 않아 «확인하지 못함» 으로 끝났다 — 기본값 파일은 그대로. 후보: 다시 시작한 뒤 한 번도 화면에 띄우지 않은 탭의 터미널 크기. 확인하려면 그 탭을 한 번 띄운 뒤 `doctor --dump` 의 줄 수를 본다.

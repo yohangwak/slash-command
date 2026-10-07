@@ -1565,6 +1565,7 @@ final class AgentVersionTests: XCTestCase {
         XCTAssertEqual(AgentVersions.parse(versionOutput: "codex-cli 0.160.1\n"), "0.160.1")
         XCTAssertNil(AgentVersions.parse(versionOutput: "command not found"), "숫자 세 토막이 없으면 판을 지어내지 않는다")
         XCTAssertNil(AgentVersions.parse(versionOutput: "1.2 beta"))
+        XCTAssertEqual(AgentVersions.parse(versionOutput: "2026.10.01-14929f9\n"), "2026.10.01-14929f9", "cursor-agent")
     }
 
     func testReadsVersionFromInstallPath() {
@@ -1593,5 +1594,1471 @@ final class AgentVersionTests: XCTestCase {
         XCTAssertTrue(hidden.lines.contains { $0.contains("실행 중인 claude 일부") })
         let clean = AgentVersions.Report(agent: .claude, installed: "2.1.289", running: ["2.1.288"])
         XCTAssertTrue(clean.lines.contains { $0.contains("확인한 판입니다") }, "양성 대조군: 모두 읽혔고 확인한 판이면 그렇게 말한다")
+    }
+}
+
+final class OrcaViewTests: XCTestCase {
+    private func layout(_ worktree: String, _ titles: [String]) -> [String: Any] {
+        ["worktreeId": worktree, "root": ["tabs": titles.enumerated().map { ["tabId": "\(worktree)-t\($0.offset)", "title": $0.element] as [String: Any] }]]
+    }
+
+    private func strip(_ titles: [String], active: Int, truncated: Set<Int> = []) -> OrcaView.Strip {
+        OrcaView.Strip(tabs: titles.enumerated().map { .init(title: $0.element, truncated: truncated.contains($0.offset), active: $0.offset == active) })
+    }
+
+    // 2026-10-07 맥 화면의 탭 줄(이 워크스페이스).
+    private let initialTitles = ["이 repo 루트의 HANDOFF-2026-10-06-", "Terminal 2", "initial", "<local-command-caveat>The comm", "OpenCode", "grok", "Terminal 7", "Cursor Agent"]
+    private let shownTitles = ["이 repo 루트의 HANDOFF 2026 10 06", "Terminal 2", "initial", "<local-command-caveat>The", "OpenCode", "grok", "Terminal 7", "Cursor Agent"]
+
+    func testReadsTabButtonLabelAndActiveClass() {
+        let active = OrcaView.tab(fromLabel: "Working 이 repo 루트의 HANDOFF 2026 10 06 Close tab 이 repo 루트의 HANDOFF 2026 10 06",
+                                  classes: ["group", "bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))]", "text-foreground"])
+        XCTAssertEqual(active, .init(title: "이 repo 루트의 HANDOFF 2026 10 06", truncated: false, active: true))
+        let inactive = OrcaView.tab(fromLabel: "grok Close tab grok", classes: ["group", "bg-card", "text-muted-foreground", "hover:text-foreground"])
+        XCTAssertEqual(inactive?.active, false, "hover:text-foreground 는 활성 표시가 아니다")
+        let truncated = OrcaView.tab(fromLabel: "Done <local-command-caveat>The command... Close tab <local-command-caveat>The command...", classes: [])
+        XCTAssertEqual(truncated?.title, "<local-command-caveat>The command")
+        XCTAssertEqual(truncated?.truncated, true)
+        XCTAssertNil(OrcaView.tab(fromLabel: "Tasks", classes: ["text-foreground"]), "탭 버튼이 아니다")
+    }
+
+    func testResolvesTheVisibleTabWhileTheDatabaseStillSaysTheOldOne() {
+        let layouts = [layout("w-other", ["Terminal 2", "Terminal 3"]), layout("w-initial", initialTitles)]
+        for index in 0..<initialTitles.count {
+            let result = OrcaView.resolve(strip: strip(shownTitles, active: index, truncated: [3]), layouts: layouts)
+            XCTAssertEqual(result, .tab(.init(worktreeID: "w-initial", tabID: "w-initial-t\(index)")), "탭 \(index)")
+        }
+    }
+
+    func testNoMatchWhenTheStripHasTabsTheLayoutDoesNot() {
+        // 파일 탭 같은 터미널이 아닌 탭이 섞이면 수가 달라 맞추지 않는다(부른 쪽이 DB 로 되돌아간다).
+        let layouts = [layout("w-initial", initialTitles)]
+        XCTAssertEqual(OrcaView.resolve(strip: strip(shownTitles + ["README.md"], active: 8), layouts: layouts), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip(["a", "b"], active: 0), layouts: layouts), .noMatch)
+    }
+
+    func testIdenticalStripsInTwoWorkspacesAreAlwaysAmbiguous() {
+        let layouts = [layout("w1", ["Terminal 2"]), layout("w2", ["Terminal 2"])]
+        let one = strip(["Terminal 2"], active: 0)
+        XCTAssertEqual(OrcaView.resolve(strip: one, layouts: layouts), .ambiguous(["w1", "w2"]))
+        // 양성 대조군: 탭 제목이 하나라도 다르면 정해진다.
+        XCTAssertEqual(OrcaView.resolve(strip: one, layouts: [layout("w1", ["Terminal 2"]), layout("w2", ["Terminal 3"])]),
+                       .tab(.init(worktreeID: "w1", tabID: "w1-t0")))
+    }
+
+    func testNeedsExactlyOneActiveTab() {
+        let layouts = [layout("w", ["a", "b"])]
+        let none = OrcaView.Strip(tabs: [.init(title: "a", truncated: false, active: false), .init(title: "b", truncated: false, active: false)])
+        let both = OrcaView.Strip(tabs: [.init(title: "a", truncated: false, active: true), .init(title: "b", truncated: false, active: true)])
+        XCTAssertEqual(OrcaView.resolve(strip: none, layouts: layouts), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: both, layouts: layouts), .noMatch)
+    }
+
+    func testLongTitleCutWithoutEllipsisStillMatchesButShortOnesNeedToBeExact() {
+        let layouts = [layout("w", ["이 repo 루트의 HANDOFF-2026-10-06-modelswitch.md 를 먼저 끝까지 읽고 이어서 진행해줘", "initial"])]
+        let cut = OrcaView.Strip(tabs: [.init(title: "이 repo 루트의 HANDOFF 2026 10 06", truncated: false, active: true), .init(title: "initial", truncated: false, active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: cut, layouts: layouts), .tab(.init(worktreeID: "w", tabID: "w-t0")))
+        let shortCut = OrcaView.Strip(tabs: [.init(title: "이 repo 루트의 HANDOFF 2026 10 06", truncated: false, active: true), .init(title: "init", truncated: false, active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: shortCut, layouts: layouts), .noMatch, "짧은 제목은 앞부분 일치를 인정하지 않는다")
+    }
+
+    func testTruncatedTitleOnlyMatchesAsAPrefix() {
+        let layouts = [layout("w", ["긴 제목입니다 정말로 길어서 잘렸어요"])]
+        XCTAssertEqual(OrcaView.resolve(strip: strip(["긴 제목입니다"], active: 0, truncated: [0]), layouts: layouts), .tab(.init(worktreeID: "w", tabID: "w-t0")))
+        XCTAssertEqual(OrcaView.resolve(strip: strip(["긴 제목입니다"], active: 0), layouts: layouts), .noMatch, "잘리지 않은 제목은 정확히 같아야 한다")
+    }
+}
+
+// MARK: - grok
+
+/// 실제 grok 1.0.46 화면(2026-10-07 집 맥)과 모델 목록·설정 표본.
+final class GrokScreenTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testIdleBoxIsReadyAndHasTheLabel() throws {
+        let lines = try screen("grok-idle")
+        let box = try XCTUnwrap(GrokScreen.box(lines))
+        XCTAssertEqual(box.input, "")
+        XCTAssertEqual(box.label, "Grok 4.7 (xhigh)")
+        XCTAssertTrue(GrokScreen.idle(lines))
+        XCTAssertEqual(GrokScreen.draft(lines), "")
+    }
+
+    func testWorkingScreenIsNotIdleEvenThoughTheBoxLooksEmpty() throws {
+        // 실제 화면: 질문을 보낸 직후 grok 이 작업 중이다. 입력 상자는 비어 보이고 안내 줄만 `Ctrl+c:cancel` 로 다르다.
+        let working = try screen("grok-working")
+        XCTAssertEqual(GrokScreen.draft(working), "")
+        XCTAssertFalse(GrokScreen.idle(working), "작업 중에 /model 을 치면 대기열에 들어가거나 작업과 섞인다")
+        XCTAssertTrue(GrokScreen.idle(try screen("grok-after-work")), "양성 대조군: 끝난 뒤에는 대기")
+    }
+
+    func testDraftIsSeenAndBlocksSending() throws {
+        let lines = try screen("grok-draft")
+        XCTAssertEqual(GrokScreen.draft(lines), "abc draft")
+        XCTAssertFalse(GrokScreen.idle(lines), "쓰던 글이 있으면 명령과 섞인다")
+    }
+
+    func testOpenPickerAndLeftoverCommandAreNotIdle() throws {
+        XCTAssertFalse(GrokScreen.idle(try screen("grok-picker")), "선택창이 열려 있다")
+        let after = try screen("grok-after-esc")
+        XCTAssertEqual(GrokScreen.draft(after), "/model", "Esc 로 닫아도 입력창에 글이 남는다(실측)")
+        XCTAssertFalse(GrokScreen.idle(after))
+    }
+
+    func testClaudeAndCodexScreensAreNotGrok() throws {
+        for name in ["claude-idle", "codex-idle", "claude-draft"] {
+            XCTAssertFalse(GrokScreen.idle(try screen(name)), name)
+            XCTAssertNil(GrokScreen.box(try screen(name)), name)
+        }
+    }
+
+    func testParsesTheLabel() {
+        XCTAssertEqual(GrokScreen.parse(label: "Grok 4.7 (xhigh)").name, "Grok 4.7")
+        XCTAssertEqual(GrokScreen.parse(label: "Grok 4.7 (xhigh)").effort, "xhigh")
+        XCTAssertNil(GrokScreen.parse(label: "Grok Code").effort)
+    }
+
+    func testOldUnknownModelLineIsCountedSoNewOnesCanBeTold() {
+        let before = ["  Unknown model: grok-4.6", "  │ ❯", "  ╰──╯"]
+        XCTAssertEqual(GrokScreen.errorLines(before), ["Unknown model: grok-4.6"])
+        XCTAssertEqual(GrokScreen.errorLines(["hello"]), [])
+    }
+}
+
+final class GrokModelsAndDefaultsTests: XCTestCase {
+    func testParsesModelsAndOrdersEfforts() {
+        let json = """
+        {"models": {"grok-4.7": {"info": {"id": "grok-4.7", "name": "Grok 4.7", "supports_reasoning_effort": true,
+          "reasoning_efforts": [{"value": "xhigh"}, {"value": "high"}, {"value": "medium"}, {"value": "low"}]}},
+          "hidden": {"info": {"id": "x", "name": "X", "hidden": true}},
+          "plain": {"info": {"id": "grok-code", "name": "Grok Code", "supports_reasoning_effort": false}}}}
+        """
+        let models = GrokModels.parse(Data(json.utf8))
+        XCTAssertEqual(models.models.map(\.id), ["grok-4.7", "grok-code"], "숨김 모델은 뺀다")
+        XCTAssertEqual(models.resolve("grok-4.7")?.efforts, ["low", "medium", "high", "xhigh"])
+        XCTAssertEqual(models.resolve("Grok 4.7")?.id, "grok-4.7", "화면 이름으로도 찾는다")
+        XCTAssertEqual(models.resolve("grok-code")?.efforts, [])
+        XCTAssertNil(models.resolve("grok-9"))
+    }
+
+    private func original() throws -> String {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "grok-config-before", withExtension: "toml", subdirectory: "Fixtures"))
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    func testRemovesTheAppendedModelsTableExactly() throws {
+        // 2026-10-07 실측: grok 이 «원래 파일 + 빈 줄 + [models] 표» 를 덧붙였다.
+        let before = try original()
+        let after = before + "\n[models]\ndefault = \"grok-4.7\"\ndefault_reasoning_effort = \"xhigh\"\n"
+        XCTAssertEqual(GrokDefaults.restoring(current: after, from: before), before, "바이트까지 같아야 한다")
+    }
+
+    func testPutsBackPreviousValuesAndKeepsOtherKeys() {
+        let before = "[ui]\nyolo = false\n\n[models]\ndefault = \"grok-4.6\"\ndefault_reasoning_effort = \"low\"\nallowed = 1\n"
+        let after = "[ui]\nyolo = true\n\n[models]\nallowed = 1\ndefault = \"grok-4.7\"\ndefault_reasoning_effort = \"xhigh\"\n"
+        let fixed = GrokDefaults.restoring(current: after, from: before)
+        XCTAssertTrue(fixed.contains("default = \"grok-4.6\""))
+        XCTAssertTrue(fixed.contains("default_reasoning_effort = \"low\""))
+        XCTAssertTrue(fixed.contains("yolo = true"), "다른 키(다른 세션이 쓴 것)는 건드리지 않는다")
+        XCTAssertFalse(fixed.contains("grok-4.7"))
+    }
+
+    func testNothingToDoWhenAlreadyOriginal() throws {
+        let before = try original()
+        XCTAssertEqual(GrokDefaults.restoring(current: before, from: before), before)
+    }
+
+    func testRestoreWritesTheFile() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("grok-\(UUID().uuidString).toml")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let before = try original()
+        try (before + "\n[models]\ndefault = \"x\"\n").write(to: url, atomically: true, encoding: .utf8)
+        let defaults = GrokDefaults(url: url)
+        XCTAssertEqual(defaults.restore(to: before), .restored)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), before)
+        XCTAssertEqual(defaults.restore(to: before), .unchanged)
+    }
+}
+
+/// grok 입력 상자와 `/model` 명령 흉내. 설정 파일도 실제처럼 `[models]` 를 덧붙인다.
+final class FakeGrok: TerminalIO {
+    var input = ""
+    var label: String
+    var busy = false
+    var errors: [String] = []
+    let known: [String: (name: String, efforts: [String])]
+    let configURL: URL
+    var typed: [String] = []
+    var ignoreEnter = false
+
+    init(label: String = "Grok 4.7 (high)", configURL: URL,
+         known: [String: (name: String, efforts: [String])] = ["grok-4.7": ("Grok 4.7", ["low", "medium", "high", "xhigh"])]) {
+        self.label = label
+        self.configURL = configURL
+        self.known = known
+    }
+
+    func type(_ text: String) throws { typed.append(text); input += text }
+    func press(_ key: Key) throws {
+        switch key {
+        case .backspace: if !input.isEmpty { input.removeLast() }
+        case .enter:
+            if ignoreEnter { return }
+            run()
+        default: break
+        }
+    }
+
+    private func run() {
+        defer { input = "" }
+        let words = input.split(separator: " ").map(String.init)
+        guard words.count >= 2, words[0] == "/model" else { return }
+        guard let model = known[words[1]] else { errors.append("  Unknown model: \(words[1])"); return }
+        let effort = words.count > 2 ? words[2] : nil
+        label = model.name + (effort.map { " (\($0))" } ?? "")
+        var text = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+        text += "\n[models]\ndefault = \"\(words[1])\"\n" + (effort.map { "default_reasoning_effort = \"\($0)\"\n" } ?? "")
+        try? text.write(to: configURL, atomically: true, encoding: .utf8)
+    }
+
+    func screen() -> [String]? {
+        var lines = ["  Read Terms and Privacy Policy."] + errors
+        let width = 60
+        lines.append("  ╭" + String(repeating: "─", count: width) + "╮")
+        lines.append("  │ ❯ " + input + String(repeating: " ", count: max(0, width - 3 - input.count)) + "│")
+        lines.append("  ╰" + String(repeating: "─", count: width - label.count - 4) + " \(label) ─╯")
+        lines.append(busy ? "  Esc:interrupt  │  Ctrl+x:shortcuts" : (input.isEmpty ? "  Shift+Tab:mode  │  Ctrl+x:shortcuts" : "  Enter:send  │  Shift+Tab:mode  │  Ctrl+x:shortcuts"))
+        return lines
+    }
+}
+
+final class GrokDriverTests: XCTestCase {
+    private var url: URL!
+    private var original = ""
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("grok-driver-\(UUID().uuidString).toml")
+        original = "[ui]\nyolo = false\n"
+        try original.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeGrok, keepDefaults: Bool = true) -> GrokDriver {
+        let models = GrokModels(models: [.init(id: "grok-4.7", name: "Grok 4.7", efforts: ["low", "medium", "high", "xhigh"]),
+                                         .init(id: "grok-code", name: "Grok Code", efforts: [])])
+        return GrokDriver(io: io, sleep: { _ in }, models: models, defaults: GrokDefaults(url: url), keepDefaults: keepDefaults)
+    }
+
+    func testSwitchesModelAndEffortAndPutsTheDefaultBack() throws {
+        let io = FakeGrok(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "xhigh"))
+        XCTAssertEqual(io.typed, ["/model grok-4.7 xhigh"])
+        XCTAssertEqual(outcome.confirmations, ["Using Grok 4.7 (xhigh)"])
+        XCTAssertNil(outcome.warning)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), original, "새 세션 기본값은 그대로여야 한다")
+    }
+
+    func testLeavesTheDefaultSavedWhenKeepDefaultsIsOff() throws {
+        let io = FakeGrok(configURL: url)
+        _ = try driver(io, keepDefaults: false).apply(AgentPreset(model: "grok-4.7", effort: "low"))
+        XCTAssertTrue(try String(contentsOf: url, encoding: .utf8).contains("default = \"grok-4.7\""))
+    }
+
+    func testUnknownModelIsRefusedBeforeTypingAnything() throws {
+        let io = FakeGrok(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-9", effort: "high")))
+        XCTAssertEqual(io.typed, [], "목록에 없는 모델은 보내지 않는다")
+    }
+
+    func testUnsupportedEffortIsRefusedBeforeTypingAnything() {
+        let io = FakeGrok(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "max")))
+        XCTAssertEqual(io.typed, [])
+    }
+
+    func testModelWithoutEffortSendsNoEffortWord() throws {
+        let io = FakeGrok(configURL: url, known: ["grok-code": ("Grok Code", [])])
+        let outcome = try driver(io).apply(AgentPreset(model: "grok-code", effort: "high"))
+        XCTAssertEqual(io.typed, ["/model grok-code"])
+        XCTAssertEqual(outcome.confirmations, ["Using Grok Code"])
+    }
+
+    func testRefusesWhenADraftIsInTheBox() throws {
+        let io = FakeGrok(configURL: url)
+        io.input = "작성 중인 글"
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "high")))
+        XCTAssertEqual(io.typed, [])
+        XCTAssertEqual(io.input, "작성 중인 글", "쓰던 글은 그대로")
+    }
+
+    func testRefusesWhileBusy() {
+        let io = FakeGrok(configURL: url)
+        io.busy = true
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "high")))
+        XCTAssertEqual(io.typed, [])
+    }
+
+    func testServerUnknownModelClearsOurTextAndRestoresDefaults() throws {
+        // 목록(캐시)에는 있으나 grok 이 모른다고 답하는 경우.
+        let io = FakeGrok(configURL: url, known: [:])
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "high"))) { error in
+            XCTAssertTrue("\(error)".contains("Unknown model"), "\(error)")
+        }
+        XCTAssertEqual(io.input, "")
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), original)
+    }
+
+    func testIgnoredEnterLeavesNoTextBehind() {
+        let io = FakeGrok(configURL: url)
+        io.ignoreEnter = true
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "xhigh")))
+        XCTAssertEqual(io.input, "", "응답이 없으면 우리가 쓴 글을 지우고 멈춘다")
+    }
+
+    func testStepsEffortUpAndDownAndStopsAtTheEnds() throws {
+        let io = FakeGrok(label: "Grok 4.7 (high)", configURL: url)
+        XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using Grok 4.7 (xhigh)"])
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Using Grok 4.7 (high)"])
+        io.label = "Grok 4.7 (low)"
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertEqual(io.typed.count, 2, "끝 단계에서는 아무것도 보내지 않는다")
+    }
+
+    func testSummaryUsesTheLabelGrokShowed() {
+        let target = Target(host: .orca(handle: "h"), agent: .grok, label: "t")
+        let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "grok-4.7", effort: "high"),
+                                  warning: nil, confirmations: ["Using Grok 4.7 (xhigh)"], pendingRestore: nil)
+        XCTAssertEqual(result.summary, "Grok 4.7 · xhigh")
+    }
+
+    func testSlotKeepsGrokPresetThroughTheFile() throws {
+        let slot = Slot(claude: AgentPreset(model: "opus", effort: "high"), grok: AgentPreset(model: "grok-4.7", effort: "xhigh"))
+        let decoded = try JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(slot))
+        XCTAssertEqual(decoded, slot)
+        XCTAssertEqual(decoded.listing, "claude opus · high  /  grok grok-4.7 · xhigh")
+        XCTAssertEqual(try JSONDecoder().decode(Slot.self, from: Data(#"{"claude":{"model":"a","effort":"b"},"future-agent":{"model":"x","effort":"y"}}"#.utf8)).claude?.model, "a",
+                       "모르는 에이전트 키는 무시한다")
+    }
+}
+
+// MARK: - cursor-agent
+
+final class CursorScreenTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testIdleAndDraft() throws {
+        let idle = try screen("cursor-idle")
+        XCTAssertTrue(CursorScreen.idle(idle))
+        XCTAssertEqual(CursorScreen.draft(idle), "")
+        XCTAssertEqual(CursorScreen.status(idle), "Grok 4.7 256K Medium")
+        let draft = try screen("cursor-draft")
+        XCTAssertEqual(CursorScreen.draft(draft), "abc")
+        XCTAssertFalse(CursorScreen.idle(draft))
+    }
+
+    func testWorkingAndAfterWorkScreens() throws {
+        // 실제 화면: 작업 중에는 입력 줄 위에 스피너(`⠰⠳ Working`)가 돌고, 끝난 뒤에는 자리 표시 문구가 «Add a follow-up» 이고 모델 줄에 사용량이 붙는다.
+        let working = try screen("cursor-working")
+        XCTAssertEqual(CursorScreen.draft(working), "")
+        XCTAssertFalse(CursorScreen.idle(working), "작업 중에는 /model 을 보내지 않는다")
+        let after = try screen("cursor-after-work")
+        XCTAssertTrue(CursorScreen.idle(after), "끝난 뒤에는 대기 — «Add a follow-up» 은 쓰던 글이 아니다")
+        XCTAssertEqual(CursorScreen.status(after), "Grok 4.7 256K High", "사용량(· 7.1%)은 모델 줄이 아니다")
+    }
+
+    func testListRowsCursorAndFilter() throws {
+        let list = try XCTUnwrap(CursorScreen.list(try screen("cursor-list")))
+        XCTAssertEqual(list.filter, "")
+        XCTAssertEqual(list.rows.first(where: \.cursor)?.name, "Grok 4.7")
+        XCTAssertEqual(list.rows.first(where: \.cursor)?.params, "256K Medium")
+        XCTAssertEqual(list.rows.map(\.name).prefix(3), ["Auto", "Grok 4.7", "Grok 4.6"])
+        XCTAssertFalse(list.rows.contains { $0.name.contains("1-10") }, "쪽 표시는 행이 아니다")
+        let filtered = try XCTUnwrap(CursorScreen.list(try screen("cursor-filtered")))
+        XCTAssertEqual(filtered.filter, "opus")
+        XCTAssertEqual(filtered.rows.first?.name, "Claude Opus 5.5")
+        XCTAssertEqual(filtered.rows.last?.name, "Claude Opus 4.5")
+        XCTAssertEqual(filtered.rows.last?.params, "", "매개변수가 없는 행")
+    }
+
+    func testEditorOptionsKeepFastOutOfTheEffortGroup() throws {
+        let editor = try XCTUnwrap(CursorScreen.editor(try screen("cursor-editor")))
+        XCTAssertEqual(editor.title, "Grok 4.7")
+        let efforts = editor.options.filter { $0.section == "Effort" }.map(\.label)
+        XCTAssertEqual(efforts, ["Low", "Medium", "High", "Extra High"], "Fast 는 Effort 가 아니다(실제 사고: Fast 가 켜졌다)")
+        XCTAssertEqual(editor.options.first(where: { $0.section == "Toggle" })?.label, "Fast")
+        XCTAssertEqual(editor.options.first(where: { $0.chosen && $0.section == "Effort" })?.label, "Medium")
+        let opus = try XCTUnwrap(CursorScreen.editor(try screen("cursor-editor-opus")))
+        XCTAssertEqual(opus.title, "Claude Opus 5.5", "오른쪽의 Max mode 글자를 이름에 넣지 않는다")
+    }
+
+    func testNothingIsOpenOnOtherAgentsScreens() throws {
+        for name in ["claude-idle", "codex-idle", "grok-idle", "grok-picker"] {
+            XCTAssertFalse(CursorScreen.idle(try screen(name)), name)
+            XCTAssertNil(CursorScreen.list(try screen(name)), name)
+            XCTAssertNil(CursorScreen.editor(try screen(name)), name)
+        }
+        XCTAssertFalse(GrokScreen.idle(try screen("cursor-idle")))
+    }
+
+    func testStatusParsingAndEffortAliases() {
+        XCTAssertEqual(CursorScreen.parse(status: "Grok 4.7 256K Extra High").name, "Grok 4.7")
+        XCTAssertEqual(CursorScreen.parse(status: "Grok 4.7 256K Extra High").effort, "Extra High")
+        XCTAssertEqual(CursorScreen.parse(status: "Grok 4.6 High").name, "Grok 4.6")
+        XCTAssertNil(CursorScreen.parse(status: "Composer 2.5").effort)
+        XCTAssertTrue(CursorScreen.effortMatches("xhigh", label: "Extra High"))
+        XCTAssertTrue(CursorScreen.effortMatches("high", label: "High"))
+        XCTAssertFalse(CursorScreen.effortMatches("high", label: "Extra High"))
+        XCTAssertEqual(CursorScreen.key("claude-opus-5-5"), CursorScreen.key("Claude Opus 5.5"))
+    }
+}
+
+final class CursorDefaultsTests: XCTestCase {
+    private func write(_ object: [String: Any], to url: URL) throws {
+        try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]).write(to: url)
+    }
+
+    func testRestoresOriginalBytesWhenOnlyTheModelKeysChanged() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("cursor-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try write(["version": 1, "model": ["modelId": "a"], "selectedModel": ["modelId": "a"], "modelSelectionHistory": ["a"], "modelParameters": ["a": []]], to: url)
+        let before = try Data(contentsOf: url)
+        try write(["version": 1, "model": ["modelId": "b"], "selectedModel": ["modelId": "b"], "modelSelectionHistory": ["b", "a"], "modelParameters": ["b": [1]]], to: url)
+        XCTAssertEqual(CursorDefaults(url: url).restore(to: before), .restored)
+        XCTAssertEqual(try Data(contentsOf: url), before, "바이트까지 같아야 한다")
+        XCTAssertEqual(CursorDefaults(url: url).restore(to: before), .unchanged)
+    }
+
+    func testKeepsOtherChangesMadeByAnotherSession() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("cursor-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try write(["version": 1, "model": ["modelId": "a"], "selectedModel": ["modelId": "a"], "modelSelectionHistory": ["a"], "modelParameters": [:], "hints": true], to: url)
+        let before = try Data(contentsOf: url)
+        try write(["version": 1, "model": ["modelId": "b"], "selectedModel": ["modelId": "b"], "modelSelectionHistory": ["b"], "modelParameters": ["b": []], "hints": false], to: url)
+        XCTAssertEqual(CursorDefaults(url: url).restore(to: before), .restored)
+        let now = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertEqual((now["model"] as? [String: String])?["modelId"], "a")
+        XCTAssertEqual(now["hints"] as? Bool, false, "다른 세션이 바꾼 값은 그대로 둔다")
+    }
+}
+
+/// cursor-agent 의 `/model` 목록·매개변수 편집 흉내. 한 글자씩 쳐야 걸러지고(덩이는 무시), Enter/Esc/Tab 동작은 실측대로.
+final class FakeCursor: TerminalIO {
+    struct Model {
+        let name: String
+        let contexts: [String]
+        let efforts: [String]
+        var context: String
+        var effort: String?
+        var fast = false
+    }
+
+    enum Mode: Equatable { case idle, list, editor }
+
+    var models: [Model]
+    var current: Int
+    var mode = Mode.idle
+    var input = ""
+    var filter = ""
+    var cursor = 0
+    var editorCursor = 0
+    var typed: [String] = []
+    var presses: [Key] = []
+    var busyFooter = false
+    let configURL: URL
+
+    init(configURL: URL) {
+        self.configURL = configURL
+        models = [Model(name: "Auto", contexts: [], efforts: [], context: "", effort: nil),
+                  Model(name: "Grok 4.7", contexts: ["256K", "500K"], efforts: ["Low", "Medium", "High", "Extra High"], context: "256K", effort: "High"),
+                  Model(name: "Claude Opus 5.5", contexts: ["300K", "1M"], efforts: ["Low", "Medium", "High", "Extra High", "Max"], context: "300K", effort: "Medium")]
+        current = 1
+    }
+
+    private var visible: [Int] {
+        models.indices.filter { filter.isEmpty || models[$0].name.lowercased().contains(filter.lowercased()) }
+    }
+
+    /// 편집 화면의 줄 목록: (구분, 라벨).
+    private func editorRows(_ m: Model) -> [(String, String)] {
+        m.contexts.map { ("Context", $0) } + m.efforts.map { ("Effort", $0) } + [("Toggle", "Fast")]
+    }
+
+    func type(_ text: String) throws {
+        typed.append(text)
+        switch mode {
+        case .idle: input += text
+        case .list:
+            guard text.count == 1 else { return }   // 덩이는 붙여넣기로 보고 무시
+            filter += text
+            cursor = 0
+        case .editor: break
+        }
+    }
+
+    func press(_ key: Key) throws {
+        presses.append(key)
+        switch (mode, key) {
+        case (.idle, .enter):
+            if input == "/model" { mode = .list; filter = ""; cursor = visible.firstIndex(of: current) ?? 0 }
+            input = ""
+        case (.idle, .backspace): if !input.isEmpty { input.removeLast() }
+        case (.list, .up): cursor = max(0, cursor - 1)
+        case (.list, .down): cursor = min(visible.count - 1, cursor + 1)
+        case (.list, .escape): mode = .idle; filter = ""
+        case (.list, .backspace): if !filter.isEmpty { filter.removeLast(); cursor = 0 }
+        case (.list, .tab):
+            let index = visible[cursor]
+            if !models[index].contexts.isEmpty { mode = .editor; editorCursor = 0 }
+        case (.list, .enter):
+            current = visible[cursor]
+            mode = .idle
+            filter = ""
+            write()
+        case (.editor, .up): editorCursor = max(0, editorCursor - 1)
+        case (.editor, .down): editorCursor = min(editorRows(models[visible[cursor]]).count - 1, editorCursor + 1)
+        case (.editor, .escape): mode = .list
+        case (.editor, .enter):
+            let index = visible[cursor]
+            let row = editorRows(models[index])[editorCursor]
+            switch row.0 {
+            case "Context": models[index].context = row.1
+            case "Effort": models[index].effort = row.1
+            default: models[index].fast.toggle()
+            }
+        default: break
+        }
+    }
+
+    private func write() {
+        let m = models[current]
+        let object: [String: Any] = ["version": 1, "model": ["modelId": m.name], "selectedModel": ["modelId": m.name],
+                                     "modelSelectionHistory": [m.name], "modelParameters": [m.name: [m.effort ?? ""]], "hints": true]
+        try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]).write(to: configURL)
+    }
+
+    private var statusLine: String {
+        let m = models[current]
+        return "  " + [m.name, m.context, m.effort, m.fast ? "Fast" : nil].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    func screen() -> [String]? {
+        switch mode {
+        case .idle:
+            return ["", "  Cursor Agent", "", busyFooter ? "  ⬡ Generating…" : "  → " + (input.isEmpty ? "Plan, search, build anything" : input), "", "", statusLine,
+                    "  ~/work/repo · main"].filter { !busyFooter || !$0.hasPrefix("  →") }
+        case .list:
+            var lines = ["  → Plan, search, build anything", " Available models", " Filter: \(filter)", ""]
+            for (offset, index) in visible.enumerated() {
+                let m = models[index]
+                let params = [m.context, m.effort].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+                lines.append((offset == cursor ? " →  " : "    ") + m.name + (params.isEmpty ? "" : "          " + params) + (offset == cursor && !m.contexts.isEmpty ? " (Tab to modify)" : ""))
+            }
+            return lines + ["", " Type to filter • Enter to select • Tab to edit"]
+        case .editor:
+            let m = models[visible[cursor]]
+            var lines = [" \(m.name) — Edit Parameters       Max mode: OFF", ""]
+            var section = ""
+            for (offset, row) in editorRows(m).enumerated() {
+                if row.0 != section {
+                    if row.0 == "Toggle" { lines.append("") } else { lines.append("  \(row.0)") }
+                    section = row.0
+                }
+                let on = row.0 == "Context" ? m.context == row.1 : row.0 == "Effort" ? m.effort == row.1 : m.fast
+                let glyph = row.0 == "Toggle" ? (on ? "◉" : "◯") : (on ? "●" : "○")
+                lines.append((offset == editorCursor ? "  → " : "    ") + glyph + " " + row.1 + (on && row.0 != "Toggle" ? " ✓" : ""))
+            }
+            return lines + ["", " ↑/↓ to navigate • Enter to select • Esc to go back"]
+        }
+    }
+}
+
+final class CursorDriverTests: XCTestCase {
+    private var url: URL!
+    private var original = Data()
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("cursor-driver-\(UUID().uuidString).json")
+        let object: [String: Any] = ["version": 1, "model": ["modelId": "Grok 4.7"], "selectedModel": ["modelId": "Grok 4.7"],
+                                     "modelSelectionHistory": ["Grok 4.7"], "modelParameters": ["Grok 4.7": ["High"]], "hints": true]
+        try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]).write(to: url)
+        original = try Data(contentsOf: url)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeCursor, keepDefaults: Bool = true) -> CursorDriver {
+        CursorDriver(io: io, sleep: { _ in }, defaults: CursorDefaults(url: url), keepDefaults: keepDefaults)
+    }
+
+    func testSwitchesModelAndEffortThenRestoresTheDefault() throws {
+        let io = FakeCursor(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "claude-opus-5-5", effort: "xhigh"))
+        XCTAssertEqual(outcome.confirmations, ["Using Claude Opus 5.5 300K Extra High"])
+        XCTAssertEqual(io.models[io.current].name, "Claude Opus 5.5")
+        XCTAssertFalse(io.models[io.current].fast, "Fast 는 건드리지 않는다")
+        XCTAssertEqual(try Data(contentsOf: url), original, "새 세션 기본값은 그대로여야 한다")
+        XCTAssertNil(outcome.warning)
+    }
+
+    func testFilterIsTypedOneCharacterAtATime() throws {
+        let io = FakeCursor(configURL: url)
+        _ = try driver(io).apply(AgentPreset(model: "Claude Opus 5.5", effort: "high"))
+        let filterTyped = io.typed.filter { $0 != "/model" }
+        XCTAssertTrue(filterTyped.allSatisfy { $0.count == 1 }, "한 덩이로 보내면 cursor 는 붙여넣기로 보고 무시한다: \(filterTyped)")
+        XCTAssertFalse(filterTyped.isEmpty)
+    }
+
+    func testSkipsTheEditorWhenTheRowAlreadyShowsTheEffort() throws {
+        let io = FakeCursor(configURL: url)
+        _ = try driver(io).apply(AgentPreset(model: "Grok 4.7", effort: "high"))
+        XCTAssertFalse(io.presses.contains(.tab), "이미 High 라 매개변수 편집을 열지 않는다")
+    }
+
+    func testUnknownModelClosesTheListAndTypesNothingElse() {
+        let io = FakeCursor(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "No Such Model", effort: "high")))
+        XCTAssertEqual(io.mode, .idle, "목록을 Esc 로 닫고 돌아온다")
+        XCTAssertEqual(io.input, "")
+        XCTAssertEqual(io.current, 1)
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testUnsupportedEffortIsRefusedAndNothingIsSelected() {
+        let io = FakeCursor(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "Grok 4.7", effort: "max")))
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(io.current, 1)
+        XCTAssertEqual(io.models[1].effort, "High")
+    }
+
+    func testRefusesWithADraftOrWhileBusy() {
+        let draft = FakeCursor(configURL: url)
+        draft.input = "쓰던 글"
+        XCTAssertThrowsError(try driver(draft).apply(AgentPreset(model: "Grok 4.7", effort: "low")))
+        XCTAssertEqual(draft.typed, [])
+        let busy = FakeCursor(configURL: url)
+        busy.busyFooter = true
+        XCTAssertThrowsError(try driver(busy).apply(AgentPreset(model: "Grok 4.7", effort: "low")))
+        XCTAssertEqual(busy.typed, [])
+    }
+
+    func testStepsEffortAndStopsAtTheEnds() throws {
+        let io = FakeCursor(configURL: url)
+        XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using Grok 4.7 256K Extra High"])
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertFalse(io.models[1].fast, "끝 단계에서 Enter 가 Fast 로 가면 안 된다")
+        for _ in 0..<3 { _ = try driver(io).stepEffort(up: false) }
+        XCTAssertEqual(io.models[1].effort, "Low")
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertFalse(io.models[1].fast)
+    }
+
+    func testKeepDefaultsOffLeavesTheSavedModel() throws {
+        let io = FakeCursor(configURL: url)
+        _ = try driver(io, keepDefaults: false).apply(AgentPreset(model: "Claude Opus 5.5", effort: "low"))
+        XCTAssertNotEqual(try Data(contentsOf: url), original)
+    }
+
+    func testSummaryForCursorStatusLine() {
+        let target = Target(host: .orca(handle: "h"), agent: .cursor, label: "t")
+        let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "x", effort: "high"),
+                                  warning: nil, confirmations: ["Using Grok 4.7 256K Extra High"], pendingRestore: nil)
+        XCTAssertEqual(result.summary, "Grok 4.7 · Extra High")
+    }
+}
+
+// MARK: - antigravity (agy)
+
+final class AgyScreenTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testIdleDraftAndWorking() throws {
+        XCTAssertTrue(AgyScreen.idle(try screen("agy-idle")))
+        XCTAssertTrue(AgyScreen.idle(try screen("agy-after-esc")))
+        XCTAssertTrue(AgyScreen.idle(try screen("agy-after-work")), "양성 대조군: 작업이 끝나면 대기")
+        let draft = try screen("agy-draft")
+        XCTAssertEqual(AgyScreen.draft(draft), "abc")
+        XCTAssertFalse(AgyScreen.idle(draft))
+        let working = try screen("agy-working")
+        XCTAssertEqual(AgyScreen.draft(working), "", "입력줄은 비어 보인다")
+        XCTAssertFalse(AgyScreen.idle(working), "작업 중(스피너·esc to cancel)에는 보내지 않는다")
+    }
+
+    func testTypingASlashCommandShowsTheCommandListButTheDraftIsStillRead() throws {
+        let typed = try screen("agy-typed-model")
+        XCTAssertEqual(AgyScreen.draft(typed), "/model", "명령 목록이 떠도 입력줄은 읽는다")
+        XCTAssertFalse(AgyScreen.idle(typed))
+    }
+
+    func testPickerRowsAndSlider() throws {
+        let lines = try screen("agy-picker")
+        let picker = try XCTUnwrap(AgyScreen.picker(lines))
+        XCTAssertEqual(picker.rows.map(\.name).prefix(4), ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro"])
+        XCTAssertEqual(picker.rows.first(where: \.cursor)?.name, "Gemini 3.8 Flash")
+        XCTAssertEqual(picker.rows.first(where: \.current)?.name, "Gemini 3.8 Flash")
+        XCTAssertTrue(picker.rows.contains { $0.name == "GPT-OSS 120B (Medium)" })
+        let slider = try XCTUnwrap(picker.slider)
+        XCTAssertEqual(slider.labels, ["low", "medium", "high"])
+        XCTAssertEqual(slider.selected, 2, "◉ 가 high 아래에 있다")
+        XCTAssertFalse(AgyScreen.idle(lines), "선택창이 열려 있다")
+    }
+
+    func testSliderStopsAreFilledOrHollowDependingOnTheSelection() throws {
+        // 가장 낮은 단계를 고른 뒤의 실제 화면: 단계마다 `◉`(선택) · `○`(그 위) 로 그려진다 — `●` 만 점으로 보면 단계가 1개로 읽힌다.
+        let slider = try XCTUnwrap(AgyScreen.picker(try screen("agy-picker-low"))?.slider)
+        XCTAssertEqual(slider.labels, ["low", "medium", "high"])
+        XCTAssertEqual(slider.selected, 0)
+    }
+
+    func testOtherAgentsAreNotAntigravity() throws {
+        for name in ["claude-idle", "codex-idle", "grok-idle", "cursor-idle"] {
+            XCTAssertFalse(AgyScreen.idle(try screen(name)), name)
+            XCTAssertNil(AgyScreen.picker(try screen(name)), name)
+        }
+        XCTAssertFalse(GrokScreen.idle(try screen("agy-idle")))
+        XCTAssertFalse(CursorScreen.idle(try screen("agy-idle")))
+    }
+}
+
+final class AntigravityDefaultsTests: XCTestCase {
+    func testRestoresOnlyTheModelKey() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("agy-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        func write(_ object: [String: Any]) throws { try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: url) }
+        try write(["model": "Gemini 3.8 Flash (High)", "theme": "dark"])
+        let before = try Data(contentsOf: url)
+        try write(["model": "Gemini 3.7 Flash (Medium)", "theme": "dark"])
+        XCTAssertEqual(AntigravityDefaults(url: url).restore(to: before), .restored)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+        try write(["model": "Gemini 3.7 Flash (Medium)", "theme": "light"])
+        XCTAssertEqual(AntigravityDefaults(url: url).restore(to: before), .restored)
+        let now = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertEqual(now["model"] as? String, "Gemini 3.8 Flash (High)")
+        XCTAssertEqual(now["theme"] as? String, "light", "다른 키는 그대로")
+    }
+
+    func testRemovesTheKeyWhenItWasAbsentBefore() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("agy-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["theme": "dark"], options: [.sortedKeys]).write(to: url)
+        let before = try Data(contentsOf: url)
+        try JSONSerialization.data(withJSONObject: ["theme": "dark", "model": "X"], options: [.sortedKeys]).write(to: url)
+        XCTAssertEqual(AntigravityDefaults(url: url).restore(to: before), .restored)
+        XCTAssertEqual(try Data(contentsOf: url), before)
+    }
+}
+
+/// agy 입력줄과 `/model` 선택창 흉내.
+final class FakeAgy: TerminalIO {
+    struct Model { let name: String; let efforts: [String]; var effort: Int }
+    var models = [Model(name: "Gemini 3.8 Flash", efforts: ["low", "medium", "high"], effort: 2),
+                  Model(name: "Gemini 3.7 Flash", efforts: ["medium", "high"], effort: 0),
+                  Model(name: "GPT-OSS 120B (Medium)", efforts: [], effort: 0)]
+    var current = 0
+    var picker = false
+    var cursor = 0
+    var input = ""
+    var busy = false
+    var echoes: [String] = []     // `> /model` 아래의 답들
+    var typed: [String] = []
+    var presses: [Key] = []
+    let configURL: URL
+    var wraps = false
+
+    init(configURL: URL) { self.configURL = configURL }
+
+    func type(_ text: String) throws { typed.append(text); if !picker { input += text } }
+
+    func press(_ key: Key) throws {
+        presses.append(key)
+        if !picker {
+            if key == .enter {
+                if input == "/model" { picker = true; cursor = current; echoes.append("") }
+                input = ""
+            } else if key == .backspace, !input.isEmpty { input.removeLast() }
+            return
+        }
+        switch key {
+        case .up: cursor = max(0, cursor - 1)
+        case .down: cursor = min(models.count - 1, cursor + 1)
+        case .left, .right:
+            let m = models[cursor]
+            guard !m.efforts.isEmpty else { return }
+            let step = key == .right ? 1 : -1
+            let next = models[cursor].effort + step
+            models[cursor].effort = wraps ? (next + m.efforts.count) % m.efforts.count : min(max(next, 0), m.efforts.count - 1)
+        case .escape: picker = false; echoes[echoes.count - 1] = "Exited /model command"
+        case .enter:
+            current = cursor
+            picker = false
+            let m = models[current]
+            echoes[echoes.count - 1] = "Model set to \(m.name)" + (m.efforts.isEmpty ? "" : " (\(m.efforts[m.effort].capitalized))")
+            let object: [String: Any] = ["model": echoes.last!.replacingOccurrences(of: "Model set to ", with: ""), "theme": "dark"]
+            try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: configURL)
+        default: break
+        }
+    }
+
+    func screen() -> [String]? {
+        let rule = String(repeating: "─", count: 60)
+        if picker {
+            var lines = ["Switch Model", "", "  Search:", " " + String(repeating: "─", count: 20), ""]
+            for (index, m) in models.enumerated() { lines.append((index == cursor ? "> " : "  ") + m.name + (index == current ? "      (current)" : "")) }
+            lines.append("")
+            let m = models[cursor]
+            if !m.efforts.isEmpty {
+                // 점은 단계마다 14칸 간격, 이름은 점 아래에 가운데 맞춤.
+                var dots = Array("  Effort  ◂ ")
+                var names = Array(String(repeating: " ", count: dots.count))
+                for (i, e) in m.efforts.enumerated() {
+                    dots += Array(i == m.effort ? "◉" : "●")
+                    names += Array(e)
+                    if i < m.efforts.count - 1 { dots += Array(String(repeating: "━", count: 14)); names += Array(String(repeating: " ", count: 14 - e.count + 0)) }
+                }
+                lines.append(String(dots) + " ▸")
+                lines.append(String(names))
+                // 이름이 점과 같은 열에 오도록 맞춘다(점 위치 = 이름 시작 열 + 0).
+            }
+            lines += ["", "Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back"]
+            return lines
+        }
+        var lines = echoes.flatMap { ["> /model", "  ⎿  \($0)"] }
+        if busy { lines += ["⣽  Working..."] }
+        lines += [rule, ">" + (input.isEmpty ? "" : " " + input), rule, busy ? "esc to cancel" : "? for shortcuts        \(models[current].name)"]
+        return lines
+    }
+}
+
+final class AntigravityDriverTests: XCTestCase {
+    private var url: URL!
+    private var original = Data()
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("agy-driver-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: ["model": "Gemini 3.8 Flash (High)", "theme": "dark"], options: [.sortedKeys]).write(to: url)
+        original = try Data(contentsOf: url)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeAgy, keepDefaults: Bool = true) -> AntigravityDriver {
+        AntigravityDriver(io: io, sleep: { _ in }, defaults: AntigravityDefaults(url: url), keepDefaults: keepDefaults)
+    }
+
+    func testSwitchesModelAndEffortThenRestoresTheDefault() throws {
+        let io = FakeAgy(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "Gemini 3.7 Flash", effort: "medium"))
+        XCTAssertEqual(outcome.confirmations, ["Model set to Gemini 3.7 Flash (Medium)"])
+        XCTAssertEqual(io.models[io.current].name, "Gemini 3.7 Flash")
+        XCTAssertEqual(try Data(contentsOf: url), original, "새 세션 기본값은 그대로여야 한다")
+    }
+
+    func testMovesTheSliderBothWaysAndNeverWrapsAround() throws {
+        let io = FakeAgy(configURL: url)
+        io.wraps = true      // 끝에서 반대쪽으로 도는 슬라이더여도(claude 처럼) 끝에서 더 누르지 않는다
+        _ = try driver(io).apply(AgentPreset(model: "Gemini 3.8 Flash", effort: "low"))
+        XCTAssertEqual(io.models[0].effort, 0)
+        XCTAssertEqual(io.presses.filter { $0 == .left || $0 == .right }.count, 2)
+    }
+
+    func testUnknownModelAndEffortAreRefusedAndThePickerIsClosed() {
+        let a = FakeAgy(configURL: url)
+        XCTAssertThrowsError(try driver(a).apply(AgentPreset(model: "No Such", effort: "high")))
+        XCTAssertFalse(a.picker)
+        XCTAssertEqual(a.current, 0)
+        let b = FakeAgy(configURL: url)
+        XCTAssertThrowsError(try driver(b).apply(AgentPreset(model: "Gemini 3.7 Flash", effort: "low")))
+        XCTAssertFalse(b.picker)
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testModelWithoutEffortSliderJustSelects() throws {
+        let io = FakeAgy(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "GPT-OSS 120B (Medium)", effort: "high"))
+        XCTAssertEqual(outcome.confirmations, ["Model set to GPT-OSS 120B (Medium)"])
+    }
+
+    func testRefusesWithADraftOrWhileWorking() {
+        let draft = FakeAgy(configURL: url)
+        draft.input = "쓰던 글"
+        XCTAssertThrowsError(try driver(draft).apply(AgentPreset(model: "Gemini 3.8 Flash", effort: "low")))
+        XCTAssertEqual(draft.typed, [])
+        let busy = FakeAgy(configURL: url)
+        busy.busy = true
+        XCTAssertThrowsError(try driver(busy).apply(AgentPreset(model: "Gemini 3.8 Flash", effort: "low")))
+        XCTAssertEqual(busy.typed, [])
+    }
+
+    func testStepsEffortAndStopsAtTheEnds() throws {
+        let io = FakeAgy(configURL: url)
+        io.wraps = true
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertFalse(io.picker, "끝 단계면 선택창을 닫고 아무것도 바꾸지 않는다")
+        XCTAssertEqual(io.models[0].effort, 2)
+        XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Model set to Gemini 3.8 Flash (Medium)"])
+        XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Model set to Gemini 3.8 Flash (Low)"])
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+    }
+
+    func testSummaryAndSlotForAntigravity() throws {
+        let target = Target(host: .orca(handle: "h"), agent: .antigravity, label: "t")
+        let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "x", effort: "high"),
+                                  warning: nil, confirmations: ["Model set to Gemini 3.7 Flash (Medium)"], pendingRestore: nil)
+        XCTAssertEqual(result.summary, "Gemini 3.7 Flash · Medium")
+        XCTAssertEqual(AgentProcesses.agent(forCommandLine: "agy"), .antigravity)
+        XCTAssertEqual(AgentProcesses.agent(forCommandLine: "/Users/x/.local/bin/cursor-agent --use-system-ca /x/index.js"), .cursor)
+        XCTAssertEqual(AgentProcesses.agent(forCommandLine: "grok"), .grok)
+        let slot = Slot(antigravity: AgentPreset(model: "Gemini 3.8 Flash", effort: "high"))
+        XCTAssertEqual(try JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(slot)), slot)
+    }
+}
+
+// MARK: - opencode
+
+final class OpenCodeScreenTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testIdleDraftAndWorking() throws {
+        XCTAssertTrue(OpenCodeScreen.idle(try screen("oc-idle")), "처음 화면")
+        XCTAssertTrue(OpenCodeScreen.idle(try screen("oc-after-work")), "대화 뒤")
+        XCTAssertTrue(OpenCodeScreen.idle(try screen("oc-session-idle")))
+        XCTAssertEqual(OpenCodeScreen.draft(try screen("oc-idle")), "", "자리 표시 문구는 쓰던 글이 아니다")
+        let draft = try screen("oc-draft")
+        XCTAssertEqual(OpenCodeScreen.draft(draft), "abc")
+        XCTAssertFalse(OpenCodeScreen.idle(draft))
+        let working = try screen("oc-working")
+        XCTAssertEqual(OpenCodeScreen.draft(working), "")
+        XCTAssertFalse(OpenCodeScreen.idle(working), "작업 중(esc interrupt)에는 보내지 않는다")
+    }
+
+    func testStatusLineHasModelAndVariantWithoutTheBranchOnTheRight() throws {
+        let status = try XCTUnwrap(OpenCodeScreen.status(try screen("oc-idle")))
+        XCTAssertEqual(status.model, "GLM-5.3-Flash OpenCode Go")
+        XCTAssertEqual(status.variant, "high")
+        let session = try XCTUnwrap(OpenCodeScreen.status(try screen("oc-session-idle")))
+        XCTAssertEqual(session.variant, "high", "오른쪽 끝의 브랜치 이름이 variant 에 섞이지 않는다")
+    }
+
+    func testDialogsAreReadEvenWhenConversationTextOverlapsOnTheLeft() throws {
+        let models = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc-models-filtered")))
+        XCTAssertEqual(models.title, "Select model")
+        XCTAssertEqual(models.search, "GLM-5.3")
+        XCTAssertEqual(models.rows.first?.text, "GLM-5.3-Flash OpenCode Go", "(Favorite) 표시를 뗀다")
+        XCTAssertEqual(models.rows.first?.current, true)
+        XCTAssertEqual(models.rows.count, 6)
+        let variants = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc-variants")))
+        XCTAssertEqual(variants.rows.map(\.text), ["Default", "low", "high", "max"])
+        XCTAssertEqual(variants.rows.firstIndex(where: \.current), 2)
+        // 대화 중: 머리말 왼쪽에 줄 번호·대화 글이 겹치고 여백 줄이 끼어 있다(실제 화면).
+        let session = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc-session-variants")))
+        XCTAssertEqual(session.title, "Select variant")
+        XCTAssertEqual(session.rows.map(\.text), ["Default", "low", "high", "max"])
+        XCTAssertFalse(OpenCodeScreen.idle(try screen("oc-session-variants")), "대화상자가 떠 있다")
+    }
+
+    func testOtherAgentsAreNotOpenCode() throws {
+        for name in ["claude-idle", "codex-idle", "grok-idle", "cursor-idle", "agy-idle"] {
+            XCTAssertFalse(OpenCodeScreen.idle(try screen(name)), name)
+            XCTAssertNil(OpenCodeScreen.dialog(try screen(name)), name)
+        }
+        XCTAssertFalse(AgyScreen.idle(try screen("oc-idle")))
+        XCTAssertFalse(GrokScreen.idle(try screen("oc-idle")))
+    }
+}
+
+final class OpenCodeDefaultsTests: XCTestCase {
+    func testRestoresRecentAndVariantOnly() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("oc-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        func write(_ object: [String: Any]) throws { try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: url) }
+        try write(["recent": [["modelID": "a"]], "favorite": [["modelID": "a"]], "variant": ["x/a": "high"]])
+        let before = try Data(contentsOf: url)
+        try write(["recent": [["modelID": "b"], ["modelID": "a"]], "favorite": [["modelID": "a"], ["modelID": "c"]], "variant": ["x/a": "low"]])
+        XCTAssertEqual(OpenCodeDefaults(url: url).restore(to: before), .restored)
+        let now = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertEqual((now["recent"] as? [[String: String]])?.count, 1)
+        XCTAssertEqual((now["variant"] as? [String: String])?["x/a"], "high")
+        XCTAssertEqual((now["favorite"] as? [Any])?.count, 2, "즐겨찾기는 사용자가 따로 바꾼 것이라 그대로 둔다")
+    }
+}
+
+/// opencode 입력 상자와 `/models`·`/variants` 대화상자 흉내.
+final class FakeOpenCode: TerminalIO {
+    struct Model { let name: String; let provider: String; let variants: [String]; var variant: String? }
+    var models = [Model(name: "GLM-5.3-Flash", provider: "OpenCode Go", variants: ["Default", "low", "high", "max"], variant: "high"),
+                  Model(name: "DeepSeek V4.1 Flash", provider: "OpenCode Go", variants: ["Default", "low", "high"], variant: nil),
+                  Model(name: "Big Pickle", provider: "OpenCode Zen", variants: [], variant: nil)]
+    var current = 0
+    enum Mode: Equatable { case idle, models, variants }
+    var mode = Mode.idle
+    var input = ""
+    var search = ""
+    var busy = false
+    var typed: [String] = []
+    var presses: [Key] = []
+    var focused = true
+    /// Default 를 «직접 고른» 모델. 저장해 둔 variant 가 없어 Default 로 도는 모델은 대화상자에 `●` 가 없다(실측).
+    var explicitDefault: Set<Int> = []
+    let configURL: URL
+
+    init(configURL: URL) { self.configURL = configURL }
+
+    private var visibleModels: [Int] {
+        models.indices.filter { search.isEmpty || "\(models[$0].name) \(models[$0].provider)".lowercased().contains(search.lowercased()) }
+    }
+
+    private var visibleVariants: [String] {
+        models[current].variants.filter { search.isEmpty || $0.lowercased().contains(search.lowercased()) }
+    }
+
+    func type(_ text: String) throws {
+        typed.append(text)
+        switch mode {
+        case .idle: if focused { input += text }
+        case .models, .variants: search += text
+        }
+    }
+
+    func press(_ key: Key) throws {
+        presses.append(key)
+        switch (mode, key) {
+        case (.idle, .enter):
+            if input == "/models" { mode = .models; search = "" }
+            else if input == "/variants" { mode = .variants; search = "" }
+            input = ""
+        case (.idle, .backspace): if !input.isEmpty { input.removeLast() }
+        case (_, .escape) where mode != .idle: mode = .idle
+        case (.models, .enter):
+            guard let first = visibleModels.first else { return }
+            current = first
+            mode = .idle
+            // 기억해 둔 variant 가 없고 variant 가 있는 모델이면 대화상자가 이어서 뜬다.
+            if models[current].variant == nil, !models[current].variants.isEmpty { mode = .variants; search = "" }
+            save()
+        case (.variants, .enter):
+            guard let first = visibleVariants.first else { return }
+            models[current].variant = first == "Default" ? nil : first
+            if first == "Default" { explicitDefault.insert(current) } else { explicitDefault.remove(current) }
+            mode = .idle
+            save()
+        default: break
+        }
+    }
+
+    private func save() {
+        let m = models[current]
+        let object: [String: Any] = ["recent": [["modelID": m.name]], "favorite": [["modelID": "GLM"]], "variant": [m.name: m.variant ?? "default"]]
+        try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: configURL)
+    }
+
+    func screen() -> [String]? {
+        let m = models[current]
+        let box = ["  ┃", "  ┃  " + (input.isEmpty ? "Ask anything… \"Fix broken tests\"" : input), "  ┃",
+                   "  ┃  Build · \(m.name) \(m.provider)" + (m.variant.map { " · \($0)" } ?? "") + "                  main",
+                   "  ╹" + String(repeating: "▀", count: 60),
+                   busy ? "   ⬝■■■■■■⬝  esc interrupt            tab agents  ctrl+p commands" : "                              tab agents  ctrl+p commands",
+                   "  ~/work/repo:main"]
+        func overlay(_ title: String, _ rows: [String]) -> [String] {
+            var lines = ["    ✓ earlier output", "                      \(title)                       esc", "", "                      \(search.isEmpty ? "Search" : search)", ""]
+            lines += rows.map { "                      " + $0 }
+            lines += ["", "    ✓ more output"]
+            return lines + box
+        }
+        switch mode {
+        case .idle: return ["    ✓ earlier output"] + box
+        case .models:
+            return overlay("Select model", visibleModels.map { (($0 == current ? "● " : "  ") + models[$0].name + "           " + models[$0].provider) })
+        case .variants:
+            let marked = models[current].variant ?? (explicitDefault.contains(current) ? "Default" : nil)
+            return overlay("Select variant", visibleVariants.map { (marked == $0 ? "● " : "  ") + $0 })
+        }
+    }
+}
+
+final class OpenCodeDriverTests: XCTestCase {
+    private var url: URL!
+    private var original = Data()
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("oc-driver-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: ["recent": [["modelID": "GLM-5.3-Flash"]], "favorite": [["modelID": "GLM"]], "variant": ["GLM-5.3-Flash": "high"]],
+                                   options: [.sortedKeys]).write(to: url)
+        original = try Data(contentsOf: url)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeOpenCode, keepDefaults: Bool = true) -> OpenCodeDriver {
+        OpenCodeDriver(io: io, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: keepDefaults)
+    }
+
+    func testSwitchesModelThenVariantAndRestoresTheDefault() throws {
+        let io = FakeOpenCode(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: "low"))
+        XCTAssertEqual(outcome.confirmations, ["Using DeepSeek V4.1 Flash OpenCode Go · low"])
+        XCTAssertEqual(io.models[io.current].name, "DeepSeek V4.1 Flash")
+        XCTAssertEqual(try? Data(contentsOf: url), original, "새 세션 기본값은 그대로여야 한다")
+    }
+
+    func testOnlyVariantChangeSkipsTheModelDialog() throws {
+        let io = FakeOpenCode(configURL: url)
+        _ = try driver(io).apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max"))
+        XCTAssertEqual(io.typed.first, "/variants", "이미 그 모델이면 모델 대화상자를 열지 않는다")
+        XCTAssertEqual(io.models[0].variant, "max")
+    }
+
+    func testRefusesAWrongTopRowAndClosesTheDialog() {
+        let io = FakeOpenCode(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "No Such Model", effort: "high")))
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(io.current, 0)
+        XCTAssertEqual(io.input, "")
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testUnknownVariantClosesTheDialogAndRestores() {
+        let io = FakeOpenCode(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: "max")))
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testClosesTheAutoOpenedVariantDialogWhenThePresetHasNoVariant() throws {
+        let io = FakeOpenCode(configURL: url)
+        _ = try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: ""))
+        XCTAssertEqual(io.mode, .idle)
+    }
+
+    func testRefusesWhenTypedTextDoesNotLand() {
+        let io = FakeOpenCode(configURL: url)
+        io.focused = false     // 실제로 겪은 상태: 대화가 끝난 뒤 입력창이 글자를 받지 않는다
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: "low")))
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertFalse(io.presses.contains(.enter), "글자가 보이지 않으면 Enter 를 보내지 않는다")
+    }
+
+    func testRefusesWithADraftOrWhileWorking() {
+        let draft = FakeOpenCode(configURL: url)
+        draft.input = "쓰던 글"
+        XCTAssertThrowsError(try driver(draft).apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "low")))
+        XCTAssertEqual(draft.typed, [])
+        let busy = FakeOpenCode(configURL: url)
+        busy.busy = true
+        XCTAssertThrowsError(try driver(busy).apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "low")))
+        XCTAssertEqual(busy.typed, [])
+    }
+
+    func testStepsVariantUpAndDownAndStopsAtTheEnds() throws {
+        let io = FakeOpenCode(configURL: url)
+        XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using GLM-5.3-Flash OpenCode Go · max"])
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertEqual(io.mode, .idle)
+        for _ in 0..<3 { _ = try driver(io).stepEffort(up: false) }
+        XCTAssertNil(io.models[0].variant, "Default")
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+    }
+
+    func testSummaryAndDetection() {
+        let target = Target(host: .orca(handle: "h"), agent: .opencode, label: "t")
+        let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "x", effort: "high"),
+                                  warning: nil, confirmations: ["Using GLM-5.3-Flash OpenCode Go · high"], pendingRestore: nil)
+        XCTAssertEqual(result.summary, "GLM-5.3-Flash OpenCode Go · high")
+        XCTAssertEqual(AgentProcesses.agent(forCommandLine: "opencode"), .opencode)
+        XCTAssertEqual(try? JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(Slot(opencode: AgentPreset(model: "m", effort: "e")))).opencode?.model, "m")
+    }
+}
+
+// MARK: - PR #9 리뷰에서 나온 것
+
+/// 확정(Enter)을 몇 번 보낸 뒤부터 화면을 못 읽게 되는 터미널 — 포커스를 잃은 Ghostty 나 끊긴 연결 흉내.
+final class GoesBlind: TerminalIO {
+    let base: TerminalIO
+    let afterEnters: Int
+    private var enters = 0
+
+    init(_ base: TerminalIO, afterEnters: Int) {
+        self.base = base
+        self.afterEnters = afterEnters
+    }
+
+    func type(_ text: String) throws { try base.type(text) }
+    func press(_ key: Key) throws {
+        try base.press(key)
+        if key == .enter { enters += 1 }
+    }
+    func screen() -> [String]? { enters >= afterEnters ? nil : base.screen() }
+}
+
+/// 확정한 «뒤» 화면을 못 읽어도 새 세션 기본값은 전환 전 값으로 돌아와야 한다(에이전트는 이미 파일을 썼다).
+final class DefaultsRestoredWhenTheScreenGoesBlindTests: XCTestCase {
+    private func temp(_ name: String) -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("blind-\(UUID().uuidString)-\(name)")
+    }
+
+    func testGrok() throws {
+        let url = temp("grok.toml")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try "[ui]\nyolo = false\n".write(to: url, atomically: true, encoding: .utf8)
+        let fake = FakeGrok(configURL: url)
+        let models = GrokModels(models: [.init(id: "grok-4.7", name: "Grok 4.7", efforts: ["low", "medium", "high", "xhigh"])])
+        let driver = GrokDriver(io: GoesBlind(fake, afterEnters: 1), sleep: { _ in }, models: models, defaults: GrokDefaults(url: url), keepDefaults: true)
+        XCTAssertThrowsError(try driver.apply(AgentPreset(model: "grok-4.7", effort: "xhigh")))
+        XCTAssertEqual(fake.label, "Grok 4.7 (xhigh)", "양성 대조군: 에이전트는 실제로 바꿨고 파일도 썼다")
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "[ui]\nyolo = false\n")
+    }
+
+    func testCursor() throws {
+        let url = temp("cursor.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["version": 1, "model": ["modelId": "Grok 4.7"], "selectedModel": ["modelId": "Grok 4.7"],
+                                                    "modelSelectionHistory": ["Grok 4.7"], "modelParameters": ["Grok 4.7": ["High"]], "hints": true],
+                                   options: [.prettyPrinted, .sortedKeys]).write(to: url)
+        let original = try Data(contentsOf: url)
+        let fake = FakeCursor(configURL: url)
+        let driver = CursorDriver(io: GoesBlind(fake, afterEnters: 2), sleep: { _ in }, defaults: CursorDefaults(url: url), keepDefaults: true)
+        XCTAssertThrowsError(try driver.apply(AgentPreset(model: "Claude Opus 5.5", effort: "medium")))
+        XCTAssertEqual(fake.models[fake.current].name, "Claude Opus 5.5", "양성 대조군")
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
+    func testAntigravity() throws {
+        let url = temp("agy.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["model": "Gemini 3.8 Flash (High)", "theme": "dark"], options: [.sortedKeys]).write(to: url)
+        let original = try Data(contentsOf: url)
+        let fake = FakeAgy(configURL: url)
+        let driver = AntigravityDriver(io: GoesBlind(fake, afterEnters: 2), sleep: { _ in }, defaults: AntigravityDefaults(url: url), keepDefaults: true)
+        XCTAssertThrowsError(try driver.apply(AgentPreset(model: "Gemini 3.7 Flash", effort: "medium")))
+        XCTAssertEqual(fake.current, 1, "양성 대조군")
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
+    func testOpenCode() throws {
+        let url = temp("oc.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["recent": [["modelID": "GLM-5.3-Flash"]], "favorite": [["modelID": "GLM"]], "variant": ["GLM-5.3-Flash": "high"]],
+                                   options: [.sortedKeys]).write(to: url)
+        let original = try Data(contentsOf: url)
+        let fake = FakeOpenCode(configURL: url)
+        let driver = OpenCodeDriver(io: GoesBlind(fake, afterEnters: 2), sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: true)
+        XCTAssertThrowsError(try driver.apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max")))
+        XCTAssertEqual(fake.models[0].variant, "max", "양성 대조군")
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+}
+
+final class CursorEffortLabelTests: XCTestCase {
+    private var url: URL!
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("cursor-label-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: ["version": 1, "model": ["modelId": "Grok 4.7"]], options: [.sortedKeys]).write(to: url)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeCursor) -> CursorDriver {
+        CursorDriver(io: io, sleep: { _ in }, defaults: CursorDefaults(url: url), keepDefaults: true)
+    }
+
+    func testHighIsNotExtraHigh() throws {
+        // 지금 Extra High 인 모델에 프리셋 high 를 누르면 «내려가야» 한다 — 낱말 High 가 들어 있다고 그대로 두면 안 된다.
+        let io = FakeCursor(configURL: url)
+        io.models[1].effort = "Extra High"
+        let outcome = try driver(io).apply(AgentPreset(model: "Grok 4.7", effort: "high"))
+        XCTAssertEqual(io.models[1].effort, "High")
+        XCTAssertEqual(outcome.confirmations, ["Using Grok 4.7 256K High"])
+        XCTAssertTrue(io.presses.contains(.tab), "매개변수 편집을 열어 맞췄다")
+        // 반대 방향도.
+        _ = try driver(io).apply(AgentPreset(model: "Grok 4.7", effort: "xhigh"))
+        XCTAssertEqual(io.models[1].effort, "Extra High")
+    }
+
+    func testStatusWithFastSuffixStillParses() {
+        XCTAssertEqual(CursorScreen.parse(status: "Grok 4.7 256K Medium Fast").effort, "Medium")
+        XCTAssertEqual(CursorScreen.parse(status: "Grok 4.7 256K Medium Fast").name, "Grok 4.7")
+    }
+
+    func testModelWithoutParametersIsSelectedWithoutAnEffort() throws {
+        let io = FakeCursor(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "Auto", effort: "high"))
+        XCTAssertEqual(io.models[io.current].name, "Auto")
+        XCTAssertEqual(outcome.confirmations, ["Using Auto"])
+        XCTAssertFalse(io.presses.contains(.tab), "매개변수가 없는 행에서는 편집을 열지 않는다")
+    }
+}
+
+final class LaunchSupportTests: XCTestCase {
+    func testOnlyAgentsWhoseModelFlagTakesThePresetValueCanLaunch() {
+        for agent in [Agent.claude, .codex, .grok] { XCTAssertNil(Launch.unsupportedReason(agent: agent), agent.rawValue) }
+        for agent in [Agent.cursor, .antigravity, .opencode] {
+            XCTAssertNotNil(Launch.unsupportedReason(agent: agent), agent.rawValue)
+            let command = Launch.command(agent: agent, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"))
+            XCTAssertFalse(command.contains("GLM-5.3-Flash OpenCode Go"), "화면 이름을 --model 에 넘기지 않는다")
+        }
+    }
+}
+
+
+// MARK: - PR #10 리뷰에서 나온 것
+
+final class OpenCodeRealStateTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testImplicitDefaultHasNoCurrentMarker() throws {
+        // 실제 화면(2026-10-08): 저장해 둔 variant 가 없는 모델(DeepSeek V4 Pro)의 `/variants` — 어느 행에도 ● 가 없다.
+        for name in ["oc-variants-implicit", "oc-variants-auto"] {
+            let dialog = try XCTUnwrap(OpenCodeScreen.dialog(try screen(name)), name)
+            XCTAssertEqual(dialog.title, "Select variant")
+            XCTAssertEqual(dialog.rows.map(\.text), ["Default", "high", "max"], name)
+            XCTAssertNil(dialog.rows.firstIndex(where: \.current), name)
+        }
+        XCTAssertNil(try XCTUnwrap(OpenCodeScreen.status(try screen("oc-variants-implicit"))).variant, "모델 줄에도 variant 가 없다")
+    }
+
+    func testStepsUpFromAnImplicitDefault() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("oc-implicit-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let io = FakeOpenCode(configURL: url)
+        io.current = 1      // DeepSeek: variant 없음, Default 를 고른 적도 없음
+        let driver = OpenCodeDriver(io: io, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: false)
+        XCTAssertEqual(try driver.stepEffort(up: true).confirmations, ["Using DeepSeek V4.1 Flash OpenCode Go · low"], "Default 다음 단계로")
+        io.models[1].variant = nil
+        XCTAssertThrowsError(try driver.stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true, "Default 가 가장 낮다") }
+    }
+
+    func testPriceColumnIsNotPartOfTheModelIdentity() throws {
+        XCTAssertEqual(OpenCodeScreen.normalizeRow("Big Pickle                    OpenCode Zen        Free"), "Big Pickle OpenCode Zen")
+        XCTAssertEqual(OpenCodeScreen.normalizeRow("Muse Spark 1.3 Free OpenCode Zen                Free"), "Muse Spark 1.3 Free OpenCode Zen", "이름 안의 Free 는 남긴다")
+        XCTAssertEqual(OpenCodeScreen.normalizeRow("GPT-6.1 Sol            OpenRouter      $1.25"), "GPT-6.1 Sol OpenRouter")
+        XCTAssertEqual(OpenCodeScreen.normalizeRow("Free"), "Free", "칸이 하나뿐이면 그것이 이름이다")
+        // 실제 화면: 걸러낸 무료 모델 행(이 폭에서는 값 칸이 없다).
+        let dialog = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc-models-free")))
+        XCTAssertEqual(dialog.rows.first?.text, "Big Pickle OpenCode Zen")
+    }
+
+    func testStateHomeFollowsTheSessionsEnvironment() throws {
+        let plain = (arguments: ["opencode"], environment: ["HOME=/Users/x", "ORCA_TERMINAL_HANDLE=term_a"])
+        let custom = (arguments: ["opencode"], environment: ["HOME=/Users/x", "XDG_STATE_HOME=/data/state", "ORCA_TERMINAL_HANDLE=term_b"])
+        let other = (arguments: ["claude"], environment: ["XDG_STATE_HOME=/elsewhere"])
+        XCTAssertEqual(OpenCodeDefaults.stateHomes(processes: [plain, other], orcaHandle: nil), ["/Users/x/.local/state"], "opencode 가 아닌 프로세스는 보지 않는다")
+        XCTAssertEqual(try OpenCodeDefaults.resolve(processes: [custom], orcaHandle: nil).url.path, "/data/state/opencode/model.json")
+        // 둘이 다르면 Orca 핸들로 좁힌다.
+        XCTAssertEqual(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: "term_b").url.path, "/data/state/opencode/model.json")
+        XCTAssertEqual(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: "term_a").url.path, "/Users/x/.local/state/opencode/model.json")
+        // 좁힐 수 없으면 엉뚱한 파일을 지켰다고 하지 않고 멈춘다.
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: nil))
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [plain, custom], orcaHandle: "term_zzz"))
+        // 그 세션의 프로세스를 못 찾으면 — 우리 환경의 폴더로 대신하지 않고 — 멈춘다.
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [], orcaHandle: nil, environment: ["XDG_STATE_HOME": "/env/state"]))
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [other], orcaHandle: "term_a"))
+        XCTAssertThrowsError(try OpenCodeDefaults.resolve(processes: [plain], orcaHandle: "term_other"), "다른 터미널의 세션으로 대신하지 않는다")
+    }
+}
+
+/// 전환 전에 기본값 파일이 «없던» 경우와 «읽지 못한» 경우.
+final class AbsentOrUnreadableDefaultsTests: XCTestCase {
+    private func temp(_ name: String) -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("absent-\(UUID().uuidString)-\(name)")
+    }
+
+    func testAbsentFileGetsNoNewDefaultModel() throws {
+        // opencode: 처음 쓰는 사용자는 model.json 이 없다. 전환하면 opencode 가 만든다 — 끝나고 다시 없어야 한다.
+        let url = temp("oc.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let io = FakeOpenCode(configURL: url)
+        let driver = OpenCodeDriver(io: io, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: true)
+        let outcome = try driver.apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max"))
+        XCTAssertEqual(io.models[0].variant, "max", "양성 대조군: 전환은 됐다")
+        XCTAssertNil(outcome.warning)
+        // opencode 는 파일을 만들면서 다른 키(`favorite`)도 함께 쓴다 — 그건 새 세션의 모델을 정하지 않으므로 남겨도 된다.
+        // 새 세션 기본값을 정하는 두 키는 없어야 한다.
+        let left = (try? JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]) ?? [:]
+        XCTAssertNil(left["recent"], "없던 기본 모델이 생기면 안 된다")
+        XCTAssertNil(left["variant"])
+    }
+
+    func testAbsentFileKeepsWhatAnotherSessionWrote() throws {
+        let url = temp("generic.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["recent": [["modelID": "x"]], "variant": ["x": "high"], "favorite": [["modelID": "y"]]], options: [.sortedKeys]).write(to: url)
+        XCTAssertEqual(OpenCodeDefaults(url: url).restore(to: .absent), .restored)
+        let now = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertEqual(Array(now.keys), ["favorite"], "우리 키만 없애고 남의 키는 둔다")
+        XCTAssertEqual(OpenCodeDefaults(url: url).restore(to: .absent), .unchanged)
+    }
+
+    func testAbsentWorksForEveryAgentsFile() throws {
+        let grok = temp("grok.toml")
+        defer { try? FileManager.default.removeItem(at: grok) }
+        try "\n[models]\ndefault = \"grok-4.7\"\ndefault_reasoning_effort = \"high\"\n".write(to: grok, atomically: true, encoding: .utf8)
+        XCTAssertEqual(GrokDefaults(url: grok).restore(to: .absent), .restored)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: grok.path))
+
+        let cursor = temp("cursor.json")
+        defer { try? FileManager.default.removeItem(at: cursor) }
+        try JSONSerialization.data(withJSONObject: ["model": ["modelId": "a"], "selectedModel": ["modelId": "a"], "modelSelectionHistory": ["a"], "modelParameters": [:]]).write(to: cursor)
+        XCTAssertEqual(CursorDefaults(url: cursor).restore(to: .absent), .restored)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cursor.path))
+
+        let agy = temp("agy.json")
+        defer { try? FileManager.default.removeItem(at: agy) }
+        try JSONSerialization.data(withJSONObject: ["model": "Gemini", "theme": "dark"]).write(to: agy)
+        XCTAssertEqual(AntigravityDefaults(url: agy).restore(to: .absent), .restored)
+        XCTAssertEqual((try JSONSerialization.jsonObject(with: Data(contentsOf: agy)) as? [String: String]), ["theme": "dark"])
+    }
+
+    func testUnreadableFileRefusesBeforeTypingAnything() throws {
+        // 폴더는 «있지만 읽을 수 없는» 파일이다.
+        let url = temp("unreadable")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(DefaultsFile.snapshot(temp("nothing")), .absent)
+        guard case .unreadable = DefaultsFile.snapshot(url) else { return XCTFail("폴더는 읽지 못한 것으로 나와야 한다") }
+
+        let oc = FakeOpenCode(configURL: temp("unused"))
+        XCTAssertThrowsError(try OpenCodeDriver(io: oc, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: true)
+            .apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max")))
+        XCTAssertEqual(oc.typed, [], "되돌릴 값을 모르면 아무것도 보내지 않는다")
+
+        let grokFile = temp("unused.toml")
+        let grok = FakeGrok(configURL: grokFile)
+        let models = GrokModels(models: [.init(id: "grok-4.7", name: "Grok 4.7", efforts: ["low", "high", "xhigh"])])
+        XCTAssertThrowsError(try GrokDriver(io: grok, sleep: { _ in }, models: models, defaults: GrokDefaults(url: url), keepDefaults: true)
+            .apply(AgentPreset(model: "grok-4.7", effort: "xhigh")))
+        XCTAssertEqual(grok.typed, [])
+
+        // keepDefaults 를 끄면 그 파일을 볼 일이 없으므로 그대로 진행한다.
+        _ = try OpenCodeDriver(io: oc, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: false)
+            .apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max"))
+        XCTAssertEqual(oc.models[0].variant, "max")
     }
 }

@@ -3,6 +3,22 @@ import Foundation
 public enum Agent: String, Codable, CaseIterable, Sendable {
     case claude
     case codex
+    case grok
+    case cursor
+    case antigravity
+    case opencode
+
+    /// 설치된 실행 파일 이름(`--version` 을 부를 때).
+    public var executable: String {
+        switch self {
+        case .cursor: return "cursor-agent"
+        case .antigravity: return "agy"
+        default: return rawValue
+        }
+    }
+
+    /// 단계 목록(`Step`)이 아니라 전용 드라이버가 화면을 보며 진행하는 에이전트.
+    public var usesDriver: Bool { self != .claude && self != .codex }
 }
 
 public struct AgentPreset: Codable, Equatable, Sendable {
@@ -18,42 +34,77 @@ public struct AgentPreset: Codable, Equatable, Sendable {
 public struct Slot: Codable, Equatable, Sendable {
     /// 붙이고 싶을 때만 쓰는 이름. 비어 있으면 모델·effort 로 부른다.
     public var name: String
-    public var claude: AgentPreset?
-    public var codex: AgentPreset?
+    /// 에이전트마다의 설정. 없는 에이전트는 그 번호에서 아무것도 하지 않는다.
+    public var presets: [Agent: AgentPreset]
 
-    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil) {
+    public var claude: AgentPreset? {
+        get { presets[.claude] }
+        set { presets[.claude] = newValue }
+    }
+    public var codex: AgentPreset? {
+        get { presets[.codex] }
+        set { presets[.codex] = newValue }
+    }
+    public var grok: AgentPreset? {
+        get { presets[.grok] }
+        set { presets[.grok] = newValue }
+    }
+    public var cursor: AgentPreset? {
+        get { presets[.cursor] }
+        set { presets[.cursor] = newValue }
+    }
+    public var antigravity: AgentPreset? {
+        get { presets[.antigravity] }
+        set { presets[.antigravity] = newValue }
+    }
+    public var opencode: AgentPreset? {
+        get { presets[.opencode] }
+        set { presets[.opencode] = newValue }
+    }
+
+    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil, grok: AgentPreset? = nil, cursor: AgentPreset? = nil, antigravity: AgentPreset? = nil, opencode: AgentPreset? = nil) {
         self.name = name
+        self.presets = [:]
         self.claude = claude
         self.codex = codex
+        self.grok = grok
+        self.cursor = cursor
+        self.antigravity = antigravity
+        self.opencode = opencode
     }
 
-    enum CodingKeys: String, CodingKey { case name, claude, codex }
+    /// 파일의 키는 `name` 과 에이전트 이름(`claude`·`codex`·`grok`…)이다. 모르는 키는 무시한다(나중 판이 쓴 파일을 읽을 수 있게).
+    struct Key: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
 
     public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
-        claude = try c.decodeIfPresent(AgentPreset.self, forKey: .claude)
-        codex = try c.decodeIfPresent(AgentPreset.self, forKey: .codex)
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        if !name.isEmpty { try c.encode(name, forKey: .name) }
-        try c.encodeIfPresent(claude, forKey: .claude)
-        try c.encodeIfPresent(codex, forKey: .codex)
-    }
-
-    public func preset(for agent: Agent) -> AgentPreset? {
-        switch agent {
-        case .claude: return claude
-        case .codex: return codex
+        let c = try decoder.container(keyedBy: Key.self)
+        name = try c.decodeIfPresent(String.self, forKey: Key(stringValue: "name")) ?? ""
+        presets = [:]
+        for agent in Agent.allCases {
+            if let preset = try c.decodeIfPresent(AgentPreset.self, forKey: Key(stringValue: agent.rawValue)) {
+                presets[agent] = preset
+            }
         }
     }
 
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Key.self)
+        if !name.isEmpty { try c.encode(name, forKey: Key(stringValue: "name")) }
+        for agent in Agent.allCases {
+            try c.encodeIfPresent(presets[agent], forKey: Key(stringValue: agent.rawValue))
+        }
+    }
+
+    public func preset(for agent: Agent) -> AgentPreset? { presets[agent] }
+
     /// 목록에 보여 줄 한 줄: `claude opus · high  /  codex gpt-6-astra · high`, 이름이 있으면 뒤에 붙인다.
     public var listing: String {
-        let parts = [claude.map { "claude \($0.model) · \($0.effort)" },
-                     codex.map { "codex \($0.model) · \($0.effort)" }].compactMap { $0 }
+        let parts = Agent.allCases.compactMap { agent in presets[agent].map { "\(agent.rawValue) \($0.model) · \($0.effort)" } }
         let body = parts.isEmpty ? "(설정 없음)" : parts.joined(separator: "  /  ")
         return name.isEmpty ? body : "\(body)   — \(name)"
     }

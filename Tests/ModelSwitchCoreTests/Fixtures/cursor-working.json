@@ -1,0 +1,24 @@
+{
+  "draft": null,
+  "tail": [
+    "",
+    "",
+    "",
+    "  Cursor Agent",
+    "  v2026.10.01-14929f9",
+    "  Tip: Use /skills to give Cursor specialized knowledge for tasks.",
+    "",
+    "",
+    "  Print the integers 1 to 250, one per line. No tools, no commentary.",
+    "",
+    "",
+    " ⠰⠳ Working",
+    "",
+    "",
+    "  → Add a follow-up                                                                                                                         ctrl+c to stop",
+    "",
+    "",
+    "  Grok 4.7 256K High",
+    "  ~/orca/workspaces/modelswitch/initial · yohangwak/agents"
+  ]
+}

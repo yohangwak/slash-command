@@ -1,0 +1,30 @@
+{
+  "draft": null,
+  "tail": [
+    "",
+    "",
+    "",
+    "  Cursor Agent",
+    "  v2026.10.01-14929f9",
+    "  Tip: Use /skills to give Cursor specialized knowledge for tasks.",
+    "",
+    "",
+    "",
+    "",
+    "  → Plan, search, build anything",
+    "",
+    "",
+    " Models matching \"opus\"                                                                                                                       Max mode: OFF",
+    "",
+    " Filter: opus",
+    "",
+    " →  Claude Opus 5.5          300K Medium (Tab to modify)",
+    "    Claude Opus 5            300K High",
+    "    Claude Opus 4.8          300K High",
+    "    Claude Opus 4.7          300K Extra High",
+    "    Claude Opus 4.6          200K High",
+    "    Claude Opus 4.5",
+    "",
+    " Type to filter • Enter to select • Tab to edit"
+  ]
+}

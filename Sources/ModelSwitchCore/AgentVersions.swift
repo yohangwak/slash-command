@@ -11,8 +11,12 @@ public enum AgentVersions {
     static let unknown = "알 수 없음"
 
     public static let tested: [Agent: Set<String>] = [
-        .claude: ["2.1.283", "2.1.288", "2.1.289", "2.1.291"],
+        .claude: ["2.1.283", "2.1.288", "2.1.289", "2.1.291", "2.1.292"],
         .codex: ["0.156.0", "0.160.0", "0.160.1"],
+        .grok: ["1.0.46"],
+        .cursor: ["2026.10.01-14929f9"],
+        .antigravity: ["1.3.1"],
+        .opencode: ["1.18.35"],
     ]
 
     public struct Report: Equatable, Sendable {
@@ -58,7 +62,7 @@ public enum AgentVersions {
     // MARK: - 설치된 판
 
     public static func installed(_ agent: Agent) -> String? {
-        guard let exe = Proc.locate(agent.rawValue) else { return nil }
+        guard let exe = Proc.locate(agent.executable) else { return nil }
         let result = Proc.run(exe, ["--version"], timeout: 5)
         guard result.ok else { return nil }
         return parse(versionOutput: result.out)
@@ -69,6 +73,8 @@ public enum AgentVersions {
         for token in versionOutput.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" }) {
             let text = token.trimmingCharacters(in: CharacterSet(charactersIn: "v()"))
             if isVersion(text) { return text }
+            // `2026.10.01-14929f9`(cursor-agent)처럼 뒤에 빌드 표시가 붙은 판.
+            if text.first?.isNumber == true, let tagged = release(from: text) { return tagged }
         }
         return nil
     }
