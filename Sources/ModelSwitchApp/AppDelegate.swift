@@ -83,11 +83,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         guard let front = NSWorkspace.shared.frontmostApplication, let bundleID = front.bundleIdentifier else { return }
         let appName = front.localizedName ?? bundleID
-        // Ghostty 화면은 접근성으로 읽는다. 권한이 없으면 시스템 안내 창을 띄우고 여기서 멈춘다.
-        if bundleID == Detector.ghosttyBundleID, !GhosttyScreen.trusted(prompt: true) {
+        // Ghostty 화면은 접근성으로 읽고, iTerm2 는 입력 방송(Broadcast Input) 상태를 메뉴 체크 표시로 읽는다.
+        // 권한이 없으면 시스템 안내 창을 띄우고 여기서 멈춘다. (Orca 는 없어도 되지만 있으면 지금 보이는 탭을 지연 없이 안다.)
+        if bundleID == Detector.ghosttyBundleID || bundleID == Detector.itermBundleID, !GhosttyScreen.trusted(prompt: true) {
             Log.write("실패 \(action.label): 손쉬운 사용 권한 없음")
+            let why = bundleID == Detector.ghosttyBundleID ? "Ghostty 화면을 읽어 입력창 상태를 확인합니다." : "iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인합니다."
             hud.show("손쉬운 사용 권한이 필요합니다",
-                     detail: "Ghostty 화면을 읽어 입력창 상태를 확인합니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 ModelSwitch 를 켠 뒤 다시 눌러 주세요.",
+                     detail: "\(why) 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용(Accessibility)에서 ModelSwitch 를 켠 뒤 다시 눌러 주세요.",
                      seconds: 6)
             return
         }

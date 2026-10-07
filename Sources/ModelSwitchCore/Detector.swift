@@ -156,12 +156,33 @@ public enum Detector {
     }
 
     public static func orca() throws -> Target {
-        let active = try OrcaState.active()
-        return try OrcaState.target(in: try orcaTerminals(), active: active, processAgent: AgentProcesses.agent(orcaHandle:))
+        let payload = try orcaTerminals()
+        let active = try orcaActive(payload: payload).active
+        return try OrcaState.target(in: payload, active: active, processAgent: AgentProcesses.agent(orcaHandle:))
+    }
+
+    /// 화면에 떠 있는 워크스페이스·탭과 «어디서 알았는가».
+    /// 접근성으로 읽은 탭 줄(지연 없음)을 먼저 쓰고, 읽지 못하거나 맞는 워크스페이스가 없으면 상태 DB(1.3~2.5초 늦음)로 되돌아간다.
+    /// 탭 줄이 둘 이상의 워크스페이스와 똑같으면 어느 쪽인지 모르므로 보내지 않는다.
+    public static func orcaActive(payload: [String: Any]) throws -> (active: OrcaState.Active, source: String) {
+        let database = try? OrcaState.active()
+        guard let strip = OrcaView.readStrip() else {
+            return (try OrcaState.active(), "상태 DB(접근성으로 탭 줄을 읽지 못함)")
+        }
+        let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
+        switch OrcaView.resolve(strip: strip, layouts: layouts, preferWorktree: database?.worktreeID) {
+        case .tab(let active):
+            let note = (database == active) ? "접근성(DB 와 같음)" : "접근성(DB 와 다름 — DB 가 아직 옛 값)"
+            return (active, note)
+        case .ambiguous:
+            throw ModelSwitchError("Orca 에 탭 제목 순서가 똑같은 워크스페이스가 둘 이상이라 지금 보이는 터미널을 구분할 수 없습니다. 탭 이름을 서로 다르게 해 주세요.")
+        case .noMatch:
+            return (try OrcaState.active(), "상태 DB(탭 줄이 어느 워크스페이스와도 맞지 않음)")
+        }
     }
 
     /// 터미널 목록과 화면 배치. Orca 앱에 직접 묻고, 안 되면 `orca` 명령으로 묻는다.
-    static func orcaTerminals() throws -> [String: Any] {
+    public static func orcaTerminals() throws -> [String: Any] {
         if case .success(let payload) = OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) {
             return payload
         }

@@ -1664,3 +1664,100 @@ final class ITermScreenTests: XCTestCase {
         XCTAssertNil(ITermIO.visibleLines(from: ""))
     }
 }
+
+final class ITermBroadcastTests: XCTestCase {
+    private func menu(marked: String?) -> [ITermBroadcast.MenuItem] {
+        ["Send Input to Current Session Only", "Send Input to All Panes in Current Tab", "Send Input to All Panes in All Tabs", "Toggle Broadcast Input to Current Session"]
+            .map { ITermBroadcast.MenuItem(title: $0, marked: $0 == marked) }
+    }
+
+    func testOnlyCurrentSessionChecked_IsOff() {
+        XCTAssertEqual(ITermBroadcast.classify(menu(marked: "Send Input to Current Session Only")), .off)
+        XCTAssertTrue(ITermBroadcast.classify(menu(marked: "Send Input to Current Session Only")).allowsSending)
+    }
+
+    func testAnyAllPanesModeIsOn() {
+        for mode in ["Send Input to All Panes in Current Tab", "Send Input to All Panes in All Tabs"] {
+            let state = ITermBroadcast.classify(menu(marked: mode))
+            XCTAssertEqual(state, .on(mode))
+            XCTAssertFalse(state.allowsSending)
+        }
+    }
+
+    func testUnreadableOrUnrecognizedIsNeverOff() {
+        XCTAssertFalse(ITermBroadcast.classify([]).allowsSending, "메뉴를 못 찾으면 보내지 않는다")
+        XCTAssertFalse(ITermBroadcast.classify(menu(marked: nil)).allowsSending, "체크된 것이 없으면 모른다")
+        XCTAssertFalse(ITermBroadcast.classify(menu(marked: "Toggle Broadcast Input to Current Session")).allowsSending)
+    }
+}
+
+final class OrcaViewTests: XCTestCase {
+    private func layout(_ worktree: String, _ titles: [String]) -> [String: Any] {
+        ["worktreeId": worktree, "root": ["tabs": titles.enumerated().map { ["tabId": "\(worktree)-t\($0.offset)", "title": $0.element] as [String: Any] }]]
+    }
+
+    private func strip(_ titles: [String], active: Int, truncated: Set<Int> = []) -> OrcaView.Strip {
+        OrcaView.Strip(tabs: titles.enumerated().map { .init(title: $0.element, truncated: truncated.contains($0.offset), active: $0.offset == active) })
+    }
+
+    // 2026-10-07 맥 화면의 탭 줄(이 워크스페이스).
+    private let initialTitles = ["이 repo 루트의 HANDOFF-2026-10-06-", "Terminal 2", "initial", "<local-command-caveat>The comm", "OpenCode", "grok", "Terminal 7", "Cursor Agent"]
+    private let shownTitles = ["이 repo 루트의 HANDOFF 2026 10 06", "Terminal 2", "initial", "<local-command-caveat>The", "OpenCode", "grok", "Terminal 7", "Cursor Agent"]
+
+    func testReadsTabButtonLabelAndActiveClass() {
+        let active = OrcaView.tab(fromLabel: "Working 이 repo 루트의 HANDOFF 2026 10 06 Close tab 이 repo 루트의 HANDOFF 2026 10 06",
+                                  classes: ["group", "bg-[color-mix(in_srgb,var(--foreground)_6%,var(--card))]", "text-foreground"])
+        XCTAssertEqual(active, .init(title: "이 repo 루트의 HANDOFF 2026 10 06", truncated: false, active: true))
+        let inactive = OrcaView.tab(fromLabel: "grok Close tab grok", classes: ["group", "bg-card", "text-muted-foreground", "hover:text-foreground"])
+        XCTAssertEqual(inactive?.active, false, "hover:text-foreground 는 활성 표시가 아니다")
+        let truncated = OrcaView.tab(fromLabel: "Done <local-command-caveat>The command... Close tab <local-command-caveat>The command...", classes: [])
+        XCTAssertEqual(truncated?.title, "<local-command-caveat>The command")
+        XCTAssertEqual(truncated?.truncated, true)
+        XCTAssertNil(OrcaView.tab(fromLabel: "Tasks", classes: ["text-foreground"]), "탭 버튼이 아니다")
+    }
+
+    func testResolvesTheVisibleTabWhileTheDatabaseStillSaysTheOldOne() {
+        let layouts = [layout("w-other", ["Terminal 2", "Terminal 3"]), layout("w-initial", initialTitles)]
+        for index in 0..<initialTitles.count {
+            let result = OrcaView.resolve(strip: strip(shownTitles, active: index, truncated: [3]), layouts: layouts, preferWorktree: "w-other")
+            XCTAssertEqual(result, .tab(.init(worktreeID: "w-initial", tabID: "w-initial-t\(index)")), "탭 \(index)")
+        }
+    }
+
+    func testNoMatchWhenTheStripHasTabsTheLayoutDoesNot() {
+        // 파일 탭 같은 터미널이 아닌 탭이 섞이면 수가 달라 맞추지 않는다(부른 쪽이 DB 로 되돌아간다).
+        let layouts = [layout("w-initial", initialTitles)]
+        XCTAssertEqual(OrcaView.resolve(strip: strip(shownTitles + ["README.md"], active: 8), layouts: layouts), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip(["a", "b"], active: 0), layouts: layouts), .noMatch)
+    }
+
+    func testIdenticalStripsInTwoWorkspacesAreAmbiguousUnlessTheDatabaseNamesOne() {
+        let layouts = [layout("w1", ["Terminal 2"]), layout("w2", ["Terminal 2"])]
+        let one = strip(["Terminal 2"], active: 0)
+        XCTAssertEqual(OrcaView.resolve(strip: one, layouts: layouts), .ambiguous(["w1", "w2"]))
+        XCTAssertEqual(OrcaView.resolve(strip: one, layouts: layouts, preferWorktree: "w2"), .tab(.init(worktreeID: "w2", tabID: "w2-t0")))
+        XCTAssertEqual(OrcaView.resolve(strip: one, layouts: layouts, preferWorktree: "w3"), .ambiguous(["w1", "w2"]), "후보 밖의 DB 값으로 고르지 않는다")
+    }
+
+    func testNeedsExactlyOneActiveTab() {
+        let layouts = [layout("w", ["a", "b"])]
+        let none = OrcaView.Strip(tabs: [.init(title: "a", truncated: false, active: false), .init(title: "b", truncated: false, active: false)])
+        let both = OrcaView.Strip(tabs: [.init(title: "a", truncated: false, active: true), .init(title: "b", truncated: false, active: true)])
+        XCTAssertEqual(OrcaView.resolve(strip: none, layouts: layouts), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: both, layouts: layouts), .noMatch)
+    }
+
+    func testLongTitleCutWithoutEllipsisStillMatchesButShortOnesNeedToBeExact() {
+        let layouts = [layout("w", ["이 repo 루트의 HANDOFF-2026-10-06-modelswitch.md 를 먼저 끝까지 읽고 이어서 진행해줘", "initial"])]
+        let cut = OrcaView.Strip(tabs: [.init(title: "이 repo 루트의 HANDOFF 2026 10 06", truncated: false, active: true), .init(title: "initial", truncated: false, active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: cut, layouts: layouts), .tab(.init(worktreeID: "w", tabID: "w-t0")))
+        let shortCut = OrcaView.Strip(tabs: [.init(title: "이 repo 루트의 HANDOFF 2026 10 06", truncated: false, active: true), .init(title: "init", truncated: false, active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: shortCut, layouts: layouts), .noMatch, "짧은 제목은 앞부분 일치를 인정하지 않는다")
+    }
+
+    func testTruncatedTitleOnlyMatchesAsAPrefix() {
+        let layouts = [layout("w", ["긴 제목입니다 정말로 길어서 잘렸어요"])]
+        XCTAssertEqual(OrcaView.resolve(strip: strip(["긴 제목입니다"], active: 0, truncated: [0]), layouts: layouts), .tab(.init(worktreeID: "w", tabID: "w-t0")))
+        XCTAssertEqual(OrcaView.resolve(strip: strip(["긴 제목입니다"], active: 0), layouts: layouts), .noMatch, "잘리지 않은 제목은 정확히 같아야 한다")
+    }
+}

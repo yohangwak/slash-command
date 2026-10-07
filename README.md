@@ -47,10 +47,10 @@ Ghostty·Orca·iTerm2 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨
 ~/Applications/ModelSwitch.app/Contents/MacOS/ModelSwitch --login-item on   # 로그인할 때 실행(메뉴에서도 켠다)
 ```
 
-처음 한 번 허용할 것(Ghostty 를 쓸 때만. Orca 만 쓰면 필요 없다):
+처음 한 번 허용할 것(Orca 만 쓰면 없어도 되지만, 있으면 탭을 옮긴 직후에도 맞다):
 
 - **자동화**(ModelSwitch → Ghostty): 터미널에 글자를 넣는 데 쓴다.
-- **손쉬운 사용**(ModelSwitch): Ghostty 화면을 읽는 데 쓴다.
+- **손쉬운 사용 / Accessibility**(ModelSwitch): Ghostty 화면 읽기, iTerm2 의 입력 방송 확인, Orca 의 보이는 탭 확인에 쓴다.
 
 ## 어떻게 동작하나
 
@@ -115,11 +115,11 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - codex 선택창의 모델 순서는 `~/.codex/models_cache.json` 에서 계산한다. 10번째 이후 모델은 숫자 키로 고를 수 없다.
 - claude 선택창에서 화면 아래로 밀려난 모델(`… +2 models`)은 명령 방식으로 간다(기본값을 바꿨다 되돌린다).
 - Orca 의 「화면에 떠 있는 워크스페이스」는 공개 인터페이스가 아닌 상태 DB 에서 읽는다. 형식이 바뀌면 추측하지 않고 실패한다.
-- 🔴 **Orca 에서 워크스페이스나 탭을 옮긴 뒤 약 2.5초 안에 누르면 «옮기기 전» 터미널로 간다.** 그 DB 가 화면보다 1.5~2.5초 늦게 써진다(맥북 실측, 워크스페이스 7회·탭 4회). 터미널 목록의 `activeTabId` 도 같이 늦고, 앱 소켓의 다른 조회(`ui.get`·`status.get`·`worktree.list`·`terminal.show`)에도 지금 보이는 탭은 없었다. 알림에 대상 이름이 뜨는 것이 지금의 유일한 방어다.
+- **Orca 에서 탭을 옮긴 직후:** 상태 DB 와 `terminal.list` 의 «활성 탭» 은 UI 보다 1.3~2.5초 늦다. 그래서 «손쉬운 사용» 권한이 있으면 Orca 의 탭 줄(접근성 트리, 활성 탭만 `text-foreground` 클래스)을 읽어 터미널 목록의 탭 제목 순서와 맞춘다 — 2026-10-07 같은 전환 7회에서 0.3초 뒤 7/7 맞음(DB 방식은 0/7). 권한이 없거나 탭 줄에 터미널이 아닌 탭이 섞여 맞지 않으면 옛 DB 방식으로 되돌아가고(지연 위험 그대로), 탭 제목 순서가 똑같은 워크스페이스가 둘이면 보내지 않는다. 분할 창의 활성 분할은 아직 목록 값을 쓴다.
 - Orca 앱 소켓도 공개 인터페이스가 아니다(`orca` 명령이 쓰는 통로). 못 쓰면 `orca` 명령으로 되돌아간다(회당 0.2초).
 - Ghostty 의 codex 는 3~4.6초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다(다른 접근성 속성도 같은 보관본을 준다).
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
-- 단축키로 되는 터미널은 Ghostty · Orca · iTerm2 다(iTerm2 는 2026-10-07 맥북에서 claude·codex 전환과 맨 앞 세션 찾기 확인, 약 1초; 처음 한 번 「자동화」 허용 필요). tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다. 대상을 직접 지정하는 `--iterm <세션 unique id>` 도 있다.
+- 단축키로 되는 터미널은 Ghostty · Orca · iTerm2 다(iTerm2 는 2026-10-07 맥북에서 claude·codex 전환과 맨 앞 세션 찾기 확인, 약 1초; 처음 한 번 「자동화」·「손쉬운 사용」 허용 필요. 입력 방송이 켜져 있으면 다른 칸에도 입력이 들어가므로 보내지 않는다). tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다. 대상을 직접 지정하는 `--iterm <세션 unique id>` 도 있다.
 - 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
 
 ## 개발

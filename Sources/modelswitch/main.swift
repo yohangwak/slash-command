@@ -139,6 +139,9 @@ do {
         // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다(ssh 로 시험할 때).
         let target = try value(after: "--bundle", in: args).map { try Detector.target(bundleID: $0, appName: $0) } ?? Detector.frontmost()
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
+        if case .orca = target.host, let payload = try? Detector.orcaTerminals(), let found = try? Detector.orcaActive(payload: payload) {
+            print("화면 판정   \(found.source)")
+        }
     case "doctor":
         let target = try explicitTarget(args) ?? Detector.frontmost()
         print("대상        \(target.host.appName) · \(target.agent.rawValue) · \(target.label)")

@@ -1,4 +1,5 @@
 import AppKit
+import ModelSwitchCore
 import ServiceManagement
 
 // `ModelSwitch --login-item on|off|status` — 로그인할 때 실행을 명령줄에서 켜고 끈다(메뉴의 같은 항목과 같다).
@@ -20,6 +21,13 @@ if let flag = arguments.firstIndex(of: "--login-item") {
         exit(1)
     }
     print(service.status == .enabled ? "on" : "off")
+    exit(0)
+}
+
+// `ModelSwitch --iterm-broadcast` — iTerm2 의 입력 방송 메뉴 상태를 찍고 끝낸다(시험용. 앱 자신의 «손쉬운 사용» 권한으로 읽는다).
+if arguments.contains("--iterm-broadcast") {
+    ITermBroadcast.dump().forEach { print($0) }
+    print("state: \(ITermBroadcast.state())")
     exit(0)
 }
 

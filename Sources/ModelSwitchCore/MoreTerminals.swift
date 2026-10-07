@@ -142,6 +142,18 @@ public struct ITermIO: TerminalIO {
     }
 
     private func write(_ bytes: String) throws {
+        // 입력 방송이 켜져 있으면 이 글이 다른 칸에도 들어간다 — 그 칸들은 확인한 적이 없으므로 보내지 않는다.
+        // 방송 상태를 읽지 못해도(손쉬운 사용 권한 없음 등) «꺼져 있다» 고 말할 수 없으므로 보내지 않는다.
+        // (시험용: MODELSWITCH_ITERM_SKIP_BROADCAST_CHECK=1 — 권한이 없는 ssh 세션에서 돌려 볼 때만.)
+        if ProcessInfo.processInfo.environment["MODELSWITCH_ITERM_SKIP_BROADCAST_CHECK"] != "1" {
+            switch ITermBroadcast.state() {
+            case .off: break
+            case .on(let mode):
+                throw ModelSwitchError("iTerm2 의 입력 방송이 켜져 있어(\(mode)) 다른 칸에도 입력이 들어갈 수 있습니다. Shell ▸ Broadcast Input ▸ Send Input to Current Session Only 로 끈 뒤 다시 눌러 주세요.")
+            case .unknown(let reason):
+                throw ModelSwitchError("iTerm2 의 입력 방송이 꺼져 있는지 확인하지 못해 보내지 않았습니다: \(reason)")
+            }
+        }
         // `return` 이 있어야 찾은 뒤 반복을 끝낸다(없으면 아래의 «못 찾음» 오류까지 간다).
         let body = "write text \(ITermIO.expression(for: bytes)) newline NO\nreturn \"true\""
         let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, body: body))
