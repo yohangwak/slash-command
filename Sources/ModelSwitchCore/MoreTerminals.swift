@@ -156,20 +156,43 @@ public struct ITermIO: TerminalIO {
 
     public func screen() -> [String]? {
         // `contents` 는 스크롤백까지 준다(2026-10-07 실측: 화면 25줄에 88줄) — 화면 «맨 아래» 판정에 쓰려면 지금 화면의 줄만 남겨야 한다.
-        // 줄 수(`rows`)는 같은 호출에서 읽어 둘이 어긋나지 않게 한다.
-        let body = "return ((rows as text) & linefeed & contents)"
+        // 줄 수·칸 수(`rows`·`columns`)는 같은 호출에서 읽어 글과 어긋나지 않게 한다.
+        let body = "return ((rows as text) & linefeed & (columns as text) & linefeed & contents)"
         let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, body: body))
         guard result.ok else { return nil }
         return ITermIO.visibleLines(from: result.out)
     }
 
-    /// `"<rows>\n<contents>"` 에서 지금 화면의 줄들. 줄 수를 못 읽으면 nil(스크롤백이 섞인 글을 현재 화면으로 쓰지 않는다).
+    /// `"<rows>\n<columns>\n<contents>"` 에서 지금 화면의 줄들. 줄·칸 수를 못 읽으면 nil(스크롤백이 섞인 글을 현재 화면으로 쓰지 않는다).
+    ///
+    /// `rows` 는 «물리적인» 행 수인데 `contents` 는 글줄 단위라, 긴 줄이 접혀 여러 행을 차지할 수 있다(합쳐서 줄 수가 적다).
+    /// 그래서 맨 아래에서부터 줄마다 «차지하는 행 수»(폭 ÷ 칸 수, 올림)를 더해 `rows` 를 채울 때까지만 가져온다.
+    /// 행 수를 넉넉히(폭이 넓은 글자는 2칸) 세므로 틀리면 위쪽 줄을 덜 가져오는 쪽이다 — 맨 아래 입력창 판정에는 안전한 방향이다.
     static func visibleLines(from output: String) -> [String]? {
         let text = output.replacingOccurrences(of: "\r", with: "\n")
-        guard let split = text.firstIndex(of: "\n"), let rows = Int(text[..<split]), rows > 0 else { return nil }
-        var lines = String(text[text.index(after: split)...]).components(separatedBy: "\n")
+        let head = text.split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false)
+        guard head.count == 3, let rows = Int(head[0]), rows > 0, let columns = Int(head[1]), columns > 0 else { return nil }
+        var lines = String(head[2]).components(separatedBy: "\n")
         // 글 끝의 줄바꿈이 만드는 마지막 빈 원소는 화면 줄이 아니다.
         if lines.last == "" { lines.removeLast() }
-        return Array(lines.suffix(rows))
+        var used = 0
+        var kept: [String] = []
+        for line in lines.reversed() {
+            used += max(1, (displayWidth(line) + columns - 1) / columns)
+            if used > rows { break }
+            kept.append(line)
+        }
+        return kept.reversed()
+    }
+
+    /// 터미널 칸 수로 센 폭(넉넉히): 한글·한자·이모지 등은 2칸.
+    static func displayWidth(_ text: String) -> Int {
+        text.unicodeScalars.reduce(0) { total, scalar in
+            let v = scalar.value
+            let wide = (0x1100...0x115F).contains(v) || (0x2E80...0xA4CF).contains(v) || (0xAC00...0xD7A3).contains(v)
+                || (0xF900...0xFAFF).contains(v) || (0xFE30...0xFE6F).contains(v) || (0xFF00...0xFF60).contains(v)
+                || (0xFFE0...0xFFE6).contains(v) || (0x1F300...0x1FAFF).contains(v)
+            return total + (wide ? 2 : 1)
+        }
     }
 }

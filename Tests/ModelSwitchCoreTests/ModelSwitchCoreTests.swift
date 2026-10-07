@@ -1617,27 +1617,50 @@ final class TTYAgentTests: XCTestCase {
 }
 
 final class ITermScreenTests: XCTestCase {
+    private func output(rows: Int, columns: Int = 80, _ lines: [String]) -> String {
+        "\(rows)\n\(columns)\n" + lines.joined(separator: "\n") + "\n"
+    }
+
     func testKeepsOnlyTheVisibleRows() {
         let history = (1...5).map { "old \($0)" }
-        let output = "3\n" + (history + ["a", "b", "c"]).joined(separator: "\n") + "\n"
-        XCTAssertEqual(ITermIO.visibleLines(from: output), ["a", "b", "c"])
+        XCTAssertEqual(ITermIO.visibleLines(from: output(rows: 3, history + ["a", "b", "c"])), ["a", "b", "c"])
     }
 
     func testOldPromptInScrollbackIsNotTheCurrentScreen() {
         // 지워진 화면(빈 줄 3개) 위 스크롤백에 예전 claude 입력창이 남아 있다 — 지금 화면에는 없다.
         let scrollback = ["────────", "❯ ", "────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"]
-        let output = "3\n" + (scrollback + ["", "", ""]).joined(separator: "\n") + "\n"
-        let screen = ITermIO.visibleLines(from: output)
+        let screen = ITermIO.visibleLines(from: output(rows: 3, scrollback + ["", "", ""]))
         XCTAssertEqual(screen, ["", "", ""])
         XCTAssertFalse(Readiness.claudePromptVisible(screen ?? []), "화면이 비었으면 입력창이 보이지 않는다")
         // 양성 대조군: 같은 글이 정말 화면 아래에 있으면 보인다.
-        let live = ITermIO.visibleLines(from: "4\n" + scrollback.joined(separator: "\n") + "\n")
+        let live = ITermIO.visibleLines(from: output(rows: 4, scrollback))
         XCTAssertTrue(Readiness.claudePromptVisible(live ?? []))
     }
 
-    func testRefusesWhenRowsAreUnknown() {
-        XCTAssertNil(ITermIO.visibleLines(from: "x\nhello"))
-        XCTAssertNil(ITermIO.visibleLines(from: "0\nhello"))
+    func testWrappedLogicalLinesCountAsSeveralRows() {
+        // 한 줄이 칸 수의 두 배라 2행을 차지한다: 화면 3행 = (긴 줄 2행) + 1행. 그 위의 예전 입력창은 화면 밖이다.
+        let old = ["────────", "❯ ", "────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"]
+        let wrapped = String(repeating: "x", count: 160)
+        let screen = ITermIO.visibleLines(from: output(rows: 3, columns: 80, old + [wrapped, "END"]))
+        XCTAssertEqual(screen, [wrapped, "END"])
+        XCTAssertFalse(Readiness.claudePromptVisible(screen ?? []))
+        // 소프트 랩을 줄바꿈으로 내보내는 경우(물리 행마다 한 줄)에도 같은 답이다.
+        let split = ITermIO.visibleLines(from: output(rows: 3, columns: 80, old + [String(repeating: "x", count: 80), String(repeating: "x", count: 80), "END"]))
+        XCTAssertEqual(split?.last, "END")
+        XCTAssertEqual(split?.count, 3)
+    }
+
+    func testWideCharactersAreCountedGenerously() {
+        // 한글 50자 = 100칸 → 80칸 화면에서 2행. 넉넉히 세므로 위쪽 줄을 덜 가져오는 쪽으로만 틀린다.
+        let korean = String(repeating: "한", count: 50)
+        let screen = ITermIO.visibleLines(from: output(rows: 3, columns: 80, ["위", "중간", korean, "끝"]))
+        XCTAssertEqual(screen, [korean, "끝"])
+    }
+
+    func testRefusesWhenRowsOrColumnsAreUnknown() {
+        XCTAssertNil(ITermIO.visibleLines(from: "x\n80\nhello"))
+        XCTAssertNil(ITermIO.visibleLines(from: "0\n80\nhello"))
+        XCTAssertNil(ITermIO.visibleLines(from: "25\nhello"))
         XCTAssertNil(ITermIO.visibleLines(from: ""))
     }
 }
