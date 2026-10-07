@@ -233,7 +233,27 @@ public struct OpenCodeDriver {
 
     // MARK: 전환
 
-    public func apply(_ preset: AgentPreset) throws -> Outcome {
+    public func apply(_ preset: AgentPreset) throws -> Outcome { try guarded { try applyUnguarded(preset) } }
+
+    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다.
+    public func stepEffort(up: Bool) throws -> Outcome { try guarded { try stepEffortUnguarded(up: up) } }
+
+    /// 어느 단계에서 던져졌든 — 확정한 뒤 화면을 읽지 못한 경우까지 — 새 세션 기본값을 전환 전 값으로 되돌리고 나서 실패를 알린다.
+    /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
+    private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
+        let before = keepDefaults ? defaults.snapshot() : nil
+        do {
+            return try body()
+        } catch {
+            if let before {
+                sleep(250)
+                _ = defaults.restore(to: before)
+            }
+            throw error
+        }
+    }
+
+    private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
         func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
@@ -255,7 +275,7 @@ public struct OpenCodeDriver {
     }
 
     /// 모델은 그대로 두고 variant 만 한 단계 올리거나 내린다. 단계는 `/variants` 대화상자의 순서(Default · low · high · max…)다.
-    public func stepEffort(up: Bool) throws -> Outcome {
+    private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
         func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {

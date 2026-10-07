@@ -278,8 +278,28 @@ public struct GrokDriver {
 
     // MARK: 전환
 
+    public func apply(_ preset: AgentPreset) throws -> Outcome { try guarded { try applyUnguarded(preset) } }
+
+    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다.
+    public func stepEffort(up: Bool) throws -> Outcome { try guarded { try stepEffortUnguarded(up: up) } }
+
+    /// 어느 단계에서 던져졌든 — 확정한 뒤 화면을 읽지 못한 경우까지 — 새 세션 기본값을 전환 전 값으로 되돌리고 나서 실패를 알린다.
+    /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
+    private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
+        let before = keepDefaults ? defaults.snapshot() : nil
+        do {
+            return try body()
+        } catch {
+            if let before {
+                sleep(250)
+                _ = defaults.restore(to: before)
+            }
+            throw error
+        }
+    }
+
     /// 입력 상자가 비어 있는 대기 상태에서만 시작한다. 실패하면 우리가 쓴 글만 지우고 멈춘다.
-    public func apply(_ preset: AgentPreset) throws -> Outcome {
+    private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
         guard let first = io.freshSnapshot() else { throw ModelSwitchError("grok 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
         guard GrokScreen.box(first.lines) != nil else {
             throw ModelSwitchError("grok 입력창이 보이지 않아 전환하지 않았습니다. 선택창이나 확인 창이 떠 있으면 먼저 처리해 주세요.")
@@ -310,7 +330,7 @@ public struct GrokDriver {
     }
 
     /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다. 지금 값은 입력 상자 테두리의 이름표로 안다.
-    public func stepEffort(up: Bool) throws -> Outcome {
+    private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         guard let first = io.freshSnapshot(), let box = GrokScreen.box(first.lines) else {
             throw ModelSwitchError("grok 입력창이 보이지 않아 바꾸지 않았습니다.")
         }

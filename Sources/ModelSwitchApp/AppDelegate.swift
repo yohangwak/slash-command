@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
+    /// Orca 에서 손쉬운 사용이 꺼져 있을 때의 안내는 실행마다 한 번만 한다.
+    private var nudgedOrcaAccessibility = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -36,6 +38,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self, selector: #selector(frontAppChanged),
             name: NSWorkspace.didActivateApplicationNotification, object: nil)
         refreshHotKeys()
+        // 처음 한 번: 손쉬운 사용이 꺼져 있으면 권한 상자가 있는 창을 먼저 보여 준다(그 뒤로는 메뉴에서 연다).
+        if !Permissions.accessibility, !UserDefaults.standard.bool(forKey: "permissionsIntroShown") {
+            UserDefaults.standard.set(true, forKey: "permissionsIntroShown")
+            openSettings()
+        } else if CommandLine.arguments.contains("--settings") {
+            // `open -a ModelSwitch --args --settings` — 프리셋·권한 창을 띄운 채로 시작한다.
+            openSettings()
+        }
     }
 
     // MARK: - 단축키
@@ -84,12 +94,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let front = NSWorkspace.shared.frontmostApplication, let bundleID = front.bundleIdentifier else { return }
         let appName = front.localizedName ?? bundleID
         // Ghostty 화면은 접근성으로 읽고, iTerm2 는 입력 방송(Broadcast Input) 상태를 메뉴 체크 표시로 읽는다.
-        // 권한이 없으면 시스템 안내 창을 띄우고 여기서 멈춘다. (Orca 는 없어도 되지만 있으면 지금 보이는 탭을 지연 없이 안다.)
-        if bundleID == Detector.ghosttyBundleID || bundleID == Detector.itermBundleID, !GhosttyScreen.trusted(prompt: true) {
-            Log.write("실패 \(action.label): 손쉬운 사용 권한 없음")
+        // 권한이 없으면 «그 권한을 켜는 설정 화면» 을 바로 열어 주고 여기서 멈춘다 — 사용자가 시스템 설정에서 길을 찾게 하지 않는다.
+        // (Orca 는 없어도 되지만 있으면 지금 보이는 탭을 지연 없이 안다.)
+        if bundleID == Detector.ghosttyBundleID || bundleID == Detector.itermBundleID, !Permissions.accessibility {
+            Log.write("실패 \(action.label): 손쉬운 사용 권한 없음 — 설정 화면을 엶")
             let why = bundleID == Detector.ghosttyBundleID ? "Ghostty 화면을 읽어 입력창 상태를 확인합니다." : "iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인합니다."
+            Permissions.openAccessibility()
             hud.show("손쉬운 사용 권한이 필요합니다",
-                     detail: "\(why) 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용(Accessibility)에서 ModelSwitch 를 켠 뒤 다시 눌러 주세요.",
+                     detail: "\(why) 방금 연 설정 화면의 목록에서 ModelSwitch 를 켠 뒤 다시 눌러 주세요.",
                      seconds: 6)
             return
         }
@@ -124,6 +136,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     Log.write("적용 \(action.label): \(result.summary)\(result.confirmed ? "" : " (확인 문구 없음)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
                     var detail = "\(result.target.agent.rawValue) · \(result.target.host.appName) · \(result.target.label)"
                     if !result.slotName.isEmpty { detail += "\n\(result.slotName)" }
+                    // Orca 는 권한 없이도 되지만, 없으면 탭을 옮긴 직후 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다 — 한 번 알려 준다.
+                    if bundleID == Detector.orcaBundleID, !Permissions.accessibility, !self.nudgedOrcaAccessibility {
+                        self.nudgedOrcaAccessibility = true
+                        detail += "\n메뉴 → 「손쉬운 사용 켜기」를 해 두면 탭을 옮긴 직후에도 정확합니다."
+                    }
                     if let warning = result.warning {
                         self.hud.show(result.summary, detail: "\(detail)\n⚠️ \(warning)", seconds: 4)
                     } else {
@@ -192,11 +209,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }.joined(separator: ", ")
             menu.addItem(NSMenuItem(title: "⚠️ 단축키 \(numbers) 은(는) 다른 앱이 쓰고 있어 잡지 못했습니다", action: nil, keyEquivalent: ""))
         }
-        if !GhosttyScreen.trusted() {
-            menu.addItem(item("⚠️ Ghostty 용 손쉬운 사용 권한 켜기…", #selector(openAccessibilitySettings)))
-        }
+        // 권한: 꺼져 있으면 눈에 띄게, 켜져 있어도 설정 화면으로 가는 길은 늘 둔다.
         menu.addItem(.separator())
-        menu.addItem(item("프리셋 편집…", #selector(openSettings), key: ","))
+        if Permissions.accessibility {
+            let entry = item("손쉬운 사용(Accessibility) 켜짐 — 설정 보기…", #selector(openAccessibilitySettings))
+            entry.state = .on
+            menu.addItem(entry)
+        } else {
+            menu.addItem(item("⚠️ 손쉬운 사용(Accessibility) 켜기 — 설정 열기…", #selector(openAccessibilitySettings)))
+        }
+        menu.addItem(item("자동화(Automation) 설정 열기…", #selector(openAutomationSettings)))
+        menu.addItem(.separator())
+        menu.addItem(item("프리셋·권한…", #selector(openSettings), key: ","))
         menu.addItem(item("프리셋 파일 열기", #selector(openConfigFile)))
         let login = item("로그인할 때 실행", #selector(toggleLoginItem))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -225,12 +249,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings?.present()
     }
 
-    @objc private func openAccessibilitySettings() {
-        _ = GhosttyScreen.trusted(prompt: true)
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
-    }
+    @objc private func openAccessibilitySettings() { Permissions.openAccessibility() }
+    @objc private func openAutomationSettings() { Permissions.openAutomation() }
 
     @objc private func openConfigFile() {
         _ = try? store.load()

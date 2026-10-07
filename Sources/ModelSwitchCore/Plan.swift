@@ -75,6 +75,15 @@ public enum Step: Equatable, Sendable {
 }
 
 public enum Launch {
+    /// 그 프리셋으로 새 세션을 열 수 없는 에이전트면 그 사유(2026-10-08 실측: 각 CLI 의 `models` 출력과 `--help`).
+    public static func unsupportedReason(agent: Agent) -> String? {
+        switch agent {
+        case .claude, .codex, .grok: return nil
+        case .cursor, .antigravity, .opencode:
+            return "\(agent.rawValue) 는 새 세션을 열 때 받는 모델 id 가 프리셋의 화면 이름과 달라 `run` 을 지원하지 않습니다. 세션을 연 뒤 단축키로 바꿔 주세요."
+        }
+    }
+
     /// 그 프리셋으로 «새 세션»을 여는 명령줄. 둘 다 이 세션에만 적용되는 옵션이라 기본값은 바뀌지 않는다.
     public static func command(agent: Agent, preset: AgentPreset, extra: [String] = []) -> [String] {
         switch agent {
@@ -84,13 +93,10 @@ public enum Launch {
             return ["codex", "-m", preset.model, "-c", "model_reasoning_effort=\"\(preset.effort)\""] + extra
         case .grok:
             return ["grok", "-m", preset.model, "--reasoning-effort", preset.effort] + extra
-        case .cursor:
-            // 새 세션 열 때 effort 를 줄 옵션이 없다(모델 id 만).
-            return ["cursor-agent", "--model", preset.model] + extra
-        case .antigravity:
-            return ["agy", "--model", preset.model, "--effort", preset.effort] + extra
-        case .opencode:
-            return ["opencode", "--model", preset.model] + extra
+        case .cursor, .antigravity, .opencode:
+            // 이 셋은 `--model` 이 받는 id 가 화면 이름과 다르다(`grok-4.7` 대 `Grok 4.7`, `gemini-3.8-flash-high`, `opencode-go/glm-5.3-flash`)
+            // — 프리셋의 화면 이름을 그대로 넘기면 틀린 값이다. `unsupportedReason` 이 먼저 막는다; 여기서는 모델 없이 띄운다.
+            return [agent.executable] + extra
         }
     }
 }

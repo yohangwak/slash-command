@@ -129,6 +129,8 @@ public enum CursorScreen {
     /// 모델 줄(`Grok 4.7 256K Medium`)에서 (이름, effort 라벨). 컨텍스트 토큰(`256K`)은 버린다.
     public static func parse(status: String) -> (name: String, effort: String?) {
         var words = status.split(separator: " ").map(String.init)
+        // `Fast` 스위치가 켜져 있으면 맨 끝에 붙는다(`Grok 4.7 256K Medium Fast`).
+        if words.count > 1, words.last == "Fast" { words.removeLast() }
         var effort: String?
         for label in ["Extra High", "High", "Medium", "Low", "Max"] {
             let parts = label.split(separator: " ").map(String.init)
@@ -268,7 +270,27 @@ public struct CursorDriver {
 
     // MARK: 전환
 
-    public func apply(_ preset: AgentPreset) throws -> Outcome {
+    public func apply(_ preset: AgentPreset) throws -> Outcome { try guarded { try applyUnguarded(preset) } }
+
+    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다.
+    public func stepEffort(up: Bool) throws -> Outcome { try guarded { try stepEffortUnguarded(up: up) } }
+
+    /// 어느 단계에서 던져졌든 — 확정한 뒤 화면을 읽지 못한 경우까지 — 새 세션 기본값을 전환 전 값으로 되돌리고 나서 실패를 알린다.
+    /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
+    private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
+        let before = keepDefaults ? defaults.snapshot() : nil
+        do {
+            return try body()
+        } catch {
+            if let before {
+                sleep(250)
+                _ = defaults.restore(to: before)
+            }
+            throw error
+        }
+    }
+
+    private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
         func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
@@ -289,17 +311,22 @@ public struct CursorDriver {
         }
         try moveCursor(to: target.name, failure: fail)
 
-        // 그 행의 매개변수에 원하는 effort 가 이미 있으면 편집을 건너뛴다.
-        let already = rows.first(where: { $0.name == target.name })?.params.split(separator: " ").contains { CursorScreen.effortMatches(preset.effort, label: String($0)) } == true
-        let twoWord = target.params.lowercased().contains("extra high") && CursorScreen.effortMatches(preset.effort, label: "Extra High")
-        if !(already || twoWord) {
-            try setEffort(preset.effort, for: target.name, failure: fail)
+        // 행에 매개변수가 없으면(`Claude Opus 4.5`·`Auto`) 맞출 effort 가 없다 — 그대로 확정한다.
+        // 있으면 «라벨 전체» 로 비교한다: `300K Extra High` 의 낱말 `High` 가 프리셋 `high` 와 같다고 보면 안 된다.
+        var expected: String?
+        if !target.params.isEmpty {
+            let shown = CursorScreen.parse(status: target.name + " " + target.params).effort
+            if let shown, CursorScreen.effortMatches(preset.effort, label: shown) {
+                expected = shown
+            } else {
+                expected = try setEffort(preset.effort, for: target.name, failure: fail)
+            }
         }
-        return try confirm(name: target.name, effort: preset.effort, before: before, failure: fail)
+        return try confirm(name: target.name, effortLabel: expected, before: before, failure: fail)
     }
 
     /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다. 목록의 첫 커서가 지금 모델이다.
-    public func stepEffort(up: Bool) throws -> Outcome {
+    private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
         func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
@@ -323,7 +350,7 @@ public struct CursorDriver {
         }
         let label = options[next].label
         try pick(optionLabel: label, section: "Effort", failure: fail)
-        return try confirm(name: current.name, effort: label, before: before, failure: fail, effortIsLabel: true)
+        return try confirm(name: current.name, effortLabel: label, before: before, failure: fail)
     }
 
     // MARK: 단계
@@ -385,7 +412,8 @@ public struct CursorDriver {
         throw failure("cursor 모델 목록에서 '\(name)' 행으로 커서를 옮기지 못했습니다.", nil)
     }
 
-    private func setEffort(_ effort: String, for name: String, failure: (String, String?) -> ModelSwitchError) throws {
+    /// 매개변수 편집에서 effort 를 맞추고 목록으로 돌아온다. 고른 라벨을 돌려주고, Effort 묶음이 없는 모델이면 nil.
+    private func setEffort(_ effort: String, for name: String, failure: (String, String?) -> ModelSwitchError) throws -> String? {
         try io.press(.tab)
         guard let lines = try poll(timeoutMs: 2000, { CursorScreen.editor($0)?.title.lowercased() == name.lowercased() }),
               let options = CursorScreen.editor(lines)?.options else {
@@ -393,9 +421,12 @@ public struct CursorDriver {
         }
         let efforts = options.filter { $0.section == "Effort" }
         if efforts.isEmpty {
-            // effort 가 없는 모델(Auto 등) — 목록으로 돌아가 그대로 확정한다.
+            // effort 가 없는 모델 — 목록으로 돌아가 그대로 확정한다.
             try io.press(.escape)
-            return
+            guard (try poll(timeoutMs: 2000) { CursorScreen.list($0) != nil }) != nil else {
+                throw failure("cursor 가 매개변수 편집에서 목록으로 돌아오지 않았습니다.", nil)
+            }
+            return nil
         }
         guard let option = efforts.first(where: { CursorScreen.effortMatches(effort, label: $0.label) }) else {
             throw failure("cursor '\(name)' 에는 effort '\(effort)' 가 없습니다(\(efforts.map(\.label).joined(separator: ", "))).", nil)
@@ -405,6 +436,7 @@ public struct CursorDriver {
         guard (try poll(timeoutMs: 2000) { CursorScreen.list($0) != nil }) != nil else {
             throw failure("cursor 가 매개변수 편집에서 목록으로 돌아오지 않았습니다.", nil)
         }
+        return option.label
     }
 
     /// 편집 화면에서 `section` 의 `optionLabel` 줄에 커서를 두고 Enter 로 고른 뒤 ✓ 를 확인한다.
@@ -428,8 +460,8 @@ public struct CursorDriver {
         throw failure("cursor 매개변수에서 '\(optionLabel)' 줄로 커서를 옮기지 못했습니다.", nil)
     }
 
-    private func confirm(name: String, effort: String, before: Data?, failure: (String, String?) -> ModelSwitchError,
-                         effortIsLabel: Bool = false) throws -> Outcome {
+    /// `effortLabel` 이 nil 이면 effort 가 없는 모델이다 — 모델 이름만 확인한다.
+    private func confirm(name: String, effortLabel: String?, before: Data?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
         // 목록(편집에서 돌아온 경우 포함)에서 커서가 그 모델 행에 있을 때만 Enter 로 확정한다.
         if CursorScreen.editor(io.freshSnapshot()?.lines ?? []) != nil {
             try io.press(.escape)
@@ -441,12 +473,14 @@ public struct CursorDriver {
         try io.press(.enter)
         func landed(_ lines: [String]) -> Bool {
             guard CursorScreen.idle(lines), let status = CursorScreen.status(lines) else { return false }
-            let words = status.lowercased()
-            let effortOK = effortIsLabel ? CursorScreen.key(status).hasSuffix(CursorScreen.key(effort)) : status.split(separator: " ").contains { CursorScreen.effortMatches(effort, label: String($0)) } || CursorScreen.effortMatches(effort, label: String(status.split(separator: " ").suffix(2).joined(separator: " ")))
-            return words.hasPrefix(name.lowercased()) && effortOK
+            guard status.lowercased().hasPrefix(name.lowercased()) else { return false }
+            guard let effortLabel else { return true }
+            // 모델 줄의 effort 도 «라벨 전체» 로 비교한다(`Extra High` 는 `High` 가 아니다).
+            if let shown = CursorScreen.parse(status: status).effort { return CursorScreen.key(shown) == CursorScreen.key(effortLabel) }
+            return CursorScreen.key(status).hasSuffix(CursorScreen.key(effortLabel))
         }
         guard let lines = try poll(timeoutMs: 4000, landed), let status = CursorScreen.status(lines) else {
-            throw failure("cursor 모델 줄이 '\(name) · \(effort)' 로 바뀌지 않아 멈췄습니다.", nil)
+            throw failure("cursor 모델 줄이 '\(name)\(effortLabel.map { " · " + $0 } ?? "")' 로 바뀌지 않아 멈췄습니다.", nil)
         }
         var warning: String?
         if let before {

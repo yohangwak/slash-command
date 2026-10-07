@@ -2892,3 +2892,134 @@ final class OpenCodeDriverTests: XCTestCase {
         XCTAssertEqual(try? JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(Slot(opencode: AgentPreset(model: "m", effort: "e")))).opencode?.model, "m")
     }
 }
+
+// MARK: - PR #9 리뷰에서 나온 것
+
+/// 확정(Enter)을 몇 번 보낸 뒤부터 화면을 못 읽게 되는 터미널 — 포커스를 잃은 Ghostty 나 끊긴 연결 흉내.
+final class GoesBlind: TerminalIO {
+    let base: TerminalIO
+    let afterEnters: Int
+    private var enters = 0
+
+    init(_ base: TerminalIO, afterEnters: Int) {
+        self.base = base
+        self.afterEnters = afterEnters
+    }
+
+    func type(_ text: String) throws { try base.type(text) }
+    func press(_ key: Key) throws {
+        try base.press(key)
+        if key == .enter { enters += 1 }
+    }
+    func screen() -> [String]? { enters >= afterEnters ? nil : base.screen() }
+}
+
+/// 확정한 «뒤» 화면을 못 읽어도 새 세션 기본값은 전환 전 값으로 돌아와야 한다(에이전트는 이미 파일을 썼다).
+final class DefaultsRestoredWhenTheScreenGoesBlindTests: XCTestCase {
+    private func temp(_ name: String) -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("blind-\(UUID().uuidString)-\(name)")
+    }
+
+    func testGrok() throws {
+        let url = temp("grok.toml")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try "[ui]\nyolo = false\n".write(to: url, atomically: true, encoding: .utf8)
+        let fake = FakeGrok(configURL: url)
+        let models = GrokModels(models: [.init(id: "grok-4.7", name: "Grok 4.7", efforts: ["low", "medium", "high", "xhigh"])])
+        let driver = GrokDriver(io: GoesBlind(fake, afterEnters: 1), sleep: { _ in }, models: models, defaults: GrokDefaults(url: url), keepDefaults: true)
+        XCTAssertThrowsError(try driver.apply(AgentPreset(model: "grok-4.7", effort: "xhigh")))
+        XCTAssertEqual(fake.label, "Grok 4.7 (xhigh)", "양성 대조군: 에이전트는 실제로 바꿨고 파일도 썼다")
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "[ui]\nyolo = false\n")
+    }
+
+    func testCursor() throws {
+        let url = temp("cursor.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["version": 1, "model": ["modelId": "Grok 4.7"], "selectedModel": ["modelId": "Grok 4.7"],
+                                                    "modelSelectionHistory": ["Grok 4.7"], "modelParameters": ["Grok 4.7": ["High"]], "hints": true],
+                                   options: [.prettyPrinted, .sortedKeys]).write(to: url)
+        let original = try Data(contentsOf: url)
+        let fake = FakeCursor(configURL: url)
+        let driver = CursorDriver(io: GoesBlind(fake, afterEnters: 2), sleep: { _ in }, defaults: CursorDefaults(url: url), keepDefaults: true)
+        XCTAssertThrowsError(try driver.apply(AgentPreset(model: "Claude Opus 5.5", effort: "medium")))
+        XCTAssertEqual(fake.models[fake.current].name, "Claude Opus 5.5", "양성 대조군")
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
+    func testAntigravity() throws {
+        let url = temp("agy.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["model": "Gemini 3.8 Flash (High)", "theme": "dark"], options: [.sortedKeys]).write(to: url)
+        let original = try Data(contentsOf: url)
+        let fake = FakeAgy(configURL: url)
+        let driver = AntigravityDriver(io: GoesBlind(fake, afterEnters: 2), sleep: { _ in }, defaults: AntigravityDefaults(url: url), keepDefaults: true)
+        XCTAssertThrowsError(try driver.apply(AgentPreset(model: "Gemini 3.7 Flash", effort: "medium")))
+        XCTAssertEqual(fake.current, 1, "양성 대조군")
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
+    func testOpenCode() throws {
+        let url = temp("oc.json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONSerialization.data(withJSONObject: ["recent": [["modelID": "GLM-5.3-Flash"]], "favorite": [["modelID": "GLM"]], "variant": ["GLM-5.3-Flash": "high"]],
+                                   options: [.sortedKeys]).write(to: url)
+        let original = try Data(contentsOf: url)
+        let fake = FakeOpenCode(configURL: url)
+        let driver = OpenCodeDriver(io: GoesBlind(fake, afterEnters: 2), sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: true)
+        XCTAssertThrowsError(try driver.apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max")))
+        XCTAssertEqual(fake.models[0].variant, "max", "양성 대조군")
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+}
+
+final class CursorEffortLabelTests: XCTestCase {
+    private var url: URL!
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("cursor-label-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: ["version": 1, "model": ["modelId": "Grok 4.7"]], options: [.sortedKeys]).write(to: url)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeCursor) -> CursorDriver {
+        CursorDriver(io: io, sleep: { _ in }, defaults: CursorDefaults(url: url), keepDefaults: true)
+    }
+
+    func testHighIsNotExtraHigh() throws {
+        // 지금 Extra High 인 모델에 프리셋 high 를 누르면 «내려가야» 한다 — 낱말 High 가 들어 있다고 그대로 두면 안 된다.
+        let io = FakeCursor(configURL: url)
+        io.models[1].effort = "Extra High"
+        let outcome = try driver(io).apply(AgentPreset(model: "Grok 4.7", effort: "high"))
+        XCTAssertEqual(io.models[1].effort, "High")
+        XCTAssertEqual(outcome.confirmations, ["Using Grok 4.7 256K High"])
+        XCTAssertTrue(io.presses.contains(.tab), "매개변수 편집을 열어 맞췄다")
+        // 반대 방향도.
+        _ = try driver(io).apply(AgentPreset(model: "Grok 4.7", effort: "xhigh"))
+        XCTAssertEqual(io.models[1].effort, "Extra High")
+    }
+
+    func testStatusWithFastSuffixStillParses() {
+        XCTAssertEqual(CursorScreen.parse(status: "Grok 4.7 256K Medium Fast").effort, "Medium")
+        XCTAssertEqual(CursorScreen.parse(status: "Grok 4.7 256K Medium Fast").name, "Grok 4.7")
+    }
+
+    func testModelWithoutParametersIsSelectedWithoutAnEffort() throws {
+        let io = FakeCursor(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "Auto", effort: "high"))
+        XCTAssertEqual(io.models[io.current].name, "Auto")
+        XCTAssertEqual(outcome.confirmations, ["Using Auto"])
+        XCTAssertFalse(io.presses.contains(.tab), "매개변수가 없는 행에서는 편집을 열지 않는다")
+    }
+}
+
+final class LaunchSupportTests: XCTestCase {
+    func testOnlyAgentsWhoseModelFlagTakesThePresetValueCanLaunch() {
+        for agent in [Agent.claude, .codex, .grok] { XCTAssertNil(Launch.unsupportedReason(agent: agent), agent.rawValue) }
+        for agent in [Agent.cursor, .antigravity, .opencode] {
+            XCTAssertNotNil(Launch.unsupportedReason(agent: agent), agent.rawValue)
+            let command = Launch.command(agent: agent, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"))
+            XCTAssertFalse(command.contains("GLM-5.3-Flash OpenCode Go"), "화면 이름을 --model 에 넘기지 않는다")
+        }
+    }
+}

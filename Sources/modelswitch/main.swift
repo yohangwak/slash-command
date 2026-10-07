@@ -122,6 +122,7 @@ do {
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
             fail("modelswitch run <번호> <claude|codex> [인자…]")
         }
+        if let reason = Launch.unsupportedReason(agent: agent) { fail(reason) }
         let planned = try Switcher(config: try store.load(), codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
         // `--dry-run` 은 바로 뒤에 올 때만 우리 것이다 — 그 뒤의 인자는 전부 에이전트에 넘긴다.
         let dryRun = args.count > 3 && args[3] == "--dry-run"

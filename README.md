@@ -11,8 +11,8 @@ Ghostty·Orca·iTerm2 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨
 |---|---|
 | 전환 | Ghostty·Orca·iTerm2 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
-| 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋 편집…」 (파일은 `~/.config/modelswitch/presets.json`) |
-| 새 세션 | `modelswitch run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`) |
+| 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋·권한…」 (파일은 `~/.config/modelswitch/presets.json`) |
+| 새 세션 | `modelswitch run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). claude·codex·grok 만 — cursor·agy·opencode 는 `--model` 이 받는 id 가 화면 이름과 달라 지원하지 않는다 |
 | 터미널에서 | `modelswitch list` · `where` · `doctor --screen`(대상·에이전트 판·화면 읽기·입력창 점검, 아무것도 보내지 않음) · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
 | 기록 | `~/Library/Logs/ModelSwitch/modelswitch.log` (누른 것, 결과, 단계별 걸린 시간) |
 
@@ -66,10 +66,12 @@ Ghostty·Orca·iTerm2 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨
 ~/Applications/ModelSwitch.app/Contents/MacOS/ModelSwitch --login-item on   # 로그인할 때 실행(메뉴에서도 켠다)
 ```
 
-처음 한 번 허용할 것(Orca 만 쓰면 없어도 되지만, 있으면 탭을 옮긴 직후에도 맞다):
+처음 한 번 허용할 것 — **앱이 그 설정 화면을 바로 열어 준다**(메뉴 막대 아이콘 → 「손쉬운 사용 켜기 — 설정 열기…」, 또는 「프리셋·권한…」 창 맨 위의 「권한」 상자의 버튼. 권한이 필요한 터미널에서 단축키를 눌러도 열린다):
 
-- **자동화**(ModelSwitch → Ghostty): 터미널에 글자를 넣는 데 쓴다.
-- **손쉬운 사용 / Accessibility**(ModelSwitch): Ghostty 화면 읽기, iTerm2 의 입력 방송 확인, Orca 의 보이는 탭 확인에 쓴다.
+- **손쉬운 사용 / Accessibility**(ModelSwitch): Ghostty 화면 읽기에 꼭 필요하다. Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
+- **자동화 / Automation**(ModelSwitch → Ghostty): 터미널에 글자를 넣는 데 쓴다. 처음 단축키를 누를 때 시스템이 묻는다.
+
+시스템 설정에는 «Accessibility» 가 두 곳이다 — 사이드바의 것은 장애 접근성 기능 화면이고, 필요한 것은 Privacy & Security 안의 앱 권한 목록이다. 그래서 말로 안내하지 않고 버튼으로 연다. 「권한」 상자는 상태(켜짐/꺼짐)를 1초마다 다시 읽어, 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다. `open -a ModelSwitch --args --settings` 로 그 창을 띄운 채 시작할 수 있다.
 
 ## 어떻게 동작하나
 

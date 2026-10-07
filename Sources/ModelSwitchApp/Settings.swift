@@ -147,11 +147,14 @@ final class SettingsModel: ObservableObject {
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
+    @ObservedObject var permissions: PermissionsModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            PermissionsBox(model: permissions)
+
             Text("프리셋").font(.title2.weight(.semibold))
-            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy·opencode 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
+            Text("Ghostty·Orca·iTerm2 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy·opencode 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -272,15 +275,21 @@ private struct AgentRow: View {
 
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let model: SettingsModel
+    private let permissions = PermissionsModel()
     private var window: NSWindow?
 
     init(store: ConfigStore, onSaved: @escaping () -> Void) {
         model = SettingsModel(store: store, onSaved: onSaved)
     }
 
+    /// 창이 닫히면 권한 상태를 다시 읽는 것을 멈춘다.
+    func windowWillClose(_ notification: Notification) {
+        permissions.stop()
+    }
+
     func present() {
         if window == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, permissions: permissions)))
             window.title = "ModelSwitch"
             window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
@@ -289,6 +298,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             self.window = window
         }
         model.reload()
+        permissions.start()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
