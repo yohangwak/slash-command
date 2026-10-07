@@ -119,7 +119,7 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - Orca 앱 소켓도 공개 인터페이스가 아니다(`orca` 명령이 쓰는 통로). 못 쓰면 `orca` 명령으로 되돌아간다(회당 0.2초).
 - Ghostty 의 codex 는 3~4.6초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다(다른 접근성 속성도 같은 보관본을 준다).
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
-- 단축키로 되는 터미널은 Ghostty · Orca · iTerm2 다(iTerm2 는 2026-10-07 맥북에서 claude·codex 전환과 맨 앞 세션 찾기 확인, 약 1초; 처음 한 번 「자동화」·「손쉬운 사용」 허용 필요. 입력 방송이 켜져 있거나 읽지 못하면 다른 칸에도 입력이 들어갈 수 있으므로 보내지 않는다. 방송은 창마다 켜지므로 맨 앞 창의 세션에만 보내고, 상태는 쓸 때마다 새로 읽는다). tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다. 대상을 직접 지정하는 `--iterm <세션 unique id>` 도 있다.
+- 단축키로 되는 터미널은 Ghostty · Orca · iTerm2 다(iTerm2 는 2026-10-07 맥북에서 claude·codex 전환과 맨 앞 세션 찾기 확인, 약 1초; 처음 한 번 「자동화」·「손쉬운 사용」 허용 필요. 입력 방송이 켜져 있거나 읽지 못하면 다른 칸에도 입력이 들어갈 수 있으므로 보내지 않는다. 방송은 창마다 켜지므로 맨 앞 창의 세션에만 보내고, 상태는 쓸 때마다 «앞 창 확인 → 메뉴 읽기 → 앞 창 확인» 으로 새로 읽는다. 남는 틈은 마지막 확인과 쓰기 사이의 몇 ms 이다). tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다. 대상을 직접 지정하는 `--iterm <세션 unique id>` 도 있다.
 - 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
 
 ## 개발

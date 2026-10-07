@@ -162,11 +162,20 @@ public struct ITermIO: TerminalIO {
         // (시험용: MODELSWITCH_ITERM_SKIP_BROADCAST_CHECK=1 — 권한이 없는 ssh 세션에서 돌려 볼 때만.)
         if ProcessInfo.processInfo.environment["MODELSWITCH_ITERM_SKIP_BROADCAST_CHECK"] != "1" {
             // 방송은 창마다 켜지고 메뉴는 맨 앞 창의 상태만 보여 준다 — 쓰는 세션이 맨 앞 창 안에 있어야 그 상태를 믿을 수 있다.
-            let inFront = GhosttyIO.osascript(ITermIO.frontWindowCheck(sessionID: sessionID))
-            guard inFront.ok, inFront.out == "true" else {
+            // 확인 → 메뉴 읽기 → 확인 으로 «샌드위치» 한다: 메뉴를 읽는 사이에 창이 바뀌었으면 두 번째 확인이 잡는다.
+            // (남는 틈은 두 번째 확인과 쓰기 사이의 몇 ms 뿐이다.)
+            func inFrontWindow() -> Bool {
+                let result = GhosttyIO.osascript(ITermIO.frontWindowCheck(sessionID: sessionID))
+                return result.ok && result.out == "true"
+            }
+            guard inFrontWindow() else {
                 throw ModelSwitchError("iTerm2 의 맨 앞 창에 있는 세션이 아니라서 입력 방송 상태를 확인할 수 없어 보내지 않았습니다.")
             }
-            switch ITermBroadcast.state() {
+            let broadcast = ITermBroadcast.state()
+            guard inFrontWindow() else {
+                throw ModelSwitchError("입력 방송 상태를 읽는 사이에 iTerm2 의 맨 앞 창이 바뀌어 보내지 않았습니다.")
+            }
+            switch broadcast {
             case .off: break
             case .on(let mode):
                 throw ModelSwitchError("iTerm2 의 입력 방송이 켜져 있어(\(mode)) 다른 칸에도 입력이 들어갈 수 있습니다. Shell ▸ Broadcast Input ▸ Send Input to Current Session Only 로 끈 뒤 다시 눌러 주세요.")
