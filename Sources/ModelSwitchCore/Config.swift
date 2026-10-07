@@ -6,6 +6,7 @@ public enum Agent: String, Codable, CaseIterable, Sendable {
     case grok
     case cursor
     case antigravity
+    case opencode
 
     /// 설치된 실행 파일 이름(`--version` 을 부를 때).
     public var executable: String {
@@ -56,8 +57,12 @@ public struct Slot: Codable, Equatable, Sendable {
         get { presets[.antigravity] }
         set { presets[.antigravity] = newValue }
     }
+    public var opencode: AgentPreset? {
+        get { presets[.opencode] }
+        set { presets[.opencode] = newValue }
+    }
 
-    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil, grok: AgentPreset? = nil, cursor: AgentPreset? = nil, antigravity: AgentPreset? = nil) {
+    public init(name: String = "", claude: AgentPreset? = nil, codex: AgentPreset? = nil, grok: AgentPreset? = nil, cursor: AgentPreset? = nil, antigravity: AgentPreset? = nil, opencode: AgentPreset? = nil) {
         self.name = name
         self.presets = [:]
         self.claude = claude
@@ -65,6 +70,7 @@ public struct Slot: Codable, Equatable, Sendable {
         self.grok = grok
         self.cursor = cursor
         self.antigravity = antigravity
+        self.opencode = opencode
     }
 
     /// 파일의 키는 `name` 과 에이전트 이름(`claude`·`codex`·`grok`…)이다. 모르는 키는 무시한다(나중 판이 쓴 파일을 읽을 수 있게).

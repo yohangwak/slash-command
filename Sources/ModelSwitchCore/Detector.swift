@@ -97,7 +97,7 @@ public enum Detector {
             return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
         }
         guard kinds.count == 1, let agent = kinds.first else {
-            let reason = kinds.isEmpty ? "지원하는 에이전트(claude·codex·grok·cursor·antigravity) 세션이 아닙니다" : "claude 와 codex 가 같은 폴더에서 같이 돌고 있어 구분할 수 없습니다"
+            let reason = kinds.isEmpty ? "지원하는 에이전트(claude·codex·grok·cursor·antigravity·opencode) 세션이 아닙니다" : "claude 와 codex 가 같은 폴더에서 같이 돌고 있어 구분할 수 없습니다"
             throw ModelSwitchError("Ghostty 맨 앞 터미널(\(name))은 \(reason).")
         }
         return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
@@ -129,7 +129,7 @@ public enum Detector {
         if let lines = ITermIO(sessionID: id).screen(), let agent = agent(onScreen: lines) {
             return Target(host: .iterm(sessionID: id), agent: agent, label: name)
         }
-        throw ModelSwitchError("iTerm2 맨 앞 세션(\(name))은 지원하는 에이전트(claude·codex·grok·cursor·antigravity) 세션이 아니거나 구분할 수 없습니다.")
+        throw ModelSwitchError("iTerm2 맨 앞 세션(\(name))은 지원하는 에이전트(claude·codex·grok·cursor·antigravity·opencode) 세션이 아니거나 구분할 수 없습니다.")
     }
 
     /// 화면에 입력창이 보이는 쪽. 둘 다 보이거나 둘 다 안 보이면 nil.
@@ -276,7 +276,7 @@ public enum OrcaState {
         let folder = (layout["worktreePath"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent }
         let label = [title, folder].compactMap { $0 }.joined(separator: " · ")
         guard let agent = processAgent(handle) ?? (listed?["agentIdentity"] as? String).flatMap(Agent.init(rawValue:)) else {
-            throw ModelSwitchError("Orca 맨 앞 터미널(\(label))은 지원하는 에이전트(claude·codex·grok·cursor·antigravity) 세션이 아닙니다.")
+            throw ModelSwitchError("Orca 맨 앞 터미널(\(label))은 지원하는 에이전트(claude·codex·grok·cursor·antigravity·opencode) 세션이 아닙니다.")
         }
         return Target(host: .orca(handle: handle), agent: agent, label: label)
     }
@@ -414,6 +414,7 @@ enum AgentProcesses {
         if name == "grok" { return .grok }
         if name == "cursor-agent" { return .cursor }
         if name == "agy" { return .antigravity }
+        if name == "opencode" { return .opencode }
         return nil
     }
 }

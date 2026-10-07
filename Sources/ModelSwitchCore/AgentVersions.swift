@@ -16,6 +16,7 @@ public enum AgentVersions {
         .grok: ["1.0.46"],
         .cursor: ["2026.10.01-14929f9"],
         .antigravity: ["1.3.1"],
+        .opencode: ["1.18.35"],
     ]
 
     public struct Report: Equatable, Sendable {

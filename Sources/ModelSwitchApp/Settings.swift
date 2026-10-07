@@ -21,6 +21,9 @@ struct EditableSlot: Identifiable {
     var antigravityOn: Bool
     var antigravityModel: String
     var antigravityEffort: String
+    var opencodeOn: Bool
+    var opencodeModel: String
+    var opencodeEffort: String
 
     init(_ slot: Slot) {
         name = slot.name
@@ -39,6 +42,9 @@ struct EditableSlot: Identifiable {
         antigravityOn = slot.antigravity != nil
         antigravityModel = slot.antigravity?.model ?? ""
         antigravityEffort = slot.antigravity?.effort ?? "high"
+        opencodeOn = slot.opencode != nil
+        opencodeModel = slot.opencode?.model ?? ""
+        opencodeEffort = slot.opencode?.effort ?? "high"
     }
 
     var slot: Slot {
@@ -47,7 +53,8 @@ struct EditableSlot: Identifiable {
              codex: codexOn ? AgentPreset(model: codexModel.trimmingCharacters(in: .whitespaces), effort: codexEffort) : nil,
              grok: grokOn ? AgentPreset(model: grokModel.trimmingCharacters(in: .whitespaces), effort: grokEffort) : nil,
              cursor: cursorOn ? AgentPreset(model: cursorModel.trimmingCharacters(in: .whitespaces), effort: cursorEffort) : nil,
-             antigravity: antigravityOn ? AgentPreset(model: antigravityModel.trimmingCharacters(in: .whitespaces), effort: antigravityEffort) : nil)
+             antigravity: antigravityOn ? AgentPreset(model: antigravityModel.trimmingCharacters(in: .whitespaces), effort: antigravityEffort) : nil,
+             opencode: opencodeOn ? AgentPreset(model: opencodeModel.trimmingCharacters(in: .whitespaces), effort: opencodeEffort) : nil)
     }
 }
 
@@ -72,6 +79,7 @@ final class SettingsModel: ObservableObject {
     static let cursorEfforts = ["low", "medium", "high", "xhigh", "max"]
     static let antigravityModels = ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro", "Claude Opus 5.5", "Claude Sonnet 5.5"]
     static let antigravityEfforts = ["low", "medium", "high"]
+    static let opencodeEfforts = ["Default", "low", "medium", "high", "max"]
 
     init(store: ConfigStore, onSaved: @escaping () -> Void) {
         self.store = store
@@ -113,7 +121,8 @@ final class SettingsModel: ObservableObject {
                 || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty
                 || slot.grokOn && slot.grokModel.trimmingCharacters(in: .whitespaces).isEmpty
                 || slot.cursorOn && slot.cursorModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.antigravityOn && slot.antigravityModel.trimmingCharacters(in: .whitespaces).isEmpty {
+                || slot.antigravityOn && slot.antigravityModel.trimmingCharacters(in: .whitespaces).isEmpty
+                || slot.opencodeOn && slot.opencodeModel.trimmingCharacters(in: .whitespaces).isEmpty {
                 status = "\(index + 1)번 프리셋의 모델이 비어 있습니다."
                 return
             }
@@ -142,7 +151,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("프리셋").font(.title2.weight(.semibold))
-            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
+            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy·opencode 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -224,6 +233,8 @@ private struct SlotRow: View {
                          models: SettingsModel.cursorModels, efforts: SettingsModel.cursorEfforts)
                 AgentRow(label: "agy", isOn: $slot.antigravityOn, model: $slot.antigravityModel, effort: $slot.antigravityEffort,
                          models: SettingsModel.antigravityModels, efforts: SettingsModel.antigravityEfforts)
+                AgentRow(label: "opencode", isOn: $slot.opencodeOn, model: $slot.opencodeModel, effort: $slot.opencodeEffort,
+                         models: [], efforts: SettingsModel.opencodeEfforts)
             }
             .padding(4)
         }

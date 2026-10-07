@@ -89,6 +89,8 @@ public enum Launch {
             return ["cursor-agent", "--model", preset.model] + extra
         case .antigravity:
             return ["agy", "--model", preset.model, "--effort", preset.effort] + extra
+        case .opencode:
+            return ["opencode", "--model", preset.model] + extra
         }
     }
 }

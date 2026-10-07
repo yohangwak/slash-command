@@ -12,6 +12,7 @@ public enum Readiness {
         case .grok: return GrokScreen.idle(screen)
         case .cursor: return CursorScreen.idle(screen)
         case .antigravity: return AgyScreen.idle(screen)
+        case .opencode: return OpenCodeScreen.idle(screen)
         }
     }
 

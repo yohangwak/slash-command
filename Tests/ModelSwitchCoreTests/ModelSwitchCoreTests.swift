@@ -2636,3 +2636,259 @@ final class AntigravityDriverTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(slot)), slot)
     }
 }
+
+// MARK: - opencode
+
+final class OpenCodeScreenTests: XCTestCase {
+    struct Fixture: Decodable { let tail: [String] }
+
+    func screen(_ name: String) throws -> [String] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+    }
+
+    func testIdleDraftAndWorking() throws {
+        XCTAssertTrue(OpenCodeScreen.idle(try screen("oc-idle")), "처음 화면")
+        XCTAssertTrue(OpenCodeScreen.idle(try screen("oc-after-work")), "대화 뒤")
+        XCTAssertTrue(OpenCodeScreen.idle(try screen("oc-session-idle")))
+        XCTAssertEqual(OpenCodeScreen.draft(try screen("oc-idle")), "", "자리 표시 문구는 쓰던 글이 아니다")
+        let draft = try screen("oc-draft")
+        XCTAssertEqual(OpenCodeScreen.draft(draft), "abc")
+        XCTAssertFalse(OpenCodeScreen.idle(draft))
+        let working = try screen("oc-working")
+        XCTAssertEqual(OpenCodeScreen.draft(working), "")
+        XCTAssertFalse(OpenCodeScreen.idle(working), "작업 중(esc interrupt)에는 보내지 않는다")
+    }
+
+    func testStatusLineHasModelAndVariantWithoutTheBranchOnTheRight() throws {
+        let status = try XCTUnwrap(OpenCodeScreen.status(try screen("oc-idle")))
+        XCTAssertEqual(status.model, "GLM-5.3-Flash OpenCode Go")
+        XCTAssertEqual(status.variant, "high")
+        let session = try XCTUnwrap(OpenCodeScreen.status(try screen("oc-session-idle")))
+        XCTAssertEqual(session.variant, "high", "오른쪽 끝의 브랜치 이름이 variant 에 섞이지 않는다")
+    }
+
+    func testDialogsAreReadEvenWhenConversationTextOverlapsOnTheLeft() throws {
+        let models = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc-models-filtered")))
+        XCTAssertEqual(models.title, "Select model")
+        XCTAssertEqual(models.search, "GLM-5.3")
+        XCTAssertEqual(models.rows.first?.text, "GLM-5.3-Flash OpenCode Go", "(Favorite) 표시를 뗀다")
+        XCTAssertEqual(models.rows.first?.current, true)
+        XCTAssertEqual(models.rows.count, 6)
+        let variants = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc-variants")))
+        XCTAssertEqual(variants.rows.map(\.text), ["Default", "low", "high", "max"])
+        XCTAssertEqual(variants.rows.firstIndex(where: \.current), 2)
+        // 대화 중: 머리말 왼쪽에 줄 번호·대화 글이 겹치고 여백 줄이 끼어 있다(실제 화면).
+        let session = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc-session-variants")))
+        XCTAssertEqual(session.title, "Select variant")
+        XCTAssertEqual(session.rows.map(\.text), ["Default", "low", "high", "max"])
+        XCTAssertFalse(OpenCodeScreen.idle(try screen("oc-session-variants")), "대화상자가 떠 있다")
+    }
+
+    func testOtherAgentsAreNotOpenCode() throws {
+        for name in ["claude-idle", "codex-idle", "grok-idle", "cursor-idle", "agy-idle"] {
+            XCTAssertFalse(OpenCodeScreen.idle(try screen(name)), name)
+            XCTAssertNil(OpenCodeScreen.dialog(try screen(name)), name)
+        }
+        XCTAssertFalse(AgyScreen.idle(try screen("oc-idle")))
+        XCTAssertFalse(GrokScreen.idle(try screen("oc-idle")))
+    }
+}
+
+final class OpenCodeDefaultsTests: XCTestCase {
+    func testRestoresRecentAndVariantOnly() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("oc-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        func write(_ object: [String: Any]) throws { try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: url) }
+        try write(["recent": [["modelID": "a"]], "favorite": [["modelID": "a"]], "variant": ["x/a": "high"]])
+        let before = try Data(contentsOf: url)
+        try write(["recent": [["modelID": "b"], ["modelID": "a"]], "favorite": [["modelID": "a"], ["modelID": "c"]], "variant": ["x/a": "low"]])
+        XCTAssertEqual(OpenCodeDefaults(url: url).restore(to: before), .restored)
+        let now = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertEqual((now["recent"] as? [[String: String]])?.count, 1)
+        XCTAssertEqual((now["variant"] as? [String: String])?["x/a"], "high")
+        XCTAssertEqual((now["favorite"] as? [Any])?.count, 2, "즐겨찾기는 사용자가 따로 바꾼 것이라 그대로 둔다")
+    }
+}
+
+/// opencode 입력 상자와 `/models`·`/variants` 대화상자 흉내.
+final class FakeOpenCode: TerminalIO {
+    struct Model { let name: String; let provider: String; let variants: [String]; var variant: String? }
+    var models = [Model(name: "GLM-5.3-Flash", provider: "OpenCode Go", variants: ["Default", "low", "high", "max"], variant: "high"),
+                  Model(name: "DeepSeek V4.1 Flash", provider: "OpenCode Go", variants: ["Default", "low", "high"], variant: nil),
+                  Model(name: "Big Pickle", provider: "OpenCode Zen", variants: [], variant: nil)]
+    var current = 0
+    enum Mode: Equatable { case idle, models, variants }
+    var mode = Mode.idle
+    var input = ""
+    var search = ""
+    var busy = false
+    var typed: [String] = []
+    var presses: [Key] = []
+    var focused = true
+    let configURL: URL
+
+    init(configURL: URL) { self.configURL = configURL }
+
+    private var visibleModels: [Int] {
+        models.indices.filter { search.isEmpty || "\(models[$0].name) \(models[$0].provider)".lowercased().contains(search.lowercased()) }
+    }
+
+    private var visibleVariants: [String] {
+        models[current].variants.filter { search.isEmpty || $0.lowercased().contains(search.lowercased()) }
+    }
+
+    func type(_ text: String) throws {
+        typed.append(text)
+        switch mode {
+        case .idle: if focused { input += text }
+        case .models, .variants: search += text
+        }
+    }
+
+    func press(_ key: Key) throws {
+        presses.append(key)
+        switch (mode, key) {
+        case (.idle, .enter):
+            if input == "/models" { mode = .models; search = "" }
+            else if input == "/variants" { mode = .variants; search = "" }
+            input = ""
+        case (.idle, .backspace): if !input.isEmpty { input.removeLast() }
+        case (_, .escape) where mode != .idle: mode = .idle
+        case (.models, .enter):
+            guard let first = visibleModels.first else { return }
+            current = first
+            mode = .idle
+            // 기억해 둔 variant 가 없고 variant 가 있는 모델이면 대화상자가 이어서 뜬다.
+            if models[current].variant == nil, !models[current].variants.isEmpty { mode = .variants; search = "" }
+            save()
+        case (.variants, .enter):
+            guard let first = visibleVariants.first else { return }
+            models[current].variant = first == "Default" ? nil : first
+            mode = .idle
+            save()
+        default: break
+        }
+    }
+
+    private func save() {
+        let m = models[current]
+        let object: [String: Any] = ["recent": [["modelID": m.name]], "favorite": [["modelID": "GLM"]], "variant": [m.name: m.variant ?? "default"]]
+        try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]).write(to: configURL)
+    }
+
+    func screen() -> [String]? {
+        let m = models[current]
+        let box = ["  ┃", "  ┃  " + (input.isEmpty ? "Ask anything… \"Fix broken tests\"" : input), "  ┃",
+                   "  ┃  Build · \(m.name) \(m.provider)" + (m.variant.map { " · \($0)" } ?? "") + "                  main",
+                   "  ╹" + String(repeating: "▀", count: 60),
+                   busy ? "   ⬝■■■■■■⬝  esc interrupt            tab agents  ctrl+p commands" : "                              tab agents  ctrl+p commands",
+                   "  ~/work/repo:main"]
+        func overlay(_ title: String, _ rows: [String]) -> [String] {
+            var lines = ["    ✓ earlier output", "                      \(title)                       esc", "", "                      \(search.isEmpty ? "Search" : search)", ""]
+            lines += rows.map { "                      " + $0 }
+            lines += ["", "    ✓ more output"]
+            return lines + box
+        }
+        switch mode {
+        case .idle: return ["    ✓ earlier output"] + box
+        case .models:
+            return overlay("Select model", visibleModels.map { (($0 == current ? "● " : "  ") + models[$0].name + "           " + models[$0].provider) })
+        case .variants:
+            return overlay("Select variant", visibleVariants.map { ((models[current].variant ?? "Default") == $0 ? "● " : "  ") + $0 })
+        }
+    }
+}
+
+final class OpenCodeDriverTests: XCTestCase {
+    private var url: URL!
+    private var original = Data()
+
+    override func setUpWithError() throws {
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("oc-driver-\(UUID().uuidString).json")
+        try JSONSerialization.data(withJSONObject: ["recent": [["modelID": "GLM-5.3-Flash"]], "favorite": [["modelID": "GLM"]], "variant": ["GLM-5.3-Flash": "high"]],
+                                   options: [.sortedKeys]).write(to: url)
+        original = try Data(contentsOf: url)
+    }
+
+    override func tearDown() { try? FileManager.default.removeItem(at: url) }
+
+    private func driver(_ io: FakeOpenCode, keepDefaults: Bool = true) -> OpenCodeDriver {
+        OpenCodeDriver(io: io, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: keepDefaults)
+    }
+
+    func testSwitchesModelThenVariantAndRestoresTheDefault() throws {
+        let io = FakeOpenCode(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: "low"))
+        XCTAssertEqual(outcome.confirmations, ["Using DeepSeek V4.1 Flash OpenCode Go · low"])
+        XCTAssertEqual(io.models[io.current].name, "DeepSeek V4.1 Flash")
+        XCTAssertEqual(try? Data(contentsOf: url), original, "새 세션 기본값은 그대로여야 한다")
+    }
+
+    func testOnlyVariantChangeSkipsTheModelDialog() throws {
+        let io = FakeOpenCode(configURL: url)
+        _ = try driver(io).apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max"))
+        XCTAssertEqual(io.typed.first, "/variants", "이미 그 모델이면 모델 대화상자를 열지 않는다")
+        XCTAssertEqual(io.models[0].variant, "max")
+    }
+
+    func testRefusesAWrongTopRowAndClosesTheDialog() {
+        let io = FakeOpenCode(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "No Such Model", effort: "high")))
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(io.current, 0)
+        XCTAssertEqual(io.input, "")
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testUnknownVariantClosesTheDialogAndRestores() {
+        let io = FakeOpenCode(configURL: url)
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: "max")))
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testClosesTheAutoOpenedVariantDialogWhenThePresetHasNoVariant() throws {
+        let io = FakeOpenCode(configURL: url)
+        _ = try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: ""))
+        XCTAssertEqual(io.mode, .idle)
+    }
+
+    func testRefusesWhenTypedTextDoesNotLand() {
+        let io = FakeOpenCode(configURL: url)
+        io.focused = false     // 실제로 겪은 상태: 대화가 끝난 뒤 입력창이 글자를 받지 않는다
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: "low")))
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertFalse(io.presses.contains(.enter), "글자가 보이지 않으면 Enter 를 보내지 않는다")
+    }
+
+    func testRefusesWithADraftOrWhileWorking() {
+        let draft = FakeOpenCode(configURL: url)
+        draft.input = "쓰던 글"
+        XCTAssertThrowsError(try driver(draft).apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "low")))
+        XCTAssertEqual(draft.typed, [])
+        let busy = FakeOpenCode(configURL: url)
+        busy.busy = true
+        XCTAssertThrowsError(try driver(busy).apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "low")))
+        XCTAssertEqual(busy.typed, [])
+    }
+
+    func testStepsVariantUpAndDownAndStopsAtTheEnds() throws {
+        let io = FakeOpenCode(configURL: url)
+        XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using GLM-5.3-Flash OpenCode Go · max"])
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertEqual(io.mode, .idle)
+        for _ in 0..<3 { _ = try driver(io).stepEffort(up: false) }
+        XCTAssertNil(io.models[0].variant, "Default")
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+    }
+
+    func testSummaryAndDetection() {
+        let target = Target(host: .orca(handle: "h"), agent: .opencode, label: "t")
+        let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "x", effort: "high"),
+                                  warning: nil, confirmations: ["Using GLM-5.3-Flash OpenCode Go · high"], pendingRestore: nil)
+        XCTAssertEqual(result.summary, "GLM-5.3-Flash OpenCode Go · high")
+        XCTAssertEqual(AgentProcesses.agent(forCommandLine: "opencode"), .opencode)
+        XCTAssertEqual(try? JSONDecoder().decode(Slot.self, from: JSONEncoder().encode(Slot(opencode: AgentPreset(model: "m", effort: "e")))).opencode?.model, "m")
+    }
+}

@@ -43,7 +43,11 @@ public struct SwitchResult: Equatable, Sendable {
             } else if text.hasPrefix("Using ") {
                 // grok: "Using Grok 4.7 (xhigh)" · cursor: "Using Grok 4.7 256K Medium"
                 let label = String(text.dropFirst("Using ".count)).trimmingCharacters(in: .whitespaces)
-                let (name, level) = label.hasSuffix(")") ? GrokScreen.parse(label: label) : CursorScreen.parse(status: label)
+                // opencode: "Using GLM-5.3-Flash OpenCode Go · high"
+                let dotted = label.components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }
+                let (name, level) = dotted.count == 2 ? (dotted[0], Optional(dotted[1]))
+                    : dotted.count == 1 && !label.contains(" · ") && label.hasSuffix(")") ? GrokScreen.parse(label: label)
+                    : CursorScreen.parse(status: label)
                 model = name
                 effort = level
                 if level == nil { effortKnown = false }
@@ -121,6 +125,7 @@ public struct Switcher {
     public var grokDefaults: GrokDefaults
     public var cursorDefaults: CursorDefaults
     public var antigravityDefaults: AntigravityDefaults
+    public var opencodeDefaults: OpenCodeDefaults
     public var makeIO: (Target) throws -> TerminalIO
     public var sleep: (Int) -> Void
 
@@ -131,6 +136,7 @@ public struct Switcher {
                 grokDefaults: GrokDefaults = GrokDefaults(),
                 cursorDefaults: CursorDefaults = CursorDefaults(),
                 antigravityDefaults: AntigravityDefaults = AntigravityDefaults(),
+                opencodeDefaults: OpenCodeDefaults = OpenCodeDefaults(),
                 makeIO: @escaping (Target) throws -> TerminalIO = Switcher.terminalIO,
                 sleep: @escaping (Int) -> Void = { Thread.sleep(forTimeInterval: Double($0) / 1000) }) {
         self.config = config
@@ -140,6 +146,7 @@ public struct Switcher {
         self.grokDefaults = grokDefaults
         self.cursorDefaults = cursorDefaults
         self.antigravityDefaults = antigravityDefaults
+        self.opencodeDefaults = opencodeDefaults
         self.makeIO = makeIO
         self.sleep = sleep
     }
@@ -219,7 +226,7 @@ public struct Switcher {
             let steps = Plans.codex(modelIndex: selection.modelIndex, displayName: selection.displayName,
                                     effortLabel: selection.effortLabel)
             return Planned(slot: chosen, preset: preset, steps: steps, fallback: nil)
-        case .grok, .cursor, .antigravity:
+        case .grok, .cursor, .antigravity, .opencode:
             // 이 에이전트들은 단계 목록이 아니라 전용 드라이버(`GrokDriver`·`CursorDriver`·`AntigravityDriver`)가 화면을 보며 진행한다.
             return Planned(slot: chosen, preset: preset, steps: [], fallback: nil)
         }
@@ -257,8 +264,11 @@ public struct Switcher {
             } else if target.agent == .cursor {
                 let outcome = try CursorDriver(io: io, sleep: timed, defaults: cursorDefaults, keepDefaults: config.keepDefaults).apply(planned.preset)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
-            } else {
+            } else if target.agent == .antigravity {
                 let outcome = try AntigravityDriver(io: io, sleep: timed, defaults: antigravityDefaults, keepDefaults: config.keepDefaults).apply(planned.preset)
+                (warning, confirmations) = (outcome.warning, outcome.confirmations)
+            } else {
+                let outcome = try OpenCodeDriver(io: io, sleep: timed, defaults: opencodeDefaults, keepDefaults: config.keepDefaults).apply(planned.preset)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
             }
             return SwitchResult(target: target, slotName: planned.slot.name, preset: planned.preset,
@@ -310,8 +320,11 @@ public struct Switcher {
             } else if target.agent == .cursor {
                 let outcome = try CursorDriver(io: io, sleep: timedSleep, defaults: cursorDefaults, keepDefaults: config.keepDefaults).stepEffort(up: up)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
-            } else {
+            } else if target.agent == .antigravity {
                 let outcome = try AntigravityDriver(io: io, sleep: timedSleep, defaults: antigravityDefaults, keepDefaults: config.keepDefaults).stepEffort(up: up)
+                (warning, confirmations) = (outcome.warning, outcome.confirmations)
+            } else {
+                let outcome = try OpenCodeDriver(io: io, sleep: timedSleep, defaults: opencodeDefaults, keepDefaults: config.keepDefaults).stepEffort(up: up)
                 (warning, confirmations) = (outcome.warning, outcome.confirmations)
             }
             return SwitchResult(target: target, slotName: "", preset: AgentPreset(model: target.agent.rawValue, effort: up ? "한 단계 위" : "한 단계 아래"),
@@ -332,7 +345,7 @@ public struct Switcher {
             }
             steps = Plans.codexEffortStep(up: up)
             preset = AgentPreset(model: "codex", effort: up ? "한 단계 위" : "한 단계 아래")
-        case .grok, .cursor, .antigravity:
+        case .grok, .cursor, .antigravity, .opencode:
             return try stepEffort(up: up, on: target)   // 위에서 처리했다(도달하지 않는다)
         }
         var runner = Runner(io: io, sleep: timedSleep, initial: first)
