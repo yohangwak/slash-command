@@ -30,7 +30,19 @@ if [ "${1:-}" = "--install" ]; then
     # 프리셋(~/.config/modelswitch)은 새 앱이 처음 뜰 때 복사해 가므로 그대로 둔다.
     old="$HOME/Applications/ModelSwitch.app"
     if [ -d "$old" ]; then
-        "$old/Contents/MacOS/ModelSwitch" --login-item off >/dev/null 2>&1 || true
+        # 옛 실행 파일의 `off` 는 «켜짐» 일 때만 해제하고, «승인 대기» 로 등록된 항목은 그대로 둔 채 `off` 라고 답한다.
+        # 그래서 켜져 있던 것을 끈 경우에만 해제했다고 말하고, 나머지는 확인하지 못했다고 알린다.
+        oldbin="$old/Contents/MacOS/ModelSwitch"
+        was=$("$oldbin" --login-item status 2>/dev/null || echo "알 수 없음")
+        if [ "$was" = on ]; then
+            if [ "$("$oldbin" --login-item off 2>/dev/null || true)" = off ]; then
+                echo "옛 로그인 항목 해제"
+            else
+                echo "옛 로그인 항목을 해제하지 못했습니다 — 시스템 설정 → 일반 → 로그인 항목에서 ModelSwitch 를 지워 주세요."
+            fi
+        else
+            echo "옛 로그인 항목: 켜져 있지 않음($was). 승인 대기로 남아 있었다면 시스템 설정 → 일반 → 로그인 항목에서 ModelSwitch 를 지워 주세요."
+        fi
         osascript -e 'tell application id "com.yohangwak.modelswitch" to quit' >/dev/null 2>&1 || true
         rm -rf "$old"
         oldlink="$HOME/.local/bin/modelswitch"

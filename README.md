@@ -69,7 +69,7 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 ~/Applications/Slash\ Command.app/Contents/MacOS/SlashCommand --login-item on   # 로그인할 때 실행(메뉴에서도 켠다)
 ```
 
-ModelSwitch 로 깔려 있던 맥에서는 `--install` 이 옛 앱(`~/Applications/ModelSwitch.app`)의 로그인 항목을 끄고 앱과 `modelswitch` 링크를 지운 뒤 새로 깐다. 프리셋은 새 앱이 처음 뜰 때 `~/.config/modelswitch/presets.json` 에서 복사해 온다(옛 파일은 남는다). 번들 id 가 바뀌었으므로(`com.yohangwak.slashcommand`) 아래 권한은 새 앱에서 다시 허용해야 한다.
+ModelSwitch 로 깔려 있던 맥에서는 `--install` 이 옛 앱(`~/Applications/ModelSwitch.app`)의 로그인 항목을 끄고 앱과 `modelswitch` 링크를 지운 뒤 새로 깐다(옛 로그인 항목이 켜져 있지 않았으면 해제를 확인할 수 없다고 알린다 — 승인 대기로 남은 항목은 시스템 설정의 로그인 항목에서 지운다). 프리셋은 새 앱이 처음 뜰 때 `~/.config/modelswitch/presets.json` 에서 복사해 온다(옛 파일은 남는다). 번들 id 가 바뀌었으므로(`com.yohangwak.slashcommand`) 아래 권한은 새 앱에서 다시 허용해야 한다.
 
 처음 한 번 허용할 것 — **앱이 그 설정 화면을 바로 열어 준다**(메뉴 막대 아이콘 → 「손쉬운 사용 켜기 — 설정 열기…」, 또는 「프리셋·권한…」 창 맨 위의 「권한」 상자의 버튼. 권한이 필요한 터미널에서 단축키를 눌러도 열린다):
 

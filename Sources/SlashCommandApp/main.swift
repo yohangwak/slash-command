@@ -9,7 +9,8 @@ if let flag = arguments.firstIndex(of: "--login-item") {
     do {
         switch arguments.dropFirst(flag + 1).first {
         case "on": if service.status != .enabled { try service.register() }
-        case "off": if service.status == .enabled { try service.unregister() }
+        // «승인 대기» 도 등록된 상태다 — 해제하지 않으면 로그인 항목 목록에 남는다.
+        case "off": if service.status == .enabled || service.status == .requiresApproval { try service.unregister() }
         case "status", nil: break
         default:
             FileHandle.standardError.write(Data("SlashCommand --login-item on|off|status\n".utf8))
