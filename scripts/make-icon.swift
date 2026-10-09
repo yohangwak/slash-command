@@ -53,7 +53,7 @@ func draw(size: CGFloat) -> NSBitmapImageRep {
 }
 
 let root = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
-let iconset = FileManager.default.temporaryDirectory.appendingPathComponent("ModelSwitch-\(UUID().uuidString).iconset")
+let iconset = FileManager.default.temporaryDirectory.appendingPathComponent("SlashCommand-\(UUID().uuidString).iconset")
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 for (points, scale) in [(16, 1), (16, 2), (32, 1), (32, 2), (128, 1), (128, 2), (256, 1), (256, 2), (512, 1), (512, 2)] {
     let name = "icon_\(points)x\(points)\(scale == 2 ? "@2x" : "").png"

@@ -1,12 +1,12 @@
 import AppKit
-import ModelSwitchCore
+import SlashCommandCore
 import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = ConfigStore()
     private let hotKeys = HotKeyCenter()
     private let hud = HUD()
-    private let worker = DispatchQueue(label: "modelswitch.apply")
+    private let worker = DispatchQueue(label: "slashcommand.apply")
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
@@ -15,8 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "switch.2", accessibilityDescription: "ModelSwitch")
-            ?? NSImage(systemSymbolName: "gearshape.2", accessibilityDescription: "ModelSwitch")
+        statusItem.button?.image = NSImage(systemSymbolName: "switch.2", accessibilityDescription: "Slash Command")
+            ?? NSImage(systemSymbolName: "gearshape.2", accessibilityDescription: "Slash Command")
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
@@ -43,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             UserDefaults.standard.set(true, forKey: "permissionsIntroShown")
             openSettings()
         } else if CommandLine.arguments.contains("--settings") {
-            // `open -a ModelSwitch --args --settings` — 프리셋·권한 창을 띄운 채로 시작한다.
+            // `open -a "Slash Command" --args --settings` — 프리셋·권한 창을 띄운 채로 시작한다.
             openSettings()
         }
     }
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Log.write("실패 \(action.label): 손쉬운 사용 권한 없음 — 설정 화면을 엶")
             Permissions.openAccessibility()
             hud.show("손쉬운 사용 권한이 필요합니다",
-                     detail: "Ghostty 화면을 읽어 입력창 상태를 확인합니다. 방금 연 설정 화면의 목록에서 ModelSwitch 를 켠 뒤 다시 눌러 주세요.",
+                     detail: "Ghostty 화면을 읽어 입력창 상태를 확인합니다. 방금 연 설정 화면의 목록에서 Slash Command 를 켠 뒤 다시 눌러 주세요.",
                      seconds: 6)
             return
         }
@@ -144,10 +144,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     } else {
                         self.hud.show(result.summary, detail: detail)
                     }
-                case .failure(let error as ModelSwitchError) where error.awaitingUser:
+                case .failure(let error as SlashCommandError) where error.awaitingUser:
                     Log.write("확인 대기 \(action.label): \(error)")
                     self.hud.show("Enter 로 확정해 주세요", detail: "\(error)", seconds: 6)
-                case .failure(let error as ModelSwitchError) where error.nothingToDo:
+                case .failure(let error as SlashCommandError) where error.nothingToDo:
                     // 바꿀 것이 없었다(이미 가장 높은 단계 등) — 실패가 아니라 안내다.
                     Log.write("그대로 \(action.label): \(error)")
                     self.hud.show("\(error)", seconds: 2.5)
@@ -224,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
         menu.addItem(.separator())
-        menu.addItem(item("ModelSwitch 종료", #selector(quit), key: "q"))
+        menu.addItem(item("Slash Command 종료", #selector(quit), key: "q"))
     }
 
     private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {

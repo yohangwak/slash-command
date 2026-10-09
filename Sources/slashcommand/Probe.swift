@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 import Foundation
-import ModelSwitchCore
+import SlashCommandCore
 
 /// Orca 에서 «지금 보이는 터미널» 을 알려 주는 신호들이 UI 보다 얼마나 늦는지 재는 시험 도구(아무것도 보내지 않는다).
 /// 사람이 Orca 에서 탭·워크스페이스를 몇 번 옮기는 동안 돌려 두면, 신호가 바뀐 시각을 같은 시계로 찍는다.

@@ -1,6 +1,6 @@
 import AppKit
 import ApplicationServices
-import ModelSwitchCore
+import SlashCommandCore
 import SwiftUI
 
 /// macOS 권한의 상태를 읽고, 그 권한을 켜는 «바로 그» 시스템 설정 화면을 연다.
@@ -16,7 +16,7 @@ enum Permissions {
 
     static var accessibility: Bool { GhosttyScreen.trusted() }
 
-    /// 그 권한 목록 화면을 연다. 먼저 시스템에 한 번 물어 둔다 — 그래야 ModelSwitch 가 목록에 «이미 들어 있고» 스위치만 켜면 된다.
+    /// 그 권한 목록 화면을 연다. 먼저 시스템에 한 번 물어 둔다 — 그래야 Slash Command 가 목록에 «이미 들어 있고» 스위치만 켜면 된다.
     static func openAccessibility() {
         _ = GhosttyScreen.trusted(prompt: true)
         NSWorkspace.shared.open(accessibilityPane)
@@ -34,7 +34,7 @@ enum Permissions {
         case notRunning
     }
 
-    /// ModelSwitch 가 그 앱을 AppleScript 로 다뤄도 되는가. 묻는 창은 띄우지 않는다.
+    /// Slash Command 가 그 앱을 AppleScript 로 다뤄도 되는가. 묻는 창은 띄우지 않는다.
     /// 대상 앱이 응답하지 않으면 오래 걸릴 수 있으므로 주 스레드 밖에서 부른다.
     static func automation(bundleID: String) -> Automation {
         guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first != nil else { return .notRunning }
@@ -58,7 +58,7 @@ final class PermissionsModel: ObservableObject {
     @Published var automation: [String: Permissions.Automation] = [:]
 
     private var timer: Timer?
-    private let queue = DispatchQueue(label: "modelswitch.permissions")
+    private let queue = DispatchQueue(label: "slashcommand.permissions")
 
     func start() {
         refresh()
@@ -92,7 +92,7 @@ struct PermissionsBox: View {
                 row(title: "손쉬운 사용 (Accessibility)",
                     ok: model.accessibility,
                     status: model.accessibility ? "켜짐" : "꺼짐",
-                    detail: "Ghostty 화면 읽기에 꼭 필요하고, Orca 에서는 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 알게 해 줍니다. 열리는 목록에서 ModelSwitch 의 스위치를 켜 주세요(목록에 없으면 아래 + 로 추가).",
+                    detail: "Ghostty 화면 읽기에 꼭 필요하고, Orca 에서는 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 알게 해 줍니다. 열리는 목록에서 Slash Command 의 스위치를 켜 주세요(목록에 없으면 아래 + 로 추가).",
                     button: model.accessibility ? "설정 보기" : "설정 열기…",
                     action: Permissions.openAccessibility)
                 ForEach(Permissions.automatedTerminals, id: \.bundleID) { terminal in
@@ -100,7 +100,7 @@ struct PermissionsBox: View {
                     row(title: "자동화 (Automation) → \(terminal.name)",
                         ok: state == .allowed,
                         status: label(state),
-                        detail: "\(terminal.name) 터미널에 전환 명령을 입력하는 데 씁니다. 열리는 목록의 ModelSwitch 아래에서 \(terminal.name) 를 켜 주세요. 처음 단축키를 누를 때 시스템이 한 번 묻습니다.",
+                        detail: "\(terminal.name) 터미널에 전환 명령을 입력하는 데 씁니다. 열리는 목록의 Slash Command 아래에서 \(terminal.name) 를 켜 주세요. 처음 단축키를 누를 때 시스템이 한 번 묻습니다.",
                         button: state == .allowed ? "설정 보기" : "설정 열기…",
                         action: Permissions.openAutomation,
                         neutral: state == .notRunning || state == .notAsked)

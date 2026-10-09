@@ -2,17 +2,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "ModelSwitch",
+    name: "SlashCommand",
     platforms: [.macOS(.v13)],
     products: [
-        .library(name: "ModelSwitchCore", targets: ["ModelSwitchCore"]),
-        .executable(name: "modelswitch", targets: ["modelswitch"]),
-        .executable(name: "ModelSwitchApp", targets: ["ModelSwitchApp"]),
+        .library(name: "SlashCommandCore", targets: ["SlashCommandCore"]),
+        .executable(name: "slashcommand", targets: ["slashcommand"]),
+        .executable(name: "SlashCommandApp", targets: ["SlashCommandApp"]),
     ],
     targets: [
-        .target(name: "ModelSwitchCore"),
-        .executableTarget(name: "modelswitch", dependencies: ["ModelSwitchCore"]),
-        .executableTarget(name: "ModelSwitchApp", dependencies: ["ModelSwitchCore"]),
-        .testTarget(name: "ModelSwitchCoreTests", dependencies: ["ModelSwitchCore"], resources: [.copy("Fixtures")]),
+        .target(name: "SlashCommandCore"),
+        .executableTarget(name: "slashcommand", dependencies: ["SlashCommandCore"]),
+        .executableTarget(name: "SlashCommandApp", dependencies: ["SlashCommandCore"]),
+        .testTarget(name: "SlashCommandCoreTests", dependencies: ["SlashCommandCore"], resources: [.copy("Fixtures")]),
     ]
 )

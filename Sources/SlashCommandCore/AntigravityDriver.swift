@@ -186,7 +186,7 @@ public struct AntigravityDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw ModelSwitchError("antigravity 터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError("antigravity 터미널 화면을 읽지 못해 중단했습니다.") }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -231,10 +231,10 @@ public struct AntigravityDriver {
     private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
-        func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
+        func fail(_ message: String, leftover: String? = nil) -> SlashCommandError {
             back(clearing: leftover)
             if let before { sleep(250); _ = defaults.restore(to: before) }
-            return ModelSwitchError(message)
+            return SlashCommandError(message)
         }
         try openPicker(failure: fail)
         guard var picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw fail("antigravity 선택창을 읽지 못했습니다.") }
@@ -256,10 +256,10 @@ public struct AntigravityDriver {
     private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
-        func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
+        func fail(_ message: String, leftover: String? = nil) -> SlashCommandError {
             back(clearing: leftover)
             if let before { sleep(250); _ = defaults.restore(to: before) }
-            return ModelSwitchError(message)
+            return SlashCommandError(message)
         }
         try openPicker(failure: fail)
         guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []),
@@ -280,16 +280,16 @@ public struct AntigravityDriver {
     // MARK: 단계
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw ModelSwitchError("antigravity 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError("antigravity 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
         guard AgyScreen.idle(first.lines) else {
             if let draft = AgyScreen.draft(first.lines), !draft.isEmpty {
-                throw ModelSwitchError("antigravity 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+                throw SlashCommandError("antigravity 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
             }
-            throw ModelSwitchError("antigravity 입력창이 보이지 않거나 작업 중이라 전환하지 않았습니다.")
+            throw SlashCommandError("antigravity 입력창이 보이지 않거나 작업 중이라 전환하지 않았습니다.")
         }
     }
 
-    private func openPicker(failure: (String, String?) -> ModelSwitchError) throws {
+    private func openPicker(failure: (String, String?) -> SlashCommandError) throws {
         try io.type("/model")
         guard (try poll(timeoutMs: 1500) { AgyScreen.draft($0) == "/model" }) != nil else {
             throw failure("antigravity 입력창에 명령이 나타나지 않아 보내지 않았습니다.", "/model")
@@ -300,7 +300,7 @@ public struct AntigravityDriver {
         }
     }
 
-    private func moveCursor(to name: String, failure: (String, String?) -> ModelSwitchError) throws {
+    private func moveCursor(to name: String, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<14 {
             guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw failure("antigravity 선택창이 닫혔습니다.", nil) }
             guard let from = picker.rows.firstIndex(where: \.cursor), let to = picker.rows.firstIndex(where: { $0.name == name }) else {
@@ -314,7 +314,7 @@ public struct AntigravityDriver {
     }
 
     /// 슬라이더를 `target` 번째 단계에 맞춘다. 한 번 누를 때마다 다시 읽어 확인한다 — 끝에서 더 누르지 않는다.
-    private func moveEffort(to target: Int, failure: (String, String?) -> ModelSwitchError) throws {
+    private func moveEffort(to target: Int, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<8 {
             guard let slider = AgyScreen.picker(io.freshSnapshot()?.lines ?? [])?.slider else { throw failure("antigravity effort 슬라이더를 읽지 못했습니다.", nil) }
             if slider.selected == target { return }
@@ -324,7 +324,7 @@ public struct AntigravityDriver {
         throw failure("antigravity effort 슬라이더를 맞추지 못했습니다.", nil)
     }
 
-    private func confirm(name: String, before: DefaultsSnapshot?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
+    private func confirm(name: String, before: DefaultsSnapshot?, failure: (String, String?) -> SlashCommandError) throws -> Outcome {
         let repliesBefore = AgyScreen.replies(io.freshSnapshot()?.lines ?? [])
         try io.press(.enter)
         guard let lines = try poll(timeoutMs: 4000, { lines in

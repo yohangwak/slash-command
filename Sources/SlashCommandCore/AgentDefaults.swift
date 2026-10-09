@@ -85,7 +85,7 @@ enum DefaultsFile {
     /// `keepDefaults` 인데 전환 전 상태를 읽지 못했으면 — 되돌릴 값을 모르므로 — 아무것도 보내기 전에 멈춘다.
     static func refuseIfUnreadable(_ snapshot: DefaultsSnapshot?, name: String) throws {
         if case .unreadable(let reason)? = snapshot {
-            throw ModelSwitchError("\(name) 설정 파일을 읽지 못해(\(reason)) 새 세션 기본값을 지킬 수 없으므로 전환하지 않았습니다.")
+            throw SlashCommandError("\(name) 설정 파일을 읽지 못해(\(reason)) 새 세션 기본값을 지킬 수 없으므로 전환하지 않았습니다.")
         }
     }
 }

@@ -77,7 +77,7 @@ public struct SwitchResult: Equatable, Sendable {
     }
 }
 
-/// 단계별 소요 시간을 모은다(`modelswitch apply --trace`, 앱 기록). 측정 전에는 원인을 단정하지 않기 위한 것.
+/// 단계별 소요 시간을 모은다(`slashcommand apply --trace`, 앱 기록). 측정 전에는 원인을 단정하지 않기 위한 것.
 public final class Trace: @unchecked Sendable {
     public private(set) var events: [(label: String, ms: Int)] = []
     private let start = DispatchTime.now()
@@ -118,7 +118,7 @@ public struct Switcher {
     /// claude 가 「Switch model?」을 묻고 있고 우리가 답하지 않기로 했을 때 불린다(인자는 모델 이름).
     /// 그 뒤로도 사용자가 고를 때까지 기다렸다가 나머지를 마무리한다.
     public var onAwaitingUser: ((String) -> Void)?
-    public var config: ModelSwitchConfig
+    public var config: SlashCommandConfig
     public var claudeDefaults: ClaudeDefaults
     public var codexModels: () throws -> CodexModels
     public var grokModels: () -> GrokModels
@@ -130,7 +130,7 @@ public struct Switcher {
     public var makeIO: (Target) throws -> TerminalIO
     public var sleep: (Int) -> Void
 
-    public init(config: ModelSwitchConfig,
+    public init(config: SlashCommandConfig,
                 claudeDefaults: ClaudeDefaults = ClaudeDefaults(),
                 codexModels: @escaping () throws -> CodexModels = { try CodexModels.load() },
                 grokModels: @escaping () -> GrokModels = { GrokModels.load() },
@@ -169,21 +169,21 @@ public struct Switcher {
         case .orca(let handle):
             let io = OrcaIO(orca: Proc.locate("orca"), handle: handle)
             // 시험용: Orca 세션에서 화면이 늦게 따라오는 터미널(Ghostty)의 경로를 태운다.
-            if let lag = ProcessInfo.processInfo.environment["MODELSWITCH_SCREEN_LAG_MS"].flatMap(Int.init), lag > 0 {
+            if let lag = ProcessInfo.processInfo.environment["SLASHCOMMAND_SCREEN_LAG_MS"].flatMap(Int.init), lag > 0 {
                 return LaggingIO(base: io, lagMs: lag)
             }
             return io
         case .tmux(let socket, let pane):
-            guard let tmux = Proc.locate("tmux") else { throw ModelSwitchError("tmux 명령을 찾지 못했습니다.") }
+            guard let tmux = Proc.locate("tmux") else { throw SlashCommandError("tmux 명령을 찾지 못했습니다.") }
             return TmuxIO(tmux: tmux, socket: socket, pane: pane)
         case .kitty(let socket, let window):
             guard let kitty = Proc.locate("kitty", extra: ["/Applications/kitty.app/Contents/MacOS"]) else {
-                throw ModelSwitchError("kitty 명령을 찾지 못했습니다.")
+                throw SlashCommandError("kitty 명령을 찾지 못했습니다.")
             }
             return KittyIO(kitty: kitty, socket: socket, window: window)
         case .wezterm(let pane):
             guard let wezterm = Proc.locate("wezterm", extra: ["/Applications/WezTerm.app/Contents/MacOS"]) else {
-                throw ModelSwitchError("wezterm 명령을 찾지 못했습니다.")
+                throw SlashCommandError("wezterm 명령을 찾지 못했습니다.")
             }
             return WezTermIO(wezterm: wezterm, pane: pane)
         }
@@ -192,7 +192,7 @@ public struct Switcher {
     static func unreadable(_ host: TerminalHost) -> String {
         switch host {
         case .ghostty:
-            return "Ghostty 화면을 읽지 못해 전환하지 않았습니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 ModelSwitch 를 허용해 주세요."
+            return "Ghostty 화면을 읽지 못해 전환하지 않았습니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 Slash Command 를 허용해 주세요."
         case .orca:
             return "Orca 터미널 화면을 읽지 못해 전환하지 않았습니다."
         case .tmux, .kitty, .wezterm:
@@ -211,10 +211,10 @@ public struct Switcher {
     /// `slot`(1부터)번 프리셋의 그 에이전트 설정.
     public func preset(slot: Int, agent: Agent) throws -> AgentPreset {
         guard slot >= 1, slot <= config.slots.count else {
-            throw ModelSwitchError("\(slot)번 프리셋이 없습니다(지금 \(config.slots.count)개).")
+            throw SlashCommandError("\(slot)번 프리셋이 없습니다(지금 \(config.slots.count)개).")
         }
         guard let preset = config.slots[slot - 1].preset(for: agent) else {
-            throw ModelSwitchError("\(slot)번 프리셋에는 \(agent.rawValue) 설정이 없습니다.")
+            throw SlashCommandError("\(slot)번 프리셋에는 \(agent.rawValue) 설정이 없습니다.")
         }
         return preset
     }
@@ -246,10 +246,10 @@ public struct Switcher {
     private func readyScreen(_ io: TerminalIO, target: Target) throws -> ScreenSnapshot {
         // 낡은 화면으로 판단하면 방금 뜬 창을 못 본다 — 반드시 지금 화면으로 본다.
         guard let screen = io.freshSnapshot() else {
-            throw ModelSwitchError(Switcher.unreadable(target.host))
+            throw SlashCommandError(Switcher.unreadable(target.host))
         }
         guard Readiness.inputVisible(agent: target.agent, screen: screen.lines) else {
-            throw ModelSwitchError("\(target.agent.rawValue) 입력창이 보이지 않아 전환하지 않았습니다. 권한 확인 창이나 선택창이 떠 있으면 먼저 처리해 주세요.")
+            throw SlashCommandError("\(target.agent.rawValue) 입력창이 보이지 않아 전환하지 않았습니다. 권한 확인 창이나 선택창이 떠 있으면 먼저 처리해 주세요.")
         }
         return screen
     }
@@ -286,7 +286,7 @@ public struct Switcher {
         let first = try readyScreen(io, target: target)
         // codex 는 쓰던 글을 한 줄까지만 치웠다 되돌릴 수 있다. 여러 줄이면 남은 줄이 명령과 섞이므로 손대지 않는다.
         if target.agent == .codex, let draft = first.draft, draft.contains("\n") {
-            throw ModelSwitchError("codex 입력창에 여러 줄 초안이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+            throw SlashCommandError("codex 입력창에 여러 줄 초안이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
         }
 
         let traced = trace
@@ -305,7 +305,7 @@ public struct Switcher {
             if asked, !confirmations.contains(where: { $0.hasPrefix("Set model to") }) { throw Runner.declined() }
             return SwitchResult(target: target, slotName: planned.slot.name, preset: planned.preset,
                                 warning: nil, confirmations: confirmations, pendingRestore: nil)
-        } catch let error as ModelSwitchError where error.cleanlyAborted && planned.fallback != nil {
+        } catch let error as SlashCommandError where error.cleanlyAborted && planned.fallback != nil {
             // 선택창을 닫고 입력창으로 돌아왔다. 아무것도 바뀌지 않았으니 명령으로 다시 한다.
             trace?.mark("선택창 대신 명령으로(\(error.message))")
         }
@@ -350,7 +350,7 @@ public struct Switcher {
             preset = AgentPreset(model: "claude", effort: up ? "한 단계 위" : "한 단계 아래")
         case .codex:
             if let draft = first.draft, draft.contains("\n") {
-                throw ModelSwitchError("codex 입력창에 여러 줄 초안이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+                throw SlashCommandError("codex 입력창에 여러 줄 초안이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
             }
             steps = Plans.codexEffortStep(up: up)
             preset = AgentPreset(model: "codex", effort: up ? "한 단계 위" : "한 단계 아래")
@@ -373,9 +373,9 @@ public struct Switcher {
         let confirmations: [String]
         do {
             confirmations = try runner.run(planned.fallback ?? [])
-        } catch var error as ModelSwitchError where error.awaitingUser {
+        } catch var error as SlashCommandError where error.awaitingUser {
             // 기다리는 동안 답이 없었다. 나중에 Yes 를 고르면 claude 가 그때 기본값을 쓰고, 우리는 이미 손을 뗀 뒤다 — 있는 그대로 알린다.
-            error = ModelSwitchError(error.message + " 지금 확정하면 새 세션 기본값도 이 모델이 되고 effort 는 따로 맞춰야 합니다(취소하고 다시 누르면 둘 다 맞춰집니다).")
+            error = SlashCommandError(error.message + " 지금 확정하면 새 세션 기본값도 이 모델이 되고 effort 는 따로 맞춰야 합니다(취소하고 다시 누르면 둘 다 맞춰집니다).")
             error.awaitingUser = true
             throw error
         } catch {
@@ -487,7 +487,7 @@ public struct Runner {
             case .expect(let needle, let bottom, let timeoutMs, let abort, let failure):
                 if try !waitFor(needle, bottom: bottom, timeoutMs: timeoutMs) {
                     _ = try? run(abort)
-                    throw ModelSwitchError(failure)
+                    throw SlashCommandError(failure)
                 }
             case .expectPicker(let header, let footer, let timeoutMs, let abort, let failure):
                 let shown = try poll(timeoutMs: timeoutMs) { lines in
@@ -496,7 +496,7 @@ public struct Runner {
                 }
                 if !shown {
                     _ = try? run(abort)
-                    throw ModelSwitchError(failure)
+                    throw SlashCommandError(failure)
                 }
             case .arm:
                 armedStamp = stamp?() ?? nil
@@ -560,7 +560,7 @@ public struct Runner {
                 case .timedOut:
                     if let asking = io.screen().flatMap(ClaudeScreen.switchPrompt) { throw Runner.awaitingSwitch(asking) }
                     _ = try? run(abort)
-                    throw ModelSwitchError(failure)
+                    throw SlashCommandError(failure)
                 }
             case .closePicker:
                 try closePicker()
@@ -579,7 +579,7 @@ public struct Runner {
         if !unseen.isEmpty {
             // 기본값 파일은 다른 claude 세션도 쓴다 — 파일이 바뀐 것만으로는 «우리 명령»이 실행됐다고 할 수 없다.
             // 끝에 새 화면을 한 번 읽어, 이번에 생긴 결과 줄이 «보일 때만» 성공으로 친다.
-            guard let snap = freshSnapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 결과를 확인하지 못했습니다.") }
+            guard let snap = freshSnapshot() else { throw SlashCommandError("터미널 화면을 읽지 못해 결과를 확인하지 못했습니다.") }
             let before = initial?.lines ?? []
             for (prefix, command) in unseen {
                 let now = ClaudeScreen.results(snap.lines, prefix: prefix)
@@ -589,7 +589,7 @@ public struct Runner {
                     // 같은 전환을 되풀이해 줄 수가 그대로여도, 우리가 친 그 명령 아래에 그 답이 있다.
                     confirmations.append(reply)
                 } else {
-                    throw ModelSwitchError("명령을 보냈지만 claude 의 결과 문구(\(prefix) …)가 화면에 보이지 않습니다. 바뀌었는지 화면에서 확인해 주세요.")
+                    throw SlashCommandError("명령을 보냈지만 claude 의 결과 문구(\(prefix) …)가 화면에 보이지 않습니다. 바뀌었는지 화면에서 확인해 주세요.")
                 }
             }
         }
@@ -621,7 +621,7 @@ public struct Runner {
             }
             let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
             if clock.elapsedMs() >= io.screenLagMs {
-                guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
+                guard let snap = io.snapshot() else { throw SlashCommandError("터미널 화면을 읽지 못해 중단했습니다.") }
                 clock.reset()
                 // 파일은 안 바뀌었지만 화면에 이번 명령의 결과가 새로 떴다.
                 let matched = ClaudeScreen.results(snap.lines, prefix: prefix)
@@ -643,7 +643,7 @@ public struct Runner {
                     goneAt = goneAt ?? elapsed
                 }
             }
-            if elapsed >= deadline { throw awaiting.map(Runner.awaitingSwitch) ?? ModelSwitchError(failure) }
+            if elapsed >= deadline { throw awaiting.map(Runner.awaitingSwitch) ?? SlashCommandError(failure) }
             sleep(15)
             simulated += 15
             clock.slept += 15
@@ -651,22 +651,22 @@ public struct Runner {
     }
 
     /// 명령 바로 아래에 붙은, 우리가 기다리던 것이 아닌 답.
-    static func refused(_ reply: String) -> ModelSwitchError {
+    static func refused(_ reply: String) -> SlashCommandError {
         // 확인 창에서 취소하면 claude 는 "Kept model as …" 라고 남긴다 — 거절이 아니라 사용자의 선택이다.
         if reply.hasPrefix("Kept model as") { return declined() }
-        return ModelSwitchError("claude 가 받아들이지 않았습니다: \(reply.prefix(120))")
+        return SlashCommandError("claude 가 받아들이지 않았습니다: \(reply.prefix(120))")
     }
 
     /// 사용자가 확인 창에서 「No, go back」을 골랐다.
-    static func declined() -> ModelSwitchError {
-        var error = ModelSwitchError("확인 창에서 취소해 바꾸지 않았습니다.")
+    static func declined() -> SlashCommandError {
+        var error = SlashCommandError("확인 창에서 취소해 바꾸지 않았습니다.")
         error.nothingToDo = true
         return error
     }
 
     /// claude 가 모델을 바꿀지 묻고 있다 — 우리는 답하지 않고 사용자에게 넘긴다.
-    static func awaitingSwitch(_ model: String) -> ModelSwitchError {
-        var error = ModelSwitchError("claude 가 \(model) 로 바꿀지 묻고 있습니다(대화 기록을 다시 읽습니다). Enter 를 누르면 바뀝니다.")
+    static func awaitingSwitch(_ model: String) -> SlashCommandError {
+        var error = SlashCommandError("claude 가 \(model) 로 바꿀지 묻고 있습니다(대화 기록을 다시 읽습니다). Enter 를 누르면 바뀝니다.")
         error.awaitingUser = true
         return error
     }
@@ -699,7 +699,7 @@ public struct Runner {
         var goneAt: Int?
         var deadline = timeoutMs
         while true {
-            guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let snap = io.snapshot() else { throw SlashCommandError("터미널 화면을 읽지 못해 중단했습니다.") }
             let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
 
             let stampChanged = stamp != nil && (stamp?() ?? nil) != armedStamp
@@ -732,7 +732,7 @@ public struct Runner {
                 // claude 가 새로 뭐라고 했으면(예: Model 'x' not found) 그 말을 붙인다.
                 let said = ClaudeScreen.lastResult(snap.lines)
                 let detail = said.flatMap { $0 != saidBefore ? " (claude: \($0.prefix(80)))" : nil } ?? ""
-                throw ModelSwitchError(failure + detail)
+                throw SlashCommandError(failure + detail)
             }
             sleep(40)
             simulated += 40
@@ -752,7 +752,7 @@ public struct Runner {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let lines = io.screen() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let lines = io.screen() else { throw SlashCommandError("터미널 화면을 읽지 못해 중단했습니다.") }
             if condition(lines) { return true }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return false }
@@ -767,9 +767,9 @@ public struct Runner {
     // MARK: 선택창
 
     /// 정리 단계를 실행하고, 선택창이 닫혀 입력창으로 돌아온 것을 확인했으면 「깨끗이 물러난」 실패로 표시한다.
-    private func aborted(_ abort: [Step], _ failure: String) throws -> ModelSwitchError {
+    private func aborted(_ abort: [Step], _ failure: String) throws -> SlashCommandError {
         _ = try? run(abort)
-        var error = ModelSwitchError(failure)
+        var error = SlashCommandError(failure)
         if let lines = io.screen(), !Picker.isOpen(lines),
            Readiness.claudePromptVisible(lines) || Readiness.codexComposerVisible(lines) {
             error.cleanlyAborted = true
@@ -799,7 +799,7 @@ public struct Runner {
     /// 커서가 `label` 행에 올 때까지: 화면에서 커서 행을 읽고, 차이만큼 위·아래를 보내고, 커서가 «도착함»을 본다.
     private func moveCursor(to label: String, timeoutMs: Int) throws -> Bool {
         for _ in 0..<4 {
-            guard let lines = io.screen() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let lines = io.screen() else { throw SlashCommandError("터미널 화면을 읽지 못해 중단했습니다.") }
             let rows = Picker.rows(lines)
             guard let target = Picker.index(of: label, in: rows),
                   let cursor = rows.firstIndex(where: \.selected) else { return false }
@@ -964,7 +964,7 @@ public struct Runner {
         var awaiting = false
         var deadline = timeoutMs
         while true {
-            guard let snap = io.snapshot() else { throw ModelSwitchError("터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let snap = io.snapshot() else { throw SlashCommandError("터미널 화면을 읽지 못해 중단했습니다.") }
             let draftBack = draftBefore.isEmpty || !draft(snap).isEmpty
             if !Picker.isOpen(snap.lines), Readiness.inputVisible(agent: agent, screen: snap.lines), draftBack { return .ready }
             if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }

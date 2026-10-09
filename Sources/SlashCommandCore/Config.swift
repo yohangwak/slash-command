@@ -110,7 +110,7 @@ public struct Slot: Codable, Equatable, Sendable {
     }
 }
 
-public struct ModelSwitchConfig: Codable, Equatable, Sendable {
+public struct SlashCommandConfig: Codable, Equatable, Sendable {
     public var version: Int
     /// 전환 뒤 「새 세션 기본값」을 전환 전 값으로 되돌린다(claude 의 /model·/effort 는 기본값까지 저장한다).
     public var keepDefaults: Bool
@@ -128,7 +128,7 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     public static let knownModifiers = ["control", "option", "shift", "command"]
 
     public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = true, effortKeys: Bool = true,
-                modifiers: [String] = ModelSwitchConfig.defaultModifiers, slots: [Slot]) {
+                modifiers: [String] = SlashCommandConfig.defaultModifiers, slots: [Slot]) {
         self.version = version
         self.keepDefaults = keepDefaults
         self.acceptSwitchPrompt = acceptSwitchPrompt
@@ -140,7 +140,7 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
     /// 조합 키를 맥 표기 순서(⌃⌥⇧⌘)의 기호로.
     public var modifierSymbols: String {
         let symbols = ["control": "⌃", "option": "⌥", "shift": "⇧", "command": "⌘"]
-        return ModelSwitchConfig.knownModifiers.filter(modifiers.contains).compactMap { symbols[$0] }.joined()
+        return SlashCommandConfig.knownModifiers.filter(modifiers.contains).compactMap { symbols[$0] }.joined()
     }
 
     public init(from decoder: Decoder) throws {
@@ -149,16 +149,16 @@ public struct ModelSwitchConfig: Codable, Equatable, Sendable {
         keepDefaults = try c.decodeIfPresent(Bool.self, forKey: .keepDefaults) ?? true
         acceptSwitchPrompt = try c.decodeIfPresent(Bool.self, forKey: .acceptSwitchPrompt) ?? true
         effortKeys = try c.decodeIfPresent(Bool.self, forKey: .effortKeys) ?? true
-        let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? ModelSwitchConfig.defaultModifiers
-        modifiers = ModelSwitchConfig.knownModifiers.filter(wanted.contains)
+        let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? SlashCommandConfig.defaultModifiers
+        modifiers = SlashCommandConfig.knownModifiers.filter(wanted.contains)
         // 조합 키 없이 숫자만 잡으면 터미널에 숫자를 칠 수 없게 된다.
-        if modifiers.isEmpty { modifiers = ModelSwitchConfig.defaultModifiers }
+        if modifiers.isEmpty { modifiers = SlashCommandConfig.defaultModifiers }
         slots = try c.decode([Slot].self, forKey: .slots)
     }
 
     public static let maxSlots = 9
 
-    public static let starter = ModelSwitchConfig(slots: [
+    public static let starter = SlashCommandConfig(slots: [
         Slot(claude: AgentPreset(model: "opus", effort: "high"),
              codex: AgentPreset(model: "gpt-6-astra", effort: "high")),
         Slot(claude: AgentPreset(model: "sonnet", effort: "high"),
@@ -175,27 +175,34 @@ public struct ConfigStore: Sendable {
         self.url = url
     }
 
-    /// 기본은 `~/.config/modelswitch/presets.json`. `MODELSWITCH_CONFIG` 로 다른 파일을 가리킬 수 있다.
+    /// 기본은 `~/.config/slashcommand/presets.json`. `SLASHCOMMAND_CONFIG` 로 다른 파일을 가리킬 수 있다.
     public static var defaultURL: URL {
-        if let override = ProcessInfo.processInfo.environment["MODELSWITCH_CONFIG"], !override.isEmpty {
+        if let override = ProcessInfo.processInfo.environment["SLASHCOMMAND_CONFIG"], !override.isEmpty {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
         }
         return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/modelswitch/presets.json")
+            .appendingPathComponent(".config/slashcommand/presets.json")
     }
 
-    /// 개명(Gear → ModelSwitch) 전 설정 위치. 새 위치에 파일이 없을 때만 한 번 복사해 온다.
-    static var legacyURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/gear/presets.json")
+    /// 개명(Gear → ModelSwitch → Slash Command) 전 설정 위치들, 가까운 이름부터.
+    static var legacyURLs: [URL] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return [".config/modelswitch/presets.json", ".config/gear/presets.json"].map(home.appendingPathComponent)
+    }
+
+    /// 새 위치에 파일이 없을 때만, 옛 위치 가운데 처음으로 있는 것을 한 번 복사해 온다. 옛 파일은 그대로 둔다.
+    static func adoptLegacy(into url: URL, from candidates: [URL]) throws {
+        guard !FileManager.default.fileExists(atPath: url.path),
+              let legacy = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else { return }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: legacy, to: url)
     }
 
     /// 파일이 없으면 시작 프리셋을 만들어 저장하고 돌려준다.
-    public func load() throws -> ModelSwitchConfig {
-        if !FileManager.default.fileExists(atPath: url.path), url == ConfigStore.defaultURL,
-           FileManager.default.fileExists(atPath: ConfigStore.legacyURL.path) {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                    withIntermediateDirectories: true)
-            try FileManager.default.copyItem(at: ConfigStore.legacyURL, to: url)
+    public func load() throws -> SlashCommandConfig {
+        if url == ConfigStore.defaultURL {
+            try ConfigStore.adoptLegacy(into: url, from: ConfigStore.legacyURLs)
         }
         guard FileManager.default.fileExists(atPath: url.path) else {
             try save(.starter)
@@ -203,19 +210,19 @@ public struct ConfigStore: Sendable {
         }
         let data = try Data(contentsOf: url)
         do {
-            let config = try JSONDecoder().decode(ModelSwitchConfig.self, from: data)
-            guard config.slots.count <= ModelSwitchConfig.maxSlots else {
-                throw ModelSwitchError("프리셋은 \(ModelSwitchConfig.maxSlots)개까지입니다(지금 \(config.slots.count)개): \(url.path)")
+            let config = try JSONDecoder().decode(SlashCommandConfig.self, from: data)
+            guard config.slots.count <= SlashCommandConfig.maxSlots else {
+                throw SlashCommandError("프리셋은 \(SlashCommandConfig.maxSlots)개까지입니다(지금 \(config.slots.count)개): \(url.path)")
             }
             return config
-        } catch let error as ModelSwitchError {
+        } catch let error as SlashCommandError {
             throw error
         } catch {
-            throw ModelSwitchError("프리셋 파일을 읽지 못했습니다: \(url.path) — \(error.localizedDescription)")
+            throw SlashCommandError("프리셋 파일을 읽지 못했습니다: \(url.path) — \(error.localizedDescription)")
         }
     }
 
-    public func save(_ config: ModelSwitchConfig) throws {
+    public func save(_ config: SlashCommandConfig) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
         let encoder = JSONEncoder()
@@ -226,7 +233,7 @@ public struct ConfigStore: Sendable {
     }
 }
 
-public struct ModelSwitchError: Error, CustomStringConvertible, Equatable {
+public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
     public let message: String
     /// 선택창을 닫고 입력창으로 돌아온 것까지 확인한 실패 — 아무것도 바뀌지 않았으므로 다른 방법으로 다시 해도 된다.
     public var cleanlyAborted = false

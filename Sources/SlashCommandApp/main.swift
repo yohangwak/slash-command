@@ -1,7 +1,7 @@
 import AppKit
 import ServiceManagement
 
-// `ModelSwitch --login-item on|off|status` — 로그인할 때 실행을 명령줄에서 켜고 끈다(메뉴의 같은 항목과 같다).
+// `SlashCommand --login-item on|off|status` — 로그인할 때 실행을 명령줄에서 켜고 끈다(메뉴의 같은 항목과 같다).
 // 로그인 항목은 앱 자신만 등록할 수 있어서 명령줄 도구가 아니라 여기서 받는다.
 let arguments = CommandLine.arguments
 if let flag = arguments.firstIndex(of: "--login-item") {
@@ -12,7 +12,7 @@ if let flag = arguments.firstIndex(of: "--login-item") {
         case "off": if service.status == .enabled { try service.unregister() }
         case "status", nil: break
         default:
-            FileHandle.standardError.write(Data("ModelSwitch --login-item on|off|status\n".utf8))
+            FileHandle.standardError.write(Data("SlashCommand --login-item on|off|status\n".utf8))
             exit(2)
         }
     } catch {

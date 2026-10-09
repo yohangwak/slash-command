@@ -55,24 +55,24 @@ public struct OrcaIO: TerminalIO {
     /// 바이트를 그대로 넣는다. Enter 도 `\r` 로 글에 넣어 보낸다.
     private func send(_ text: String) throws {
         let params: [String: Any] = ["terminal": handle, "text": text, "enter": false, "interrupt": false,
-                                     "client": ["id": "modelswitch", "type": "desktop"]]
+                                     "client": ["id": "slashcommand", "type": "desktop"]]
         switch OrcaRuntime.call("terminal.send", params) {
         case .success(let result):
             guard (result["send"] as? [String: Any])?["accepted"] as? Bool == true else {
-                throw ModelSwitchError("Orca 터미널이 입력을 받지 않았습니다.")
+                throw SlashCommandError("Orca 터미널이 입력을 받지 않았습니다.")
             }
             return
         case .failure(.failed(let message)):
             // 이미 들어갔을 수 있다 — 다른 길로 다시 보내지 않는다.
-            throw ModelSwitchError("Orca 터미널에 입력하지 못했습니다: \(message)")
+            throw SlashCommandError("Orca 터미널에 입력하지 못했습니다: \(message)")
         case .failure(.unavailable):
             break
         }
-        guard let orca else { throw ModelSwitchError("Orca 앱에 연결하지 못했고 orca 명령도 찾지 못했습니다.") }
+        guard let orca else { throw SlashCommandError("Orca 앱에 연결하지 못했고 orca 명령도 찾지 못했습니다.") }
         let result = Proc.run(orca, ["terminal", "send", "--terminal", handle, "--text", text, "--json"],
                               env: OrcaIO.cleanEnv, cwd: "/", timeout: 15)
         guard result.ok else {
-            throw ModelSwitchError("Orca 터미널에 입력하지 못했습니다: \(Self.errorSummary(result))")
+            throw SlashCommandError("Orca 터미널에 입력하지 못했습니다: \(Self.errorSummary(result))")
         }
     }
 
@@ -203,7 +203,7 @@ public struct GhosttyIO: TerminalIO {
         let result = GhosttyIO.osascript(script)
         guard result.ok, result.out.trimmingCharacters(in: .whitespacesAndNewlines) == "true" else {
             let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw ModelSwitchError("Ghostty 에 입력하지 못했습니다: \(detail.isEmpty ? "대상 터미널이 더 이상 맨 앞 창에 없습니다" : detail)")
+            throw SlashCommandError("Ghostty 에 입력하지 못했습니다: \(detail.isEmpty ? "대상 터미널이 더 이상 맨 앞 창에 없습니다" : detail)")
         }
     }
 
@@ -251,7 +251,7 @@ public struct GhosttyIO: TerminalIO {
 }
 
 /// 화면이 늦게 따라오는 터미널을 흉내 낸다: 마지막으로 읽은 뒤 `lagMs` 동안은 그때 화면을 그대로 돌려준다(Ghostty 의 동작).
-/// 시험용 — `MODELSWITCH_SCREEN_LAG_MS` 로 Orca 세션에서도 Ghostty 용 경로를 태워 볼 수 있다.
+/// 시험용 — `SLASHCOMMAND_SCREEN_LAG_MS` 로 Orca 세션에서도 Ghostty 용 경로를 태워 볼 수 있다.
 public final class LaggingIO: TerminalIO {
     let base: TerminalIO
     let lagMs: Int
