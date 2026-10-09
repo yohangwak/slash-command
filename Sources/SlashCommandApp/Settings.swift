@@ -1,5 +1,5 @@
 import AppKit
-import ModelSwitchCore
+import SlashCommandCore
 import SwiftUI
 
 /// 편집 화면용 프리셋 한 줄. 에이전트별 설정을 켜고 끌 수 있게 옵셔널을 풀어 둔다.
@@ -63,7 +63,7 @@ final class SettingsModel: ObservableObject {
     @Published var keepDefaults = true
     @Published var acceptSwitchPrompt = true
     @Published var effortKeys = true
-    @Published var modifiers: Set<String> = Set(ModelSwitchConfig.defaultModifiers)
+    @Published var modifiers: Set<String> = Set(SlashCommandConfig.defaultModifiers)
     @Published var status = ""
 
     let store: ConfigStore
@@ -90,7 +90,7 @@ final class SettingsModel: ObservableObject {
     }
 
     var symbols: String {
-        ModelSwitchConfig(modifiers: ModelSwitchConfig.knownModifiers.filter(modifiers.contains), slots: []).modifierSymbols
+        SlashCommandConfig(modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains), slots: []).modifierSymbols
     }
 
     func reload() {
@@ -108,7 +108,7 @@ final class SettingsModel: ObservableObject {
     }
 
     func add() {
-        guard slots.count < ModelSwitchConfig.maxSlots else { return }
+        guard slots.count < SlashCommandConfig.maxSlots else { return }
         var slot = EditableSlot(Slot(claude: AgentPreset(model: "opus", effort: "high")))
         slot.codexModel = codexModels.first ?? ""
         slot.grokModel = grokModels.first ?? ""
@@ -132,10 +132,10 @@ final class SettingsModel: ObservableObject {
             return
         }
         do {
-            try store.save(ModelSwitchConfig(keepDefaults: keepDefaults,
+            try store.save(SlashCommandConfig(keepDefaults: keepDefaults,
                                       acceptSwitchPrompt: acceptSwitchPrompt,
                                       effortKeys: effortKeys,
-                                      modifiers: ModelSwitchConfig.knownModifiers.filter(modifiers.contains),
+                                      modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains),
                                       slots: slots.map(\.slot)))
             status = "저장했습니다."
             onSaved()
@@ -171,7 +171,7 @@ struct SettingsView: View {
 
             HStack {
                 Button("프리셋 추가") { model.add() }
-                    .disabled(model.slots.count >= ModelSwitchConfig.maxSlots)
+                    .disabled(model.slots.count >= SlashCommandConfig.maxSlots)
                 Spacer()
             }
 
@@ -290,7 +290,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     func present() {
         if window == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, permissions: permissions)))
-            window.title = "ModelSwitch"
+            window.title = "Slash Command"
             window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
             window.delegate = self

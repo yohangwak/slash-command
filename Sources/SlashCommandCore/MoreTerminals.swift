@@ -18,7 +18,7 @@ public struct TmuxIO: TerminalIO {
         let hex = Array(bytes.utf8).map { String(format: "%02x", $0) }
         let result = run(["send-keys", "-t", pane, "-H"] + hex)
         guard result.ok else {
-            throw ModelSwitchError("tmux 에 입력하지 못했습니다: \(result.err.trimmingCharacters(in: .whitespacesAndNewlines))")
+            throw SlashCommandError("tmux 에 입력하지 못했습니다: \(result.err.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
     }
 
@@ -50,10 +50,10 @@ public struct KittyIO: TerminalIO {
     }
 
     private func write(_ bytes: String) throws {
-        guard exists else { throw ModelSwitchError("kitty 창 \(window) 을(를) 찾지 못했습니다.") }
+        guard exists else { throw SlashCommandError("kitty 창 \(window) 을(를) 찾지 못했습니다.") }
         let result = run(["send-text", "--match", "id:\(window)", "--", bytes])
         guard result.ok else {
-            throw ModelSwitchError("kitty 에 입력하지 못했습니다: \(result.err.trimmingCharacters(in: .whitespacesAndNewlines))")
+            throw SlashCommandError("kitty 에 입력하지 못했습니다: \(result.err.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
     }
 
@@ -80,7 +80,7 @@ public struct WezTermIO: TerminalIO {
     private func write(_ bytes: String) throws {
         let result = run(["send-text", "--pane-id", pane, "--no-paste", "--", bytes])
         guard result.ok else {
-            throw ModelSwitchError("WezTerm 에 입력하지 못했습니다: \(result.err.trimmingCharacters(in: .whitespacesAndNewlines).suffix(120))")
+            throw SlashCommandError("WezTerm 에 입력하지 못했습니다: \(result.err.trimmingCharacters(in: .whitespacesAndNewlines).suffix(120))")
         }
     }
 

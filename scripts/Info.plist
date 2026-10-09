@@ -3,15 +3,15 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.yohangwak.modelswitch</string>
+    <string>com.yohangwak.slashcommand</string>
     <key>CFBundleName</key>
-    <string>ModelSwitch</string>
+    <string>Slash Command</string>
     <key>CFBundleDisplayName</key>
-    <string>ModelSwitch</string>
+    <string>Slash Command</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleExecutable</key>
-    <string>ModelSwitch</string>
+    <string>SlashCommand</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

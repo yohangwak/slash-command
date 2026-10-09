@@ -30,7 +30,7 @@ public enum Proc {
         var outData = Data()
         var errData = Data()
         let group = DispatchGroup()
-        let queue = DispatchQueue(label: "modelswitch.proc", attributes: .concurrent)
+        let queue = DispatchQueue(label: "slashcommand.proc", attributes: .concurrent)
 
         do {
             try process.run()

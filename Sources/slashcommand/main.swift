@@ -1,18 +1,18 @@
 import Foundation
-import ModelSwitchCore
+import SlashCommandCore
 
 let usage = """
-modelswitch — 맨 앞 터미널의 claude·codex·grok 모델과 effort 를 프리셋으로 바꾼다
+slashcommand — 맨 앞 터미널의 claude·codex·grok 모델과 effort 를 프리셋으로 바꾼다
 
-  modelswitch apply <번호> [대상] [--trace]   프리셋 적용(--trace: 단계별 시간)
-  modelswitch effort <up|down> [대상] [--trace]   모델은 그대로, effort 만 한 단계
-  modelswitch run <번호> <claude|codex> [--dry-run] [인자…]   그 프리셋으로 새 세션을 이 터미널에서 연다
-  modelswitch where                   지금 맨 앞 터미널과 에이전트
-  modelswitch probe-orca [--seconds N]  Orca 의 «지금 보이는 터미널» 신호들이 바뀐 시각을 같은 시계로 기록(시험용, 아무것도 보내지 않음)
-  modelswitch doctor [대상] [--screen [--lines N]] [--dump 파일.json]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
-  modelswitch list                    프리셋 목록
-  modelswitch plan <번호> <claude|codex>   보낼 키 순서만 출력(실행하지 않음)
-  modelswitch path                    프리셋 파일 위치
+  slashcommand apply <번호> [대상] [--trace]   프리셋 적용(--trace: 단계별 시간)
+  slashcommand effort <up|down> [대상] [--trace]   모델은 그대로, effort 만 한 단계
+  slashcommand run <번호> <claude|codex> [--dry-run] [인자…]   그 프리셋으로 새 세션을 이 터미널에서 연다
+  slashcommand where                   지금 맨 앞 터미널과 에이전트
+  slashcommand probe-orca [--seconds N]  Orca 의 «지금 보이는 터미널» 신호들이 바뀐 시각을 같은 시계로 기록(시험용, 아무것도 보내지 않음)
+  slashcommand doctor [대상] [--screen [--lines N]] [--dump 파일.json]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
+  slashcommand list                    프리셋 목록
+  slashcommand plan <번호> <claude|codex>   보낼 키 순서만 출력(실행하지 않음)
+  slashcommand path                    프리셋 파일 위치
 
 대상(생략하면 맨 앞 앱의 맨 앞 터미널):
   --orca <핸들> [--agent <claude|codex>]
@@ -24,7 +24,7 @@ modelswitch — 맨 앞 터미널의 claude·codex·grok 모델과 effort 를 �
 """
 
 func fail(_ message: String) -> Never {
-    FileHandle.standardError.write(Data("modelswitch: \(message)\n".utf8))
+    FileHandle.standardError.write(Data("slashcommand: \(message)\n".utf8))
     exit(1)
 }
 
@@ -45,13 +45,13 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     ]
     for (flag, make) in more {
         guard let id = value(after: flag, in: args) else { continue }
-        guard let host = make(id) else { throw ModelSwitchError("--kitty 에는 --kitty-socket unix:/경로 가 필요합니다.") }
-        guard let named else { throw ModelSwitchError("\(flag) 에는 --agent claude|codex 를 붙여 주세요.") }
+        guard let host = make(id) else { throw SlashCommandError("--kitty 에는 --kitty-socket unix:/경로 가 필요합니다.") }
+        guard let named else { throw SlashCommandError("\(flag) 에는 --agent claude|codex 를 붙여 주세요.") }
         return Target(host: host, agent: named, label: id)
     }
     guard orca != nil || ghostty != nil else { return nil }
     guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
-        throw ModelSwitchError("대상의 에이전트를 알 수 없습니다. --agent claude|codex 를 붙여 주세요.")
+        throw SlashCommandError("대상의 에이전트를 알 수 없습니다. --agent claude|codex 를 붙여 주세요.")
     }
     if let orca { return Target(host: .orca(handle: orca), agent: agent, label: orca) }
     return Target(host: .ghostty(terminalID: ghostty!), agent: agent, label: ghostty!)
@@ -103,7 +103,7 @@ do {
         if trace != nil { result.confirmations.forEach { print("확인 문구: \($0)") } }
         if let warning = result.warning { print("⚠️ \(warning)") }
     case "effort":
-        guard args.count >= 2, ["up", "down"].contains(args[1]) else { fail("modelswitch effort <up|down> [대상]") }
+        guard args.count >= 2, ["up", "down"].contains(args[1]) else { fail("slashcommand effort <up|down> [대상]") }
         var switcher = Switcher(config: try store.load())
         let trace = args.contains("--trace") ? Trace() : nil
         switcher.trace = trace
@@ -118,7 +118,7 @@ do {
         print("→ \(result.summary)")
     case "run":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
-            fail("modelswitch run <번호> <claude|codex> [인자…]")
+            fail("slashcommand run <번호> <claude|codex> [인자…]")
         }
         if let reason = Launch.unsupportedReason(agent: agent) { fail(reason) }
         let planned = try Switcher(config: try store.load(), codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
@@ -174,7 +174,7 @@ do {
         }
     case "plan":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
-            fail("modelswitch plan <번호> <claude|codex>")
+            fail("slashcommand plan <번호> <claude|codex>")
         }
         let planned = try Switcher(config: try store.load()).plan(slot: slot, agent: agent)
         print("\(agent.rawValue) \(planned.preset.model) · \(planned.preset.effort)")

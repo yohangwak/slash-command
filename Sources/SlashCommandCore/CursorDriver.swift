@@ -216,7 +216,7 @@ public struct CursorDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw ModelSwitchError("cursor 터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError("cursor 터미널 화면을 읽지 못해 중단했습니다.") }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -277,10 +277,10 @@ public struct CursorDriver {
     private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
-        func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
+        func fail(_ message: String, leftover: String? = nil) -> SlashCommandError {
             back(toIdleClearing: leftover)
             if let before { sleep(250); _ = defaults.restore(to: before) }
-            return ModelSwitchError(message)
+            return SlashCommandError(message)
         }
 
         // 걸러내기는 화면에 보이는 글의 «부분 문자열» 일치다(실측: `claude opus 5.5` 는 되고 `claude opus 5 5` 는 안 된다).
@@ -313,10 +313,10 @@ public struct CursorDriver {
     private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
-        func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
+        func fail(_ message: String, leftover: String? = nil) -> SlashCommandError {
             back(toIdleClearing: leftover)
             if let before { sleep(250); _ = defaults.restore(to: before) }
-            return ModelSwitchError(message)
+            return SlashCommandError(message)
         }
         let rows = try openList(filters: [], wanted: nil, failure: fail)
         guard let current = rows.first(where: \.cursor) else { throw fail("cursor 목록의 커서를 읽지 못했습니다.") }
@@ -340,17 +340,17 @@ public struct CursorDriver {
     // MARK: 단계
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw ModelSwitchError("cursor 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError("cursor 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
         guard CursorScreen.idle(first.lines) else {
             if let draft = CursorScreen.draft(first.lines), !draft.isEmpty {
-                throw ModelSwitchError("cursor 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+                throw SlashCommandError("cursor 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
             }
-            throw ModelSwitchError("cursor 입력창이 보이지 않아 전환하지 않았습니다. 선택창이나 확인 창이 떠 있거나 작업 중이면 먼저 처리해 주세요.")
+            throw SlashCommandError("cursor 입력창이 보이지 않아 전환하지 않았습니다. 선택창이나 확인 창이 떠 있거나 작업 중이면 먼저 처리해 주세요.")
         }
     }
 
     /// `/model` 목록을 연다. `filters` 가 있으면 차례로 쳐서 `wanted` 와 이름이 같은 행이 보이는 첫 것을 쓴다(없으면 마지막 결과).
-    private func openList(filters: [String], wanted: String?, failure: (String, String?) -> ModelSwitchError) throws -> [CursorScreen.Row] {
+    private func openList(filters: [String], wanted: String?, failure: (String, String?) -> SlashCommandError) throws -> [CursorScreen.Row] {
         try io.type("/model")
         guard (try poll(timeoutMs: 1500) { CursorScreen.draft($0) == "/model" }) != nil else {
             throw failure("cursor 입력창에 명령이 나타나지 않아 보내지 않았습니다.", "/model")
@@ -383,7 +383,7 @@ public struct CursorDriver {
     }
 
     /// 커서를 이름이 `name` 인 행으로 옮긴다. 옮긴 뒤 다시 읽어 확인한다.
-    private func moveCursor(to name: String, failure: (String, String?) -> ModelSwitchError) throws {
+    private func moveCursor(to name: String, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<12 {
             guard let list = CursorScreen.list(io.freshSnapshot()?.lines ?? []) else { throw failure("cursor 모델 목록이 닫혔습니다.", nil) }
             guard let from = list.rows.firstIndex(where: \.cursor), let to = list.rows.firstIndex(where: { $0.name == name }) else {
@@ -397,7 +397,7 @@ public struct CursorDriver {
     }
 
     /// 매개변수 편집에서 effort 를 맞추고 목록으로 돌아온다. 고른 라벨을 돌려주고, Effort 묶음이 없는 모델이면 nil.
-    private func setEffort(_ effort: String, for name: String, failure: (String, String?) -> ModelSwitchError) throws -> String? {
+    private func setEffort(_ effort: String, for name: String, failure: (String, String?) -> SlashCommandError) throws -> String? {
         try io.press(.tab)
         guard let lines = try poll(timeoutMs: 2000, { CursorScreen.editor($0)?.title.lowercased() == name.lowercased() }),
               let options = CursorScreen.editor(lines)?.options else {
@@ -424,7 +424,7 @@ public struct CursorDriver {
     }
 
     /// 편집 화면에서 `section` 의 `optionLabel` 줄에 커서를 두고 Enter 로 고른 뒤 ✓ 를 확인한다.
-    private func pick(optionLabel: String, section: String, failure: (String, String?) -> ModelSwitchError) throws {
+    private func pick(optionLabel: String, section: String, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<14 {
             guard let options = CursorScreen.editor(io.freshSnapshot()?.lines ?? [])?.options else {
                 throw failure("cursor 매개변수 편집 화면이 닫혔습니다.", nil)
@@ -445,7 +445,7 @@ public struct CursorDriver {
     }
 
     /// `effortLabel` 이 nil 이면 effort 가 없는 모델이다 — 모델 이름만 확인한다.
-    private func confirm(name: String, effortLabel: String?, before: DefaultsSnapshot?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
+    private func confirm(name: String, effortLabel: String?, before: DefaultsSnapshot?, failure: (String, String?) -> SlashCommandError) throws -> Outcome {
         // 목록(편집에서 돌아온 경우 포함)에서 커서가 그 모델 행에 있을 때만 Enter 로 확정한다.
         if CursorScreen.editor(io.freshSnapshot()?.lines ?? []) != nil {
             try io.press(.escape)

@@ -278,7 +278,7 @@ public struct GrokDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw ModelSwitchError("grok 터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError("grok 터미널 화면을 읽지 못해 중단했습니다.") }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -322,28 +322,28 @@ public struct GrokDriver {
 
     /// 입력 상자가 비어 있는 대기 상태에서만 시작한다. 실패하면 우리가 쓴 글만 지우고 멈춘다.
     private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
-        guard let first = io.freshSnapshot() else { throw ModelSwitchError("grok 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError("grok 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
         guard GrokScreen.box(first.lines) != nil else {
-            throw ModelSwitchError("grok 입력창이 보이지 않아 전환하지 않았습니다. 선택창이나 확인 창이 떠 있으면 먼저 처리해 주세요.")
+            throw SlashCommandError("grok 입력창이 보이지 않아 전환하지 않았습니다. 선택창이나 확인 창이 떠 있으면 먼저 처리해 주세요.")
         }
         if let draft = GrokScreen.draft(first.lines), !draft.isEmpty {
-            throw ModelSwitchError("grok 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+            throw SlashCommandError("grok 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
         }
         guard GrokScreen.idle(first.lines) else {
-            throw ModelSwitchError("grok 가 작업 중이거나 선택창·명령 목록이 떠 있어 전환하지 않았습니다.")
+            throw SlashCommandError("grok 가 작업 중이거나 선택창·명령 목록이 떠 있어 전환하지 않았습니다.")
         }
 
         // 프리셋의 모델을 목록에서 찾는다. 목록이 없으면(캐시 없음) 쓴 그대로 보낸다.
         let known = models.resolve(preset.model)
         if !models.models.isEmpty, known == nil {
-            throw ModelSwitchError("grok 모델 목록에 '\(preset.model)' 이 없습니다.")
+            throw SlashCommandError("grok 모델 목록에 '\(preset.model)' 이 없습니다.")
         }
         let id = known?.id ?? preset.model
         var effort: String? = preset.effort
         if let known {
             if known.efforts.isEmpty { effort = nil }
             else if !known.efforts.contains(preset.effort) {
-                throw ModelSwitchError("grok \(known.name) 은 effort '\(preset.effort)' 를 지원하지 않습니다(\(known.efforts.joined(separator: ", "))).")
+                throw SlashCommandError("grok \(known.name) 은 effort '\(preset.effort)' 를 지원하지 않습니다(\(known.efforts.joined(separator: ", "))).")
             }
         }
         let command = "/model \(id)" + (effort.map { " \($0)" } ?? "")
@@ -354,21 +354,21 @@ public struct GrokDriver {
     /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다. 지금 값은 입력 상자 테두리의 이름표로 안다.
     private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         guard let first = io.freshSnapshot(), let box = GrokScreen.box(first.lines) else {
-            throw ModelSwitchError("grok 입력창이 보이지 않아 바꾸지 않았습니다.")
+            throw SlashCommandError("grok 입력창이 보이지 않아 바꾸지 않았습니다.")
         }
         if let draft = GrokScreen.draft(first.lines), !draft.isEmpty {
-            throw ModelSwitchError("grok 입력창에 쓰던 글이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+            throw SlashCommandError("grok 입력창에 쓰던 글이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
         }
         guard GrokScreen.idle(first.lines), let label = box.label else {
-            throw ModelSwitchError("grok 가 작업 중이거나 선택창·명령 목록이 떠 있어 바꾸지 않았습니다.")
+            throw SlashCommandError("grok 가 작업 중이거나 선택창·명령 목록이 떠 있어 바꾸지 않았습니다.")
         }
         let (name, current) = GrokScreen.parse(label: label)
         guard let model = models.model(named: name), !model.efforts.isEmpty, let current, let at = model.efforts.firstIndex(of: current) else {
-            throw ModelSwitchError("지금 grok 모델(\(label))의 effort 단계를 알 수 없어 바꾸지 않았습니다.")
+            throw SlashCommandError("지금 grok 모델(\(label))의 effort 단계를 알 수 없어 바꾸지 않았습니다.")
         }
         let next = at + (up ? 1 : -1)
         guard model.efforts.indices.contains(next) else {
-            var error = ModelSwitchError("이미 \(up ? "가장 높은" : "가장 낮은") 단계(\(current))입니다.")
+            var error = SlashCommandError("이미 \(up ? "가장 높은" : "가장 낮은") 단계(\(current))입니다.")
             error.nothingToDo = true
             throw error
         }
@@ -377,7 +377,7 @@ public struct GrokDriver {
 
     private func run(command: String, expectedLabel: String?, effort: String?, first: [String]) throws -> Outcome {
         let before = keepDefaults ? defaults.snapshot() : nil
-        func finish(_ error: ModelSwitchError) -> ModelSwitchError {
+        func finish(_ error: SlashCommandError) -> SlashCommandError {
             if let before { sleep(250); _ = defaults.restore(to: before) }
             return error
         }
@@ -386,7 +386,7 @@ public struct GrokDriver {
         // 쓴 글이 입력 상자에 «보임»을 확인한 뒤에만 Enter 를 보낸다.
         guard (try poll(timeoutMs: 1500) { GrokScreen.draft($0) == command }) != nil else {
             clear(command)
-            throw finish(ModelSwitchError("grok 입력창에 명령이 나타나지 않아 보내지 않았습니다."))
+            throw finish(SlashCommandError("grok 입력창에 명령이 나타나지 않아 보내지 않았습니다."))
         }
         try io.press(.enter)
 
@@ -407,11 +407,11 @@ public struct GrokDriver {
         }
         if let failure {
             clear(command)
-            throw finish(ModelSwitchError("grok 가 '\(command)' 를 받아들이지 않았습니다: \(failure)"))
+            throw finish(SlashCommandError("grok 가 '\(command)' 를 받아들이지 않았습니다: \(failure)"))
         }
         guard let landed, let label = GrokScreen.box(landed)?.label else {
             clear(command)
-            throw finish(ModelSwitchError("grok 가 '\(command)' 에 응답하지 않아 멈췄습니다."))
+            throw finish(SlashCommandError("grok 가 '\(command)' 에 응답하지 않아 멈췄습니다."))
         }
 
         var warning: String?

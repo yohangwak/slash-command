@@ -1,9 +1,11 @@
-# ModelSwitch
+# Slash Command
 
 Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 어느 에이전트인지에 맞춰
 그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱. 지원하는 에이전트: **claude · codex · grok · cursor-agent · antigravity(agy) · opencode**. **⇧⌥=** · **⇧⌥-** 는 모델은 그대로 두고 effort 만 한 단계 올리고 내린다.
 
 `/model`·`/effort` 를 매번 치는 대신 단축키 한 번. 대화 도중에도 되고, 쓰던 글은 그대로 남고, 새 세션 기본값은 바뀌지 않는다.
+
+지금 하는 일은 모델·effort 전환 하나다. 이름이 Slash Command 인 것은 에이전트의 슬래시 명령을 단축키로 보내는 앱으로 넓혀 갈 자리를 둔 것이다(2026-10-10 개명 — 그 전 이름은 ModelSwitch, 그 전은 Gear).
 
 ## 쓰기
 
@@ -11,10 +13,10 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 |---|---|
 | 전환 | Ghostty·Orca 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
-| 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋·권한…」 (파일은 `~/.config/modelswitch/presets.json`) |
-| 새 세션 | `modelswitch run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). claude·codex·grok 만 — cursor·agy·opencode 는 `--model` 이 받는 id 가 화면 이름과 달라 지원하지 않는다 |
-| 터미널에서 | `modelswitch list` · `where` · `doctor --screen`(대상·에이전트 판·화면 읽기·입력창 점검, 아무것도 보내지 않음) · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
-| 기록 | `~/Library/Logs/ModelSwitch/modelswitch.log` (누른 것, 결과, 단계별 걸린 시간) |
+| 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋·권한…」 (파일은 `~/.config/slashcommand/presets.json`) |
+| 새 세션 | `slashcommand run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). claude·codex·grok 만 — cursor·agy·opencode 는 `--model` 이 받는 id 가 화면 이름과 달라 지원하지 않는다 |
+| 터미널에서 | `slashcommand list` · `where` · `doctor --screen`(대상·에이전트 판·화면 읽기·입력창 점검, 아무것도 보내지 않음) · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
+| 기록 | `~/Library/Logs/SlashCommand/slashcommand.log` (누른 것, 결과, 단계별 걸린 시간) |
 
 번호는 「의도」다 — 같은 번호가 claude 에서는 claude 모델, codex 에서는 codex 모델로 간다.
 한쪽 설정이 없는 번호는 그 에이전트에서 아무것도 하지 않는다.
@@ -55,7 +57,7 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 | opencode | `/models` 대화상자에서 «이름 + 제공자» 로 걸러 고르고 `/variants` 로 variant 를 맞춤 | `model.json` 의 `recent`·`variant` 를 저장함 → 되돌림 | 약 0.4~0.7초 |
 
 - claude·codex 외의 네 에이전트에는 「이 세션만」 확정이 없어서 새 세션 기본값까지 저장된다(2026-10-07 실측). 그래서 «전환 뒤 그 키들만 전환 전 값으로 되돌린다» — 다른 키나 다른 세션이 쓴 값은 건드리지 않고, 되돌려도 돌고 있는 세션은 모델을 유지한다(cursor 로 확인). `keepDefaults` 를 끄면 되돌리지 않는다.
-- 전환 전에 기본값 파일이 «없었으면»(그 에이전트를 처음 쓰는 경우) 전환 뒤 그 키들을 다시 없앤다. 파일이 있는데 «읽지 못하면» 되돌릴 값을 모르므로 아무것도 보내지 않고 멈춘다. opencode 의 파일 위치는 ModelSwitch 가 아니라 «그 세션의» `XDG_STATE_HOME` 을 따른다(세션마다 다르고 어느 쪽인지 좁힐 수 없으면 멈춘다).
+- 전환 전에 기본값 파일이 «없었으면»(그 에이전트를 처음 쓰는 경우) 전환 뒤 그 키들을 다시 없앤다. 파일이 있는데 «읽지 못하면» 되돌릴 값을 모르므로 아무것도 보내지 않고 멈춘다. opencode 의 파일 위치는 Slash Command 가 아니라 «그 세션의» `XDG_STATE_HOME` 을 따른다(세션마다 다르고 어느 쪽인지 좁힐 수 없으면 멈춘다).
 - 모두 «입력창이 비어 있고 작업 중이 아닐 때만» 보낸다. 작업 중 표시: grok 안내 줄의 `Ctrl+c:cancel`, cursor 입력줄 위의 스피너, agy 안내 줄의 `esc to cancel`, opencode 상자 아래의 `esc interrupt`. 쓰던 글이 있으면 보내지 않는다.
 - 명령을 친 뒤 «그 글이 입력창에 보이는지» 확인하고서야 Enter 를 보낸다. opencode 는 긴 답변이 끝난 뒤 입력창이 글자를 받지 않는 상태가 있는데(Ctrl+P → Esc 로 풀린다), 이때도 글이 안 보이면 아무것도 보내지 않고 멈춘다.
 - 시험한 판: grok 1.0.46 · cursor-agent 2026.10.01 · agy 1.3.1 · opencode 1.18.35. 다른 판이면 `doctor` 가 알려 준다.
@@ -63,16 +65,18 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 ## 설치
 
 ```sh
-./scripts/build-app.sh --install   # ~/Applications/ModelSwitch.app 에 설치하고 실행, ~/.local/bin/modelswitch 링크
-~/Applications/ModelSwitch.app/Contents/MacOS/ModelSwitch --login-item on   # 로그인할 때 실행(메뉴에서도 켠다)
+./scripts/build-app.sh --install   # ~/Applications/Slash Command.app 에 설치하고 실행, ~/.local/bin/slashcommand 링크
+~/Applications/Slash\ Command.app/Contents/MacOS/SlashCommand --login-item on   # 로그인할 때 실행(메뉴에서도 켠다)
 ```
+
+ModelSwitch 로 깔려 있던 맥에서는 `--install` 이 옛 앱(`~/Applications/ModelSwitch.app`)의 로그인 항목을 끄고 앱과 `modelswitch` 링크를 지운 뒤 새로 깐다(옛 로그인 항목이 켜져 있지 않았으면 해제를 확인할 수 없다고 알린다 — 승인 대기로 남은 항목은 시스템 설정의 로그인 항목에서 지운다). 프리셋은 새 앱이 처음 뜰 때 `~/.config/modelswitch/presets.json` 에서 복사해 온다(옛 파일은 남는다). 번들 id 가 바뀌었으므로(`com.yohangwak.slashcommand`) 아래 권한은 새 앱에서 다시 허용해야 한다.
 
 처음 한 번 허용할 것 — **앱이 그 설정 화면을 바로 열어 준다**(메뉴 막대 아이콘 → 「손쉬운 사용 켜기 — 설정 열기…」, 또는 「프리셋·권한…」 창 맨 위의 「권한」 상자의 버튼. 권한이 필요한 터미널에서 단축키를 눌러도 열린다):
 
-- **손쉬운 사용 / Accessibility**(ModelSwitch): Ghostty 화면 읽기에 꼭 필요하다. Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
-- **자동화 / Automation**(ModelSwitch → Ghostty): 터미널에 글자를 넣는 데 쓴다. 처음 단축키를 누를 때 시스템이 묻는다.
+- **손쉬운 사용 / Accessibility**(Slash Command): Ghostty 화면 읽기에 꼭 필요하다. Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
+- **자동화 / Automation**(Slash Command → Ghostty): 터미널에 글자를 넣는 데 쓴다. 처음 단축키를 누를 때 시스템이 묻는다.
 
-시스템 설정에는 «Accessibility» 가 두 곳이다 — 사이드바의 것은 장애 접근성 기능 화면이고, 필요한 것은 Privacy & Security 안의 앱 권한 목록이다. 그래서 말로 안내하지 않고 버튼으로 연다. 「권한」 상자는 상태(켜짐/꺼짐)를 1초마다 다시 읽어, 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다. `open -a ModelSwitch --args --settings` 로 그 창을 띄운 채 시작할 수 있다.
+시스템 설정에는 «Accessibility» 가 두 곳이다 — 사이드바의 것은 장애 접근성 기능 화면이고, 필요한 것은 Privacy & Security 안의 앱 권한 목록이다. 그래서 말로 안내하지 않고 버튼으로 연다. 「권한」 상자는 상태(켜짐/꺼짐)를 1초마다 다시 읽어, 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다. `open -a "Slash Command" --args --settings` 로 그 창을 띄운 채 시작할 수 있다.
 
 ## 어떻게 동작하나
 
@@ -115,7 +119,7 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 | Ghostty · codex | 미측정 | 3.0~4.6초 (단계마다 화면이 0.5초 늦게 따라온다) |
 
 줄인 것: 고정 대기(4.9초)를 화면 확인으로 교체 · `orca` 명령 실행(회당 0.2초)을 앱 소켓 직접 호출(1ms 안쪽)로 · `ps` 실행(0.2초)을 프로세스 안 조회로 · `osascript` 실행(0.2~0.3초)을 프로세스 안 AppleScript 로.
-`modelswitch apply <번호> --trace` 가 단계별 시간을 찍는다.
+`slashcommand apply <번호> --trace` 가 단계별 시간을 찍는다.
 
 ## 안전
 
@@ -140,20 +144,20 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - Orca 앱 소켓도 공개 인터페이스가 아니다(`orca` 명령이 쓰는 통로). 못 쓰면 `orca` 명령으로 되돌아간다(회당 0.2초).
 - Ghostty 의 codex 는 3~4.6초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다(다른 접근성 속성도 같은 보관본을 준다).
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
-- 단축키로 되는 터미널은 Ghostty 와 Orca 다. tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`modelswitch apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). iTerm2 는 맥북에서 전환까지 확인했지만(약 1초) 입력 방송(Broadcast Input)이 켜져 있으면 다른 칸에도 입력이 들어가는 문제를 구조적으로 막지 못해 아직 넣지 않았다(별도 작업). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
+- 단축키로 되는 터미널은 Ghostty 와 Orca 다. tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`slashcommand apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). iTerm2 는 맥북에서 전환까지 확인했지만(약 1초) 입력 방송(Broadcast Input)이 켜져 있으면 다른 칸에도 입력이 들어가는 문제를 구조적으로 막지 못해 아직 넣지 않았다(별도 작업). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
 - 새 에이전트들의 한계: cursor 의 매개변수 편집에서 Effort 말고 Context·Fast 는 건드리지 않는다 · cursor 는 목록이 10줄씩 보이므로 이름을 걸러서 찾는다(이름이 둘 이상 겹치면 정확히 같은 이름만 고른다) · agy 는 긴 출력 뒤에 입력창이 다시 그려지지 않을 때가 있어(Ctrl+L 로 풀린다) 그때는 «입력창이 보이지 않는다» 로 멈춘다 · opencode 의 목록 커서는 글자로 보이지 않아 «걸러낸 맨 위 행이 우리가 찾는 그 행일 때만» 고른다. 그래서 즐겨찾기한 비슷한 이름의 모델이 위에 오면(`GLM-5.3` 을 찾는데 `GLM-5.3-Flash` 가 맨 위) 고르지 않고 멈춘다(2026-10-08 실측).
 - 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
 
 ## 개발
 
 ```sh
-swift build && swift test                  # 핵심 로직은 ModelSwitchCore, 화면 표본은 Tests/…/Fixtures, 선택창 흉내는 테스트 안의 FakeClaude·FakePicker
-.build/debug/modelswitch plan 1 codex      # 보낼 단계만 출력
-.build/debug/modelswitch apply 2 --orca <핸들> --agent claude --trace   # 대상을 직접 지정(시험용)
-MODELSWITCH_SCREEN_LAG_MS=520 .build/debug/modelswitch apply 1 --orca <핸들> --agent claude   # Ghostty 용 경로를 Orca 세션에서
-MODELSWITCH_CONFIG=/path/presets.json …    # 다른 프리셋 파일
+swift build && swift test                  # 핵심 로직은 SlashCommandCore, 화면 표본은 Tests/…/Fixtures, 선택창 흉내는 테스트 안의 FakeClaude·FakePicker
+.build/debug/slashcommand plan 1 codex      # 보낼 단계만 출력
+.build/debug/slashcommand apply 2 --orca <핸들> --agent claude --trace   # 대상을 직접 지정(시험용)
+SLASHCOMMAND_SCREEN_LAG_MS=520 .build/debug/slashcommand apply 1 --orca <핸들> --agent claude   # Ghostty 용 경로를 Orca 세션에서
+SLASHCOMMAND_CONFIG=/path/presets.json …    # 다른 프리셋 파일
 ```
 
 시험할 때: 대상을 직접 지정한 시험은 감지 경로를 안 탄다(`where`·`doctor` 로 따로 본다) · 명령 방식 시험은 «지금 기본값과 같은 값»으로만 하고 끝나면 `shasum ~/.claude/settings.json` 을 처음과 대조한다 · 시험 세션에 글자를 보내기 전에 화면을 먼저 읽는다.
 
-구조: `ModelSwitchCore`(프리셋·감지·입력·화면 판정·단계 실행·기본값 복원) · `modelswitch`(명령줄) · `ModelSwitchApp`(메뉴 막대·단축키·알림·편집 화면).
+구조: `SlashCommandCore`(프리셋·감지·입력·화면 판정·단계 실행·기본값 복원) · `slashcommand`(명령줄) · `SlashCommandApp`(메뉴 막대·단축키·알림·편집 화면).

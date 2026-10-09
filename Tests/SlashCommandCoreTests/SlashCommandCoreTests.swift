@@ -1,5 +1,5 @@
 import XCTest
-@testable import ModelSwitchCore
+@testable import SlashCommandCore
 
 final class FakeIO: TerminalIO {
     var sent: [String] = []
@@ -108,7 +108,7 @@ final class CodexModelsTests: XCTestCase {
 
     func testDecodesCacheFile() throws {
         let json = #"{"models":[{"slug":"m","display_name":"M","visibility":"list","priority":1,"supported_reasoning_levels":[{"effort":"low","description":"x"},{"effort":"high"}]}]}"#
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-models-\(UUID().uuidString).json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-models-\(UUID().uuidString).json")
         try Data(json.utf8).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
         XCTAssertEqual(try CodexModels.load(from: url).listed.first?.efforts, ["low", "high"])
@@ -131,7 +131,7 @@ final class RunnerTests: XCTestCase {
         let io = FakeIO()
         io.screens = [["nothing"]]
         XCTAssertThrowsError(try run([.text("a"), .expect(needle: "Select Model", timeoutMs: 400, abort: [.key(.escape)], failure: "열리지 않음"), .text("b")], io: io)) {
-            XCTAssertEqual($0 as? ModelSwitchError, ModelSwitchError("열리지 않음"))
+            XCTAssertEqual($0 as? SlashCommandError, SlashCommandError("열리지 않음"))
         }
         XCTAssertEqual(io.sent, ["a", "\u{1B}"])
     }
@@ -241,7 +241,7 @@ final class RunnerTests: XCTestCase {
         XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }, initial: ScreenSnapshot(lines: old, draft: "")).run([
             .arm, .expectResult(prefix: "Set model to", timeoutMs: 200, failure: "응답 없음"),
         ])) {
-            XCTAssertEqual($0 as? ModelSwitchError, ModelSwitchError("응답 없음"))
+            XCTAssertEqual($0 as? SlashCommandError, SlashCommandError("응답 없음"))
         }
     }
 
@@ -599,7 +599,7 @@ final class ClaudeDefaultsTests: XCTestCase {
     }
 
     func testRestoreWritesFileAndKeepsPermissions() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-settings-\(UUID().uuidString).json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-settings-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try Data(original.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
@@ -619,7 +619,7 @@ final class ClaudeDefaultsTests: XCTestCase {
 final class ConfigTests: XCTestCase {
     func testDecodeAppliesDefaults() throws {
         let json = #"{"slots":[{"name":"a","claude":{"model":"opus","effort":"high"}}]}"#
-        let config = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(json.utf8))
+        let config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(json.utf8))
         XCTAssertTrue(config.keepDefaults)
         XCTAssertEqual(config.modifiers, ["option", "shift"])
         XCTAssertEqual(config.modifierSymbols, "⌥⇧")
@@ -628,14 +628,45 @@ final class ConfigTests: XCTestCase {
     }
 
     func testStoreCreatesStarterAndRoundTrips() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-\(UUID().uuidString)/presets.json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-\(UUID().uuidString)/presets.json")
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let store = ConfigStore(url: url)
         XCTAssertEqual(try store.load(), .starter)
-        var edited = ModelSwitchConfig.starter
+        var edited = SlashCommandConfig.starter
         edited.slots.removeLast()
         try store.save(edited)
         XCTAssertEqual(try store.load(), edited)
+    }
+
+    func testAdoptsNearestLegacyPresetsOnlyWhenMissing() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("new/presets.json")
+        let modelswitch = root.appendingPathComponent("modelswitch/presets.json")
+        let gear = root.appendingPathComponent("gear/presets.json")
+        var older = SlashCommandConfig.starter
+        older.slots.removeLast()
+        try ConfigStore(url: gear).save(older)
+
+        // 가까운 이름의 파일이 없으면 그다음 것을 가져온다.
+        try ConfigStore.adoptLegacy(into: url, from: [modelswitch, gear])
+        XCTAssertEqual(try ConfigStore(url: url).load(), older)
+
+        // 이미 있으면 덮어쓰지 않는다.
+        try ConfigStore(url: modelswitch).save(.starter)
+        try ConfigStore.adoptLegacy(into: url, from: [modelswitch, gear])
+        XCTAssertEqual(try ConfigStore(url: url).load(), older)
+
+        // 둘 다 있으면 가까운 이름이 이기고, 옛 파일은 남는다.
+        try FileManager.default.removeItem(at: url)
+        try ConfigStore.adoptLegacy(into: url, from: [modelswitch, gear])
+        XCTAssertEqual(try ConfigStore(url: url).load(), .starter)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: modelswitch.path))
+
+        // 옛 파일이 하나도 없으면 아무것도 만들지 않는다.
+        let untouched = root.appendingPathComponent("none/presets.json")
+        try ConfigStore.adoptLegacy(into: untouched, from: [root.appendingPathComponent("absent.json")])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: untouched.path))
     }
 
     func testSwitcherPlanErrors() throws {
@@ -923,18 +954,18 @@ final class FakeClaude: TerminalIO {
 final class SwitcherApplyTests: XCTestCase {
     let target = Target(host: .orca(handle: "term_x"), agent: .claude, label: "x")
 
-    func config(_ model: String, _ effort: String, keepDefaults: Bool = true, accept: Bool = false) -> ModelSwitchConfig {
-        ModelSwitchConfig(keepDefaults: keepDefaults, acceptSwitchPrompt: accept,
+    func config(_ model: String, _ effort: String, keepDefaults: Bool = true, accept: Bool = false) -> SlashCommandConfig {
+        SlashCommandConfig(keepDefaults: keepDefaults, acceptSwitchPrompt: accept,
                           slots: [Slot(claude: AgentPreset(model: model, effort: effort))])
     }
 
-    func switcher(_ config: ModelSwitchConfig, io: TerminalIO, settings: URL) -> Switcher {
+    func switcher(_ config: SlashCommandConfig, io: TerminalIO, settings: URL) -> Switcher {
         Switcher(config: config, claudeDefaults: ClaudeDefaults(url: settings),
                  codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { _ in })
     }
 
     func tempSettings(_ text: String = "{\n  \"model\": \"opus\"\n}") throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-apply-\(UUID().uuidString).json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-apply-\(UUID().uuidString).json")
         try Data(text.utf8).write(to: url)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
         return url
@@ -1002,7 +1033,7 @@ final class SwitcherApplyTests: XCTestCase {
         let claude = FakeClaude()
         claude.asksBeforeSwitching = true
         XCTAssertThrowsError(try switcher(config("sonnet", "high"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)) {
-            XCTAssertEqual(($0 as? ModelSwitchError)?.awaitingUser, true)
+            XCTAssertEqual(($0 as? SlashCommandError)?.awaitingUser, true)
             XCTAssertTrue("\($0)".contains("Sonnet 5.5"))
         }
         XCTAssertEqual(claude.stage, .confirm, "확인 창은 그대로 둔다")
@@ -1031,7 +1062,7 @@ final class SwitcherApplyTests: XCTestCase {
         var switcher = switcher(config("sonnet", "medium"), io: claude, settings: try tempSettings())
         switcher.onAwaitingUser = { _ in try? claude.type("2") }
         XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
-            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true, "\($0)")
+            XCTAssertEqual(($0 as? SlashCommandError)?.nothingToDo, true, "\($0)")
         }
         XCTAssertEqual(claude.model, "Opus 5.5")
         XCTAssertEqual(claude.stage, .prompt, "되돌아온 선택창은 닫아 준다")
@@ -1118,7 +1149,7 @@ final class EffortStepTests: XCTestCase {
     let target = Target(host: .orca(handle: "term_x"), agent: .claude, label: "x")
 
     func switcher(io: TerminalIO, keepDefaults: Bool = true, accept: Bool = false) -> Switcher {
-        Switcher(config: ModelSwitchConfig(keepDefaults: keepDefaults, acceptSwitchPrompt: accept, slots: []),
+        Switcher(config: SlashCommandConfig(keepDefaults: keepDefaults, acceptSwitchPrompt: accept, slots: []),
                  claudeDefaults: ClaudeDefaults(url: URL(fileURLWithPath: "/nonexistent/settings.json")),
                  codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { _ in })
     }
@@ -1154,7 +1185,7 @@ final class EffortStepTests: XCTestCase {
     func testClaudeEffortConfirmationIsAcceptedOnlyForTheLevelWeMovedTo() throws {
         let claude = FakeClaude()
         claude.asksBeforeEffortChange = true
-        let accepting = Switcher(config: ModelSwitchConfig(acceptSwitchPrompt: true, slots: []),
+        let accepting = Switcher(config: SlashCommandConfig(acceptSwitchPrompt: true, slots: []),
                                  claudeDefaults: ClaudeDefaults(url: URL(fileURLWithPath: "/nonexistent/settings.json")),
                                  codexModels: { CodexModels(models: []) }, makeIO: { _ in claude }, sleep: { _ in })
         _ = try accepting.stepEffort(up: false, on: target)
@@ -1168,7 +1199,7 @@ final class EffortStepTests: XCTestCase {
             let claude = FakeClaude()
             claude.effort = start
             XCTAssertThrowsError(try switcher(io: claude).stepEffort(up: up, on: target)) {
-                XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true, "\($0)")
+                XCTAssertEqual(($0 as? SlashCommandError)?.nothingToDo, true, "\($0)")
             }
             XCTAssertEqual(claude.effort, start, "끝에서 누르면 반대쪽 끝으로 돈다 — 누르지 않는다")
             XCTAssertNil(claude.confirmedBy)
@@ -1181,7 +1212,7 @@ final class EffortStepTests: XCTestCase {
         claude.efforts = ["low", "medium", "high"]   // 이 모델에는 xhigh·max 가 없다
         claude.effort = "high"
         XCTAssertThrowsError(try switcher(io: claude).stepEffort(up: true, on: target)) {
-            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true)
+            XCTAssertEqual(($0 as? SlashCommandError)?.nothingToDo, true)
         }
         XCTAssertEqual(claude.effort, "high")
         XCTAssertNil(claude.confirmedBy, "low 로 넘어간 것을 확정하면 안 된다")
@@ -1208,7 +1239,7 @@ final class EffortStepTests: XCTestCase {
         }
         XCTAssertEqual(seen, ["medium", "high", "extra high", "max", "ultra"])
         XCTAssertThrowsError(try switcher(io: picker).stepEffort(up: true, on: codex)) {
-            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true, "\($0)")
+            XCTAssertEqual(($0 as? SlashCommandError)?.nothingToDo, true, "\($0)")
         }
         XCTAssertEqual(picker.stage, .composer, "끝이면 선택창을 닫고 나온다")
         seen = []
@@ -1218,7 +1249,7 @@ final class EffortStepTests: XCTestCase {
         }
         XCTAssertEqual(seen, ["max", "extra high", "high", "medium", "low"])
         XCTAssertThrowsError(try switcher(io: picker).stepEffort(up: false, on: codex)) {
-            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true)
+            XCTAssertEqual(($0 as? SlashCommandError)?.nothingToDo, true)
         }
         XCTAssertEqual(picker.current, "low")
     }
@@ -1228,7 +1259,7 @@ final class EffortStepTests: XCTestCase {
         picker.advanced = []
         picker.current = "extra high"
         XCTAssertThrowsError(try switcher(io: picker).stepEffort(up: true, on: codex)) {
-            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true)
+            XCTAssertEqual(($0 as? SlashCommandError)?.nothingToDo, true)
         }
         XCTAssertNil(picker.confirmedBy)
     }
@@ -1250,14 +1281,14 @@ final class LaggingTerminalTests: XCTestCase {
         var clock = 0
         let io = LaggingIO(base: claude, lagMs: 500)
         io.now = { clock }
-        let config = ModelSwitchConfig(acceptSwitchPrompt: accept, slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))])
+        let config = SlashCommandConfig(acceptSwitchPrompt: accept, slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))])
         let switcher = Switcher(config: config, claudeDefaults: ClaudeDefaults(url: settings),
                                 codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { clock += $0 })
         return (switcher, io)
     }
 
     func tempSettings() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("modelswitch-lag-\(UUID().uuidString).json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-lag-\(UUID().uuidString).json")
         try Data("{\n  \"model\": \"opus\"\n}".utf8).write(to: url)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
         return url
@@ -1286,7 +1317,7 @@ final class LaggingTerminalTests: XCTestCase {
         var clock = 0
         let io = LaggingIO(base: claude, lagMs: 500)
         io.now = { clock }
-        let config = ModelSwitchConfig(slots: [Slot(claude: AgentPreset(model: "fable", effort: "max"))])
+        let config = SlashCommandConfig(slots: [Slot(claude: AgentPreset(model: "fable", effort: "max"))])
         let switcher = Switcher(config: config, claudeDefaults: ClaudeDefaults(url: settings),
                                 codexModels: { CodexModels(models: []) }, makeIO: { _ in io }, sleep: { clock += $0 })
         let result = try switcher.apply(slot: 1, to: target)
@@ -1331,7 +1362,7 @@ final class LaggingTerminalTests: XCTestCase {
         var (switcher, _) = setUp(claude, settings: settings)
         switcher.onAwaitingUser = { _ in try? claude.type("2") }
         XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
-            XCTAssertEqual(($0 as? ModelSwitchError)?.nothingToDo, true, "\($0)")
+            XCTAssertEqual(($0 as? SlashCommandError)?.nothingToDo, true, "\($0)")
         }
         XCTAssertEqual(claude.model, "Opus 5.5")
         XCTAssertEqual(claude.sent.filter { $0.contains("/effort") }, [], "모델을 안 바꿨는데 effort 만 바꾸지 않는다")
@@ -1348,7 +1379,7 @@ final class LaggingTerminalTests: XCTestCase {
         let io = LaggingIO(base: claude, lagMs: 500)
         io.now = { clock }
         var touches = 0
-        let config = ModelSwitchConfig(slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))])
+        let config = SlashCommandConfig(slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))])
         let switcher = Switcher(config: config, claudeDefaults: ClaudeDefaults(url: settings),
                                 codexModels: { CodexModels(models: []) }, makeIO: { _ in io },
                                 sleep: { ms in
@@ -1545,11 +1576,11 @@ final class LaunchTests: XCTestCase {
 
 final class SlotTests: XCTestCase {
     func testNameIsOptionalInTheFile() throws {
-        let config = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(#"{"slots":[{"claude":{"model":"opus","effort":"high"}},{"name":"밤샘","codex":{"model":"gpt-x","effort":"max"}}]}"#.utf8))
+        let config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(#"{"slots":[{"claude":{"model":"opus","effort":"high"}},{"name":"밤샘","codex":{"model":"gpt-x","effort":"max"}}]}"#.utf8))
         XCTAssertEqual(config.slots[0].name, "")
         XCTAssertTrue(config.effortKeys, "옛 파일에 없는 항목은 기본값")
         XCTAssertTrue(config.acceptSwitchPrompt, "확인 창은 기본으로 받아들인다(우리가 고른 값을 물을 때만)")
-        let off = try JSONDecoder().decode(ModelSwitchConfig.self, from: Data(#"{"acceptSwitchPrompt":false,"slots":[]}"#.utf8))
+        let off = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(#"{"acceptSwitchPrompt":false,"slots":[]}"#.utf8))
         XCTAssertFalse(off.acceptSwitchPrompt)
         XCTAssertEqual(config.slots[0].listing, "claude opus · high")
         XCTAssertEqual(config.slots[1].listing, "codex gpt-x · max   — 밤샘")
@@ -1924,10 +1955,10 @@ final class GrokDriverTests: XCTestCase {
     func testStepsEffortUpAndDownAndStopsAtTheEnds() throws {
         let io = FakeGrok(label: "Grok 4.7 (high)", configURL: url)
         XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using Grok 4.7 (xhigh)"])
-        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
         XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Using Grok 4.7 (high)"])
         io.label = "Grok 4.7 (low)"
-        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
         XCTAssertEqual(io.typed.count, 2, "끝 단계에서는 아무것도 보내지 않는다")
     }
 
@@ -2257,12 +2288,12 @@ final class CursorDriverTests: XCTestCase {
     func testStepsEffortAndStopsAtTheEnds() throws {
         let io = FakeCursor(configURL: url)
         XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using Grok 4.7 256K Extra High"])
-        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
         XCTAssertEqual(io.mode, .idle)
         XCTAssertFalse(io.models[1].fast, "끝 단계에서 Enter 가 Fast 로 가면 안 된다")
         for _ in 0..<3 { _ = try driver(io).stepEffort(up: false) }
         XCTAssertEqual(io.models[1].effort, "Low")
-        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
         XCTAssertFalse(io.models[1].fast)
     }
 
@@ -2510,12 +2541,12 @@ final class AntigravityDriverTests: XCTestCase {
     func testStepsEffortAndStopsAtTheEnds() throws {
         let io = FakeAgy(configURL: url)
         io.wraps = true
-        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
         XCTAssertFalse(io.picker, "끝 단계면 선택창을 닫고 아무것도 바꾸지 않는다")
         XCTAssertEqual(io.models[0].effort, 2)
         XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Model set to Gemini 3.8 Flash (Medium)"])
         XCTAssertEqual(try driver(io).stepEffort(up: false).confirmations, ["Model set to Gemini 3.8 Flash (Low)"])
-        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
     }
 
     func testSummaryAndSlotForAntigravity() throws {
@@ -2774,11 +2805,11 @@ final class OpenCodeDriverTests: XCTestCase {
     func testStepsVariantUpAndDownAndStopsAtTheEnds() throws {
         let io = FakeOpenCode(configURL: url)
         XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using GLM-5.3-Flash OpenCode Go · max"])
-        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
         XCTAssertEqual(io.mode, .idle)
         for _ in 0..<3 { _ = try driver(io).stepEffort(up: false) }
         XCTAssertNil(io.models[0].variant, "Default")
-        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true) }
+        XCTAssertThrowsError(try driver(io).stepEffort(up: false)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
     }
 
     func testSummaryAndDetection() {
@@ -2952,7 +2983,7 @@ final class OpenCodeRealStateTests: XCTestCase {
         let driver = OpenCodeDriver(io: io, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: false)
         XCTAssertEqual(try driver.stepEffort(up: true).confirmations, ["Using DeepSeek V4.1 Flash OpenCode Go · low"], "Default 다음 단계로")
         io.models[1].variant = nil
-        XCTAssertThrowsError(try driver.stepEffort(up: false)) { XCTAssertTrue(($0 as? ModelSwitchError)?.nothingToDo == true, "Default 가 가장 낮다") }
+        XCTAssertThrowsError(try driver.stepEffort(up: false)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true, "Default 가 가장 낮다") }
     }
 
     func testPriceColumnIsNotPartOfTheModelIdentity() throws {

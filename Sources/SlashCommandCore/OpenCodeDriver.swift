@@ -159,7 +159,7 @@ public struct OpenCodeDefaults: Sendable {
     }
 
     /// 돌고 있는 opencode 프로세스들이 쓰는 상태 폴더들(서로 다른 것만). `orcaHandle` 을 주면 그 Orca 터미널의 프로세스로 좁힌다.
-    /// ModelSwitch 자신의 환경이 아니라 «그 세션의» 환경을 본다 — 셸에서 XDG_STATE_HOME 을 바꿔 띄운 세션이면 기본값 파일도 거기 있다.
+    /// Slash Command 자신의 환경이 아니라 «그 세션의» 환경을 본다 — 셸에서 XDG_STATE_HOME 을 바꿔 띄운 세션이면 기본값 파일도 거기 있다.
     static func stateHomes(processes: [(arguments: [String], environment: [String])], orcaHandle: String?) -> [String] {
         var candidates = processes.filter { AgentProcesses.agent(forCommandLine: $0.arguments.joined(separator: " ")) == .opencode }
         if let orcaHandle {
@@ -182,16 +182,16 @@ public struct OpenCodeDefaults: Sendable {
                         environment: [String: String] = ProcessInfo.processInfo.environment) throws -> OpenCodeDefaults {
         // `orcaHandle` 을 줬는데 그 터미널의 opencode 프로세스가 없으면 다른 세션의 것으로 대신하지 않는다.
         if let orcaHandle, !processes.contains(where: { $0.environment.contains("ORCA_TERMINAL_HANDLE=\(orcaHandle)") && AgentProcesses.agent(forCommandLine: $0.arguments.joined(separator: " ")) == .opencode }) {
-            throw ModelSwitchError("이 Orca 터미널의 opencode 프로세스를 찾지 못해 어느 상태 폴더의 새 세션 기본값을 지켜야 할지 알 수 없어 전환하지 않았습니다.")
+            throw SlashCommandError("이 Orca 터미널의 opencode 프로세스를 찾지 못해 어느 상태 폴더의 새 세션 기본값을 지켜야 할지 알 수 없어 전환하지 않았습니다.")
         }
         let homes = stateHomes(processes: processes, orcaHandle: orcaHandle)
         switch homes.count {
         case 0:
             // 그 세션의 프로세스를 못 찾았다 — 우리 환경의 폴더가 그 세션의 폴더라는 근거가 없다. 엉뚱한 파일을 «지켰다» 고 하지 않고 멈춘다.
-            throw ModelSwitchError("opencode 세션의 프로세스를 찾지 못해 어느 상태 폴더의 새 세션 기본값을 지켜야 할지 알 수 없어 전환하지 않았습니다.")
+            throw SlashCommandError("opencode 세션의 프로세스를 찾지 못해 어느 상태 폴더의 새 세션 기본값을 지켜야 할지 알 수 없어 전환하지 않았습니다.")
         case 1: return OpenCodeDefaults(url: url(stateHome: homes[0], environment: environment))
         default:
-            throw ModelSwitchError("opencode 세션들이 서로 다른 상태 폴더(XDG_STATE_HOME)를 쓰고 있어 어느 쪽의 새 세션 기본값을 지켜야 할지 정할 수 없어 전환하지 않았습니다(\(homes.joined(separator: ", "))).")
+            throw SlashCommandError("opencode 세션들이 서로 다른 상태 폴더(XDG_STATE_HOME)를 쓰고 있어 어느 쪽의 새 세션 기본값을 지켜야 할지 정할 수 없어 전환하지 않았습니다(\(homes.joined(separator: ", "))).")
         }
     }
 
@@ -239,7 +239,7 @@ public struct OpenCodeDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw ModelSwitchError("opencode 터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError("opencode 터미널 화면을 읽지 못해 중단했습니다.") }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -286,10 +286,10 @@ public struct OpenCodeDriver {
     private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
-        func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
+        func fail(_ message: String, leftover: String? = nil) -> SlashCommandError {
             back(clearing: leftover)
             if let before { sleep(250); _ = defaults.restore(to: before) }
-            return ModelSwitchError(message)
+            return SlashCommandError(message)
         }
         let currentModel = OpenCodeScreen.status(io.freshSnapshot()?.lines ?? [])?.model
         if currentModel.map({ OpenCodeScreen.key($0) }) != OpenCodeScreen.key(preset.model) {
@@ -308,10 +308,10 @@ public struct OpenCodeDriver {
     private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
-        func fail(_ message: String, leftover: String? = nil) -> ModelSwitchError {
+        func fail(_ message: String, leftover: String? = nil) -> SlashCommandError {
             back(clearing: leftover)
             if let before { sleep(250); _ = defaults.restore(to: before) }
-            return ModelSwitchError(message)
+            return SlashCommandError(message)
         }
         // 지금 값: 대화상자의 `●` 가 있으면 그것. 저장해 둔 variant 가 없는 모델은 Default 로 돌면서도 아무 행에도 `●` 가 없다
         // (2026-10-08 실측: DeepSeek V4 Pro) — 그때는 입력 상자의 모델 줄이 근거다(variant 가 적혀 있으면 그 행, 없으면 Default 행).
@@ -335,16 +335,16 @@ public struct OpenCodeDriver {
     // MARK: 단계
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw ModelSwitchError("opencode 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError("opencode 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
         guard OpenCodeScreen.idle(first.lines) else {
             if let draft = OpenCodeScreen.draft(first.lines), !draft.isEmpty {
-                throw ModelSwitchError("opencode 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+                throw SlashCommandError("opencode 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
             }
-            throw ModelSwitchError("opencode 입력창이 보이지 않거나 작업 중이라 전환하지 않았습니다.")
+            throw SlashCommandError("opencode 입력창이 보이지 않거나 작업 중이라 전환하지 않았습니다.")
         }
     }
 
-    private func openDialog(command: String, title: String, failure: (String, String?) -> ModelSwitchError) throws {
+    private func openDialog(command: String, title: String, failure: (String, String?) -> SlashCommandError) throws {
         try io.type(command)
         guard (try poll(timeoutMs: 1500) { OpenCodeScreen.draft($0) == command }) != nil else {
             throw failure("opencode 입력창에 명령이 나타나지 않아 보내지 않았습니다.", command)
@@ -356,7 +356,7 @@ public struct OpenCodeDriver {
     }
 
     /// 열려 있는 대화상자에서 `text` 를 쳐 걸러 낸 뒤 맨 위 행이 그 글과 같을 때만 Enter 로 고른다(커서는 글자로 보이지 않는다).
-    private func chooseInOpenDialog(text: String, failure: (String, String?) -> ModelSwitchError) throws {
+    private func chooseInOpenDialog(text: String, failure: (String, String?) -> SlashCommandError) throws {
         try io.type(text)
         guard let lines = try poll(timeoutMs: 2000, { OpenCodeScreen.dialog($0)?.search.lowercased() == text.lowercased() }),
               let dialog = OpenCodeScreen.dialog(lines) else {
@@ -368,7 +368,7 @@ public struct OpenCodeDriver {
         try io.press(.enter)
     }
 
-    private func pickModel(_ model: String, failure: (String, String?) -> ModelSwitchError) throws {
+    private func pickModel(_ model: String, failure: (String, String?) -> SlashCommandError) throws {
         try openDialog(command: "/models", title: "Select model", failure: failure)
         try chooseInOpenDialog(text: model, failure: failure)
         // 기억해 둔 variant 가 없는 모델은 variant 대화상자가 이어서 뜬다 — 닫힐 때까지 기다린다(다음 단계가 처리한다).
@@ -380,7 +380,7 @@ public struct OpenCodeDriver {
         }
     }
 
-    private func pickVariant(_ variant: String, failure: (String, String?) -> ModelSwitchError) throws {
+    private func pickVariant(_ variant: String, failure: (String, String?) -> SlashCommandError) throws {
         let screen = io.freshSnapshot()?.lines ?? []
         // 모델을 고른 뒤 variant 대화상자가 자동으로 떠 있으면 그것을 쓰고, 아니면 이미 그 값인지 보고 필요할 때만 연다.
         if OpenCodeScreen.dialogTitle(screen) != "Select variant" {
@@ -395,7 +395,7 @@ public struct OpenCodeDriver {
         try chooseInOpenDialog(text: wanted.text, failure: failure)
     }
 
-    private func finish(before: DefaultsSnapshot?, failure: (String, String?) -> ModelSwitchError) throws -> Outcome {
+    private func finish(before: DefaultsSnapshot?, failure: (String, String?) -> SlashCommandError) throws -> Outcome {
         guard let lines = try poll(timeoutMs: 4000, { OpenCodeScreen.idle($0) }), let status = OpenCodeScreen.status(lines) else {
             throw failure("opencode 입력창이 돌아오지 않아 멈췄습니다.", nil)
         }

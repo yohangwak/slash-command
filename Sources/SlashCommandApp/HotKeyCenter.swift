@@ -17,7 +17,7 @@ final class HotKeyCenter {
     static let effortUp = 101
     static let effortDown = 102
 
-    private static let signature: OSType = 0x4D53_5754 // 'MSWT'
+    private static let signature: OSType = 0x534C_434D // 'SLCM'
     private static let keyCodes = [
         kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
         kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9,

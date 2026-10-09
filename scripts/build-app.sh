@@ -1,17 +1,17 @@
 #!/bin/sh
-# ModelSwitch.app 을 dist/ 에 만든다. `--install` 을 주면 ~/Applications 에 복사하고 다시 띄운다.
+# "Slash Command.app" 을 dist/ 에 만든다. `--install` 을 주면 ~/Applications 에 복사하고 다시 띄운다.
 set -eu
 cd "$(dirname "$0")/.."
 
 swift build -c release
 bin=$(swift build -c release --show-bin-path)
 
-app=dist/ModelSwitch.app
+app="dist/Slash Command.app"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
-cp "$bin/ModelSwitchApp" "$app/Contents/MacOS/ModelSwitch"
-# macOS 기본 파일 시스템은 대소문자를 구분하지 않아 `modelswitch` 로 두면 위의 `ModelSwitch` 를 덮어쓴다.
-cp "$bin/modelswitch" "$app/Contents/MacOS/modelswitch-cli"
+cp "$bin/SlashCommandApp" "$app/Contents/MacOS/SlashCommand"
+# macOS 기본 파일 시스템은 대소문자를 구분하지 않아 `slashcommand` 로 두면 위의 `SlashCommand` 를 덮어쓴다.
+cp "$bin/slashcommand" "$app/Contents/MacOS/slashcommand-cli"
 cp scripts/Info.plist "$app/Contents/Info.plist"
 # 아이콘은 scripts/make-icon.swift 로 다시 만든다.
 mkdir -p "$app/Contents/Resources"
@@ -24,15 +24,38 @@ codesign --force --sign "${identity:--}" "$app"
 echo "서명: ${identity:-임시(ad-hoc)}"
 
 if [ "${1:-}" = "--install" ]; then
-    dest="$HOME/Applications/ModelSwitch.app"
+    dest="$HOME/Applications/Slash Command.app"
     mkdir -p "$HOME/Applications"
-    osascript -e 'tell application id "com.yohangwak.modelswitch" to quit' >/dev/null 2>&1 || true
+    # 옛 이름(ModelSwitch)으로 깔린 것을 먼저 치운다 — 같이 떠 있으면 같은 단축키를 두고 다툰다.
+    # 프리셋(~/.config/modelswitch)은 새 앱이 처음 뜰 때 복사해 가므로 그대로 둔다.
+    old="$HOME/Applications/ModelSwitch.app"
+    if [ -d "$old" ]; then
+        # 옛 실행 파일의 `off` 는 «켜짐» 일 때만 해제하고, «승인 대기» 로 등록된 항목은 그대로 둔 채 `off` 라고 답한다.
+        # 그래서 켜져 있던 것을 끈 경우에만 해제했다고 말하고, 나머지는 확인하지 못했다고 알린다.
+        oldbin="$old/Contents/MacOS/ModelSwitch"
+        was=$("$oldbin" --login-item status 2>/dev/null || echo "알 수 없음")
+        if [ "$was" = on ]; then
+            if [ "$("$oldbin" --login-item off 2>/dev/null || true)" = off ]; then
+                echo "옛 로그인 항목 해제"
+            else
+                echo "옛 로그인 항목을 해제하지 못했습니다 — 시스템 설정 → 일반 → 로그인 항목에서 ModelSwitch 를 지워 주세요."
+            fi
+        else
+            echo "옛 로그인 항목: 켜져 있지 않음($was). 승인 대기로 남아 있었다면 시스템 설정 → 일반 → 로그인 항목에서 ModelSwitch 를 지워 주세요."
+        fi
+        osascript -e 'tell application id "com.yohangwak.modelswitch" to quit' >/dev/null 2>&1 || true
+        rm -rf "$old"
+        oldlink="$HOME/.local/bin/modelswitch"
+        if [ -L "$oldlink" ]; then rm -f "$oldlink"; fi
+        echo "옛 설치 정리: $old"
+    fi
+    osascript -e 'tell application id "com.yohangwak.slashcommand" to quit' >/dev/null 2>&1 || true
     rm -rf "$dest"
     cp -R "$app" "$dest"
-    # 터미널에서도 `modelswitch` 로 쓸 수 있게 링크를 건다(다른 파일이 이미 있으면 건드리지 않는다).
-    link="$HOME/.local/bin/modelswitch"
+    # 터미널에서도 `slashcommand` 로 쓸 수 있게 링크를 건다(다른 파일이 이미 있으면 건드리지 않는다).
+    link="$HOME/.local/bin/slashcommand"
     if [ -d "$HOME/.local/bin" ] && { [ -L "$link" ] || [ ! -e "$link" ]; }; then
-        ln -sf "$dest/Contents/MacOS/modelswitch-cli" "$link"
+        ln -sf "$dest/Contents/MacOS/slashcommand-cli" "$link"
     fi
     # 방금 끈 앱을 바로 다시 열면 가끔 실패한다(-600). 잠깐 두고 한 번 더 연다.
     open "$dest" 2>/dev/null || { sleep 2; open "$dest"; }
