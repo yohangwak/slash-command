@@ -38,7 +38,7 @@
 
 - **프리셋**(`~/.config/slashcommand/presets.json`): 각 맥의 옛 `~/.config/modelswitch/presets.json` 을 그대로 복사한 것이다(옛 파일과 옛 기록 `~/Library/Logs/ModelSwitch/` 는 남겨 뒀다 — 지워도 된다). 집 맥(Studio)은 집 맥 2 의 것을 가져왔다. 집 맥·집 맥 2 의 1~3번에는 grok·cursor·antigravity·opencode 설정이 들어 있다(2026-10-08 에 추가, 원래는 claude·codex 뿐 — 빼려면 그 키들만 지운다).
 - **깔린 앱**: 네 맥 모두 main(`14815d5`) 빌드. iTerm2 단축키는 없다.
-- **빌드·설치 방법(지금 환경)**: 서명 인증서와 Xcode 는 집 맥 2 에만 있다. 집 맥(Studio)은 Command Line Tools 뿐이라 `swift build` 는 되지만 `swift test` 는 `XCTest` 가 없어 실패하고, 서명은 임시(ad-hoc)가 된다(빌드마다 권한을 다시 묻는다). 그래서 테스트와 서명 빌드는 집 맥 2 의 임시 폴더에서 했다. **SSH 세션에서는 `codesign` 이 `errSecInternalComponent` 로 실패한다**(로그인 키체인이 잠겨 있다) — `scripts/build-app.sh` 를 로그인 세션의 일회성 launchd 작업(`launchctl bootstrap gui/<uid>`)으로 돌린 뒤 작업과 폴더를 지웠다. 다른 맥에는 `tar -C dist -cf - "Slash Command.app" | ssh <맥> 'tar -C ~/Applications -xf -'`(`scp -r` 은 조용히 실패한 적이 있다). 집 맥에 Xcode 와 인증서를 두면 이 우회가 필요 없다(요한님 손).
+- **빌드·설치 방법(지금 환경)**: 서명 인증서와 Xcode 는 집 맥 2 에 있다(사 맥·맥북은 확인하지 않았다). 집 맥(Studio)은 Command Line Tools 뿐이라 `swift build` 는 되지만 `swift test` 는 `XCTest` 가 없어 실패하고, 서명은 임시(ad-hoc)가 된다(빌드마다 권한을 다시 묻는다). 그래서 테스트와 서명 빌드는 집 맥 2 의 임시 폴더에서 했다. **SSH 세션에서는 `codesign` 이 `errSecInternalComponent` 로 실패한다**(로그인 키체인이 잠겨 있다) — `scripts/build-app.sh` 를 로그인 세션의 일회성 launchd 작업(`launchctl bootstrap gui/<uid>`)으로 돌린 뒤 작업과 폴더를 지웠다. 다른 맥에는 `tar -C dist -cf - "Slash Command.app" | ssh <맥> 'tar -C ~/Applications -xf -'`(`scp -r` 은 조용히 실패한 적이 있다). 집 맥에 Xcode 와 인증서를 두면 이 우회가 필요 없다(요한님 손).
 - **시험 터미널**(요한님이 연 것): cursor 세션이 Grok 4.7 **Medium** 으로 남았다(원래 High). 나머지는 원래 모델. 각 에이전트의 기본값 파일은 시험 전과 같다(해시 확인).
 - 맥북: Homebrew 로 깐 tmux·kitty·WezTerm·iTerm2 는 요한님 뜻대로 남겨 뒀다. iTerm2 에 방송(Broadcast Input)을 켠 두 칸 창이 열려 있을 수 있다.
 
