@@ -435,6 +435,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// 개발용: 메뉴를 만들어 줄마다 글로 돌려준다. Orca 의 늦은 답도 받도록 잠깐 기다린다.
     /// `bundleID` 를 주면 그 앱이 맨 앞인 것으로 친다(맨 앞 앱을 바꾸지 않고 확인하려는 것).
     func menuText(asIfFront bundleID: String? = nil) -> String {
+        // 앱을 띄우지 않고 불리므로 자동화 권한을 아직 모른다. 주 스레드 밖에서 알아보게 하고 여기서는 잠깐만 기다린다
+        // (끝나지 않으면 모르는 채로 그린다 — 메뉴와 같은 규칙).
+        refreshAutomation()
+        let deadline = Date().addingTimeInterval(2)
+        while checkingAutomation, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
         let menu = NSMenu()
         if let bundleID {
             let name = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.localizedName ?? bundleID
