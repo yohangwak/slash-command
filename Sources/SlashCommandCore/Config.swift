@@ -17,6 +17,18 @@ public enum Agent: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// 사람에게 보여 주는 이름(제품 이름이라 번역하지 않는다). 파일의 키와 명령줄은 `rawValue` 를 쓴다.
+    public var displayName: String {
+        switch self {
+        case .claude: return "Claude Code"
+        case .codex: return "Codex"
+        case .grok: return "Grok"
+        case .cursor: return "Cursor"
+        case .antigravity: return "Antigravity"
+        case .opencode: return "OpenCode"
+        }
+    }
+
     /// 단계 목록(`Step`)이 아니라 전용 드라이버가 화면을 보며 진행하는 에이전트.
     public var usesDriver: Bool { self != .claude && self != .codex }
 }
@@ -102,6 +114,26 @@ public struct Slot: Codable, Equatable, Sendable {
 
     public func preset(for agent: Agent) -> AgentPreset? { presets[agent] }
 
+    /// 설정이 있는 에이전트들(정해진 순서).
+    public var agents: [Agent] { Agent.allCases.filter { presets[$0] != nil } }
+
+    /// 짧은 한 줄: 에이전트 `limit` 개까지만 적고 나머지는 수로 — `Claude Code opus · high, Codex gpt-6-astra · high +4`.
+    public func summary(limit: Int = 2) -> String {
+        let listed = agents.prefix(limit).compactMap { agent in presets[agent].map { "\(agent.displayName) \($0.model) · \($0.effort)" } }
+        guard !listed.isEmpty else { return loc("No agents set") }
+        let more = agents.count - listed.count
+        return listed.joined(separator: ", ") + (more > 0 ? " +\(more)" : "")
+    }
+
+    /// 메뉴에 보여 줄 한 줄. 맨 앞 세션의 에이전트를 알면 «지금 누르면 무엇이 되는가» 만 적는다(`opus · high`).
+    /// 그 에이전트의 설정이 없으면 nil — 그 번호는 지금 아무것도 하지 않는다. 에이전트를 모르면 이름이나 짧은 요약이다.
+    public func menuTitle(for agent: Agent?) -> String? {
+        guard let agent else { return name.isEmpty ? summary() : name }
+        guard let preset = presets[agent] else { return nil }
+        let value = "\(preset.model) · \(preset.effort)"
+        return name.isEmpty ? value : "\(name) — \(value)"
+    }
+
     /// 목록에 보여 줄 한 줄: `claude opus · high  /  codex gpt-6-astra · high`, 이름이 있으면 뒤에 붙인다.
     public var listing: String {
         let parts = Agent.allCases.compactMap { agent in presets[agent].map { "\(agent.rawValue) \($0.model) · \($0.effort)" } }
@@ -151,12 +183,18 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         effortKeys = try c.decodeIfPresent(Bool.self, forKey: .effortKeys) ?? true
         let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? SlashCommandConfig.defaultModifiers
         modifiers = SlashCommandConfig.knownModifiers.filter(wanted.contains)
-        // 조합 키 없이 숫자만 잡으면 터미널에 숫자를 칠 수 없게 된다.
-        if modifiers.isEmpty { modifiers = SlashCommandConfig.defaultModifiers }
+        // 조합 키 없이 숫자만 잡으면 터미널에 숫자를 칠 수 없게 된다. Shift 뿐이어도 같다(`!`·`@`·`#` 을 칠 수 없다).
+        if !SlashCommandConfig.modifiersAreUsable(modifiers) { modifiers = SlashCommandConfig.defaultModifiers }
         slots = try c.decode([Slot].self, forKey: .slots)
     }
 
     public static let maxSlots = 9
+
+    /// 단축키로 쓸 수 있는 조합인가: Control·Option·Command 가운데 하나는 있어야 한다.
+    /// 그것 없이 숫자 키를 잡으면(조합 키가 없거나 Shift 뿐이면) 터미널에서 그 글자들을 칠 수 없게 된다.
+    public static func modifiersAreUsable(_ modifiers: [String]) -> Bool {
+        modifiers.contains { ["control", "option", "command"].contains($0) }
+    }
 
     public static let starter = SlashCommandConfig(slots: [
         Slot(claude: AgentPreset(model: "opus", effort: "high"),
@@ -229,7 +267,9 @@ public struct ConfigStore: Sendable {
         encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
         var data = try encoder.encode(config)
         data.append(0x0A)
-        try data.write(to: url, options: .atomic)
+        // 프리셋 파일이 링크면(설정 파일을 한곳에서 관리하는 도구들) 링크가 가리키는 파일에 쓴다 —
+        // 링크 자리에 그대로 쓰면 「새 파일로 바꿔치기」 때문에 링크가 보통 파일로 바뀐다.
+        try data.write(to: url.resolvingSymlinksInPath(), options: .atomic)
     }
 }
 

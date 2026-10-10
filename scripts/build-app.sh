@@ -16,6 +16,8 @@ cp scripts/Info.plist "$app/Contents/Info.plist"
 # 아이콘은 scripts/make-icon.swift 로 다시 만든다.
 mkdir -p "$app/Contents/Resources"
 cp scripts/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
+# 번역: Resources/<언어>.lproj 를 그대로 넣는다. 시스템이 이 폴더들을 보고 앱의 언어를 고른다(앱별 언어 설정에도 뜬다).
+cp -R Resources/*.lproj "$app/Contents/Resources/"
 
 # 개발 인증서가 있으면 그걸로 서명한다 — 다시 빌드해도 Ghostty 제어 권한(자동화)이 유지된다.
 # 없으면 임시 서명으로 떨어지고, 그때는 빌드마다 권한을 다시 묻는다.

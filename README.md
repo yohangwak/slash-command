@@ -13,7 +13,8 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 |---|---|
 | 전환 | Ghostty·Orca 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
-| 프리셋 편집 | 메뉴 막대 아이콘 → 「프리셋·권한…」 (파일은 `~/.config/slashcommand/presets.json`) |
+| 메뉴 | 메뉴 막대 아이콘. 맨 위에 «지금 맨 앞 세션의 에이전트»(`Claude Code · Orca`)가 뜨고, 프리셋 줄은 그 에이전트에 «지금 누르면 되는 값»(`opus · high`)만 보여 준다. 그 에이전트의 설정이 없는 번호는 흐리게 나온다. 권한·단축키에 문제가 있을 때만 그 줄이 생긴다 |
+| 프리셋 편집 | 메뉴 막대 아이콘 → 「설정…」(Settings…). 프리셋은 접혀 있고, 펼치면 에이전트별 모델·effort — 쓰는 에이전트만 「에이전트 추가」로 넣는다. 저장하지 않은 편집은 창을 닫았다 열어도 남는다(파일은 `~/.config/slashcommand/presets.json`) |
 | 새 세션 | `slashcommand run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). claude·codex·grok 만 — cursor·agy·opencode 는 `--model` 이 받는 id 가 화면 이름과 달라 지원하지 않는다 |
 | 터미널에서 | `slashcommand list` · `where` · `doctor --screen`(대상·에이전트 판·화면 읽기·입력창 점검, 아무것도 보내지 않음) · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
 | 기록 | `~/Library/Logs/SlashCommand/slashcommand.log` (누른 것, 결과, 단계별 걸린 시간) |
@@ -66,17 +67,27 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 
 ```sh
 ./scripts/build-app.sh --install   # ~/Applications/Slash Command.app 에 설치하고 실행, ~/.local/bin/slashcommand 링크
-~/Applications/Slash\ Command.app/Contents/MacOS/SlashCommand --login-item on   # 로그인할 때 실행(메뉴에서도 켠다)
+~/Applications/Slash\ Command.app/Contents/MacOS/SlashCommand --login-item on   # 로그인할 때 실행(설정 창의 「일반」에서도 켠다)
 ```
 
 ModelSwitch 로 깔려 있던 맥에서는 `--install` 이 옛 앱(`~/Applications/ModelSwitch.app`)의 로그인 항목을 끄고 앱과 `modelswitch` 링크를 지운 뒤 새로 깐다(옛 로그인 항목이 켜져 있지 않았으면 해제를 확인할 수 없다고 알린다 — 승인 대기로 남은 항목은 시스템 설정의 로그인 항목에서 지운다). 프리셋은 새 앱이 처음 뜰 때 `~/.config/modelswitch/presets.json` 에서 복사해 온다(옛 파일은 남는다). 번들 id 가 바뀌었으므로(`com.yohangwak.slashcommand`) 아래 권한은 새 앱에서 다시 허용해야 한다.
 
-처음 한 번 허용할 것 — **앱이 그 설정 화면을 바로 열어 준다**(메뉴 막대 아이콘 → 「손쉬운 사용 켜기 — 설정 열기…」, 또는 「프리셋·권한…」 창 맨 위의 「권한」 상자의 버튼. 권한이 필요한 터미널에서 단축키를 눌러도 열린다):
+처음 한 번 허용할 것 — **앱이 그 설정 화면을 바로 열어 준다**(설정 창 맨 위 「권한」 칸의 「설정 열기…」 버튼. 권한이 꺼져 있으면 메뉴에도 「손쉬운 사용 켜기…」 줄이 생기고, 권한이 필요한 터미널에서 단축키를 눌러도 열린다):
 
 - **손쉬운 사용 / Accessibility**(Slash Command): Ghostty 화면 읽기에 꼭 필요하다. Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
 - **자동화 / Automation**(Slash Command → Ghostty): 터미널에 글자를 넣는 데 쓴다. 처음 단축키를 누를 때 시스템이 묻는다.
 
-시스템 설정에는 «Accessibility» 가 두 곳이다 — 사이드바의 것은 장애 접근성 기능 화면이고, 필요한 것은 Privacy & Security 안의 앱 권한 목록이다. 그래서 말로 안내하지 않고 버튼으로 연다. 「권한」 상자는 상태(켜짐/꺼짐)를 1초마다 다시 읽어, 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다. `open -a "Slash Command" --args --settings` 로 그 창을 띄운 채 시작할 수 있다.
+시스템 설정에는 «Accessibility» 가 두 곳이다 — 사이드바의 것은 장애 접근성 기능 화면이고, 필요한 것은 Privacy & Security 안의 앱 권한 목록이다. 그래서 말로 안내하지 않고 버튼으로 연다. 「권한」 칸은 상태(켜짐/꺼짐)를 1초마다 다시 읽어, 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다. `open -a "Slash Command" --args --settings` 로 그 창을 띄운 채 시작할 수 있다.
+
+## 언어
+
+화면의 문구는 영어가 기준이고, 번역이 있는 언어는 **시스템의 언어 순서를 따라 자동으로** 고른다(시스템 설정 → 일반 → 언어 및 지역. 같은 화면의 「응용 프로그램」에서 이 앱만 다른 언어로 정할 수도 있다). 번역이 없는 언어·문장은 영어로 나온다.
+
+- 코드에 쓴 영어 문장이 곧 키다(`loc("Quit Slash Command")`). 번역은 `Resources/<언어>.lproj/Localizable.strings` 에 있고 `build-app.sh` 가 앱 묶음에 넣는다. 맥이 번역해 주는 것이 아니라 «우리가 넣어 둔 언어 가운데» 고르는 것이다.
+- 값이 들어갈 자리는 `%@`(차례대로)와 `%1$@`(번호로 — 어순이 다른 언어에서)만 쓴다.
+- 테스트가 언어마다 «코드의 문장과 번역이 빠짐없이 맞는지, 자리표가 같은지» 를 본다 — 문장을 바꾸거나 더하면 번역을 고칠 때까지 테스트가 실패한다.
+- 에이전트 화면의 문구(`Select model` 등)와 제품 이름(Claude Code · Codex …)은 번역하지 않는다.
+- 지금 번역된 것: 메뉴·설정 창·알림 제목(한국어). 전환 결과·오류 문장과 명령줄 출력은 아직 한국어 그대로다(다음 작업).
 
 ## 어떻게 동작하나
 
@@ -159,6 +170,8 @@ SLASHCOMMAND_CONFIG=/path/presets.json …    # 다른 프리셋 파일
 ```
 
 시험할 때: 대상을 직접 지정한 시험은 감지 경로를 안 탄다(`where`·`doctor` 로 따로 본다) · 명령 방식 시험은 «지금 기본값과 같은 값»으로만 하고 끝나면 `shasum ~/.claude/settings.json` 을 처음과 대조한다 · 시험 세션에 글자를 보내기 전에 화면을 먼저 읽는다.
+
+화면을 눈으로 확인할 때(화면 녹화 권한 없이): `SlashCommandApp --snapshot 파일.png [--dark] [--collapsed] [--height N]` 이 설정 창을 그림으로 내고, `--menu-text [번들 id]` 가 메뉴의 줄들을 글로 찍는다(그 앱이 맨 앞인 것으로 친다. 아무것도 보내지 않는다). 다른 언어로 보려면 `SLASHCOMMAND_L10N_DIR=$PWD/Resources SLASHCOMMAND_LANG=ko` 를 앞에 붙인다.
 
 구조: `SlashCommandCore`(프리셋·감지·입력·화면 판정·단계 실행·기본값 복원) · `slashcommand`(명령줄) · `SlashCommandApp`(메뉴 막대·단축키·알림·편집 화면).
 

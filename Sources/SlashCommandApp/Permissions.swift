@@ -50,15 +50,22 @@ enum Permissions {
 
     /// AppleScript 로 다루는 터미널들(이름, 번들 id).
     static let automatedTerminals: [(name: String, bundleID: String)] = [("Ghostty", Detector.ghosttyBundleID)]
+
+    /// 그 가운데 이 맥에 깔려 있는 것 — 쓰지 않는 터미널의 권한은 보여 주지 않는다.
+    static var installedAutomatedTerminals: [(name: String, bundleID: String)] {
+        automatedTerminals.filter { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleID) != nil }
+    }
 }
 
-/// 편집 화면 맨 위의 「권한」 상자가 보는 상태. 창이 떠 있는 동안 1초마다 다시 읽어 — 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다.
+/// 편집 화면 맨 위의 「권한」 칸이 보는 상태. 창이 떠 있는 동안 1초마다 다시 읽어 — 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다.
 final class PermissionsModel: ObservableObject {
     @Published var accessibility = Permissions.accessibility
     @Published var automation: [String: Permissions.Automation] = [:]
 
     private var timer: Timer?
     private let queue = DispatchQueue(label: "slashcommand.permissions")
+    /// 앞의 확인이 아직 끝나지 않았으면 새로 넣지 않는다 — 대상 앱이 응답하지 않으면 확인이 오래 걸리고, 그동안 1초마다 쌓인다.
+    private var checking = false
 
     func start() {
         refresh()
@@ -74,68 +81,80 @@ final class PermissionsModel: ObservableObject {
     func refresh() {
         let trusted = Permissions.accessibility
         if trusted != accessibility { accessibility = trusted }
+        guard !checking else { return }
+        checking = true
         queue.async { [weak self] in
             var found: [String: Permissions.Automation] = [:]
             for terminal in Permissions.automatedTerminals { found[terminal.bundleID] = Permissions.automation(bundleID: terminal.bundleID) }
-            DispatchQueue.main.async { if self?.automation != found { self?.automation = found } }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.checking = false
+                if self.automation != found { self.automation = found }
+            }
         }
     }
 }
 
-/// 「권한」 상자: 권한마다 상태와 «그 설정 화면을 여는» 버튼.
-struct PermissionsBox: View {
+/// 「권한」 칸: 권한마다 상태와 «그 설정 화면을 여는» 버튼. 켜져 있으면 한 줄, 손댈 것이 있으면 무엇을 하면 되는지 적는다.
+struct PermissionsSection: View {
     @ObservedObject var model: PermissionsModel
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
-                row(title: "손쉬운 사용 (Accessibility)",
-                    ok: model.accessibility,
-                    status: model.accessibility ? "켜짐" : "꺼짐",
-                    detail: "Ghostty 화면 읽기에 꼭 필요하고, Orca 에서는 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 알게 해 줍니다. 열리는 목록에서 Slash Command 의 스위치를 켜 주세요(목록에 없으면 아래 + 로 추가).",
-                    button: model.accessibility ? "설정 보기" : "설정 열기…",
-                    action: Permissions.openAccessibility)
-                ForEach(Permissions.automatedTerminals, id: \.bundleID) { terminal in
-                    let state = model.automation[terminal.bundleID] ?? .notAsked
-                    row(title: "자동화 (Automation) → \(terminal.name)",
-                        ok: state == .allowed,
-                        status: label(state),
-                        detail: "\(terminal.name) 터미널에 전환 명령을 입력하는 데 씁니다. 열리는 목록의 Slash Command 아래에서 \(terminal.name) 를 켜 주세요. 처음 단축키를 누를 때 시스템이 한 번 묻습니다.",
-                        button: state == .allowed ? "설정 보기" : "설정 열기…",
-                        action: Permissions.openAutomation,
-                        neutral: state == .notRunning || state == .notAsked)
-                }
+        Section {
+            row(title: loc("Accessibility"),
+                state: model.accessibility ? .ok : .problem,
+                status: model.accessibility ? loc("On") : loc("Off"),
+                detail: model.accessibility
+                    ? loc("Used to read the Ghostty screen and to follow tab changes in Orca.")
+                    : loc("Needed to read the Ghostty screen; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)."),
+                action: Permissions.openAccessibility)
+            ForEach(Permissions.installedAutomatedTerminals, id: \.bundleID) { terminal in
+                let state = model.automation[terminal.bundleID] ?? .notAsked
+                row(title: loc("Automation → %@", terminal.name),
+                    state: state == .allowed ? .ok : (state == .denied ? .problem : .unknown),
+                    status: status(state),
+                    detail: detail(state, terminal: terminal.name),
+                    action: Permissions.openAutomation)
             }
-            .padding(4)
-        } label: {
-            Text("권한").font(.headline)
+        } header: {
+            Text(loc("Permissions"))
         }
     }
 
-    private func label(_ state: Permissions.Automation) -> String {
+    private enum RowState { case ok, problem, unknown }
+
+    private func status(_ state: Permissions.Automation) -> String {
         switch state {
-        case .allowed: return "켜짐"
-        case .denied: return "꺼짐"
-        case .notAsked: return "아직 묻지 않음"
-        case .notRunning: return "앱이 꺼져 있어 확인 못 함"
+        case .allowed: return loc("On")
+        case .denied: return loc("Off")
+        case .notAsked: return loc("Not asked yet")
+        case .notRunning: return loc("Not running")
         }
     }
 
-    private func row(title: String, ok: Bool, status: String, detail: String, button: String, action: @escaping () -> Void,
-                     neutral: Bool = false) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: ok ? "checkmark.circle.fill" : (neutral ? "questionmark.circle" : "exclamationmark.triangle.fill"))
-                .foregroundStyle(ok ? Color.green : (neutral ? Color.secondary : Color.orange))
+    private func detail(_ state: Permissions.Automation, terminal: String) -> String {
+        switch state {
+        case .allowed: return loc("Used to type the switch commands into %@.", terminal)
+        case .denied: return loc("Slash Command cannot type into %@. Turn on %@ under Slash Command in the list that opens.", terminal, terminal)
+        case .notAsked: return loc("macOS asks once, the first time you press a shortcut in %@.", terminal)
+        case .notRunning: return loc("%@ is not running, so this cannot be checked now.", terminal)
+        }
+    }
+
+    private func row(title: String, state: RowState, status: String, detail: String, action: @escaping () -> Void) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: state == .ok ? "checkmark.circle.fill" : (state == .problem ? "exclamationmark.triangle.fill" : "questionmark.circle"))
+                .foregroundStyle(state == .ok ? Color.green : (state == .problem ? Color.orange : Color.secondary))
                 .frame(width: 18)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(title).fontWeight(.medium)
+                    Text(title)
                     Text(status).foregroundStyle(.secondary)
                 }
                 Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
-            Button(button, action: action)
+            Spacer(minLength: 8)
+            Button(loc("Open Settings…"), action: action)
         }
     }
 }
