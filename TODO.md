@@ -1,6 +1,6 @@
 # Slash Command — 할 일 · 이어받기
 
-마지막 갱신: 2026-10-10 07:45 KST (개명 PR #12 머지와 네 맥 재설치까지). 이 파일은 main 에 있다.
+마지막 갱신: 2026-10-10 10:20 KST (개명 PR #12 · 저장소 이름 변경 · 아이콘 PR #14 · 네 맥 설치까지). 이 파일은 main 에 있다.
 
 ## 새 대화에서 이렇게 말하면 이어진다
 
@@ -10,9 +10,9 @@
 
 ## 지금 상태
 
-- **main = `14815d5`(PR #12, 2026-10-10 머지) — ModelSwitch 를 Slash Command 로 개명**(요한님 결정: 지금은 모델 전환만 하지만 다른 슬래시 명령으로 넓힐 자리를 둔다). 기능은 PR #10(`19e9c87`) 그대로다. 테스트 190개.
+- **main = `6018116`(PR #14, 2026-10-10 머지) — 새 아이콘. 그 앞의 `14815d5`(PR #12)가 ModelSwitch 를 Slash Command 로 개명**(요한님 결정: 지금은 모델 전환만 하지만 다른 슬래시 명령으로 넓힐 자리를 둔다). 기능은 PR #10(`19e9c87`) 그대로다. 테스트 190개.
   - 앱 `Slash Command.app` · 번들 id `com.yohangwak.slashcommand` · 명령 `slashcommand` · 설정 `~/.config/slashcommand/presets.json` · 기록 `~/Library/Logs/SlashCommand/slashcommand.log`.
-  - **네 맥(집 맥 = Mac Studio · 집 맥 2 = 옛 Mac mini · 사 맥 · 맥북) 모두 이 빌드가 깔려 실행 중이다**(2026-10-10 07:38~07:39, 실행 파일 sha256 `1677cd0f…`, `Apple Development` 서명, 로그인 항목 켬). 옛 `ModelSwitch.app` 과 `modelswitch` 링크는 지웠다.
+  - **네 맥(집 맥 = Mac Studio · 집 맥 2 = 옛 Mac mini · 사 맥 · 맥북) 모두 `6018116` 빌드가 깔려 실행 중이다**(2026-10-10 10:16, 실행 파일 sha256 `df5479eb…`, `Apple Development` 서명, 로그인 항목 켬). 옛 `ModelSwitch.app` 과 `modelswitch` 링크는 지웠다.
   - 아래 항목에서 2026-10-08 까지의 «집 맥» 은 옛 Mac mini(지금 «집 맥 2»)다.
 - **GitHub 저장소도 `yohangwak/slash-command` 로 바꿨다**(2026-10-10, 요한님 요청. 옛 주소 `yohangwak/modelswitch` 는 GitHub 가 넘겨 준다). 리뷰어 러너와 머지 규칙은 그대로 따라왔다. 클론의 remote 는 집 맥(`~/Repos/yohangwak/slash-command`)과 집 맥 2 를 고쳤다 — 집 맥 2 의 클론은 폴더 이름이 아직 `~/Repos/yohangwak/modelswitch` 다(그 맥의 Orca 기록이 그 경로를 가리켜 건드리지 않았다. 첫 커밋 상태의 빈 클론이다).
 - **아이콘**: 앱 아이콘과 메뉴 막대 아이콘을 «키 하나에 슬래시» 로 바꿨다(앱 `scripts/make-icon.swift` → `scripts/AppIcon.icns`, 메뉴 막대 `Sources/SlashCommandApp/StatusIcon.swift`).
@@ -22,7 +22,7 @@
 ## 요한님 손이 필요한 것
 
 1. **네 맥 모두: Slash Command 에 손쉬운 사용(Accessibility) 켜기.** 번들 id 가 바뀌어 옛 허용은 이어지지 않는다(2026-10-10 07:40 관측 — 집 맥·집 맥 2·맥북: 꺼짐, 사 맥: 확인 못 함. 집 맥 2 는 ModelSwitch 때 켜져 있었다). 메뉴 막대 아이콘 → 「프리셋·권한…」 → 맨 위 「권한」 상자의 「설정 열기…」 → 열린 목록에서 Slash Command 스위치 켜기. Ghostty 는 이 권한이 없으면 단축키가 동작하지 않고, Orca 는 «탭 옮긴 직후» 수정이 작동하지 않는다. 켠 뒤 Ghostty 에서 처음 단축키를 누르면 자동화(Slash Command → Ghostty) 허용 창이 한 번 뜬다. 목록에 남은 ModelSwitch 항목은 지워도 된다.
-2. 켠 뒤 확인: Orca 에서 탭을 «클릭» 으로 옮기고 바로 단축키 → 알림에 뜨는 대상이 방금 옮긴 탭인지. (내 시험은 CLI 로 탭을 바꾼 것 7/7 — 클릭 경로는 미확인.) **개명한 빌드로는 실제 전환을 아직 한 번도 보내지 않았다**(설치·실행·프리셋 읽기까지만 확인).
+2. 켠 뒤 확인: Orca 에서 탭을 «클릭» 으로 옮기고 바로 단축키 → 알림에 뜨는 대상이 방금 옮긴 탭인지. (내 시험은 CLI 로 탭을 바꾼 것 7/7 — 클릭 경로는 미확인.) **개명한 빌드로는 실제 전환을 아직 한 번도 보내지 않았다**(설치·실행·프리셋 읽기까지만 확인 — 2026-10-10 10:20 기준 그대로).
 3. 새 에이전트 4종을 단축키로 써 보기(집 맥·집 맥 2 프리셋 1~3번에 설정을 넣어 뒀다 — 아래 「내가 바꿔 둔 것」. 집 맥에는 grok·cursor-agent·opencode 가 깔려 있지 않다).
 
 ## 다음 할 일 (순서대로)
@@ -39,7 +39,7 @@
 
 - **프리셋**(`~/.config/slashcommand/presets.json`): 각 맥의 옛 `~/.config/modelswitch/presets.json` 을 그대로 옮긴 것이다. 집 맥(Studio)은 집 맥 2 의 것을 가져왔다. 집 맥·집 맥 2 의 1~3번에는 grok·cursor·antigravity·opencode 설정이 들어 있다(2026-10-08 에 추가, 원래는 claude·codex 뿐 — 빼려면 그 키들만 지운다).
 - **옛 이름의 흔적 정리(2026-10-10, 네 맥)**: 옛 설정 폴더 `~/.config/modelswitch` 는 프리셋이 새 것과 같은 것을 확인하고 지웠다(집 맥 2 의 `presets.json.bak-names` 는 새 폴더로 옮겼다). 옛 기록 `~/Library/Logs/ModelSwitch/modelswitch.log` 는 새 기록 파일 앞에 붙이고 지웠다. 옛 환경설정(`com.yohangwak.modelswitch`)도 지웠다. **남은 것**: 시스템 설정의 손쉬운 사용 목록에 있는 ModelSwitch 항목 — 앱이 없어 `tccutil` 로는 지워지지 않는다(목록에서 − 로 지운다).
-- **깔린 앱**: 네 맥 모두 main(`14815d5`) 빌드. iTerm2 단축키는 없다.
+- **깔린 앱**: 네 맥 모두 main(`6018116`) 빌드. iTerm2 단축키는 없다. 실제 메뉴 막대에서 새 아이콘이 어떻게 보이는지는 화면으로 확인하지 못했다(그림은 따로 그려서 봤고, 설치된 앱의 아이콘은 시스템이 새 것으로 돌려준다).
 - **빌드·설치 방법(지금 환경)**: 서명 인증서와 Xcode 는 집 맥 2 에 있다(사 맥·맥북은 확인하지 않았다). 집 맥(Studio)은 Command Line Tools 뿐이라 `swift build` 는 되지만 `swift test` 는 `XCTest` 가 없어 실패하고, 서명은 임시(ad-hoc)가 된다(빌드마다 권한을 다시 묻는다). 그래서 테스트와 서명 빌드는 집 맥 2 의 임시 폴더에서 했다. **SSH 세션에서는 `codesign` 이 `errSecInternalComponent` 로 실패한다**(로그인 키체인이 잠겨 있다) — `scripts/build-app.sh` 를 로그인 세션의 일회성 launchd 작업(`launchctl bootstrap gui/<uid>`)으로 돌린 뒤 작업과 폴더를 지웠다. 다른 맥에는 `tar -C dist -cf - "Slash Command.app" | ssh <맥> 'tar -C ~/Applications -xf -'`(`scp -r` 은 조용히 실패한 적이 있다). 집 맥에 Xcode 와 인증서를 두면 이 우회가 필요 없다(요한님 손).
 - **시험 터미널**(요한님이 연 것): cursor 세션이 Grok 4.7 **Medium** 으로 남았다(원래 High). 나머지는 원래 모델. 각 에이전트의 기본값 파일은 시험 전과 같다(해시 확인).
 - 맥북: Homebrew 로 깐 tmux·kitty·WezTerm·iTerm2 는 요한님 뜻대로 남겨 뒀다. iTerm2 에 방송(Broadcast Input)을 켠 두 칸 창이 열려 있을 수 있다.
