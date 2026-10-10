@@ -31,7 +31,7 @@ public struct ClaudeDefaults: Sendable {
 
     public func restore(to original: Data) -> Outcome {
         guard let current = try? Data(contentsOf: url) else {
-            return .failed("설정 파일을 읽지 못했습니다")
+            return .failed(loc("Could not read the settings file"))
         }
         switch ClaudeDefaults.restoredContents(original: original, current: current) {
         case .unchanged:
@@ -63,7 +63,7 @@ public struct ClaudeDefaults: Sendable {
     /// 기본값 키(model · effortLevel · modelSettings.*.effortLevel)만 원래대로 돌린 파일 내용을 만든다.
     static func restoredContents(original: Data, current: Data) -> Decision {
         guard let before = object(original), let after = object(current) else {
-            return .failed("설정 파일이 JSON 객체가 아닙니다")
+            return .failed(loc("The settings file is not a JSON object"))
         }
         if tracked(before) == tracked(after) { return .unchanged }
         // 기본값 키 말고는 달라진 게 없으면 원래 바이트를 그대로 되돌린다(서식·키 순서 보존).
@@ -71,21 +71,21 @@ public struct ClaudeDefaults: Sendable {
 
         // 그 사이 다른 설정도 바뀌었다 — 지금 파일에서 기본값 줄만 고친다.
         guard var text = String(data: current, encoding: .utf8) else {
-            return .failed("설정 파일이 UTF-8 이 아닙니다")
+            return .failed(loc("The settings file is not UTF-8"))
         }
         let old = tracked(before)
         for (key, value) in tracked(after) where old[key] != value {
             guard let wanted = old[key] else {
-                return .failed("전환 전에 없던 기본값 항목(\(key))이 생겨 자동으로 되돌리지 못했습니다")
+                return .failed(loc("A default (%@) that was not there before the switch appeared, so it could not be put back automatically", key))
             }
             guard let patched = replacingValue(in: text, key: key, with: wanted) else {
-                return .failed("기본값 항목(\(key))의 위치를 찾지 못했습니다")
+                return .failed(loc("Could not find where the default (%@) is", key))
             }
             text = patched
         }
         let data = Data(text.utf8)
         guard let result = object(data), tracked(result) == old, stripped(result).isEqual(stripped(after)) else {
-            return .failed("기본값을 고친 결과가 예상과 달라 쓰지 않았습니다")
+            return .failed(loc("The corrected defaults did not come out as expected, so they were not written"))
         }
         return .write(data)
     }

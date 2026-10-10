@@ -34,7 +34,7 @@ final class FakeIO: TerminalIO {
     }
 }
 
-final class PlanTests: XCTestCase {
+final class PlanTests: KoreanMessagesTestCase {
     func testKeyBytes() {
         XCTAssertEqual(Key.ctrl("s").bytes, "\u{13}")
         XCTAssertEqual(Key.ctrl("a").bytes, "\u{01}")
@@ -74,7 +74,7 @@ final class PlanTests: XCTestCase {
     }
 }
 
-final class CodexModelsTests: XCTestCase {
+final class CodexModelsTests: KoreanMessagesTestCase {
     let all = ["low", "medium", "high", "xhigh", "max", "ultra"]
 
     func models() -> CodexModels {
@@ -115,7 +115,7 @@ final class CodexModelsTests: XCTestCase {
     }
 }
 
-final class RunnerTests: XCTestCase {
+final class RunnerTests: KoreanMessagesTestCase {
     func run(_ steps: [Step], io: FakeIO) throws {
         try Runner(io: io, sleep: { _ in }).run(steps)
     }
@@ -355,7 +355,7 @@ final class FakePicker: TerminalIO {
     }
 }
 
-final class PickerTests: XCTestCase {
+final class PickerTests: KoreanMessagesTestCase {
     let efforts = [
         "• Model changed to gpt-6.1-sol high for this session only",
         "  Select Reasoning Level for GPT-6.1-Sol",
@@ -438,7 +438,7 @@ final class PickerTests: XCTestCase {
     }
 }
 
-final class ProcessTableTests: XCTestCase {
+final class ProcessTableTests: KoreanMessagesTestCase {
     func procargs(argc: Int32, _ parts: [String], padding: Int = 3) -> [UInt8] {
         var bytes = withUnsafeBytes(of: argc) { Array($0) }
         bytes += Array("/path/to/exe".utf8) + [UInt8](repeating: 0, count: padding)
@@ -470,7 +470,7 @@ final class ProcessTableTests: XCTestCase {
     }
 }
 
-final class OrcaRuntimeTests: XCTestCase {
+final class OrcaRuntimeTests: KoreanMessagesTestCase {
     func testMetadataNeedsUnixSocketAndCredential() {
         // 인증 값 자리에는 시험용 한 글자를 넣는다.
         func file(_ fields: [String: Any]) -> Data { try! JSONSerialization.data(withJSONObject: fields) }
@@ -507,7 +507,7 @@ final class OrcaRuntimeTests: XCTestCase {
     }
 }
 
-final class ReadinessTests: XCTestCase {
+final class ReadinessTests: KoreanMessagesTestCase {
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -537,7 +537,7 @@ final class ReadinessTests: XCTestCase {
     }
 }
 
-final class ClaudeDefaultsTests: XCTestCase {
+final class ClaudeDefaultsTests: KoreanMessagesTestCase {
     let original = """
     {
       "model": "opus",
@@ -616,7 +616,7 @@ final class ClaudeDefaultsTests: XCTestCase {
     }
 }
 
-final class ConfigTests: XCTestCase {
+final class ConfigTests: KoreanMessagesTestCase {
     func testDecodeAppliesDefaults() throws {
         let json = #"{"slots":[{"name":"a","claude":{"model":"opus","effort":"high"}}]}"#
         let config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(json.utf8))
@@ -710,7 +710,7 @@ final class ConfigTests: XCTestCase {
         slot.name = "밤샘"
         XCTAssertEqual(slot.menuTitle(for: .claude), "밤샘 — opus · high")
         XCTAssertEqual(slot.menuTitle(for: nil), "밤샘")
-        XCTAssertEqual(Slot().summary(), "No agents set")
+        XCTAssertEqual(Slot().summary(), loc("No agents set"))
     }
 
     func testAppleScriptIsTimeLimited() {
@@ -729,7 +729,7 @@ final class ConfigTests: XCTestCase {
     }
 }
 
-final class GhosttyEscapeTests: XCTestCase {
+final class GhosttyEscapeTests: KoreanMessagesTestCase {
     func testEscapesControlBytesOnly() {
         XCTAssertEqual(GhosttyIO.actionEscaped("/model opus"), "/model opus")
         XCTAssertEqual(GhosttyIO.actionEscaped("\u{13}"), "\\x13")
@@ -755,7 +755,7 @@ final class GhosttyEscapeTests: XCTestCase {
     }
 }
 
-final class OrcaStateTests: XCTestCase {
+final class OrcaStateTests: KoreanMessagesTestCase {
     func payload() -> [String: Any] {
         func pane(_ handle: String, leaf: String, active: Bool) -> [String: Any] {
             ["type": "terminal", "handle": handle, "leafId": leaf, "active": active, "title": handle]
@@ -1002,7 +1002,7 @@ final class FakeClaude: TerminalIO {
     }
 }
 
-final class SwitcherApplyTests: XCTestCase {
+final class SwitcherApplyTests: KoreanMessagesTestCase {
     let target = Target(host: .orca(handle: "term_x"), agent: .claude, label: "x")
 
     func config(_ model: String, _ effort: String, keepDefaults: Bool = true, accept: Bool = false) -> SlashCommandConfig {
@@ -1196,7 +1196,7 @@ final class SwitcherApplyTests: XCTestCase {
     }
 }
 
-final class EffortStepTests: XCTestCase {
+final class EffortStepTests: KoreanMessagesTestCase {
     let target = Target(host: .orca(handle: "term_x"), agent: .claude, label: "x")
 
     func switcher(io: TerminalIO, keepDefaults: Bool = true, accept: Bool = false) -> Switcher {
@@ -1324,7 +1324,7 @@ final class EffortStepTests: XCTestCase {
     }
 }
 
-final class LaggingTerminalTests: XCTestCase {
+final class LaggingTerminalTests: KoreanMessagesTestCase {
     let target = Target(host: .ghostty(terminalID: "T"), agent: .claude, label: "x")
 
     /// 화면이 0.5초 늦게 따라오는 터미널(Ghostty)에 claude 를 얹는다. 시간은 `sleep` 이 돌린다.
@@ -1487,7 +1487,7 @@ final class HidingRows: TerminalIO {
 
 /// 레드팀(codex) 주장 확인: 대화 내용에 선택창·입력창처럼 보이는 글이 있을 때.
 /// 표본은 2026-10-06 실제 claude 2.1.291 화면 — 대답 안에 선택창 모양 글이 있고, 그 아래에 진짜 권한 확인 창이 떠 있다.
-final class SpoofedScreenTests: XCTestCase {
+final class SpoofedScreenTests: KoreanMessagesTestCase {
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -1504,7 +1504,7 @@ final class SpoofedScreenTests: XCTestCase {
     }
 }
 
-final class AnchoredPickerTests: XCTestCase {
+final class AnchoredPickerTests: KoreanMessagesTestCase {
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -1569,7 +1569,7 @@ final class AnchoredPickerTests: XCTestCase {
     }
 }
 
-final class ClaudePickerTests: XCTestCase {
+final class ClaudePickerTests: KoreanMessagesTestCase {
     /// 2026-10-06 claude 2.1.289 화면 그대로.
     let picker = [
         "   Select model",
@@ -1616,7 +1616,7 @@ final class ClaudePickerTests: XCTestCase {
     }
 }
 
-final class LaunchTests: XCTestCase {
+final class LaunchTests: KoreanMessagesTestCase {
     func testBuildsSessionOnlyFlags() {
         XCTAssertEqual(Launch.command(agent: .claude, preset: AgentPreset(model: "opus", effort: "high"), extra: ["-c"]),
                        ["claude", "--model", "opus", "--effort", "high", "-c"])
@@ -1625,7 +1625,7 @@ final class LaunchTests: XCTestCase {
     }
 }
 
-final class SlotTests: XCTestCase {
+final class SlotTests: KoreanMessagesTestCase {
     func testNameIsOptionalInTheFile() throws {
         let config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(#"{"slots":[{"claude":{"model":"opus","effort":"high"}},{"name":"밤샘","codex":{"model":"gpt-x","effort":"max"}}]}"#.utf8))
         XCTAssertEqual(config.slots[0].name, "")
@@ -1641,7 +1641,7 @@ final class SlotTests: XCTestCase {
     }
 }
 
-final class AgentVersionTests: XCTestCase {
+final class AgentVersionTests: KoreanMessagesTestCase {
     func testParsesVersionOutputOfBothAgents() {
         XCTAssertEqual(AgentVersions.parse(versionOutput: "2.1.291 (Claude Code)\n"), "2.1.291")
         XCTAssertEqual(AgentVersions.parse(versionOutput: "codex-cli 0.160.1\n"), "0.160.1")
@@ -1679,7 +1679,7 @@ final class AgentVersionTests: XCTestCase {
     }
 }
 
-final class OrcaViewTests: XCTestCase {
+final class OrcaViewTests: KoreanMessagesTestCase {
     private func layout(_ worktree: String, _ titles: [String]) -> [String: Any] {
         ["worktreeId": worktree, "root": ["tabs": titles.enumerated().map { ["tabId": "\(worktree)-t\($0.offset)", "title": $0.element] as [String: Any] }]]
     }
@@ -1754,7 +1754,7 @@ final class OrcaViewTests: XCTestCase {
 // MARK: - grok
 
 /// 실제 grok 1.0.46 화면(2026-10-07 집 맥)과 모델 목록·설정 표본.
-final class GrokScreenTests: XCTestCase {
+final class GrokScreenTests: KoreanMessagesTestCase {
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -1812,7 +1812,7 @@ final class GrokScreenTests: XCTestCase {
     }
 }
 
-final class GrokModelsAndDefaultsTests: XCTestCase {
+final class GrokModelsAndDefaultsTests: KoreanMessagesTestCase {
     func testParsesModelsAndOrdersEfforts() {
         let json = """
         {"models": {"grok-4.7": {"info": {"id": "grok-4.7", "name": "Grok 4.7", "supports_reasoning_effort": true,
@@ -1919,7 +1919,7 @@ final class FakeGrok: TerminalIO {
     }
 }
 
-final class GrokDriverTests: XCTestCase {
+final class GrokDriverTests: KoreanMessagesTestCase {
     private var url: URL!
     private var original = ""
 
@@ -2032,7 +2032,7 @@ final class GrokDriverTests: XCTestCase {
 
 // MARK: - cursor-agent
 
-final class CursorScreenTests: XCTestCase {
+final class CursorScreenTests: KoreanMessagesTestCase {
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -2106,7 +2106,7 @@ final class CursorScreenTests: XCTestCase {
     }
 }
 
-final class CursorDefaultsTests: XCTestCase {
+final class CursorDefaultsTests: KoreanMessagesTestCase {
     private func write(_ object: [String: Any], to url: URL) throws {
         try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]).write(to: url)
     }
@@ -2266,7 +2266,7 @@ final class FakeCursor: TerminalIO {
     }
 }
 
-final class CursorDriverTests: XCTestCase {
+final class CursorDriverTests: KoreanMessagesTestCase {
     private var url: URL!
     private var original = Data()
 
@@ -2364,7 +2364,7 @@ final class CursorDriverTests: XCTestCase {
 
 // MARK: - antigravity (agy)
 
-final class AgyScreenTests: XCTestCase {
+final class AgyScreenTests: KoreanMessagesTestCase {
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -2420,7 +2420,7 @@ final class AgyScreenTests: XCTestCase {
     }
 }
 
-final class AntigravityDefaultsTests: XCTestCase {
+final class AntigravityDefaultsTests: KoreanMessagesTestCase {
     func testRestoresOnlyTheModelKey() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("agy-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -2529,7 +2529,7 @@ final class FakeAgy: TerminalIO {
     }
 }
 
-final class AntigravityDriverTests: XCTestCase {
+final class AntigravityDriverTests: KoreanMessagesTestCase {
     private var url: URL!
     private var original = Data()
 
@@ -2615,7 +2615,7 @@ final class AntigravityDriverTests: XCTestCase {
 
 // MARK: - opencode
 
-final class OpenCodeScreenTests: XCTestCase {
+final class OpenCodeScreenTests: KoreanMessagesTestCase {
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -2671,7 +2671,7 @@ final class OpenCodeScreenTests: XCTestCase {
     }
 }
 
-final class OpenCodeDefaultsTests: XCTestCase {
+final class OpenCodeDefaultsTests: KoreanMessagesTestCase {
     func testRestoresRecentAndVariantOnly() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("oc-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -2780,7 +2780,7 @@ final class FakeOpenCode: TerminalIO {
     }
 }
 
-final class OpenCodeDriverTests: XCTestCase {
+final class OpenCodeDriverTests: KoreanMessagesTestCase {
     private var url: URL!
     private var original = Data()
 
@@ -2895,7 +2895,7 @@ final class GoesBlind: TerminalIO {
 }
 
 /// 확정한 «뒤» 화면을 못 읽어도 새 세션 기본값은 전환 전 값으로 돌아와야 한다(에이전트는 이미 파일을 썼다).
-final class DefaultsRestoredWhenTheScreenGoesBlindTests: XCTestCase {
+final class DefaultsRestoredWhenTheScreenGoesBlindTests: KoreanMessagesTestCase {
     private func temp(_ name: String) -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("blind-\(UUID().uuidString)-\(name)")
     }
@@ -2952,7 +2952,7 @@ final class DefaultsRestoredWhenTheScreenGoesBlindTests: XCTestCase {
     }
 }
 
-final class CursorEffortLabelTests: XCTestCase {
+final class CursorEffortLabelTests: KoreanMessagesTestCase {
     private var url: URL!
 
     override func setUpWithError() throws {
@@ -2993,7 +2993,7 @@ final class CursorEffortLabelTests: XCTestCase {
     }
 }
 
-final class LaunchSupportTests: XCTestCase {
+final class LaunchSupportTests: KoreanMessagesTestCase {
     func testOnlyAgentsWhoseModelFlagTakesThePresetValueCanLaunch() {
         for agent in [Agent.claude, .codex, .grok] { XCTAssertNil(Launch.unsupportedReason(agent: agent), agent.rawValue) }
         for agent in [Agent.cursor, .antigravity, .opencode] {
@@ -3007,7 +3007,7 @@ final class LaunchSupportTests: XCTestCase {
 
 // MARK: - PR #10 리뷰에서 나온 것
 
-final class OpenCodeRealStateTests: XCTestCase {
+final class OpenCodeRealStateTests: KoreanMessagesTestCase {
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -3067,7 +3067,7 @@ final class OpenCodeRealStateTests: XCTestCase {
 }
 
 /// 전환 전에 기본값 파일이 «없던» 경우와 «읽지 못한» 경우.
-final class AbsentOrUnreadableDefaultsTests: XCTestCase {
+final class AbsentOrUnreadableDefaultsTests: KoreanMessagesTestCase {
     private func temp(_ name: String) -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("absent-\(UUID().uuidString)-\(name)")
     }
@@ -3142,6 +3142,15 @@ final class AbsentOrUnreadableDefaultsTests: XCTestCase {
         _ = try OpenCodeDriver(io: oc, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: false)
             .apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max"))
         XCTAssertEqual(oc.models[0].variant, "max")
+    }
+}
+
+/// 문구를 보는 테스트들의 바탕. 한국어 번역표를 켜고 돈다 — 그래서 아래 테스트들이 보는 한국어 문장은
+/// «코드의 영어 문장 → `Resources/ko.lproj` 의 번역 → 값 넣기» 를 다 거친 것이다(번역이 빠지거나 자리표가 어긋나면 여기서 드러난다).
+class KoreanMessagesTestCase: XCTestCase {
+    override class func setUp() {
+        super.setUp()
+        L10n.use(language: "ko", directory: L10nTests.resources)
     }
 }
 
@@ -3223,6 +3232,16 @@ final class L10nTests: XCTestCase {
 
     func testEnglishFileAddsNothing() {
         XCTAssertTrue(L10n.table(in: L10nTests.resources, language: "en").isEmpty, "영어는 코드의 문장이 기준이다 — en 파일에는 번역을 두지 않는다")
+    }
+
+    func testCoreSentencesAreEnglishWithoutATable() {
+        defer { L10n.use(language: "en", directory: nil) }
+        L10n.use(language: "en", directory: nil)
+        let switcher = Switcher(config: .starter, codexModels: { CodexModels(models: []) })
+        XCTAssertThrowsError(try switcher.plan(slot: 9, agent: .claude)) { XCTAssertEqual("\($0)", "There is no preset 9 (there are 3).") }
+        XCTAssertThrowsError(try switcher.plan(slot: 3, agent: .codex)) { XCTAssertEqual("\($0)", "Preset 3 has no Codex entry.") }
+        L10n.use(language: "ko", directory: L10nTests.resources)
+        XCTAssertThrowsError(try switcher.plan(slot: 9, agent: .claude)) { XCTAssertEqual("\($0)", "9번 프리셋이 없습니다(지금 3개).") }
     }
 
     func testTranslatedSentenceIsUsed() {

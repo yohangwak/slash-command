@@ -64,7 +64,7 @@ public struct CodexModels: Sendable {
             let data = try Data(contentsOf: url)
             return CodexModels(models: try JSONDecoder().decode(Cache.self, from: data).models)
         } catch {
-            throw SlashCommandError("codex 모델 목록을 읽지 못했습니다: \(url.path) — \(error.localizedDescription)")
+            throw SlashCommandError(loc("Could not read the Codex model list: %@ — %@", url.path, error.localizedDescription))
         }
     }
 
@@ -85,15 +85,15 @@ public struct CodexModels: Sendable {
     public func selection(of preset: AgentPreset) throws -> Selection {
         guard let offset = listed.firstIndex(where: { $0.slug == preset.model }) else {
             let known = listed.map(\.slug).joined(separator: ", ")
-            throw SlashCommandError("codex 모델 '\(preset.model)' 이 선택창 목록에 없습니다. 가능한 값: \(known)")
+            throw SlashCommandError(loc("Codex model '%@' is not in the picker list. Available: %@", preset.model, known))
         }
         let modelIndex = offset + 1
         guard modelIndex <= 9 else {
-            throw SlashCommandError("codex 모델 '\(preset.model)' 은 선택창 \(modelIndex)번째라 숫자 키로 고를 수 없습니다.")
+            throw SlashCommandError(loc("Codex model '%@' is number %@ in the picker, so it cannot be chosen with a number key.", preset.model, modelIndex))
         }
         let efforts = listed[offset].efforts
         guard efforts.contains(preset.effort) else {
-            throw SlashCommandError("codex 모델 '\(preset.model)' 은 effort '\(preset.effort)' 를 지원하지 않습니다. 가능한 값: \(efforts.joined(separator: ", "))")
+            throw SlashCommandError(loc("Codex model '%@' does not support effort '%@'. Available: %@", preset.model, preset.effort, efforts.joined(separator: ", ")))
         }
         let label = CodexModels.effortLabels[preset.effort] ?? preset.effort.prefix(1).uppercased() + preset.effort.dropFirst()
         return Selection(modelIndex: modelIndex, displayName: listed[offset].displayName, effortLabel: label)

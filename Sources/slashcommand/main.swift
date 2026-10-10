@@ -2,25 +2,28 @@ import Foundation
 import SlashCommandCore
 
 let usage = """
-slashcommand — 맨 앞 터미널의 claude·codex·grok 모델과 effort 를 프리셋으로 바꾼다
+slashcommand — switch the model and effort of the agent in the frontmost terminal to a preset
 
-  slashcommand apply <번호> [대상] [--trace]   프리셋 적용(--trace: 단계별 시간)
-  slashcommand effort <up|down> [대상] [--trace]   모델은 그대로, effort 만 한 단계
-  slashcommand run <번호> <claude|codex> [--dry-run] [인자…]   그 프리셋으로 새 세션을 이 터미널에서 연다
-  slashcommand where                   지금 맨 앞 터미널과 에이전트
-  slashcommand probe-orca [--seconds N]  Orca 의 «지금 보이는 터미널» 신호들이 바뀐 시각을 같은 시계로 기록(시험용, 아무것도 보내지 않음)
-  slashcommand doctor [대상] [--screen [--lines N]] [--dump 파일.json]  대상·화면 읽기·입력창 상태 점검(아무것도 보내지 않음)
-  slashcommand list                    프리셋 목록
-  slashcommand plan <번호> <claude|codex>   보낼 키 순서만 출력(실행하지 않음)
-  slashcommand path                    프리셋 파일 위치
+  slashcommand apply <number> [target] [--trace]   apply a preset (--trace: time per step)
+  slashcommand effort <up|down> [target] [--trace]   keep the model, move the effort one level
+  slashcommand run <number> <claude|codex|grok> [--dry-run] [args…]   open a new session in this terminal with that preset
+  slashcommand where                   the frontmost terminal and its agent
+  slashcommand probe-orca [--seconds N]  record when Orca's "visible terminal" signals change, on one clock (for testing; sends nothing)
+  slashcommand doctor [target] [--screen [--lines N]] [--dump file.json]  check the target, screen reading and input box (sends nothing)
+  slashcommand list                    the presets
+  slashcommand plan <number> <claude|codex>   print the keys that would be sent (runs nothing)
+  slashcommand path                    where the presets file is
 
-대상(생략하면 맨 앞 앱의 맨 앞 터미널):
-  --orca <핸들> [--agent <claude|codex>]
-  --ghostty <터미널 id> --agent <claude|codex>
-시험 단계(직접 지정할 때만, 단축키로는 아직 안 된다):
-  --tmux <pane> [--tmux-socket <이름>] --agent <claude|codex>
-  --kitty <창 id> --kitty-socket unix:/경로 --agent <claude|codex>
-  --wezterm <pane id> --agent <claude|codex>
+target (default: the frontmost terminal of the frontmost app):
+  --orca <handle> [--agent <agent>]
+  --ghostty <terminal id> --agent <agent>
+experimental (only when named explicitly; no hotkeys yet):
+  --tmux <pane> [--tmux-socket <name>] --agent <agent>
+  --kitty <window id> --kitty-socket unix:/path --agent <agent>
+  --wezterm <pane id> --agent <agent>
+agents: claude · codex · grok · cursor · antigravity · opencode
+
+Output of this tool is in English; the sentences an agent switch reports follow the system language.
 """
 
 func fail(_ message: String) -> Never {
@@ -45,13 +48,13 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     ]
     for (flag, make) in more {
         guard let id = value(after: flag, in: args) else { continue }
-        guard let host = make(id) else { throw SlashCommandError("--kitty 에는 --kitty-socket unix:/경로 가 필요합니다.") }
-        guard let named else { throw SlashCommandError("\(flag) 에는 --agent claude|codex 를 붙여 주세요.") }
+        guard let host = make(id) else { throw SlashCommandError("--kitty needs --kitty-socket unix:/path.") }
+        guard let named else { throw SlashCommandError("\(flag) needs --agent <agent>.") }
         return Target(host: host, agent: named, label: id)
     }
     guard orca != nil || ghostty != nil else { return nil }
     guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
-        throw SlashCommandError("대상의 에이전트를 알 수 없습니다. --agent claude|codex 를 붙여 주세요.")
+        throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
     }
     if let orca { return Target(host: .orca(handle: orca), agent: agent, label: orca) }
     return Target(host: .ghostty(terminalID: ghostty!), agent: agent, label: ghostty!)
@@ -59,24 +62,24 @@ func explicitTarget(_ args: [String]) throws -> Target? {
 
 func describe(_ step: Step) -> String {
     switch step {
-    case .text(let text): return "입력  \(text.debugDescription)"
-    case .key(let key): return "키    \(key)"
-    case .wait(let ms): return "대기  \(ms)ms"
+    case .text(let text): return "type    \(text.debugDescription)"
+    case .key(let key): return "key     \(key)"
+    case .wait(let ms): return "wait    \(ms)ms"
     case .expect(let needle, let bottom, let timeoutMs, _, _):
-        return "확인  화면\(bottom.map { " 맨 아래 \($0)줄" } ?? "")에 \(needle.debugDescription) (최대 \(timeoutMs)ms)"
+        return "expect  \(needle.debugDescription) on screen\(bottom.map { " (bottom \($0) lines)" } ?? "") (up to \(timeoutMs)ms)"
     case .expectPicker(let header, let footer, let timeoutMs, _, _):
-        return "확인  맨 아래에 선택창\(header.map { " \($0.debugDescription)" } ?? "")\(footer.map { ", 안내에 \($0.debugDescription)" } ?? "") (최대 \(timeoutMs)ms)"
-    case .arm: return "기준  기본값 파일 수정 시각"
-    case .expectResult(let prefix, _, _, let timeoutMs, _): return "확인  결과 줄 \(prefix.debugDescription)… (최대 \(timeoutMs)ms)"
+        return "expect  a picker at the bottom\(header.map { " \($0.debugDescription)" } ?? "")\(footer.map { ", hint \($0.debugDescription)" } ?? "") (up to \(timeoutMs)ms)"
+    case .arm: return "mark    the defaults file's modification time"
+    case .expectResult(let prefix, _, _, let timeoutMs, _): return "expect  result line \(prefix.debugDescription)… (up to \(timeoutMs)ms)"
     case .selectRow(let label, let via, let timeoutMs, _, _):
-        return "행    커서를 \(label.debugDescription) 행에\(via.map { " (없으면 \($0.debugDescription) 하위에서)" } ?? "") (최대 \(timeoutMs)ms)"
-    case .setEffort(let level, let timeoutMs, _, _): return "effort 선택창의 effort 줄을 \(level.debugDescription) 로 (최대 \(timeoutMs)ms)"
-    case .stepRow(let up, let timeoutMs, _): return "행    지금 값의 한 단계 \(up ? "위" : "아래") 행에 커서 (최대 \(timeoutMs)ms)"
-    case .expectCurrentRow: return "확인  커서가 지금 쓰는 모델(✔) 행에 있음"
-    case .stepEffort(let up, let timeoutMs, _): return "effort 한 단계 \(up ? "올림(→)" : "내림(←)") (최대 \(timeoutMs)ms)"
-    case .expectInput(let agent, _, let timeoutMs, _, _): return "확인  선택창이 닫히고 \(agent.rawValue) 입력창이 보임 (최대 \(timeoutMs)ms)"
-    case .closePicker: return "닫기  선택창이 보이는 동안만 Esc"
-    case .capture(let prefixes, _): return "기록  결과 문구(\(prefixes.joined(separator: " / "))…)"
+        return "row     cursor to \(label.debugDescription)\(via.map { " (if absent, under \($0.debugDescription))" } ?? "") (up to \(timeoutMs)ms)"
+    case .setEffort(let level, let timeoutMs, _, _): return "effort  picker's effort line to \(level.debugDescription) (up to \(timeoutMs)ms)"
+    case .stepRow(let up, let timeoutMs, _): return "row     cursor one row \(up ? "above" : "below") the current value (up to \(timeoutMs)ms)"
+    case .expectCurrentRow: return "expect  the cursor is on the current model's row (✔)"
+    case .stepEffort(let up, let timeoutMs, _): return "effort  one level \(up ? "up (→)" : "down (←)") (up to \(timeoutMs)ms)"
+    case .expectInput(let agent, _, let timeoutMs, _, _): return "expect  the picker closed and the \(agent.rawValue) input box is visible (up to \(timeoutMs)ms)"
+    case .closePicker: return "close   Esc, only while the picker is showing"
+    case .capture(let prefixes, _): return "capture result text (\(prefixes.joined(separator: " / "))…)"
     }
 }
 
@@ -86,39 +89,39 @@ let store = ConfigStore()
 do {
     switch args.first {
     case "apply":
-        guard args.count >= 2, let slot = Int(args[1]) else { fail("번호가 필요합니다.\n\n\(usage)") }
+        guard args.count >= 2, let slot = Int(args[1]) else { fail("a preset number is needed.\n\n\(usage)") }
         var switcher = Switcher(config: try store.load())
         let trace = args.contains("--trace") ? Trace() : nil
         switcher.trace = trace
         switcher.onAwaitingUser = { model in
-            FileHandle.standardError.write(Data("claude 가 \(model) 로 바꿀지 묻고 있습니다 — 그 터미널에서 Enter(바꿈) 나 2(취소)를 골라 주세요…\n".utf8))
+            FileHandle.standardError.write(Data("claude is asking whether to switch to \(model) — choose Enter (switch) or 2 (cancel) in that terminal…\n".utf8))
         }
         let target = try explicitTarget(args) ?? Detector.frontmost()
-        trace?.mark("대상찾기")
-        defer { if let trace { print("시간: " + trace.report) } }
+        trace?.mark("find target")
+        defer { if let trace { print("timing: " + trace.report) } }
         let result = try switcher.apply(slot: slot, to: target)
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
-        if !result.confirmed { print("(에이전트의 확인 문구는 보지 못했습니다)") }
-        if trace != nil { result.confirmations.forEach { print("확인 문구: \($0)") } }
+        if !result.confirmed { print("(the agent's confirmation text was not seen)") }
+        if trace != nil { result.confirmations.forEach { print("confirmation: \($0)") } }
         if let warning = result.warning { print("⚠️ \(warning)") }
     case "effort":
-        guard args.count >= 2, ["up", "down"].contains(args[1]) else { fail("slashcommand effort <up|down> [대상]") }
+        guard args.count >= 2, ["up", "down"].contains(args[1]) else { fail("slashcommand effort <up|down> [target]") }
         var switcher = Switcher(config: try store.load())
         let trace = args.contains("--trace") ? Trace() : nil
         switcher.trace = trace
         let target = try explicitTarget(args) ?? Detector.frontmost()
-        trace?.mark("대상찾기")
-        defer { if let trace { print("시간: " + trace.report) } }
+        trace?.mark("find target")
+        defer { if let trace { print("timing: " + trace.report) } }
         switcher.onAwaitingUser = { value in
-            FileHandle.standardError.write(Data("claude 가 \(value) 로 바꿀지 묻고 있습니다 — 그 터미널에서 Enter(바꿈) 나 2(취소)를 골라 주세요…\n".utf8))
+            FileHandle.standardError.write(Data("claude is asking whether to switch to \(value) — choose Enter (switch) or 2 (cancel) in that terminal…\n".utf8))
         }
         let result = try switcher.stepEffort(up: args[1] == "up", on: target)
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
     case "run":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
-            fail("slashcommand run <번호> <claude|codex> [인자…]")
+            fail("slashcommand run <number> <claude|codex|grok> [args…]")
         }
         if let reason = Launch.unsupportedReason(agent: agent) { fail(reason) }
         let planned = try Switcher(config: try store.load(), codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
@@ -132,30 +135,30 @@ do {
             var argv: [UnsafeMutablePointer<CChar>?] = command.map { strdup($0) }
             argv.append(nil)
             execvp(command[0], argv)
-            fail("\(command[0]) 를 실행하지 못했습니다: \(String(cString: strerror(errno)))")
+            fail("could not run \(command[0]): \(String(cString: strerror(errno)))")
         }
     case "where":
         // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다(ssh 로 시험할 때).
         let target = try value(after: "--bundle", in: args).map { try Detector.target(bundleID: $0, appName: $0) } ?? Detector.frontmost()
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         if case .orca = target.host, let payload = try? Detector.orcaTerminals(), let found = try? Detector.orcaActive(payload: payload) {
-            print("화면 판정   \(found.source)")
+            print("visible via   \(found.source)")
         }
     case "doctor":
         let target = try explicitTarget(args) ?? Detector.frontmost()
-        print("대상        \(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
-        if case .ghostty = target.host { print("손쉬운 사용  \(GhosttyScreen.trusted() ? "허용됨" : "허용 안 됨")") }
+        print("target        \(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
+        if case .ghostty = target.host { print("accessibility \(GhosttyScreen.trusted() ? "allowed" : "not allowed")") }
         AgentVersions.report(for: target.agent).lines.forEach { print($0) }
         let io = try Switcher.terminalIO(for: target)
         if let screen = io.screen() {
-            print("화면 읽기    됨 (\(screen.count)줄)")
-            print("입력창       \(Readiness.inputVisible(agent: target.agent, screen: screen) ? "보임 — 전환 가능" : "안 보임 — 전환하지 않음")")
+            print("screen read   ok (\(screen.count) lines)")
+            print("input box     \(Readiness.inputVisible(agent: target.agent, screen: screen) ? "visible — can switch" : "not visible — will not switch")")
             // 시험 표본을 만들 때: 제품이 읽는 «그대로» 의 화면을 파일로 저장한다(`orca terminal read` 의 tail 은 아래쪽 줄이 빠질 수 있다).
             if let path = value(after: "--dump", in: args), let snapshot = io.snapshot() {
                 let object: [String: Any] = ["draft": snapshot.draft as Any, "tail": snapshot.lines]
                 if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted]) {
                     try? data.write(to: URL(fileURLWithPath: path))
-                    print("화면 저장: \(path)")
+                    print("screen saved: \(path)")
                 }
             }
             if args.contains("--screen") {
@@ -163,7 +166,7 @@ do {
                 screen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.suffix(count).forEach { print("  | " + $0.prefix(140)) }
             }
         } else {
-            print("화면 읽기    안 됨 — 전환하지 않음")
+            print("screen read   failed — will not switch")
         }
     case "probe-orca":
         OrcaProbe.run(seconds: value(after: "--seconds", in: args).flatMap(Double.init) ?? 30)
@@ -174,13 +177,13 @@ do {
         }
     case "plan":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
-            fail("slashcommand plan <번호> <claude|codex>")
+            fail("slashcommand plan <number> <claude|codex>")
         }
         let planned = try Switcher(config: try store.load()).plan(slot: slot, agent: agent)
         print("\(agent.rawValue) \(planned.preset.model) · \(planned.preset.effort)")
         planned.steps.forEach { print("  " + describe($0)) }
         if let fallback = planned.fallback {
-            print("선택창에 그 모델 행이 없으면(기본값을 바꿨다가 되돌린다):")
+            print("if the picker has no row for that model (the default is changed and put back):")
             fallback.forEach { print("  " + describe($0)) }
         }
     case "path":

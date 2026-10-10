@@ -216,7 +216,7 @@ public struct CursorDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw SlashCommandError("cursor 터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError(loc("Stopped: could not read the Cursor terminal screen.")) }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -291,7 +291,7 @@ public struct CursorDriver {
         if !leading.isEmpty, leading != preset.model { filters.append(leading) }
         let rows = try openList(filters: filters, wanted: preset.model, failure: fail)
         guard let target = rows.first(where: { CursorScreen.key($0.name) == CursorScreen.key(preset.model) }) else {
-            throw fail("cursor 모델 목록에 '\(preset.model)' 이 없습니다.")
+            throw fail(loc("'%@' is not in the Cursor model list.", preset.model))
         }
         try moveCursor(to: target.name, failure: fail)
 
@@ -319,16 +319,16 @@ public struct CursorDriver {
             return SlashCommandError(message)
         }
         let rows = try openList(filters: [], wanted: nil, failure: fail)
-        guard let current = rows.first(where: \.cursor) else { throw fail("cursor 목록의 커서를 읽지 못했습니다.") }
+        guard let current = rows.first(where: \.cursor) else { throw fail(loc("Could not read the cursor position in the Cursor list.")) }
         try io.press(.tab)
         guard let editor = try poll(timeoutMs: 2000, { CursorScreen.editor($0)?.title.lowercased() == current.name.lowercased() }),
               let options = CursorScreen.editor(editor)?.options.filter({ $0.section == "Effort" }), !options.isEmpty else {
-            throw fail("cursor '\(current.name)' 에는 바꿀 effort 가 없습니다.")
+            throw fail(loc("Cursor '%@' has no effort to change.", current.name))
         }
-        guard let at = options.firstIndex(where: \.chosen) else { throw fail("cursor 가 지금 effort 를 보여 주지 않아 바꾸지 않았습니다.") }
+        guard let at = options.firstIndex(where: \.chosen) else { throw fail(loc("Nothing was changed: Cursor does not show the current effort.")) }
         let next = at + (up ? 1 : -1)
         guard options.indices.contains(next) else {
-            var error = fail("이미 \(up ? "가장 높은" : "가장 낮은") 단계(\(options[at].label))입니다.")
+            var error = fail(up ? loc("Already at the highest level (%@).", options[at].label) : loc("Already at the lowest level (%@).", options[at].label))
             error.nothingToDo = true
             throw error
         }
@@ -340,12 +340,12 @@ public struct CursorDriver {
     // MARK: 단계
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw SlashCommandError("cursor 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the Cursor terminal screen.")) }
         guard CursorScreen.idle(first.lines) else {
             if let draft = CursorScreen.draft(first.lines), !draft.isEmpty {
-                throw SlashCommandError("cursor 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+                throw SlashCommandError(loc("Not switched: there is text in the Cursor input box. Send or clear it, then press again."))
             }
-            throw SlashCommandError("cursor 입력창이 보이지 않아 전환하지 않았습니다. 선택창이나 확인 창이 떠 있거나 작업 중이면 먼저 처리해 주세요.")
+            throw SlashCommandError(loc("Not switched: the Cursor input box is not visible. If a picker or a confirmation is showing, or it is working, deal with that first."))
         }
     }
 
@@ -353,11 +353,11 @@ public struct CursorDriver {
     private func openList(filters: [String], wanted: String?, failure: (String, String?) -> SlashCommandError) throws -> [CursorScreen.Row] {
         try io.type("/model")
         guard (try poll(timeoutMs: 1500) { CursorScreen.draft($0) == "/model" }) != nil else {
-            throw failure("cursor 입력창에 명령이 나타나지 않아 보내지 않았습니다.", "/model")
+            throw failure(loc("Nothing was sent: the command did not appear in the Cursor input box."), "/model")
         }
         try io.press(.enter)
         guard (try poll(timeoutMs: 3000) { CursorScreen.list($0) != nil }) != nil else {
-            throw failure("cursor 모델 목록이 열리지 않았습니다.", "/model")
+            throw failure(loc("The Cursor model list did not open."), "/model")
         }
         var rows = CursorScreen.list(io.freshSnapshot()?.lines ?? [])?.rows ?? []
         var typed = ""
@@ -366,7 +366,7 @@ public struct CursorDriver {
             for _ in 0..<typed.count { try io.press(.backspace); sleep(10) }
             if !typed.isEmpty {
                 guard (try poll(timeoutMs: 1500) { CursorScreen.list($0)?.filter.isEmpty == true }) != nil else {
-                    throw failure("cursor 모델 목록의 걸러내기를 지우지 못했습니다.", nil)
+                    throw failure(loc("Could not clear the filter in the Cursor model list."), nil)
                 }
             }
             try typeSlowly(filter)
@@ -374,7 +374,7 @@ public struct CursorDriver {
             let expected = filter.lowercased()
             guard let lines = try poll(timeoutMs: 3500, { CursorScreen.list($0)?.filter.lowercased() == expected }),
                   let list = CursorScreen.list(lines) else {
-                throw failure("cursor 모델 목록이 '\(filter)' 로 걸러지지 않았습니다.", nil)
+                throw failure(loc("The Cursor model list was not filtered to '%@'.", filter), nil)
             }
             rows = list.rows
             if let wanted, rows.contains(where: { CursorScreen.key($0.name) == CursorScreen.key(wanted) }) { break }
@@ -385,15 +385,15 @@ public struct CursorDriver {
     /// 커서를 이름이 `name` 인 행으로 옮긴다. 옮긴 뒤 다시 읽어 확인한다.
     private func moveCursor(to name: String, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<12 {
-            guard let list = CursorScreen.list(io.freshSnapshot()?.lines ?? []) else { throw failure("cursor 모델 목록이 닫혔습니다.", nil) }
+            guard let list = CursorScreen.list(io.freshSnapshot()?.lines ?? []) else { throw failure(loc("The Cursor model list closed."), nil) }
             guard let from = list.rows.firstIndex(where: \.cursor), let to = list.rows.firstIndex(where: { $0.name == name }) else {
-                throw failure("cursor 모델 목록에서 '\(name)' 행을 찾지 못했습니다.", nil)
+                throw failure(loc("Could not find the '%@' row in the Cursor model list.", name), nil)
             }
             if from == to { return }
             try io.press(to > from ? .down : .up)
             sleep(40)
         }
-        throw failure("cursor 모델 목록에서 '\(name)' 행으로 커서를 옮기지 못했습니다.", nil)
+        throw failure(loc("Could not move the cursor to the '%@' row in the Cursor model list.", name), nil)
     }
 
     /// 매개변수 편집에서 effort 를 맞추고 목록으로 돌아온다. 고른 라벨을 돌려주고, Effort 묶음이 없는 모델이면 nil.
@@ -401,24 +401,24 @@ public struct CursorDriver {
         try io.press(.tab)
         guard let lines = try poll(timeoutMs: 2000, { CursorScreen.editor($0)?.title.lowercased() == name.lowercased() }),
               let options = CursorScreen.editor(lines)?.options else {
-            throw failure("cursor '\(name)' 의 매개변수 편집 화면이 열리지 않았습니다.", nil)
+            throw failure(loc("The parameter editor for Cursor '%@' did not open.", name), nil)
         }
         let efforts = options.filter { $0.section == "Effort" }
         if efforts.isEmpty {
             // effort 가 없는 모델 — 목록으로 돌아가 그대로 확정한다.
             try io.press(.escape)
             guard (try poll(timeoutMs: 2000) { CursorScreen.list($0) != nil }) != nil else {
-                throw failure("cursor 가 매개변수 편집에서 목록으로 돌아오지 않았습니다.", nil)
+                throw failure(loc("Cursor did not return from the parameter editor to the list."), nil)
             }
             return nil
         }
         guard let option = efforts.first(where: { CursorScreen.effortMatches(effort, label: $0.label) }) else {
-            throw failure("cursor '\(name)' 에는 effort '\(effort)' 가 없습니다(\(efforts.map(\.label).joined(separator: ", "))).", nil)
+            throw failure(loc("Cursor '%@' has no effort '%@' (%@).", name, effort, efforts.map(\.label).joined(separator: ", ")), nil)
         }
         if !option.chosen { try pick(optionLabel: option.label, section: "Effort", failure: failure) }
         try io.press(.escape)
         guard (try poll(timeoutMs: 2000) { CursorScreen.list($0) != nil }) != nil else {
-            throw failure("cursor 가 매개변수 편집에서 목록으로 돌아오지 않았습니다.", nil)
+            throw failure(loc("Cursor did not return from the parameter editor to the list."), nil)
         }
         return option.label
     }
@@ -427,21 +427,21 @@ public struct CursorDriver {
     private func pick(optionLabel: String, section: String, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<14 {
             guard let options = CursorScreen.editor(io.freshSnapshot()?.lines ?? [])?.options else {
-                throw failure("cursor 매개변수 편집 화면이 닫혔습니다.", nil)
+                throw failure(loc("The Cursor parameter editor closed."), nil)
             }
             guard let to = options.firstIndex(where: { $0.section == section && $0.label == optionLabel }),
                   let from = options.firstIndex(where: \.cursor) else {
-                throw failure("cursor 매개변수에서 '\(optionLabel)' 줄을 찾지 못했습니다.", nil)
+                throw failure(loc("Could not find the '%@' line in the Cursor parameters.", optionLabel), nil)
             }
             if from == to {
                 try io.press(.enter)
                 if (try poll(timeoutMs: 1500) { CursorScreen.editor($0)?.options.contains { $0.section == section && $0.label == optionLabel && $0.chosen } == true }) != nil { return }
-                throw failure("cursor 가 '\(optionLabel)' 선택을 반영하지 않았습니다.", nil)
+                throw failure(loc("Cursor did not apply the '%@' choice.", optionLabel), nil)
             }
             try io.press(to > from ? .down : .up)
             sleep(40)
         }
-        throw failure("cursor 매개변수에서 '\(optionLabel)' 줄로 커서를 옮기지 못했습니다.", nil)
+        throw failure(loc("Could not move the cursor to the '%@' line in the Cursor parameters.", optionLabel), nil)
     }
 
     /// `effortLabel` 이 nil 이면 effort 가 없는 모델이다 — 모델 이름만 확인한다.
@@ -449,10 +449,10 @@ public struct CursorDriver {
         // 목록(편집에서 돌아온 경우 포함)에서 커서가 그 모델 행에 있을 때만 Enter 로 확정한다.
         if CursorScreen.editor(io.freshSnapshot()?.lines ?? []) != nil {
             try io.press(.escape)
-            guard (try poll(timeoutMs: 2000) { CursorScreen.list($0) != nil }) != nil else { throw failure("cursor 목록으로 돌아오지 못했습니다.", nil) }
+            guard (try poll(timeoutMs: 2000) { CursorScreen.list($0) != nil }) != nil else { throw failure(loc("Could not get back to the Cursor list."), nil) }
         }
         guard let list = CursorScreen.list(io.freshSnapshot()?.lines ?? []), list.rows.first(where: \.cursor)?.name == name else {
-            throw failure("cursor 목록의 커서가 '\(name)' 행에 있지 않아 확정하지 않았습니다.", nil)
+            throw failure(loc("Not confirmed: the cursor in the Cursor list is not on the '%@' row.", name), nil)
         }
         try io.press(.enter)
         func landed(_ lines: [String]) -> Bool {
@@ -464,13 +464,13 @@ public struct CursorDriver {
             return CursorScreen.key(status).hasSuffix(CursorScreen.key(effortLabel))
         }
         guard let lines = try poll(timeoutMs: 4000, landed), let status = CursorScreen.status(lines) else {
-            throw failure("cursor 모델 줄이 '\(name)\(effortLabel.map { " · " + $0 } ?? "")' 로 바뀌지 않아 멈췄습니다.", nil)
+            throw failure(loc("Stopped: the Cursor model line did not change to '%@%@'.", name, effortLabel.map { " · " + $0 } ?? ""), nil)
         }
         var warning: String?
         if let before {
-            if case .failed(let reason) = defaults.restore(to: before) { warning = "새 세션 기본값을 되돌리지 못했습니다: \(reason)" }
+            if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
             sleep(250)
-            if case .failed(let reason) = defaults.restore(to: before) { warning = "새 세션 기본값을 되돌리지 못했습니다: \(reason)" }
+            if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
         }
         return Outcome(confirmations: ["Using \(status)"], warning: warning)
     }
