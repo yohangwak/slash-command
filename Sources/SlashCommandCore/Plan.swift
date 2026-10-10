@@ -75,17 +75,131 @@ public enum Step: Equatable, Sendable {
 }
 
 public enum Launch {
-    /// 그 프리셋으로 새 세션을 열 수 없는 에이전트면 그 사유(2026-10-08 실측: 각 CLI 의 `models` 출력과 `--help`).
+    /// 그 프리셋으로 새 세션을 열 수 없는 에이전트면 그 사유.
+    /// cursor-agent 는 `--model` 이 받는 id 가 화면 이름과 다른데(`grok-4.7` 대 `Grok 4.7`), 그 대응을 알려 주는 출력을 확인하지 못했다.
     public static func unsupportedReason(agent: Agent) -> String? {
         switch agent {
-        case .claude, .codex, .grok: return nil
-        case .cursor, .antigravity, .opencode:
+        case .claude, .codex, .grok, .antigravity, .opencode: return nil
+        case .cursor:
             return loc("%@ does not support `run`: the model id it takes when opening a session differs from the on-screen name in the preset. Open the session, then switch with the shortcut.", agent.displayName)
         }
     }
 
+    /// `--model` 이 화면 이름이 아니라 id 를 받는 에이전트가 «이름 → id» 를 알아내려고 부르는 명령. 그 출력을 `resolve` 에 넘긴다.
+    /// (2026-10-11 실측: `agy models` 는 `id<빈칸>이름 (Effort)` 줄들, `opencode models --verbose` 는 `제공자/id` 줄과 그 모델의 JSON.)
+    public static func listing(agent: Agent) -> [String]? {
+        switch agent {
+        case .antigravity: return ["agy", "models"]
+        case .opencode: return ["opencode", "models", "--verbose"]
+        case .claude, .codex, .grok, .cursor: return nil
+        }
+    }
+
+    public struct Resolved: Equatable, Sendable {
+        /// `--model` 에 넘길 값.
+        public let model: String
+        /// 그대로는 다 맞추지 못한 것이 있을 때의 안내(예: opencode 는 variant 를 여는 옵션이 없다).
+        public let note: String?
+    }
+
+    static func key(_ text: String) -> String {
+        String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+    }
+
+    /// opencode 가 화면에 쓰는 «제공자 이름» 표(제공자 id → 이름).
+    /// 화면의 이름은 id 가 아니다: `opencode` 는 «OpenCode Zen», `google-vertex` 는 «Vertex» 로 보인다(2026-10-11 확인).
+    /// 두 곳에서 읽는다 — `cache`: opencode 의 모델 캐시(`models.json`, models.dev 의 사본. 최상위가 제공자 id → `name`),
+    /// `config`: `opencode debug config` 가 내는 «적용된 설정»(직접 넣은 제공자는 `provider.<id>.name` 에 이름이 있다). 설정이 캐시를 이긴다.
+    /// 값(키·주소 등)은 읽지 않고 이름만 꺼낸다.
+    public static func openCodeProviderNames(cache: Data?, config: Data? = nil) -> [String: String] {
+        var names: [String: String] = [:]
+        func take(_ providers: Any?) {
+            guard let providers = providers as? [String: Any] else { return }
+            for (id, value) in providers {
+                if let name = (value as? [String: Any])?["name"] as? String, !name.isEmpty { names[id] = name }
+            }
+        }
+        if let cache { take(try? JSONSerialization.jsonObject(with: cache)) }
+        if let config { take(((try? JSONSerialization.jsonObject(with: config)) as? [String: Any])?["provider"]) }
+        return names
+    }
+
+    /// 그 캐시 파일의 자리(`XDG_CACHE_HOME` 을 따른다).
+    public static var openCodeModelsCache: URL {
+        let base = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache")
+        return base.appendingPathComponent("opencode/models.json")
+    }
+
+    /// 프리셋의 화면 이름(과 effort)에 해당하는 모델 id 를 `listing` 명령의 출력에서 찾는다.
+    /// `providerNames` 는 opencode 의 제공자 이름 표 — 없으면 제공자 id 로만 맞춰 본다(이름이 id 와 같은 제공자만 풀린다).
+    public static func resolve(agent: Agent, preset: AgentPreset, listing output: String, providerNames: [String: String] = [:]) throws -> Resolved {
+        switch agent {
+        case .antigravity:
+            // `gemini-3.8-flash-high   Gemini 3.8 Flash (High)` — effort 가 id 에 들어 있다.
+            var rows: [(id: String, name: String, effort: String?)] = []
+            for line in output.split(separator: "\n") {
+                let parts = line.split(maxSplits: 1, whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
+                guard parts.count == 2, !parts[0].contains(".."), parts[0].contains("-") else { continue }
+                var name = parts[1].trimmingCharacters(in: .whitespaces)
+                var effort: String?
+                if name.hasSuffix(")"), let open = name.lastIndex(of: "(") {
+                    effort = String(name[name.index(after: open)..<name.index(before: name.endIndex)]).lowercased()
+                    name = name[..<open].trimmingCharacters(in: .whitespaces)
+                }
+                rows.append((parts[0], name, effort))
+            }
+            let named = rows.filter { key($0.name) == key(preset.model) }
+            guard !named.isEmpty else { throw SlashCommandError(loc("'%@' is not in the Antigravity model list.", preset.model)) }
+            if let row = named.first(where: { $0.effort == preset.effort.lowercased() }) ?? (named.count == 1 && named[0].effort == nil ? named[0] : nil) {
+                return Resolved(model: row.id, note: nil)
+            }
+            let available = named.compactMap(\.effort).joined(separator: ", ")
+            throw SlashCommandError(loc("Antigravity '%@' has no effort '%@' (%@).", preset.model, preset.effort, available))
+        case .opencode:
+            // `opencode-go/glm-5.3-flash` 줄 다음에 그 모델의 JSON(`name`·`providerID`·`variants`).
+            // 프리셋의 이름은 화면에 보이는 «모델 이름 + 제공자» 다(`GLM-5.3-Flash OpenCode Go`).
+            var rows: [(id: String, name: String, provider: String, variants: [String])] = []
+            let lines = output.components(separatedBy: "\n")
+            var index = 0
+            while index < lines.count {
+                let id = lines[index]
+                index += 1
+                guard id.contains("/"), !id.contains(" "), index < lines.count, lines[index] == "{" else { continue }
+                var body: [String] = []
+                while index < lines.count {
+                    body.append(lines[index])
+                    index += 1
+                    if body.last == "}" { break }
+                }
+                guard let object = (try? JSONSerialization.jsonObject(with: Data(body.joined(separator: "\n").utf8))) as? [String: Any],
+                      let name = object["name"] as? String else { continue }
+                let provider = (object["providerID"] as? String) ?? String(id.split(separator: "/")[0])
+                rows.append((id, name, provider, ((object["variants"] as? [String: Any]) ?? [:]).keys.sorted()))
+            }
+            let wanted = key(preset.model)
+            // 제공자는 화면에 «이름» 으로 보인다. 이름 표에 없는 제공자(직접 넣은 제공자 등)는 id 로 맞춰 본다.
+            var found = rows.filter { row in
+                [providerNames[row.provider], row.provider].compactMap { $0 }.contains { key(row.name) + key($0) == wanted }
+            }
+            if found.isEmpty {
+                // 제공자를 적지 않은 이름은 그 이름의 모델이 하나뿐일 때만 받는다.
+                let byName = rows.filter { key($0.name) == wanted }
+                if byName.count == 1 { found = byName }
+            }
+            guard let row = found.first else { throw SlashCommandError(loc("'%@' is not in the OpenCode model list.", preset.model)) }
+            // opencode 는 그 모델이 마지막으로 쓴 variant 를 다시 불러온다 — `--model` 만으로는 variant 를 정할 수 없다.
+            // 프리셋이 Default 여도 마찬가지라(앞서 high 로 썼으면 high 로 열린다) 늘 알린다.
+            let note = loc("OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'.", preset.effort)
+            return Resolved(model: row.id, note: note)
+        case .claude, .codex, .grok, .cursor:
+            return Resolved(model: preset.model, note: nil)
+        }
+    }
+
     /// 그 프리셋으로 «새 세션»을 여는 명령줄. 둘 다 이 세션에만 적용되는 옵션이라 기본값은 바뀌지 않는다.
-    public static func command(agent: Agent, preset: AgentPreset, extra: [String] = []) -> [String] {
+    /// `model` 은 `resolve` 가 푼 id(antigravity · opencode).
+    public static func command(agent: Agent, preset: AgentPreset, model: String? = nil, extra: [String] = []) -> [String] {
         switch agent {
         case .claude:
             return ["claude", "--model", preset.model, "--effort", preset.effort] + extra
@@ -93,9 +207,11 @@ public enum Launch {
             return ["codex", "-m", preset.model, "-c", "model_reasoning_effort=\"\(preset.effort)\""] + extra
         case .grok:
             return ["grok", "-m", preset.model, "--reasoning-effort", preset.effort] + extra
-        case .cursor, .antigravity, .opencode:
-            // 이 셋은 `--model` 이 받는 id 가 화면 이름과 다르다(`grok-4.7` 대 `Grok 4.7`, `gemini-3.8-flash-high`, `opencode-go/glm-5.3-flash`)
-            // — 프리셋의 화면 이름을 그대로 넘기면 틀린 값이다. `unsupportedReason` 이 먼저 막는다; 여기서는 모델 없이 띄운다.
+        case .antigravity, .opencode:
+            // `--model` 이 화면 이름이 아니라 id 를 받는다 — `resolve` 로 푼 id 가 있을 때만 넘긴다(화면 이름을 그대로 넘기면 틀린 값이다).
+            return [agent.executable] + (model.map { ["--model", $0] } ?? []) + extra
+        case .cursor:
+            // `unsupportedReason` 이 먼저 막는다; 여기서는 모델 없이 띄운다.
             return [agent.executable] + extra
         }
     }

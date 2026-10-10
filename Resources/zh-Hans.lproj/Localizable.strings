@@ -11,6 +11,7 @@
 "'%@' is not in the Antigravity model list." = "Antigravity 模型列表中没有“%@”。";
 "'%@' is not in the Cursor model list." = "Cursor 模型列表中没有“%@”。";
 "'%@' is not in the Grok model list." = "Grok 模型列表中没有“%@”。";
+"'%@' is not in the OpenCode model list." = "OpenCode 模型列表中没有“%@”。";
 "(no agents set)" = "（未设置）";
 "+ number" = "+ 数字";
 "A default (%@) that was not there before the switch appeared, so it could not be put back automatically" = "切换前没有的默认值（%@）出现了，因此无法自动还原";
@@ -163,6 +164,7 @@
 "On" = "开";
 "Open Settings…" = "打开设置…";
 "Open at login" = "登录时打开";
+"OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "OpenCode 打开时没有设置 variant 的选项，因此会以该模型上次使用的 variant 打开。打开后请用快捷键设置“%@”。";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "Orca 中有两个或更多工作区的标签页标题及顺序完全相同，无法区分当前可见的终端。请为标签页起不同的名称。";
 "Permissions" = "权限";
 "Pick Control, Option or Command for the shortcut. Shift alone would take over typing in the terminal." = "请为快捷键选择 Control、Option 或 Command。仅用 Shift 会占用在终端中的输入。";

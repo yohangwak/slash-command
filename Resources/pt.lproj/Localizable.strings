@@ -11,6 +11,7 @@
 "'%@' is not in the Antigravity model list." = "\"%@\" não está na lista de modelos do Antigravity.";
 "'%@' is not in the Cursor model list." = "\"%@\" não está na lista de modelos do Cursor.";
 "'%@' is not in the Grok model list." = "\"%@\" não está na lista de modelos do Grok.";
+"'%@' is not in the OpenCode model list." = "\"%@\" não está na lista de modelos do OpenCode.";
 "(no agents set)" = "(nenhum agente configurado)";
 "+ number" = "+ número";
 "A default (%@) that was not there before the switch appeared, so it could not be put back automatically" = "Apareceu um padrão (%@) que não existia antes da troca, então não foi possível restaurá-lo automaticamente";
@@ -163,6 +164,7 @@
 "On" = "Ativado";
 "Open Settings…" = "Abrir Ajustes…";
 "Open at login" = "Abrir ao iniciar sessão";
+"OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "O OpenCode não tem opção para definir a variant ao abrir: ele abre com este modelo e com a variant que o modelo usou por último. Depois, use o atalho para definir '%@'.";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "O Orca tem dois ou mais workspaces com os mesmos títulos de aba na mesma ordem, então o terminal visível não pode ser distinguido. Dê nomes diferentes às abas.";
 "Permissions" = "Permissões";
 "Pick Control, Option or Command for the shortcut. Shift alone would take over typing in the terminal." = "Escolha Control, Option ou Command para o atalho. Shift sozinho tomaria conta da digitação no terminal.";
