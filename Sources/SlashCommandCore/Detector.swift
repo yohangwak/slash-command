@@ -45,7 +45,7 @@ public enum Detector {
     public static func frontmost() throws -> Target {
         guard let app = NSWorkspace.shared.frontmostApplication,
               let bundleID = app.bundleIdentifier else {
-            throw SlashCommandError("맨 앞 앱을 알 수 없습니다.")
+            throw SlashCommandError(loc("Cannot tell which app is in front."))
         }
         return try target(bundleID: bundleID, appName: app.localizedName ?? bundleID)
     }
@@ -55,7 +55,7 @@ public enum Detector {
         case ghosttyBundleID: return try ghostty()
         case orcaBundleID: return try orca()
         default:
-            throw SlashCommandError("\(appName) 는 지원하지 않습니다. Ghostty 나 Orca 터미널에서 눌러 주세요.")
+            throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty or Orca terminal.", appName))
         }
     }
 
@@ -72,11 +72,11 @@ public enum Detector {
         let result = GhosttyIO.osascript(script)
         guard result.ok else {
             let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw SlashCommandError("Ghostty 의 맨 앞 터미널을 읽지 못했습니다: \(detail)")
+            throw SlashCommandError(loc("Could not read the frontmost Ghostty terminal: %@", detail))
         }
         let parts = result.out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 2, !parts[0].isEmpty else {
-            throw SlashCommandError("Ghostty 에 열린 창이 없습니다.")
+            throw SlashCommandError(loc("Ghostty has no open window."))
         }
         let id = parts[0]
         let name = parts[1]
@@ -92,8 +92,9 @@ public enum Detector {
             return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
         }
         guard kinds.count == 1, let agent = kinds.first else {
-            let reason = kinds.isEmpty ? "지원하는 에이전트(claude·codex·grok·cursor·antigravity·opencode) 세션이 아닙니다" : "claude 와 codex 가 같은 폴더에서 같이 돌고 있어 구분할 수 없습니다"
-            throw SlashCommandError("Ghostty 맨 앞 터미널(\(name))은 \(reason).")
+            throw SlashCommandError(kinds.isEmpty
+                ? loc("The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", name)
+                : loc("The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder.", name))
         }
         return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
     }
@@ -131,17 +132,17 @@ public enum Detector {
     public static func orcaActive(payload: [String: Any]) throws -> (active: OrcaState.Active, source: String) {
         let database = try? OrcaState.active()
         guard let strip = OrcaView.readStrip() else {
-            return (try OrcaState.active(), "상태 DB(접근성으로 탭 줄을 읽지 못함)")
+            return (try OrcaState.active(), "state DB (could not read the tab strip through Accessibility)")
         }
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
         switch OrcaView.resolve(strip: strip, layouts: layouts) {
         case .tab(let active):
-            let note = (database == active) ? "접근성(DB 와 같음)" : "접근성(DB 와 다름 — DB 가 아직 옛 값)"
+            let note = (database == active) ? "Accessibility (same as the DB)" : "Accessibility (differs from the DB — the DB still has the old value)"
             return (active, note)
         case .ambiguous:
-            throw SlashCommandError("Orca 에 탭 제목 순서가 똑같은 워크스페이스가 둘 이상이라 지금 보이는 터미널을 구분할 수 없습니다. 탭 이름을 서로 다르게 해 주세요.")
+            throw SlashCommandError(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."))
         case .noMatch:
-            return (try OrcaState.active(), "상태 DB(탭 줄이 어느 워크스페이스와도 맞지 않음)")
+            return (try OrcaState.active(), "state DB (the tab strip matches no workspace)")
         }
     }
 
@@ -151,14 +152,14 @@ public enum Detector {
             return payload
         }
         guard let orca = Proc.locate("orca") else {
-            throw SlashCommandError("Orca 앱에 연결하지 못했고 orca 명령도 찾지 못했습니다.")
+            throw SlashCommandError(loc("Could not connect to the Orca app, and the orca command was not found either."))
         }
         let result = Proc.run(orca, ["terminal", "list", "--include-visual-layouts", "--json"],
                               env: OrcaIO.cleanEnv, cwd: "/", timeout: 10)
         guard result.ok,
               let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
               let payload = json["result"] as? [String: Any] else {
-            throw SlashCommandError("Orca 터미널 목록을 읽지 못했습니다: \(OrcaIO.errorSummary(result))")
+            throw SlashCommandError(loc("Could not read the Orca terminal list: %@", OrcaIO.errorSummary(result)))
         }
         return payload
     }
@@ -203,14 +204,14 @@ public enum OrcaState {
         from profile_state_documents where domain = 'workspaceSession'
         """
         let result = Proc.run("/usr/bin/sqlite3", ["-readonly", "file:\(database.path)?mode=ro", query], timeout: 5)
-        let unknown = SlashCommandError("Orca 화면에 떠 있는 워크스페이스를 알아내지 못했습니다(Orca 업데이트로 상태 저장 형식이 바뀌었을 수 있습니다).")
+        let unknown = SlashCommandError(loc("Could not work out which Orca workspace is on screen (an Orca update may have changed how it stores its state)."))
         guard result.ok,
               let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
               let worktree = json["worktree"] as? String, !worktree.isEmpty else {
             throw unknown
         }
         guard let tab = json["tab"] as? String, !tab.isEmpty else {
-            throw SlashCommandError("Orca 맨 앞 탭이 터미널이 아닙니다.")
+            throw SlashCommandError(loc("The frontmost Orca tab is not a terminal."))
         }
         return Active(worktreeID: worktree, tabID: tab)
     }
@@ -223,24 +224,24 @@ public enum OrcaState {
                        processAgent: (String) -> Agent? = { _ in nil }) throws -> Target {
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
         guard let layout = layouts.first(where: { $0["worktreeId"] as? String == active.worktreeID }) else {
-            throw SlashCommandError("Orca 맨 앞 워크스페이스에 열린 터미널이 없습니다.")
+            throw SlashCommandError(loc("The frontmost Orca workspace has no open terminal."))
         }
         guard let tab = tabs(in: layout["root"]).first(where: { $0["tabId"] as? String == active.tabID }) else {
-            throw SlashCommandError("Orca 맨 앞 탭이 터미널이 아닙니다.")
+            throw SlashCommandError(loc("The frontmost Orca tab is not a terminal."))
         }
         let leaves = terminals(in: tab["panes"])
         let activeLeaf = tab["activeLeafId"] as? String
         guard let pane = leaves.first(where: { $0["leafId"] as? String == activeLeaf })
                 ?? leaves.first(where: { $0["active"] as? Bool == true }),
               let handle = pane["handle"] as? String else {
-            throw SlashCommandError("Orca 맨 앞 탭에서 활성 터미널을 찾지 못했습니다.")
+            throw SlashCommandError(loc("Could not find the active terminal in the frontmost Orca tab."))
         }
         let listed = (payload["terminals"] as? [[String: Any]] ?? []).first { $0["handle"] as? String == handle }
         let title = (listed?["title"] as? String) ?? (pane["title"] as? String) ?? handle
         let folder = (layout["worktreePath"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent }
         let label = [title, folder].compactMap { $0 }.joined(separator: " · ")
         guard let agent = processAgent(handle) ?? (listed?["agentIdentity"] as? String).flatMap(Agent.init(rawValue:)) else {
-            throw SlashCommandError("Orca 맨 앞 터미널(\(label))은 지원하는 에이전트(claude·codex·grok·cursor·antigravity·opencode) 세션이 아닙니다.")
+            throw SlashCommandError(loc("The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", label))
         }
         return Target(host: .orca(handle: handle), agent: agent, label: label)
     }

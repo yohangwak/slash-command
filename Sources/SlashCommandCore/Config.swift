@@ -137,7 +137,7 @@ public struct Slot: Codable, Equatable, Sendable {
     /// 목록에 보여 줄 한 줄: `claude opus · high  /  codex gpt-6-astra · high`, 이름이 있으면 뒤에 붙인다.
     public var listing: String {
         let parts = Agent.allCases.compactMap { agent in presets[agent].map { "\(agent.rawValue) \($0.model) · \($0.effort)" } }
-        let body = parts.isEmpty ? "(설정 없음)" : parts.joined(separator: "  /  ")
+        let body = parts.isEmpty ? loc("(no agents set)") : parts.joined(separator: "  /  ")
         return name.isEmpty ? body : "\(body)   — \(name)"
     }
 }
@@ -250,13 +250,13 @@ public struct ConfigStore: Sendable {
         do {
             let config = try JSONDecoder().decode(SlashCommandConfig.self, from: data)
             guard config.slots.count <= SlashCommandConfig.maxSlots else {
-                throw SlashCommandError("프리셋은 \(SlashCommandConfig.maxSlots)개까지입니다(지금 \(config.slots.count)개): \(url.path)")
+                throw SlashCommandError(loc("At most %@ presets are allowed (there are %@): %@", SlashCommandConfig.maxSlots, config.slots.count, url.path))
             }
             return config
         } catch let error as SlashCommandError {
             throw error
         } catch {
-            throw SlashCommandError("프리셋 파일을 읽지 못했습니다: \(url.path) — \(error.localizedDescription)")
+            throw SlashCommandError(loc("Could not read the presets file: %@ — %@", url.path, error.localizedDescription))
         }
     }
 

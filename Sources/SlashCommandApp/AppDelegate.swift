@@ -202,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
                 switcher = made
                 let target = try Detector.target(bundleID: bundleID, appName: appName)
-                trace.mark("대상찾기")
+                trace.mark("find target")
                 switch action {
                 case .preset(let slot): return try made.apply(slot: slot, to: target, deferFinalCheck: true)
                 case .effort(let up): return try made.stepEffort(up: up, on: target)

@@ -8,7 +8,7 @@ public enum AgentVersions {
     /// 선택창 문구·키 동작을 실제 세션에서 확인한 판(docs/PLAN-generalization.md 「화면 문구에 기댄다」 · README 실측 표).
     /// 목록에 없다고 동작하지 않는다는 뜻은 아니다 — 확인하지 못했다는 뜻이다.
     /// 실행 중인 프로세스에서 판을 읽지 못했을 때의 표시.
-    static let unknown = "알 수 없음"
+    static var unknown: String { loc("unknown") }
 
     public static let tested: [Agent: Set<String>] = [
         .claude: ["2.1.283", "2.1.288", "2.1.289", "2.1.291", "2.1.292"],
@@ -34,22 +34,23 @@ public enum AgentVersions {
         /// 판을 읽지 못한 항목 — 「확인한 판」이라고 말할 근거가 없다.
         public var unreadable: [String] {
             var result: [String] = []
-            if installed == nil { result.append("설치된 \(agent.rawValue)") }
-            if running.contains(AgentVersions.unknown) { result.append("실행 중인 \(agent.rawValue) 일부") }
+            if installed == nil { result.append(loc("installed %@", agent.rawValue)) }
+            if running.contains(AgentVersions.unknown) { result.append(loc("some running %@", agent.rawValue)) }
             return result
         }
 
         public var lines: [String] {
             var result: [String] = []
-            result.append("\(agent.rawValue) 판     설치 \(installed ?? AgentVersions.unknown) · 실행 중 \(running.isEmpty ? "없음" : running.joined(separator: ", "))")
+            let runningText = running.isEmpty ? loc("none") : running.joined(separator: ", ")
+            result.append(loc("%@ version  installed %@ · running %@", agent.rawValue, installed ?? AgentVersions.unknown, runningText))
             if !unreadable.isEmpty {
-                result.append("⚠️           판을 읽지 못한 것: \(unreadable.joined(separator: ", ")) — 확인한 판인지 알 수 없습니다")
+                result.append(loc("⚠️           version not readable for: %@ — cannot tell whether it is a verified version", unreadable.joined(separator: ", ")))
             }
             if untested.isEmpty {
-                if unreadable.isEmpty { result.append("             확인한 판입니다") }
+                if unreadable.isEmpty { result.append(loc("             verified version")) }
             } else {
                 let known = (AgentVersions.tested[agent] ?? []).sorted().joined(separator: ", ")
-                result.append("⚠️           확인 못 한 판: \(untested.joined(separator: ", ")) (확인한 판: \(known)) — 화면 문구가 달라졌으면 전환하지 않고 멈춥니다")
+                result.append(loc("⚠️           unverified version: %@ (verified: %@) — if the wording on screen has changed, switching stops instead of guessing", untested.joined(separator: ", "), known))
             }
             return result
         }

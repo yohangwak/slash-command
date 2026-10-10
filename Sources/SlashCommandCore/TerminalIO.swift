@@ -59,20 +59,20 @@ public struct OrcaIO: TerminalIO {
         switch OrcaRuntime.call("terminal.send", params) {
         case .success(let result):
             guard (result["send"] as? [String: Any])?["accepted"] as? Bool == true else {
-                throw SlashCommandError("Orca 터미널이 입력을 받지 않았습니다.")
+                throw SlashCommandError(loc("The Orca terminal did not take the input."))
             }
             return
         case .failure(.failed(let message)):
             // 이미 들어갔을 수 있다 — 다른 길로 다시 보내지 않는다.
-            throw SlashCommandError("Orca 터미널에 입력하지 못했습니다: \(message)")
+            throw SlashCommandError(loc("Could not type into the Orca terminal: %@", message))
         case .failure(.unavailable):
             break
         }
-        guard let orca else { throw SlashCommandError("Orca 앱에 연결하지 못했고 orca 명령도 찾지 못했습니다.") }
+        guard let orca else { throw SlashCommandError(loc("Could not connect to the Orca app, and the orca command was not found either.")) }
         let result = Proc.run(orca, ["terminal", "send", "--terminal", handle, "--text", text, "--json"],
                               env: OrcaIO.cleanEnv, cwd: "/", timeout: 15)
         guard result.ok else {
-            throw SlashCommandError("Orca 터미널에 입력하지 못했습니다: \(Self.errorSummary(result))")
+            throw SlashCommandError(loc("Could not type into the Orca terminal: %@", Self.errorSummary(result)))
         }
     }
 
@@ -119,10 +119,10 @@ public struct OrcaIO: TerminalIO {
     }
 
     static func errorSummary(_ result: ProcResult) -> String {
-        if result.timedOut { return "시간 초과" }
+        if result.timedOut { return loc("timed out") }
         if let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
            let error = json["error"] as? [String: Any] {
-            return (error["message"] as? String) ?? (error["code"] as? String) ?? "알 수 없는 오류"
+            return (error["message"] as? String) ?? (error["code"] as? String) ?? loc("unknown error")
         }
         let text = result.err.isEmpty ? result.out : result.err
         return String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
@@ -165,7 +165,7 @@ public struct GhosttyIO: TerminalIO {
         var error: NSDictionary?
         let value = script.executeAndReturnError(&error)
         if let error {
-            let message = (error[NSAppleScript.errorMessage] as? String) ?? "AppleScript 오류"
+            let message = (error[NSAppleScript.errorMessage] as? String) ?? loc("AppleScript error")
             let number = (error[NSAppleScript.errorNumber] as? Int).map { " (\($0))" } ?? ""
             return ProcResult(status: 1, out: "", err: message + number, timedOut: false)
         }
@@ -203,17 +203,19 @@ public struct GhosttyIO: TerminalIO {
         let action = "text:" + GhosttyIO.actionEscaped(bytes)
         // 화면은 「포커스가 있는 터미널」에서 읽는다. 쓰는 곳도 그 터미널이어야 하므로,
         // 대상이 지금도 맨 앞 창의 포커스 터미널일 때만 쓴다.
+        let gone = loc("The target terminal is no longer in front")
         let script = """
         tell application "Ghostty"
             set t to focused terminal of selected tab of front window
-            if (id of t) is not \(GhosttyIO.quoted(terminalID)) then error "대상 터미널이 더 이상 맨 앞에 없습니다"
+            if (id of t) is not \(GhosttyIO.quoted(terminalID)) then error \(GhosttyIO.quoted(gone))
             perform action \(GhosttyIO.quoted(action)) on t
         end tell
         """
         let result = GhosttyIO.osascript(script)
         guard result.ok, result.out.trimmingCharacters(in: .whitespacesAndNewlines) == "true" else {
             let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw SlashCommandError("Ghostty 에 입력하지 못했습니다: \(detail.isEmpty ? "대상 터미널이 더 이상 맨 앞 창에 없습니다" : detail)")
+            let reason = detail.isEmpty ? loc("The target terminal is no longer in the front window") : detail
+            throw SlashCommandError(loc("Could not type into Ghostty: %@", reason))
         }
     }
 

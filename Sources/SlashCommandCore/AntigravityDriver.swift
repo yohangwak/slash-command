@@ -186,7 +186,7 @@ public struct AntigravityDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw SlashCommandError("antigravity 터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError(loc("Stopped: could not read the Antigravity terminal screen.")) }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -237,15 +237,15 @@ public struct AntigravityDriver {
             return SlashCommandError(message)
         }
         try openPicker(failure: fail)
-        guard var picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw fail("antigravity 선택창을 읽지 못했습니다.") }
+        guard var picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw fail(loc("Could not read the Antigravity picker.")) }
         guard let target = picker.rows.first(where: { AgyScreen.key($0.name) == AgyScreen.key(preset.model) }) else {
-            throw fail("antigravity 모델 목록에 '\(preset.model)' 이 없습니다.")
+            throw fail(loc("'%@' is not in the Antigravity model list.", preset.model))
         }
         try moveCursor(to: target.name, failure: fail)
         picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) ?? picker
         if let slider = picker.slider {
             guard let wanted = slider.labels.firstIndex(where: { AgyScreen.key($0) == AgyScreen.key(preset.effort) || (preset.effort == "xhigh" && AgyScreen.key($0) == "extrahigh") }) else {
-                throw fail("antigravity '\(target.name)' 에는 effort '\(preset.effort)' 가 없습니다(\(slider.labels.joined(separator: ", "))).")
+                throw fail(loc("Antigravity '%@' has no effort '%@' (%@).", target.name, preset.effort, slider.labels.joined(separator: ", ")))
             }
             try moveEffort(to: wanted, failure: fail)
         }
@@ -264,12 +264,12 @@ public struct AntigravityDriver {
         try openPicker(failure: fail)
         guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []),
               let current = picker.rows.first(where: \.current), picker.rows.first(where: \.cursor)?.name == current.name else {
-            throw fail("antigravity 선택창의 커서가 지금 모델에 있지 않아 바꾸지 않았습니다.")
+            throw fail(loc("Nothing was changed: the Antigravity picker's cursor is not on the current model."))
         }
-        guard let slider = picker.slider else { throw fail("antigravity '\(current.name)' 에는 바꿀 effort 가 없습니다.") }
+        guard let slider = picker.slider else { throw fail(loc("Antigravity '%@' has no effort to change.", current.name)) }
         let next = slider.selected + (up ? 1 : -1)
         guard slider.labels.indices.contains(next) else {
-            var error = fail("이미 \(up ? "가장 높은" : "가장 낮은") 단계(\(slider.labels[slider.selected]))입니다.")
+            var error = fail(up ? loc("Already at the highest level (%@).", slider.labels[slider.selected]) : loc("Already at the lowest level (%@).", slider.labels[slider.selected]))
             error.nothingToDo = true
             throw error
         }
@@ -280,48 +280,48 @@ public struct AntigravityDriver {
     // MARK: 단계
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw SlashCommandError("antigravity 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the Antigravity terminal screen.")) }
         guard AgyScreen.idle(first.lines) else {
             if let draft = AgyScreen.draft(first.lines), !draft.isEmpty {
-                throw SlashCommandError("antigravity 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+                throw SlashCommandError(loc("Not switched: there is text in the Antigravity input box. Send or clear it, then press again."))
             }
-            throw SlashCommandError("antigravity 입력창이 보이지 않거나 작업 중이라 전환하지 않았습니다.")
+            throw SlashCommandError(loc("Not switched: the Antigravity input box is not visible, or it is working."))
         }
     }
 
     private func openPicker(failure: (String, String?) -> SlashCommandError) throws {
         try io.type("/model")
         guard (try poll(timeoutMs: 1500) { AgyScreen.draft($0) == "/model" }) != nil else {
-            throw failure("antigravity 입력창에 명령이 나타나지 않아 보내지 않았습니다.", "/model")
+            throw failure(loc("Nothing was sent: the command did not appear in the Antigravity input box."), "/model")
         }
         try io.press(.enter)
         guard (try poll(timeoutMs: 3000) { AgyScreen.picker($0) != nil }) != nil else {
-            throw failure("antigravity 모델 선택창이 열리지 않았습니다.", "/model")
+            throw failure(loc("The Antigravity model picker did not open."), "/model")
         }
     }
 
     private func moveCursor(to name: String, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<14 {
-            guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw failure("antigravity 선택창이 닫혔습니다.", nil) }
+            guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw failure(loc("The Antigravity picker closed."), nil) }
             guard let from = picker.rows.firstIndex(where: \.cursor), let to = picker.rows.firstIndex(where: { $0.name == name }) else {
-                throw failure("antigravity 선택창에서 '\(name)' 행을 찾지 못했습니다.", nil)
+                throw failure(loc("Could not find the '%@' row in the Antigravity picker.", name), nil)
             }
             if from == to { return }
             try io.press(to > from ? .down : .up)
             sleep(40)
         }
-        throw failure("antigravity 선택창에서 '\(name)' 행으로 커서를 옮기지 못했습니다.", nil)
+        throw failure(loc("Could not move the cursor to the '%@' row in the Antigravity picker.", name), nil)
     }
 
     /// 슬라이더를 `target` 번째 단계에 맞춘다. 한 번 누를 때마다 다시 읽어 확인한다 — 끝에서 더 누르지 않는다.
     private func moveEffort(to target: Int, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<8 {
-            guard let slider = AgyScreen.picker(io.freshSnapshot()?.lines ?? [])?.slider else { throw failure("antigravity effort 슬라이더를 읽지 못했습니다.", nil) }
+            guard let slider = AgyScreen.picker(io.freshSnapshot()?.lines ?? [])?.slider else { throw failure(loc("Could not read the Antigravity effort slider."), nil) }
             if slider.selected == target { return }
             try io.press(target > slider.selected ? .right : .left)
             _ = try poll(timeoutMs: 800) { AgyScreen.picker($0)?.slider?.selected != slider.selected }
         }
-        throw failure("antigravity effort 슬라이더를 맞추지 못했습니다.", nil)
+        throw failure(loc("Could not set the Antigravity effort slider."), nil)
     }
 
     private func confirm(name: String, before: DefaultsSnapshot?, failure: (String, String?) -> SlashCommandError) throws -> Outcome {
@@ -333,16 +333,16 @@ public struct AntigravityDriver {
             guard let last = replies.last, last.hasPrefix("Model set to ") else { return false }
             return replies.count > repliesBefore.count || last != repliesBefore.last
         }), let reply = AgyScreen.replies(lines).last else {
-            throw failure("antigravity 가 모델 전환에 응답하지 않아 멈췄습니다.", nil)
+            throw failure(loc("Stopped: Antigravity did not respond to the model switch."), nil)
         }
         guard AgyScreen.key(reply).hasPrefix(AgyScreen.key("Model set to " + name)) else {
-            throw failure("antigravity 가 다른 모델로 바꿨다고 답했습니다: \(reply)", nil)
+            throw failure(loc("Antigravity says it switched to a different model: %@", reply), nil)
         }
         var warning: String?
         if let before {
-            if case .failed(let reason) = defaults.restore(to: before) { warning = "새 세션 기본값을 되돌리지 못했습니다: \(reason)" }
+            if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
             sleep(250)
-            if case .failed(let reason) = defaults.restore(to: before) { warning = "새 세션 기본값을 되돌리지 못했습니다: \(reason)" }
+            if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
         }
         return Outcome(confirmations: [reply], warning: warning)
     }

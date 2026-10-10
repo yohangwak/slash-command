@@ -30,7 +30,7 @@ enum DefaultsFile {
     static func restoreJSON(url: URL, keys: [String], to snapshot: DefaultsSnapshot, pretty: Bool, name: String) -> Result {
         let before: Data?
         switch snapshot {
-        case .unreadable(let reason): return .failed("\(name) 설정 파일을 전환 전에 읽지 못했습니다: \(reason)")
+        case .unreadable(let reason): return .failed(loc("Could not read the %@ settings file before switching: %@", name, reason))
         case .absent: before = nil
         case .content(let data): before = data
         }
@@ -38,15 +38,15 @@ enum DefaultsFile {
             guard let before else { return .unchanged }
             do { try before.write(to: url, options: .atomic); return .restored } catch { return .failed(error.localizedDescription) }
         }
-        guard let current = try? Data(contentsOf: url) else { return .failed("\(name) 설정 파일을 읽지 못했습니다") }
+        guard let current = try? Data(contentsOf: url) else { return .failed(loc("Could not read the %@ settings file", name)) }
         if current == before { return .unchanged }
         guard var now = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else {
-            return .failed("\(name) 설정 파일을 해석하지 못했습니다")
+            return .failed(loc("Could not parse the %@ settings file", name))
         }
         let old: [String: Any]
         if let before {
             guard let parsed = (try? JSONSerialization.jsonObject(with: before)) as? [String: Any] else {
-                return .failed("\(name) 설정 파일(전환 전)을 해석하지 못했습니다")
+                return .failed(loc("Could not parse the %@ settings file as it was before switching", name))
             }
             old = parsed
         } else {
@@ -85,7 +85,7 @@ enum DefaultsFile {
     /// `keepDefaults` 인데 전환 전 상태를 읽지 못했으면 — 되돌릴 값을 모르므로 — 아무것도 보내기 전에 멈춘다.
     static func refuseIfUnreadable(_ snapshot: DefaultsSnapshot?, name: String) throws {
         if case .unreadable(let reason)? = snapshot {
-            throw SlashCommandError("\(name) 설정 파일을 읽지 못해(\(reason)) 새 세션 기본값을 지킬 수 없으므로 전환하지 않았습니다.")
+            throw SlashCommandError(loc("Not switched: the %@ settings file could not be read (%@), so the default for new sessions could not be protected.", name, reason))
         }
     }
 }

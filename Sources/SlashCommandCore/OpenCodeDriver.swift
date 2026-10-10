@@ -182,16 +182,16 @@ public struct OpenCodeDefaults: Sendable {
                         environment: [String: String] = ProcessInfo.processInfo.environment) throws -> OpenCodeDefaults {
         // `orcaHandle` 을 줬는데 그 터미널의 opencode 프로세스가 없으면 다른 세션의 것으로 대신하지 않는다.
         if let orcaHandle, !processes.contains(where: { $0.environment.contains("ORCA_TERMINAL_HANDLE=\(orcaHandle)") && AgentProcesses.agent(forCommandLine: $0.arguments.joined(separator: " ")) == .opencode }) {
-            throw SlashCommandError("이 Orca 터미널의 opencode 프로세스를 찾지 못해 어느 상태 폴더의 새 세션 기본값을 지켜야 할지 알 수 없어 전환하지 않았습니다.")
+            throw SlashCommandError(loc("Not switched: the OpenCode process of this Orca terminal was not found, so there is no telling which state folder's default for new sessions to protect."))
         }
         let homes = stateHomes(processes: processes, orcaHandle: orcaHandle)
         switch homes.count {
         case 0:
             // 그 세션의 프로세스를 못 찾았다 — 우리 환경의 폴더가 그 세션의 폴더라는 근거가 없다. 엉뚱한 파일을 «지켰다» 고 하지 않고 멈춘다.
-            throw SlashCommandError("opencode 세션의 프로세스를 찾지 못해 어느 상태 폴더의 새 세션 기본값을 지켜야 할지 알 수 없어 전환하지 않았습니다.")
+            throw SlashCommandError(loc("Not switched: the process of the OpenCode session was not found, so there is no telling which state folder's default for new sessions to protect."))
         case 1: return OpenCodeDefaults(url: url(stateHome: homes[0], environment: environment))
         default:
-            throw SlashCommandError("opencode 세션들이 서로 다른 상태 폴더(XDG_STATE_HOME)를 쓰고 있어 어느 쪽의 새 세션 기본값을 지켜야 할지 정할 수 없어 전환하지 않았습니다(\(homes.joined(separator: ", "))).")
+            throw SlashCommandError(loc("Not switched: the OpenCode sessions use different state folders (XDG_STATE_HOME), so there is no telling whose default for new sessions to protect (%@).", homes.joined(separator: ", ")))
         }
     }
 
@@ -239,7 +239,7 @@ public struct OpenCodeDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw SlashCommandError("opencode 터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError(loc("Stopped: could not read the OpenCode terminal screen.")) }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -320,11 +320,11 @@ public struct OpenCodeDriver {
         guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []),
               let at = dialog.rows.firstIndex(where: \.current)
                 ?? dialog.rows.firstIndex(where: { OpenCodeScreen.key($0.text) == OpenCodeScreen.key(shown ?? "Default") }) else {
-            throw fail("opencode variant 대화상자에서 지금 값을 읽지 못해 바꾸지 않았습니다.")
+            throw fail(loc("Nothing was changed: could not read the current value in the OpenCode variant dialog."))
         }
         let next = at + (up ? 1 : -1)
         guard dialog.rows.indices.contains(next) else {
-            var error = fail("이미 \(up ? "가장 높은" : "가장 낮은") 단계(\(dialog.rows[at].text))입니다.")
+            var error = fail(up ? loc("Already at the highest level (%@).", dialog.rows[at].text) : loc("Already at the lowest level (%@).", dialog.rows[at].text))
             error.nothingToDo = true
             throw error
         }
@@ -335,23 +335,23 @@ public struct OpenCodeDriver {
     // MARK: 단계
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw SlashCommandError("opencode 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the OpenCode terminal screen.")) }
         guard OpenCodeScreen.idle(first.lines) else {
             if let draft = OpenCodeScreen.draft(first.lines), !draft.isEmpty {
-                throw SlashCommandError("opencode 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+                throw SlashCommandError(loc("Not switched: there is text in the OpenCode input box. Send or clear it, then press again."))
             }
-            throw SlashCommandError("opencode 입력창이 보이지 않거나 작업 중이라 전환하지 않았습니다.")
+            throw SlashCommandError(loc("Not switched: the OpenCode input box is not visible, or it is working."))
         }
     }
 
     private func openDialog(command: String, title: String, failure: (String, String?) -> SlashCommandError) throws {
         try io.type(command)
         guard (try poll(timeoutMs: 1500) { OpenCodeScreen.draft($0) == command }) != nil else {
-            throw failure("opencode 입력창에 명령이 나타나지 않아 보내지 않았습니다.", command)
+            throw failure(loc("Nothing was sent: the command did not appear in the OpenCode input box."), command)
         }
         try io.press(.enter)
         guard (try poll(timeoutMs: 3000) { OpenCodeScreen.dialog($0)?.title == title }) != nil else {
-            throw failure("opencode '\(title)' 대화상자가 열리지 않았습니다.", command)
+            throw failure(loc("The OpenCode '%@' dialog did not open.", title), command)
         }
     }
 
@@ -360,10 +360,11 @@ public struct OpenCodeDriver {
         try io.type(text)
         guard let lines = try poll(timeoutMs: 2000, { OpenCodeScreen.dialog($0)?.search.lowercased() == text.lowercased() }),
               let dialog = OpenCodeScreen.dialog(lines) else {
-            throw failure("opencode 대화상자가 '\(text)' 로 걸러지지 않았습니다.", nil)
+            throw failure(loc("The OpenCode dialog was not filtered to '%@'.", text), nil)
         }
         guard let first = dialog.rows.first, OpenCodeScreen.key(first.text) == OpenCodeScreen.key(text) else {
-            throw failure("opencode 대화상자의 맨 위 행이 '\(text)' 이(가) 아니라 고르지 않았습니다(\(dialog.rows.first?.text ?? "행 없음")).", nil)
+            let top = dialog.rows.first?.text ?? loc("no rows")
+            throw failure(loc("Not chosen: the top row of the OpenCode dialog is not '%@' (%@).", text, top), nil)
         }
         try io.press(.enter)
     }
@@ -376,7 +377,7 @@ public struct OpenCodeDriver {
             if OpenCodeScreen.dialogTitle(lines) == "Select variant" { return true }
             return OpenCodeScreen.dialogTitle(lines) == nil && OpenCodeScreen.status(lines).map { OpenCodeScreen.key($0.model) == OpenCodeScreen.key(model) } == true
         }) != nil else {
-            throw failure("opencode 모델 줄이 '\(model)' 로 바뀌지 않았습니다.", nil)
+            throw failure(loc("The OpenCode model line did not change to '%@'.", model), nil)
         }
     }
 
@@ -387,9 +388,9 @@ public struct OpenCodeDriver {
             if OpenCodeScreen.status(screen)?.variant.map({ OpenCodeScreen.key($0) }) == OpenCodeScreen.key(variant) { return }
             try openDialog(command: "/variants", title: "Select variant", failure: failure)
         }
-        guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []) else { throw failure("opencode variant 대화상자를 읽지 못했습니다.", nil) }
+        guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []) else { throw failure(loc("Could not read the OpenCode variant dialog."), nil) }
         guard let wanted = dialog.rows.first(where: { OpenCodeScreen.key($0.text) == OpenCodeScreen.key(variant) }) else {
-            throw failure("opencode 이 모델에는 variant '\(variant)' 가 없습니다(\(dialog.rows.map(\.text).joined(separator: ", "))).", nil)
+            throw failure(loc("This OpenCode model has no variant '%@' (%@).", variant, dialog.rows.map(\.text).joined(separator: ", ")), nil)
         }
         if wanted.current { try io.press(.escape); return }
         try chooseInOpenDialog(text: wanted.text, failure: failure)
@@ -397,13 +398,13 @@ public struct OpenCodeDriver {
 
     private func finish(before: DefaultsSnapshot?, failure: (String, String?) -> SlashCommandError) throws -> Outcome {
         guard let lines = try poll(timeoutMs: 4000, { OpenCodeScreen.idle($0) }), let status = OpenCodeScreen.status(lines) else {
-            throw failure("opencode 입력창이 돌아오지 않아 멈췄습니다.", nil)
+            throw failure(loc("Stopped: the OpenCode input box did not come back."), nil)
         }
         var warning: String?
         if let before {
-            if case .failed(let reason) = defaults.restore(to: before) { warning = "새 세션 기본값을 되돌리지 못했습니다: \(reason)" }
+            if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
             sleep(250)
-            if case .failed(let reason) = defaults.restore(to: before) { warning = "새 세션 기본값을 되돌리지 못했습니다: \(reason)" }
+            if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
         }
         return Outcome(confirmations: ["Using \(status.model)" + (status.variant.map { " · \($0)" } ?? "")], warning: warning)
     }

@@ -168,10 +168,10 @@ public struct GrokDefaults: Sendable {
         let before: String
         var wasAbsent = false
         switch snapshot {
-        case .unreadable(let reason): return .failed("grok 설정 파일을 전환 전에 읽지 못했습니다: \(reason)")
+        case .unreadable(let reason): return .failed(loc("Could not read the Grok settings file before switching: %@", reason))
         case .absent: before = ""; wasAbsent = true
         case .content(let data):
-            guard let text = String(data: data, encoding: .utf8) else { return .failed("grok 설정 파일(전환 전)이 UTF-8 이 아닙니다") }
+            guard let text = String(data: data, encoding: .utf8) else { return .failed(loc("The Grok settings file as it was before switching is not UTF-8")) }
             before = text
         }
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -179,7 +179,7 @@ public struct GrokDefaults: Sendable {
             do { try before.write(to: url, atomically: true, encoding: .utf8); return .restored } catch { return .failed(error.localizedDescription) }
         }
         guard let current = (try? Data(contentsOf: url)).flatMap({ String(data: $0, encoding: .utf8) }) else {
-            return .failed("grok 설정 파일을 읽지 못했습니다")
+            return .failed(loc("Could not read the Grok settings file"))
         }
         let fixed = GrokDefaults.restoring(current: current, from: before)
         if fixed == current { return .unchanged }
@@ -278,7 +278,7 @@ public struct GrokDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw SlashCommandError("grok 터미널 화면을 읽지 못해 중단했습니다.") }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError(loc("Stopped: could not read the Grok terminal screen.")) }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -322,28 +322,28 @@ public struct GrokDriver {
 
     /// 입력 상자가 비어 있는 대기 상태에서만 시작한다. 실패하면 우리가 쓴 글만 지우고 멈춘다.
     private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
-        guard let first = io.freshSnapshot() else { throw SlashCommandError("grok 터미널 화면을 읽지 못해 전환하지 않았습니다.") }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the Grok terminal screen.")) }
         guard GrokScreen.box(first.lines) != nil else {
-            throw SlashCommandError("grok 입력창이 보이지 않아 전환하지 않았습니다. 선택창이나 확인 창이 떠 있으면 먼저 처리해 주세요.")
+            throw SlashCommandError(loc("Not switched: the Grok input box is not visible. If a picker or a confirmation is showing, deal with that first."))
         }
         if let draft = GrokScreen.draft(first.lines), !draft.isEmpty {
-            throw SlashCommandError("grok 입력창에 쓰던 글이 있어 전환하지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+            throw SlashCommandError(loc("Not switched: there is text in the Grok input box. Send or clear it, then press again."))
         }
         guard GrokScreen.idle(first.lines) else {
-            throw SlashCommandError("grok 가 작업 중이거나 선택창·명령 목록이 떠 있어 전환하지 않았습니다.")
+            throw SlashCommandError(loc("Not switched: Grok is working, or a picker or command list is showing."))
         }
 
         // 프리셋의 모델을 목록에서 찾는다. 목록이 없으면(캐시 없음) 쓴 그대로 보낸다.
         let known = models.resolve(preset.model)
         if !models.models.isEmpty, known == nil {
-            throw SlashCommandError("grok 모델 목록에 '\(preset.model)' 이 없습니다.")
+            throw SlashCommandError(loc("'%@' is not in the Grok model list.", preset.model))
         }
         let id = known?.id ?? preset.model
         var effort: String? = preset.effort
         if let known {
             if known.efforts.isEmpty { effort = nil }
             else if !known.efforts.contains(preset.effort) {
-                throw SlashCommandError("grok \(known.name) 은 effort '\(preset.effort)' 를 지원하지 않습니다(\(known.efforts.joined(separator: ", "))).")
+                throw SlashCommandError(loc("Grok %@ does not support effort '%@' (%@).", known.name, preset.effort, known.efforts.joined(separator: ", ")))
             }
         }
         let command = "/model \(id)" + (effort.map { " \($0)" } ?? "")
@@ -354,21 +354,21 @@ public struct GrokDriver {
     /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다. 지금 값은 입력 상자 테두리의 이름표로 안다.
     private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         guard let first = io.freshSnapshot(), let box = GrokScreen.box(first.lines) else {
-            throw SlashCommandError("grok 입력창이 보이지 않아 바꾸지 않았습니다.")
+            throw SlashCommandError(loc("Nothing was changed: the Grok input box is not visible."))
         }
         if let draft = GrokScreen.draft(first.lines), !draft.isEmpty {
-            throw SlashCommandError("grok 입력창에 쓰던 글이 있어 바꾸지 않았습니다. 먼저 보내거나 지운 뒤 다시 눌러 주세요.")
+            throw SlashCommandError(loc("Nothing was changed: there is text in the Grok input box. Send or clear it, then press again."))
         }
         guard GrokScreen.idle(first.lines), let label = box.label else {
-            throw SlashCommandError("grok 가 작업 중이거나 선택창·명령 목록이 떠 있어 바꾸지 않았습니다.")
+            throw SlashCommandError(loc("Nothing was changed: Grok is working, or a picker or command list is showing."))
         }
         let (name, current) = GrokScreen.parse(label: label)
         guard let model = models.model(named: name), !model.efforts.isEmpty, let current, let at = model.efforts.firstIndex(of: current) else {
-            throw SlashCommandError("지금 grok 모델(\(label))의 effort 단계를 알 수 없어 바꾸지 않았습니다.")
+            throw SlashCommandError(loc("Nothing was changed: the effort levels of the current Grok model (%@) are not known.", label))
         }
         let next = at + (up ? 1 : -1)
         guard model.efforts.indices.contains(next) else {
-            var error = SlashCommandError("이미 \(up ? "가장 높은" : "가장 낮은") 단계(\(current))입니다.")
+            var error = SlashCommandError(up ? loc("Already at the highest level (%@).", current) : loc("Already at the lowest level (%@).", current))
             error.nothingToDo = true
             throw error
         }
@@ -386,7 +386,7 @@ public struct GrokDriver {
         // 쓴 글이 입력 상자에 «보임»을 확인한 뒤에만 Enter 를 보낸다.
         guard (try poll(timeoutMs: 1500) { GrokScreen.draft($0) == command }) != nil else {
             clear(command)
-            throw finish(SlashCommandError("grok 입력창에 명령이 나타나지 않아 보내지 않았습니다."))
+            throw finish(SlashCommandError(loc("Nothing was sent: the command did not appear in the Grok input box.")))
         }
         try io.press(.enter)
 
@@ -407,19 +407,19 @@ public struct GrokDriver {
         }
         if let failure {
             clear(command)
-            throw finish(SlashCommandError("grok 가 '\(command)' 를 받아들이지 않았습니다: \(failure)"))
+            throw finish(SlashCommandError(loc("Grok did not accept '%@': %@", command, failure)))
         }
         guard let landed, let label = GrokScreen.box(landed)?.label else {
             clear(command)
-            throw finish(SlashCommandError("grok 가 '\(command)' 에 응답하지 않아 멈췄습니다."))
+            throw finish(SlashCommandError(loc("Stopped: Grok did not respond to '%@'.", command)))
         }
 
         var warning: String?
         if let before {
             // 파일은 이미 써졌다. 바로 되돌리고, 늦게 오는 쓰기에 대비해 한 번 더 본다.
-            if case .failed(let reason) = defaults.restore(to: before) { warning = "새 세션 기본값을 되돌리지 못했습니다: \(reason)" }
+            if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
             sleep(250)
-            if case .failed(let reason) = defaults.restore(to: before) { warning = "새 세션 기본값을 되돌리지 못했습니다: \(reason)" }
+            if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
         }
         return Outcome(confirmations: ["Using \(label)"], warning: warning)
     }

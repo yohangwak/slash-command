@@ -48,17 +48,17 @@ public enum OrcaRuntime {
     /// 요청 하나를 보내고 `result` 를 돌려준다.
     public static func call(_ method: String, _ params: [String: Any], timeout: TimeInterval = 5) -> Result<[String: Any], Failure> {
         guard let data = try? Data(contentsOf: metadataURL), let meta = metadata(from: data) else {
-            return .failure(.unavailable("Orca 실행 정보를 읽지 못했습니다"))
+            return .failure(.unavailable(loc("Could not read Orca's runtime information")))
         }
         let id = UUID().uuidString.lowercased()
         let request: [String: Any] = ["id": id, credentialField: meta.credential, "method": method, "params": params]
         guard var payload = try? JSONSerialization.data(withJSONObject: request) else {
-            return .failure(.unavailable("요청을 만들지 못했습니다"))
+            return .failure(.unavailable(loc("Could not build the request")))
         }
         payload.append(0x0A)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { return .failure(.unavailable("소켓을 열지 못했습니다")) }
+        guard fd >= 0 else { return .failure(.unavailable(loc("Could not open the socket"))) }
         defer { close(fd) }
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
@@ -70,7 +70,7 @@ public enum OrcaRuntime {
         address.sun_family = sa_family_t(AF_UNIX)
         let pathBytes = Array(meta.socketPath.utf8)
         let capacity = MemoryLayout.size(ofValue: address.sun_path)
-        guard pathBytes.count < capacity else { return .failure(.unavailable("소켓 경로가 너무 깁니다")) }
+        guard pathBytes.count < capacity else { return .failure(.unavailable(loc("The socket path is too long"))) }
         withUnsafeMutableBytes(of: &address.sun_path) { buffer in
             buffer.copyBytes(from: pathBytes)
         }
@@ -79,14 +79,14 @@ public enum OrcaRuntime {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        guard connected == 0 else { return .failure(.unavailable("Orca 앱에 연결하지 못했습니다")) }
+        guard connected == 0 else { return .failure(.unavailable(loc("Could not connect to the Orca app"))) }
 
         var sent = 0
         while sent < payload.count {
             let written = payload.withUnsafeBytes { write(fd, $0.baseAddress! + sent, payload.count - sent) }
             if written <= 0 {
                 // 한 바이트도 못 썼으면 전달된 것이 없다. 일부라도 썼으면 줄바꿈 없는 요청은 실행되지 않지만 단정하지 않는다.
-                return .failure(sent == 0 ? .unavailable("Orca 앱에 요청을 쓰지 못했습니다") : .failed("Orca 앱에 요청을 쓰다 끊겼습니다"))
+                return .failure(sent == 0 ? .unavailable(loc("Could not write the request to the Orca app")) : .failed(loc("The connection dropped while writing the request to the Orca app")))
             }
             sent += written
         }
@@ -95,7 +95,7 @@ public enum OrcaRuntime {
         var chunk = [UInt8](repeating: 0, count: 65536)
         while true {
             let count = read(fd, &chunk, chunk.count)
-            guard count > 0 else { return .failure(.failed("Orca 앱이 응답하지 않았습니다")) }
+            guard count > 0 else { return .failure(.failed(loc("The Orca app did not respond"))) }
             pending.append(contentsOf: chunk[0..<count])
             while let newline = pending.firstIndex(of: 0x0A) {
                 let line = pending.subdata(in: pending.startIndex..<newline)
@@ -117,18 +117,18 @@ public enum OrcaRuntime {
     static func frame(_ line: Data, expectingID id: String, runtimeID: String?) -> Frame {
         guard line.contains(where: { $0 != 0x20 && $0 != 0x0D && $0 != 0x09 }) else { return .skip }
         guard let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {
-            return .done(.failure(.failed("Orca 앱의 응답을 해석하지 못했습니다")))
+            return .done(.failure(.failed(loc("Could not parse the Orca app's response"))))
         }
         if json["_keepalive"] != nil { return .skip }
         guard json["id"] as? String == id else {
-            return .done(.failure(.failed("Orca 앱이 다른 요청의 응답을 돌려줬습니다")))
+            return .done(.failure(.failed(loc("The Orca app answered a different request"))))
         }
         if let runtimeID, let answered = (json["_meta"] as? [String: Any])?["runtimeId"] as? String, answered != runtimeID {
-            return .done(.failure(.failed("요청 도중 Orca 앱이 다시 시작됐습니다")))
+            return .done(.failure(.failed(loc("The Orca app restarted during the request"))))
         }
         guard json["ok"] as? Bool == true, let result = json["result"] as? [String: Any] else {
             let error = json["error"] as? [String: Any]
-            let message = (error?["message"] as? String) ?? (error?["code"] as? String) ?? "알 수 없는 오류"
+            let message = (error?["message"] as? String) ?? (error?["code"] as? String) ?? loc("unknown error")
             return .done(.failure(.failed(message)))
         }
         return .done(.success(result))

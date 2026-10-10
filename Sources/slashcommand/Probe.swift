@@ -12,35 +12,35 @@ import SlashCommandCore
 enum OrcaProbe {
     static func run(seconds: Double) {
         guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == Detector.orcaBundleID }) else {
-            print("Orca 가 실행 중이 아닙니다"); return
+            print("Orca is not running"); return
         }
         let element = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         let start = Date()
         func stamp() -> String { String(format: "+%6.3fs", Date().timeIntervalSince(start)) }
-        print("\(Int(seconds))초 동안 기록합니다. 지금 Orca 로 가서 탭·워크스페이스를 몇 번 옮겨 주세요(클릭으로도, 단축키로도).")
+        print("Recording for \(Int(seconds)) seconds. Go to Orca now and switch tabs and workspaces a few times (by click and by shortcut).")
 
         var lastChain = "", lastDB = "", lastList = ""
         var lastClick = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseDown)
         var lastTick = Date.distantPast
         while Date().timeIntervalSince(start) < seconds {
             let click = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseDown)
-            if click < lastClick { print("\(stamp()) 클릭   (앞 앱: \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"))") }
+            if click < lastClick { print("\(stamp()) click  (front app: \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"))") }
             lastClick = click
 
             let chain = focusChain(element)
-            if chain != lastChain { print("\(stamp()) AX     \(chain.isEmpty ? "(포커스 없음)" : chain)"); lastChain = chain }
+            if chain != lastChain { print("\(stamp()) AX     \(chain.isEmpty ? "(no focus)" : chain)"); lastChain = chain }
 
             if Date().timeIntervalSince(lastTick) > 0.3 {
                 lastTick = Date()
-                let db = (try? OrcaState.active()).map { "\($0.worktreeID.suffix(28)) tab=\($0.tabID.prefix(8))" } ?? "(읽지 못함)"
+                let db = (try? OrcaState.active()).map { "\($0.worktreeID.suffix(28)) tab=\($0.tabID.prefix(8))" } ?? "(unreadable)"
                 if db != lastDB { print("\(stamp()) DB     \(db)"); lastDB = db }
                 let list = activeTabs()
-                if list != lastList { print("\(stamp()) 목록   \(list)"); lastList = list }
+                if list != lastList { print("\(stamp()) list   \(list)"); lastList = list }
             }
             usleep(20_000)
         }
-        print("끝")
+        print("done")
     }
 
     static func attribute(_ element: AXUIElement, _ name: String) -> Any? {
@@ -69,7 +69,7 @@ enum OrcaProbe {
     /// terminal.list 에서 «DB 가 말하는 활성 워크스페이스» 의 탭마다 활성 분할(leaf)을 모은다.
     /// 목록이 따로 «지금 보이는 탭» 을 주는지, 분할 포커스는 DB 보다 빨리 바뀌는지를 본다.
     static func activeTabs() -> String {
-        guard case .success(let payload) = OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) else { return "(읽지 못함)" }
+        guard case .success(let payload) = OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) else { return "(unreadable)" }
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
         var found: [String] = []
         for layout in layouts {
