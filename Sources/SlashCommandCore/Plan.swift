@@ -106,14 +106,21 @@ public enum Launch {
         String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
     }
 
-    /// opencode 가 화면에 쓰는 «제공자 이름» 표(제공자 id → 이름). opencode 의 모델 캐시(`models.json`, models.dev 의 사본)에서 읽는다.
+    /// opencode 가 화면에 쓰는 «제공자 이름» 표(제공자 id → 이름).
     /// 화면의 이름은 id 가 아니다: `opencode` 는 «OpenCode Zen», `google-vertex` 는 «Vertex» 로 보인다(2026-10-11 확인).
-    public static func openCodeProviderNames(cache data: Data) -> [String: String] {
-        guard let providers = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [:] }
+    /// 두 곳에서 읽는다 — `cache`: opencode 의 모델 캐시(`models.json`, models.dev 의 사본. 최상위가 제공자 id → `name`),
+    /// `config`: `opencode debug config` 가 내는 «적용된 설정»(직접 넣은 제공자는 `provider.<id>.name` 에 이름이 있다). 설정이 캐시를 이긴다.
+    /// 값(키·주소 등)은 읽지 않고 이름만 꺼낸다.
+    public static func openCodeProviderNames(cache: Data?, config: Data? = nil) -> [String: String] {
         var names: [String: String] = [:]
-        for (id, value) in providers {
-            if let name = (value as? [String: Any])?["name"] as? String { names[id] = name }
+        func take(_ providers: Any?) {
+            guard let providers = providers as? [String: Any] else { return }
+            for (id, value) in providers {
+                if let name = (value as? [String: Any])?["name"] as? String, !name.isEmpty { names[id] = name }
+            }
         }
+        if let cache { take(try? JSONSerialization.jsonObject(with: cache)) }
+        if let config { take(((try? JSONSerialization.jsonObject(with: config)) as? [String: Any])?["provider"]) }
         return names
     }
 

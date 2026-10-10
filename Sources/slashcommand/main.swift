@@ -135,8 +135,14 @@ do {
                 let detail = result.timedOut ? "timed out" : (result.err + result.out).trimmingCharacters(in: .whitespacesAndNewlines)
                 fail("could not list the \(agent.displayName) models (\(listing.joined(separator: " "))): \(detail)")
             }
-            // opencode 는 제공자를 화면에 «이름» 으로 보여 준다 — 그 이름은 opencode 의 모델 캐시에 있다(없으면 id 로만 맞춘다).
-            let providerNames = agent == .opencode ? ((try? Data(contentsOf: Launch.openCodeModelsCache)).map(Launch.openCodeProviderNames(cache:)) ?? [:]) : [:]
+            // opencode 는 제공자를 화면에 «이름» 으로 보여 준다. 그 이름은 opencode 의 모델 캐시와, 직접 넣은 제공자라면
+            // «적용된 설정»(`opencode debug config`)에 있다. 둘 다 못 읽으면 id 로만 맞춘다. 설정의 값은 찍지 않는다(이름만 쓴다).
+            var providerNames: [String: String] = [:]
+            if agent == .opencode {
+                let config = Proc.run("/usr/bin/env", ["opencode", "debug", "config"], timeout: 20)
+                providerNames = Launch.openCodeProviderNames(cache: try? Data(contentsOf: Launch.openCodeModelsCache),
+                                                             config: config.ok ? Data(config.out.utf8) : nil)
+            }
             resolved = try Launch.resolve(agent: agent, preset: planned, listing: result.out, providerNames: providerNames)
             if let note = resolved?.note { FileHandle.standardError.write(Data("slashcommand: \(note)\n".utf8)) }
         }

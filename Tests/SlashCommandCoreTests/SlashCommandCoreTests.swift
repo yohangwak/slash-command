@@ -3115,10 +3115,23 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         }
     }
 
-    func testProviderNamesComeFromTheModelsCache() {
-        let cache = #"{"opencode": {"id": "opencode", "name": "OpenCode Zen", "models": {}}, "google-vertex": {"name": "Vertex"}, "broken": 3}"#
-        XCTAssertEqual(Launch.openCodeProviderNames(cache: Data(cache.utf8)), ["opencode": "OpenCode Zen", "google-vertex": "Vertex"])
+    func testProviderNamesComeFromTheModelsCacheAndTheResolvedConfig() throws {
+        let cache = Data(#"{"opencode": {"id": "opencode", "name": "OpenCode Zen", "models": {}}, "google-vertex": {"name": "Vertex"}, "broken": 3}"#.utf8)
+        XCTAssertEqual(Launch.openCodeProviderNames(cache: cache), ["opencode": "OpenCode Zen", "google-vertex": "Vertex"])
         XCTAssertEqual(Launch.openCodeProviderNames(cache: Data("not json".utf8)), [:])
+        XCTAssertEqual(Launch.openCodeProviderNames(cache: nil), [:])
+        // 직접 넣은 제공자의 이름은 설정에 있다 — 캐시에는 없다. 같은 id 가 둘 다에 있으면 설정이 이긴다.
+        let config = Data(#"{"model": "x/y", "provider": {"my-proxy": {"name": "Acme Gateway", "options": {"apiKey": "never-read"}}, "opencode": {"name": "Zen (work)"}}}"#.utf8)
+        let names = Launch.openCodeProviderNames(cache: cache, config: config)
+        XCTAssertEqual(names, ["opencode": "Zen (work)", "google-vertex": "Vertex", "my-proxy": "Acme Gateway"])
+
+        // 이름이 id 와 전혀 다른 직접 넣은 제공자도 화면의 이름으로 풀린다.
+        let custom = "my-proxy/glm-5.3-flash\n{\n  \"id\": \"glm-5.3-flash\",\n  \"providerID\": \"my-proxy\",\n  \"name\": \"GLM-5.3-Flash\"\n}\n"
+        let listing = LaunchSupportTests.opencodeModels + "\n" + custom
+        XCTAssertEqual(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash Acme Gateway", effort: "Default"),
+                                          listing: listing, providerNames: names).model, "my-proxy/glm-5.3-flash")
+        XCTAssertEqual(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash Zen (work)", effort: "Default"),
+                                          listing: listing, providerNames: names).model, "opencode/glm-5.3-flash")
     }
 }
 
