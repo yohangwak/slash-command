@@ -166,7 +166,7 @@
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "في Orca عدة مساحات عمل بعناوين علامات تبويب متطابقة وبالترتيب نفسه، لذا لا يمكن التمييز بين الطرفيات الظاهرة. امنح علامات التبويب أسماء مختلفة.";
 "Permissions" = "الأذونات";
 "Pick Control, Option or Command for the shortcut. Shift alone would take over typing in the terminal." = "اختر Control أو Option أو Command للاختصار. استخدام Shift وحده سيستحوذ على الكتابة في الطرفية.";
-"Preset %@ has no %@ entry." = "لا يوجد إدخال %@ في الإعداد المسبق %@.";
+"Preset %@ has no %@ entry." = "لا يوجد إدخال %2$@ في الإعداد المسبق %1$@.";
 "Preset %@" = "الإعداد المسبق %@";
 "Preset %@: enter a model for %@." = "الإعداد المسبق %@: أدخل نموذجًا لـ %@.";
 "Presets file" = "ملف الإعدادات المسبقة";
