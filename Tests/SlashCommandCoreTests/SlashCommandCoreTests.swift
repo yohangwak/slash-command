@@ -2994,13 +2994,101 @@ final class CursorEffortLabelTests: KoreanMessagesTestCase {
 }
 
 final class LaunchSupportTests: KoreanMessagesTestCase {
-    func testOnlyAgentsWhoseModelFlagTakesThePresetValueCanLaunch() {
-        for agent in [Agent.claude, .codex, .grok] { XCTAssertNil(Launch.unsupportedReason(agent: agent), agent.rawValue) }
+    func testOnlyCursorCannotLaunch() {
+        for agent in [Agent.claude, .codex, .grok, .antigravity, .opencode] { XCTAssertNil(Launch.unsupportedReason(agent: agent), agent.rawValue) }
+        XCTAssertNotNil(Launch.unsupportedReason(agent: .cursor))
         for agent in [Agent.cursor, .antigravity, .opencode] {
-            XCTAssertNotNil(Launch.unsupportedReason(agent: agent), agent.rawValue)
             let command = Launch.command(agent: agent, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"))
             XCTAssertFalse(command.contains("GLM-5.3-Flash OpenCode Go"), "화면 이름을 --model 에 넘기지 않는다")
         }
+        XCTAssertEqual(Launch.command(agent: .antigravity, preset: AgentPreset(model: "Gemini 3.8 Flash", effort: "high"), model: "gemini-3.8-flash-high", extra: ["-p"]),
+                       ["agy", "--model", "gemini-3.8-flash-high", "-p"])
+        XCTAssertEqual(Launch.command(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "Default"), model: "opencode-go/glm-5.3-flash"),
+                       ["opencode", "--model", "opencode-go/glm-5.3-flash"])
+    }
+
+    /// 2026-10-11 `agy models` 의 출력(agy 1.3.3)에서 떼어 온 줄들.
+    static let agyModels = """
+    Fetching available models...
+    gemini-3.8-flash-high\tGemini 3.8 Flash (High)
+    gemini-3.8-flash-medium\tGemini 3.8 Flash (Medium)
+    gemini-3.8-flash-low\tGemini 3.8 Flash (Low)
+    gemini-3.1-pro-high\tGemini 3.1 Pro (High)
+    gemini-3.1-pro-low\tGemini 3.1 Pro (Low)
+    claude-opus-5-5-high\tClaude Opus 5.5 (High)
+    gpt-oss-120b-medium\tGPT-OSS 120B (Medium)
+    """
+
+    func testAntigravityNameAndEffortResolveToAnID() throws {
+        let listing = LaunchSupportTests.agyModels
+        XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 3.8 Flash", effort: "medium"), listing: listing),
+                       Launch.Resolved(model: "gemini-3.8-flash-medium", note: nil))
+        XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "gemini-3.1-pro", effort: "low"), listing: listing).model,
+                       "gemini-3.1-pro-low", "대소문자·기호는 무시한다")
+        XCTAssertThrowsError(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 3.1 Pro", effort: "medium"), listing: listing)) {
+            XCTAssertEqual("\($0)", "antigravity 'Gemini 3.1 Pro' 에는 effort 'medium' 가 없습니다(high, low).")
+        }
+        XCTAssertThrowsError(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 9", effort: "high"), listing: listing)) {
+            XCTAssertEqual("\($0)", "antigravity 모델 목록에 'Gemini 9' 이 없습니다.")
+        }
+        XCTAssertThrowsError(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 3.8 Flash", effort: "high"),
+                                                listing: "Error: Please sign in to view available models."), "목록을 못 받았으면 추측하지 않는다")
+    }
+
+    /// 2026-10-11 `opencode models --verbose` 의 출력(opencode 1.18.35)에서 떼어 줄인 것.
+    static let opencodeModels = """
+    opencode/glm-5.3-flash
+    {
+      "id": "glm-5.3-flash",
+      "providerID": "opencode",
+      "name": "GLM-5.3-Flash",
+      "api": {
+        "id": "glm-5.3-flash"
+      },
+      "variants": {}
+    }
+    opencode-go/glm-5.3
+    {
+      "id": "glm-5.3",
+      "providerID": "opencode-go",
+      "name": "GLM-5.3",
+      "variants": {
+        "low": {},
+        "high": {}
+      }
+    }
+    opencode-go/glm-5.3-flash
+    {
+      "id": "glm-5.3-flash",
+      "providerID": "opencode-go",
+      "name": "GLM-5.3-Flash",
+      "variants": {
+        "low": {},
+        "high": {},
+        "max": {}
+      }
+    }
+    opencode-go/deepseek-v4.1-flash
+    {
+      "id": "deepseek-v4.1-flash",
+      "providerID": "opencode-go",
+      "name": "DeepSeek V4.1 Flash",
+      "variants": {}
+    }
+    """
+
+    func testOpenCodeNameWithProviderResolvesToAnID() throws {
+        let listing = LaunchSupportTests.opencodeModels
+        let plain = try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "Default"), listing: listing)
+        XCTAssertEqual(plain, Launch.Resolved(model: "opencode-go/glm-5.3-flash", note: nil), "같은 이름이 두 제공자에 있어도 제공자까지 맞는 것을 고른다")
+        let withVariant = try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"), listing: listing)
+        XCTAssertEqual(withVariant.model, "opencode-go/glm-5.3-flash")
+        XCTAssertNotNil(withVariant.note, "variant 는 여는 옵션이 없다 — 맞추지 못한 것을 알린다")
+        XCTAssertEqual(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "DeepSeek V4.1 Flash", effort: "Default"), listing: listing).model,
+                       "opencode-go/deepseek-v4.1-flash", "제공자를 적지 않아도 그 이름이 하나뿐이면 받는다")
+        XCTAssertThrowsError(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash", effort: "Default"), listing: listing),
+                             "제공자 없이 적었는데 그 이름이 둘이면 고르지 않는다")
+        XCTAssertThrowsError(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-9 OpenCode Go", effort: "Default"), listing: listing))
     }
 }
 

@@ -11,6 +11,7 @@
 "'%@' is not in the Antigravity model list." = "antigravity 모델 목록에 '%@' 이 없습니다.";
 "'%@' is not in the Cursor model list." = "cursor 모델 목록에 '%@' 이 없습니다.";
 "'%@' is not in the Grok model list." = "grok 모델 목록에 '%@' 이 없습니다.";
+"'%@' is not in the OpenCode model list." = "opencode 모델 목록에 '%@' 이 없습니다.";
 "(no agents set)" = "(설정 없음)";
 "+ number" = "+ 번호";
 "A default (%@) that was not there before the switch appeared, so it could not be put back automatically" = "전환 전에 없던 기본값 항목(%@)이 생겨 자동으로 되돌리지 못했습니다";
@@ -163,6 +164,7 @@
 "On" = "켜짐";
 "Open Settings…" = "설정 열기…";
 "Open at login" = "로그인할 때 실행";
+"OpenCode has no option to set the variant when it opens, so it opens with the model only. Use the shortcut afterwards to set '%@'." = "OpenCode 는 열 때 variant 를 정하는 옵션이 없어 모델만 맞춰 엽니다. 연 뒤에 단축키로 '%@' 를 맞춰 주세요.";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "Orca 에 탭 제목 순서가 똑같은 워크스페이스가 둘 이상이라 지금 보이는 터미널을 구분할 수 없습니다. 탭 이름을 서로 다르게 해 주세요.";
 "Permissions" = "권한";
 "Pick Control, Option or Command for the shortcut. Shift alone would take over typing in the terminal." = "단축키에 Control·Option·Command 중 하나를 골라 주세요. Shift 만으로는 터미널에서 글자를 칠 수 없게 됩니다.";

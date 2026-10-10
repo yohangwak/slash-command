@@ -6,7 +6,7 @@ slashcommand — switch the model and effort of the agent in the frontmost termi
 
   slashcommand apply <number> [target] [--trace]   apply a preset (--trace: time per step)
   slashcommand effort <up|down> [target] [--trace]   keep the model, move the effort one level
-  slashcommand run <number> <claude|codex|grok> [--dry-run] [args…]   open a new session in this terminal with that preset
+  slashcommand run <number> <claude|codex|grok|antigravity|opencode> [--dry-run] [args…]   open a new session in this terminal with that preset
   slashcommand where                   the frontmost terminal and its agent
   slashcommand probe-orca [--seconds N]  record when Orca's "visible terminal" signals change, on one clock (for testing; sends nothing)
   slashcommand doctor [target] [--screen [--lines N]] [--dump file.json]  check the target, screen reading and input box (sends nothing)
@@ -121,13 +121,24 @@ do {
         print("→ \(result.summary)")
     case "run":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
-            fail("slashcommand run <number> <claude|codex|grok> [args…]")
+            fail("slashcommand run <number> <claude|codex|grok|antigravity|opencode> [args…]")
         }
         if let reason = Launch.unsupportedReason(agent: agent) { fail(reason) }
         let planned = try Switcher(config: try store.load(), codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
         // `--dry-run` 은 바로 뒤에 올 때만 우리 것이다 — 그 뒤의 인자는 전부 에이전트에 넘긴다.
         let dryRun = args.count > 3 && args[3] == "--dry-run"
-        let command = Launch.command(agent: agent, preset: planned, extra: Array(args.dropFirst(dryRun ? 4 : 3)))
+        // 화면 이름이 아니라 id 를 받는 에이전트는 그 CLI 의 모델 목록에서 id 를 찾는다.
+        var resolved: Launch.Resolved?
+        if let listing = Launch.listing(agent: agent) {
+            let result = Proc.run("/usr/bin/env", listing, timeout: 40)
+            guard result.ok else {
+                let detail = result.timedOut ? "timed out" : (result.err + result.out).trimmingCharacters(in: .whitespacesAndNewlines)
+                fail("could not list the \(agent.displayName) models (\(listing.joined(separator: " "))): \(detail)")
+            }
+            resolved = try Launch.resolve(agent: agent, preset: planned, listing: result.out)
+            if let note = resolved?.note { FileHandle.standardError.write(Data("slashcommand: \(note)\n".utf8)) }
+        }
+        let command = Launch.command(agent: agent, preset: planned, model: resolved?.model, extra: Array(args.dropFirst(dryRun ? 4 : 3)))
         if dryRun {
             print(command.joined(separator: " "))
         } else {
