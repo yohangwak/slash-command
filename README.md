@@ -15,7 +15,7 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
 | 메뉴 | 메뉴 막대 아이콘. 맨 위에 «지금 맨 앞 세션의 에이전트»(`Claude Code · Orca`)가 뜨고, 프리셋 줄은 그 에이전트에 «지금 누르면 되는 값»(`opus · high`)만 보여 준다. 그 에이전트의 설정이 없는 번호는 흐리게 나온다. 권한·단축키에 문제가 있을 때만 그 줄이 생긴다 |
 | 프리셋 편집 | 메뉴 막대 아이콘 → 「설정…」(Settings…). 프리셋은 접혀 있고, 펼치면 에이전트별 모델·effort — 쓰는 에이전트만 「에이전트 추가」로 넣는다. 저장하지 않은 편집은 창을 닫았다 열어도 남는다(파일은 `~/.config/slashcommand/presets.json`) |
-| 새 세션 | `slashcommand run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). claude·codex·grok 만 — cursor·agy·opencode 는 `--model` 이 받는 id 가 화면 이름과 달라 지원하지 않는다 |
+| 새 세션 | `slashcommand run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). antigravity·opencode 는 `--model` 이 화면 이름이 아니라 id 를 받아서, 그 CLI 의 모델 목록(`agy models` · `opencode models --verbose`)에서 id 를 찾아 넘긴다(목록을 못 받거나 이름이 없으면 열지 않는다. opencode 는 variant 를 여는 옵션이 없어 모델만 맞춘다). cursor 는 지원하지 않는다 |
 | 터미널에서 | `slashcommand list` · `where` · `doctor --screen`(대상·에이전트 판·화면 읽기·입력창 점검, 아무것도 보내지 않음) · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
 | 기록 | `~/Library/Logs/SlashCommand/slashcommand.log` (누른 것, 결과, 단계별 걸린 시간) |
 
@@ -159,7 +159,7 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
 - 단축키로 되는 터미널은 Ghostty 와 Orca 다. tmux · kitty · WezTerm 은 시험 단계 — 대상을 직접 지정한 명령줄로만 된다(`slashcommand apply 2 --tmux <pane> --agent claude`, `--kitty <창 id> --kitty-socket unix:/경로`, `--wezterm <pane id>`). 2026-10-07 맥북에서 실제 전환을 확인했다(1~2초). iTerm2 는 맥북에서 전환까지 확인했지만(약 1초) 입력 방송(Broadcast Input)이 켜져 있으면 다른 칸에도 입력이 들어가는 문제를 구조적으로 막지 못해 아직 넣지 않았다(별도 작업). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
 - 새 에이전트들의 한계: cursor 의 매개변수 편집에서 Effort 말고 Context·Fast 는 건드리지 않는다 · cursor 는 목록이 10줄씩 보이므로 이름을 걸러서 찾는다(이름이 둘 이상 겹치면 정확히 같은 이름만 고른다) · agy 는 긴 출력 뒤에 입력창이 다시 그려지지 않을 때가 있어(Ctrl+L 로 풀린다) 그때는 «입력창이 보이지 않는다» 로 멈춘다 · opencode 의 목록 커서는 글자로 보이지 않아 «걸러낸 맨 위 행이 우리가 찾는 그 행일 때만» 고른다. 그래서 즐겨찾기한 비슷한 이름의 모델이 위에 오면(`GLM-5.3` 을 찾는데 `GLM-5.3-Flash` 가 맨 위) 고르지 않고 멈춘다(2026-10-08 실측).
-- 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292, codex 0.156.0·0.160.0·0.160.1)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
+- 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292·2.1.296, codex 0.156.0·0.160.0·0.160.1·0.162.0)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
 
 ## 개발
 
