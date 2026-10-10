@@ -164,7 +164,7 @@
 "On" = "オン";
 "Open Settings…" = "設定を開く…";
 "Open at login" = "ログイン時に開く";
-"OpenCode has no option to set the variant when it opens, so it opens with the model only. Use the shortcut afterwards to set '%@'." = "OpenCode には起動時に variant を指定するオプションがないため、モデルのみ指定して開きます。開いた後、ショートカットで「%@」に設定してください。";
+"OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "OpenCode には起動時に variant を指定するオプションがないため、このモデルで最後に使った variant のまま開きます。開いた後、ショートカットで「%@」に設定してください。";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "Orca に、タブのタイトルとその順序が同じワークスペースが2つ以上あるため、表示中のターミナルを区別できません。タブに異なる名前を付けてください。";
 "Permissions" = "権限";
 "Pick Control, Option or Command for the shortcut. Shift alone would take over typing in the terminal." = "ショートカットには Control、Option、Command のいずれかを選んでください。Shift だけだと、ターミナルでの文字入力を奪ってしまいます。";

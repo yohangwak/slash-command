@@ -164,7 +164,7 @@
 "On" = "开";
 "Open Settings…" = "打开设置…";
 "Open at login" = "登录时打开";
-"OpenCode has no option to set the variant when it opens, so it opens with the model only. Use the shortcut afterwards to set '%@'." = "OpenCode 打开时没有设置 variant 的选项，因此只按模型打开。打开后请用快捷键设置“%@”。";
+"OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "OpenCode 打开时没有设置 variant 的选项，因此会以该模型上次使用的 variant 打开。打开后请用快捷键设置“%@”。";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "Orca 中有两个或更多工作区的标签页标题及顺序完全相同，无法区分当前可见的终端。请为标签页起不同的名称。";
 "Permissions" = "权限";
 "Pick Control, Option or Command for the shortcut. Shift alone would take over typing in the terminal." = "请为快捷键选择 Control、Option 或 Command。仅用 Shift 会占用在终端中的输入。";

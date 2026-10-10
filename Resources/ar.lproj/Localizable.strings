@@ -164,7 +164,7 @@
 "On" = "تشغيل";
 "Open Settings…" = "فتح الإعدادات…";
 "Open at login" = "فتح عند تسجيل الدخول";
-"OpenCode has no option to set the variant when it opens, so it opens with the model only. Use the shortcut afterwards to set '%@'." = "لا يوفّر OpenCode خيارًا لتحديد variant عند الفتح، لذلك يُفتح بالنموذج فقط. استخدم الاختصار بعد ذلك لتعيين '%@'.";
+"OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "لا يوفّر OpenCode خيارًا لتحديد variant عند الفتح، لذلك يُفتح بهذا النموذج وبآخر variant استخدمه النموذج. استخدم الاختصار بعد ذلك لتعيين '%@'.";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "في Orca عدة مساحات عمل بعناوين علامات تبويب متطابقة وبالترتيب نفسه، لذا لا يمكن التمييز بين الطرفيات الظاهرة. امنح علامات التبويب أسماء مختلفة.";
 "Permissions" = "الأذونات";
 "Pick Control, Option or Command for the shortcut. Shift alone would take over typing in the terminal." = "اختر Control أو Option أو Command للاختصار. استخدام Shift وحده سيستحوذ على الكتابة في الطرفية.";

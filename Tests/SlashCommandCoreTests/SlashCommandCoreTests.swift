@@ -3077,18 +3077,48 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
     }
     """
 
+    /// 화면에 보이는 제공자 이름(2026-10-11 opencode 의 모델 캐시에서: `opencode` 는 «OpenCode Zen» 으로 보인다).
+    static let opencodeProviders = ["opencode": "OpenCode Zen", "opencode-go": "OpenCode Go", "google-vertex": "Vertex"]
+
     func testOpenCodeNameWithProviderResolvesToAnID() throws {
         let listing = LaunchSupportTests.opencodeModels
-        let plain = try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "Default"), listing: listing)
-        XCTAssertEqual(plain, Launch.Resolved(model: "opencode-go/glm-5.3-flash", note: nil), "같은 이름이 두 제공자에 있어도 제공자까지 맞는 것을 고른다")
-        let withVariant = try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"), listing: listing)
-        XCTAssertEqual(withVariant.model, "opencode-go/glm-5.3-flash")
-        XCTAssertNotNil(withVariant.note, "variant 는 여는 옵션이 없다 — 맞추지 못한 것을 알린다")
-        XCTAssertEqual(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "DeepSeek V4.1 Flash", effort: "Default"), listing: listing).model,
+        let names = LaunchSupportTests.opencodeProviders
+        let go = try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"), listing: listing, providerNames: names)
+        XCTAssertEqual(go.model, "opencode-go/glm-5.3-flash", "같은 이름이 두 제공자에 있어도 제공자까지 맞는 것을 고른다")
+        let zen = try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Zen", effort: "high"), listing: listing, providerNames: names)
+        XCTAssertEqual(zen.model, "opencode/glm-5.3-flash", "제공자는 id(opencode)가 아니라 화면의 이름(OpenCode Zen)으로 맞춘다")
+        XCTAssertEqual(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "DeepSeek V4.1 Flash", effort: "Default"), listing: listing, providerNames: names).model,
                        "opencode-go/deepseek-v4.1-flash", "제공자를 적지 않아도 그 이름이 하나뿐이면 받는다")
-        XCTAssertThrowsError(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash", effort: "Default"), listing: listing),
+        XCTAssertThrowsError(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash", effort: "Default"), listing: listing, providerNames: names),
                              "제공자 없이 적었는데 그 이름이 둘이면 고르지 않는다")
-        XCTAssertThrowsError(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-9 OpenCode Go", effort: "Default"), listing: listing))
+        XCTAssertThrowsError(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-9 OpenCode Go", effort: "Default"), listing: listing, providerNames: names))
+    }
+
+    func testOpenCodeWithoutProviderNamesFallsBackToIDsAndNeverGuesses() throws {
+        let listing = LaunchSupportTests.opencodeModels
+        // 이름 표가 없으면(캐시를 못 읽음) id 와 이름이 같은 제공자만 풀린다 — «OpenCode Zen» 은 id `opencode` 와 맞지 않아 고르지 않는다.
+        XCTAssertEqual(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"), listing: listing).model,
+                       "opencode-go/glm-5.3-flash")
+        XCTAssertThrowsError(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Zen", effort: "high"), listing: listing))
+        // 이름 표에 없는 제공자(직접 넣은 제공자)는 id 로 맞춘다.
+        let custom = "my-proxy/glm-5.3-flash\n{\n  \"id\": \"glm-5.3-flash\",\n  \"providerID\": \"my-proxy\",\n  \"name\": \"GLM-5.3-Flash\"\n}\n"
+        XCTAssertEqual(try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash My Proxy", effort: "Default"),
+                                          listing: listing + "\n" + custom, providerNames: LaunchSupportTests.opencodeProviders).model, "my-proxy/glm-5.3-flash")
+    }
+
+    func testOpenCodeAlwaysSaysTheVariantIsNotSet() throws {
+        // `--model` 로 열어도 opencode 는 그 모델이 마지막으로 쓴 variant 를 다시 불러온다 — Default 를 바랐어도 알린다.
+        for effort in ["Default", "high"] {
+            let resolved = try Launch.resolve(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: effort),
+                                              listing: LaunchSupportTests.opencodeModels, providerNames: LaunchSupportTests.opencodeProviders)
+            XCTAssertTrue(resolved.note?.contains("'\(effort)'") == true, effort)
+        }
+    }
+
+    func testProviderNamesComeFromTheModelsCache() {
+        let cache = #"{"opencode": {"id": "opencode", "name": "OpenCode Zen", "models": {}}, "google-vertex": {"name": "Vertex"}, "broken": 3}"#
+        XCTAssertEqual(Launch.openCodeProviderNames(cache: Data(cache.utf8)), ["opencode": "OpenCode Zen", "google-vertex": "Vertex"])
+        XCTAssertEqual(Launch.openCodeProviderNames(cache: Data("not json".utf8)), [:])
     }
 }
 

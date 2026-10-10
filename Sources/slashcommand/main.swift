@@ -135,7 +135,9 @@ do {
                 let detail = result.timedOut ? "timed out" : (result.err + result.out).trimmingCharacters(in: .whitespacesAndNewlines)
                 fail("could not list the \(agent.displayName) models (\(listing.joined(separator: " "))): \(detail)")
             }
-            resolved = try Launch.resolve(agent: agent, preset: planned, listing: result.out)
+            // opencode 는 제공자를 화면에 «이름» 으로 보여 준다 — 그 이름은 opencode 의 모델 캐시에 있다(없으면 id 로만 맞춘다).
+            let providerNames = agent == .opencode ? ((try? Data(contentsOf: Launch.openCodeModelsCache)).map(Launch.openCodeProviderNames(cache:)) ?? [:]) : [:]
+            resolved = try Launch.resolve(agent: agent, preset: planned, listing: result.out, providerNames: providerNames)
             if let note = resolved?.note { FileHandle.standardError.write(Data("slashcommand: \(note)\n".utf8)) }
         }
         let command = Launch.command(agent: agent, preset: planned, model: resolved?.model, extra: Array(args.dropFirst(dryRun ? 4 : 3)))

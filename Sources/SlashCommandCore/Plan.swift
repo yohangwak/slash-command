@@ -106,8 +106,27 @@ public enum Launch {
         String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
     }
 
+    /// opencode 가 화면에 쓰는 «제공자 이름» 표(제공자 id → 이름). opencode 의 모델 캐시(`models.json`, models.dev 의 사본)에서 읽는다.
+    /// 화면의 이름은 id 가 아니다: `opencode` 는 «OpenCode Zen», `google-vertex` 는 «Vertex» 로 보인다(2026-10-11 확인).
+    public static func openCodeProviderNames(cache data: Data) -> [String: String] {
+        guard let providers = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [:] }
+        var names: [String: String] = [:]
+        for (id, value) in providers {
+            if let name = (value as? [String: Any])?["name"] as? String { names[id] = name }
+        }
+        return names
+    }
+
+    /// 그 캐시 파일의 자리(`XDG_CACHE_HOME` 을 따른다).
+    public static var openCodeModelsCache: URL {
+        let base = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache")
+        return base.appendingPathComponent("opencode/models.json")
+    }
+
     /// 프리셋의 화면 이름(과 effort)에 해당하는 모델 id 를 `listing` 명령의 출력에서 찾는다.
-    public static func resolve(agent: Agent, preset: AgentPreset, listing output: String) throws -> Resolved {
+    /// `providerNames` 는 opencode 의 제공자 이름 표 — 없으면 제공자 id 로만 맞춰 본다(이름이 id 와 같은 제공자만 풀린다).
+    public static func resolve(agent: Agent, preset: AgentPreset, listing output: String, providerNames: [String: String] = [:]) throws -> Resolved {
         switch agent {
         case .antigravity:
             // `gemini-3.8-flash-high   Gemini 3.8 Flash (High)` — effort 가 id 에 들어 있다.
@@ -152,16 +171,19 @@ public enum Launch {
                 rows.append((id, name, provider, ((object["variants"] as? [String: Any]) ?? [:]).keys.sorted()))
             }
             let wanted = key(preset.model)
-            var found = rows.filter { key($0.name) + key($0.provider) == wanted }
+            // 제공자는 화면에 «이름» 으로 보인다. 이름 표에 없는 제공자(직접 넣은 제공자 등)는 id 로 맞춰 본다.
+            var found = rows.filter { row in
+                [providerNames[row.provider], row.provider].compactMap { $0 }.contains { key(row.name) + key($0) == wanted }
+            }
             if found.isEmpty {
                 // 제공자를 적지 않은 이름은 그 이름의 모델이 하나뿐일 때만 받는다.
                 let byName = rows.filter { key($0.name) == wanted }
                 if byName.count == 1 { found = byName }
             }
             guard let row = found.first else { throw SlashCommandError(loc("'%@' is not in the OpenCode model list.", preset.model)) }
-            let variant = preset.effort
-            let note = variant.lowercased() == "default" ? nil
-                : loc("OpenCode has no option to set the variant when it opens, so it opens with the model only. Use the shortcut afterwards to set '%@'.", variant)
+            // opencode 는 그 모델이 마지막으로 쓴 variant 를 다시 불러온다 — `--model` 만으로는 variant 를 정할 수 없다.
+            // 프리셋이 Default 여도 마찬가지라(앞서 high 로 썼으면 high 로 열린다) 늘 알린다.
+            let note = loc("OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'.", preset.effort)
             return Resolved(model: row.id, note: note)
         case .claude, .codex, .grok, .cursor:
             return Resolved(model: preset.model, note: nil)
