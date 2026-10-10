@@ -14,7 +14,8 @@
   - 앱 `Slash Command.app` · 번들 id `com.yohangwak.slashcommand` · 명령 `slashcommand` · 설정 `~/.config/slashcommand/presets.json` · 기록 `~/Library/Logs/SlashCommand/slashcommand.log`.
   - **네 맥(집 맥 = Mac Studio · 집 맥 2 = 옛 Mac mini · 사 맥 · 맥북) 모두 이 빌드가 깔려 실행 중이다**(2026-10-10 07:38~07:39, 실행 파일 sha256 `1677cd0f…`, `Apple Development` 서명, 로그인 항목 켬). 옛 `ModelSwitch.app` 과 `modelswitch` 링크는 지웠다.
   - 아래 항목에서 2026-10-08 까지의 «집 맥» 은 옛 Mac mini(지금 «집 맥 2»)다.
-- **GitHub 저장소 이름은 아직 `yohangwak/modelswitch`** 다(로컬 폴더만 `slash-command`). 바꿀지는 요한님 결정 — 바꾸면 각 맥 클론의 remote 와 리뷰어(pullfrog) 연결을 함께 확인한다.
+- **GitHub 저장소도 `yohangwak/slash-command` 로 바꿨다**(2026-10-10, 요한님 요청. 옛 주소 `yohangwak/modelswitch` 는 GitHub 가 넘겨 준다). 리뷰어 러너와 머지 규칙은 그대로 따라왔다. 클론의 remote 는 집 맥(`~/Repos/yohangwak/slash-command`)과 집 맥 2 를 고쳤다 — 집 맥 2 의 클론은 폴더 이름이 아직 `~/Repos/yohangwak/modelswitch` 다(그 맥의 Orca 기록이 그 경로를 가리켜 건드리지 않았다. 첫 커밋 상태의 빈 클론이다).
+- **아이콘**: 앱 아이콘과 메뉴 막대 아이콘을 «키 하나에 슬래시» 로 바꿨다(앱 `scripts/make-icon.swift` → `scripts/AppIcon.icns`, 메뉴 막대 `Sources/SlashCommandApp/StatusIcon.swift`).
 - 이 repo 는 자동 리뷰어(pullfrog)의 승인 체크(`pullfrog-approval`)가 통과해야 머지된다. 우회 머지는 하지 않는다(요한님이 «리뷰 승인 없이 머지» 를 허락한 적 없음). 리뷰 1회에 5~16분.
 - PR #8·#9 는 #10 으로 대체되어 닫았다. **iTerm2 코드는 `yohangwak/agents` 브랜치(`a460a8f`)에 보관돼 있다** — main 에는 없다(아래 「다음 할 일」 2번).
 
@@ -36,7 +37,8 @@
 
 ## 내가 바꿔 둔 것 (되돌릴 수 있게)
 
-- **프리셋**(`~/.config/slashcommand/presets.json`): 각 맥의 옛 `~/.config/modelswitch/presets.json` 을 그대로 복사한 것이다(옛 파일과 옛 기록 `~/Library/Logs/ModelSwitch/` 는 남겨 뒀다 — 지워도 된다). 집 맥(Studio)은 집 맥 2 의 것을 가져왔다. 집 맥·집 맥 2 의 1~3번에는 grok·cursor·antigravity·opencode 설정이 들어 있다(2026-10-08 에 추가, 원래는 claude·codex 뿐 — 빼려면 그 키들만 지운다).
+- **프리셋**(`~/.config/slashcommand/presets.json`): 각 맥의 옛 `~/.config/modelswitch/presets.json` 을 그대로 옮긴 것이다. 집 맥(Studio)은 집 맥 2 의 것을 가져왔다. 집 맥·집 맥 2 의 1~3번에는 grok·cursor·antigravity·opencode 설정이 들어 있다(2026-10-08 에 추가, 원래는 claude·codex 뿐 — 빼려면 그 키들만 지운다).
+- **옛 이름의 흔적 정리(2026-10-10, 네 맥)**: 옛 설정 폴더 `~/.config/modelswitch` 는 프리셋이 새 것과 같은 것을 확인하고 지웠다(집 맥 2 의 `presets.json.bak-names` 는 새 폴더로 옮겼다). 옛 기록 `~/Library/Logs/ModelSwitch/modelswitch.log` 는 새 기록 파일 앞에 붙이고 지웠다. 옛 환경설정(`com.yohangwak.modelswitch`)도 지웠다. **남은 것**: 시스템 설정의 손쉬운 사용 목록에 있는 ModelSwitch 항목 — 앱이 없어 `tccutil` 로는 지워지지 않는다(목록에서 − 로 지운다).
 - **깔린 앱**: 네 맥 모두 main(`14815d5`) 빌드. iTerm2 단축키는 없다.
 - **빌드·설치 방법(지금 환경)**: 서명 인증서와 Xcode 는 집 맥 2 에 있다(사 맥·맥북은 확인하지 않았다). 집 맥(Studio)은 Command Line Tools 뿐이라 `swift build` 는 되지만 `swift test` 는 `XCTest` 가 없어 실패하고, 서명은 임시(ad-hoc)가 된다(빌드마다 권한을 다시 묻는다). 그래서 테스트와 서명 빌드는 집 맥 2 의 임시 폴더에서 했다. **SSH 세션에서는 `codesign` 이 `errSecInternalComponent` 로 실패한다**(로그인 키체인이 잠겨 있다) — `scripts/build-app.sh` 를 로그인 세션의 일회성 launchd 작업(`launchctl bootstrap gui/<uid>`)으로 돌린 뒤 작업과 폴더를 지웠다. 다른 맥에는 `tar -C dist -cf - "Slash Command.app" | ssh <맥> 'tar -C ~/Applications -xf -'`(`scp -r` 은 조용히 실패한 적이 있다). 집 맥에 Xcode 와 인증서를 두면 이 우회가 필요 없다(요한님 손).
 - **시험 터미널**(요한님이 연 것): cursor 세션이 Grok 4.7 **Medium** 으로 남았다(원래 High). 나머지는 원래 모델. 각 에이전트의 기본값 파일은 시험 전과 같다(해시 확인).

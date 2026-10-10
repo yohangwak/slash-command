@@ -161,3 +161,5 @@ SLASHCOMMAND_CONFIG=/path/presets.json …    # 다른 프리셋 파일
 시험할 때: 대상을 직접 지정한 시험은 감지 경로를 안 탄다(`where`·`doctor` 로 따로 본다) · 명령 방식 시험은 «지금 기본값과 같은 값»으로만 하고 끝나면 `shasum ~/.claude/settings.json` 을 처음과 대조한다 · 시험 세션에 글자를 보내기 전에 화면을 먼저 읽는다.
 
 구조: `SlashCommandCore`(프리셋·감지·입력·화면 판정·단계 실행·기본값 복원) · `slashcommand`(명령줄) · `SlashCommandApp`(메뉴 막대·단축키·알림·편집 화면).
+
+아이콘은 «키 하나에 슬래시» 다. 앱 아이콘은 `swift scripts/make-icon.swift` 로 `scripts/AppIcon.icns` 를 다시 만들고(`--preview 파일.png [크기]` 로 한 장만 볼 수 있다), 메뉴 막대 아이콘은 `StatusIcon.swift` 가 같은 그림을 템플릿 이미지로 그린다.
