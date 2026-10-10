@@ -16,6 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var announcedConfigError: String?
     /// 마지막으로 기록한 단축키 상태 — 달라졌을 때만 기록한다.
     private var loggedHotKeys = ""
+    /// 자동화 권한의 «마지막으로 아는» 상태(번들 id → 상태). 확인은 대상 앱이 응답하지 않으면 얼마든지 오래 걸릴 수 있어
+    /// 주 스레드 밖에서 해 두고, 메뉴는 이 값만 본다. 아직 모르는 앱은 표에 없다.
+    private var automation: [String: Permissions.Automation] = [:]
+    private let permissionQueue = DispatchQueue(label: "slashcommand.automation-check")
+    private var checkingAutomation = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -42,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self, selector: #selector(frontAppChanged(_:)),
             name: NSWorkspace.didActivateApplicationNotification, object: nil)
         refreshHotKeys()
+        refreshAutomation()
         // 처음 한 번: 손쉬운 사용이 꺼져 있으면 권한 칸이 있는 창을 먼저 보여 준다(그 뒤로는 메뉴에서 연다).
         if !Permissions.accessibility, !UserDefaults.standard.bool(forKey: "permissionsIntroShown") {
             UserDefaults.standard.set(true, forKey: "permissionsIntroShown")
@@ -127,6 +133,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func frontAppChanged(_ notification: Notification) {
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         refreshHotKeys(front: app?.bundleIdentifier)
+        // 터미널이 앞으로 올 때마다 다시 알아 둔다 — 메뉴를 열기 전에 값이 준비돼 있게.
+        refreshAutomation()
+    }
+
+    /// 자동화 권한을 주 스레드 밖에서 다시 읽어 `automation` 에 넣는다. 앞의 확인이 끝나지 않았으면 새로 넣지 않는다.
+    private func refreshAutomation() {
+        guard !checkingAutomation else { return }
+        let terminals = Permissions.installedAutomatedTerminals.map(\.bundleID)
+        guard !terminals.isEmpty else { return }
+        checkingAutomation = true
+        permissionQueue.async { [weak self] in
+            var found: [String: Permissions.Automation] = [:]
+            for bundleID in terminals { found[bundleID] = Permissions.automation(bundleID: bundleID) }
+            DispatchQueue.main.async {
+                self?.automation = found
+                self?.checkingAutomation = false
+            }
+        }
     }
 
     // MARK: - 전환
@@ -263,6 +287,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        // 메뉴는 «알아 둔» 권한 상태로 그린다. 다음에 열 때를 위해 뒤에서 다시 읽어 둔다.
+        refreshAutomation()
         let app = NSWorkspace.shared.frontmostApplication
         let bundleID = app?.bundleIdentifier ?? ""
         fill(menu, bundleID: bundleID, appName: app?.localizedName ?? bundleID)
@@ -280,9 +306,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !busy else { return .checking(appName: appName) }
         if bundleID == Detector.ghosttyBundleID {
             // Ghostty 는 AppleScript 로 읽고, AppleScript 는 주 스레드에서 돈다 — 여기서 바로 읽는다(보통 수십 ms, 스크립트에 시간 제한이 있다).
-            // 자동화 권한을 아직 묻지 않았으면 읽지 않는다: 메뉴를 여는 것만으로 권한 창이 뜨면 안 된다.
-            // 그때는 «못 찾았다» 가 아니라 «모른다» 다 — 머리말에 앱 이름만 적는다.
-            guard Permissions.automation(bundleID: bundleID) == .allowed else { return .checking(appName: appName) }
+            // 자동화가 허용된 것을 «알고 있을» 때만 읽는다: 메뉴를 여는 것만으로 권한 창이 뜨면 안 되고,
+            // 권한 확인 자체도 여기(주 스레드)서 하지 않는다 — 미리 알아 둔 값을 본다.
+            // 허용이 아니거나 아직 모르면 «못 찾았다» 가 아니라 «모른다» 다 — 머리말에 앱 이름만 적는다.
+            guard automation[bundleID] == .allowed else { return .checking(appName: appName) }
             return (try? Detector.ghostty()).map(Front.agent) ?? .none(appName: appName)
         }
         // Orca 는 주 스레드 밖에서 읽는다(0.1초 안팎). 0.25초 안에 오면 그대로 그리고, 늦으면 온 뒤에 메뉴를 고친다.
@@ -362,7 +389,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !Permissions.accessibility {
             problems.append(warning(loc("Turn On Accessibility…"), #selector(openAccessibilitySettings)))
         }
-        if Permissions.installedAutomatedTerminals.contains(where: { Permissions.automation(bundleID: $0.bundleID) == .denied }) {
+        if automation.values.contains(.denied) {
             problems.append(warning(loc("Allow Automation for Ghostty…"), #selector(openAutomationSettings)))
         }
         if !problems.isEmpty {
