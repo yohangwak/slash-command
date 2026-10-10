@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>com.yohangwak.slashcommand</string>
     <key>CFBundleName</key>
@@ -25,6 +27,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Ghostty 맨 앞 터미널에 모델·effort 전환 명령을 입력합니다.</string>
+    <string>Slash Command types the model and effort commands into the frontmost Ghostty terminal.</string>
 </dict>
 </plist>

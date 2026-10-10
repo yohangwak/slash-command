@@ -6,6 +6,8 @@ final class HUD {
     private let title = NSTextField(labelWithString: "")
     private let detail = NSTextField(labelWithString: "")
     private var hideWork: DispatchWorkItem?
+    /// `show` 마다 하나씩 는다. 앞 알림이 사라지는 중에 새 알림이 뜨면, 앞 알림의 마무리가 새 알림을 치우지 않게 한다.
+    private var shown = 0
 
     init() {
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 80),
@@ -33,7 +35,7 @@ final class HUD {
         detail.textColor = .secondaryLabelColor
         detail.alignment = .center
         detail.lineBreakMode = .byWordWrapping
-        detail.maximumNumberOfLines = 3
+        detail.maximumNumberOfLines = 5
         detail.preferredMaxLayoutWidth = 320
 
         let stack = NSStackView(views: [title, detail])
@@ -55,6 +57,8 @@ final class HUD {
     /// `seconds` 가 nil 이면 다음 `show` 까지 떠 있다.
     func show(_ titleText: String, detail detailText: String = "", seconds: TimeInterval? = 1.6) {
         hideWork?.cancel()
+        shown += 1
+        let current = shown
         title.stringValue = titleText
         detail.stringValue = detailText
         detail.isHidden = detailText.isEmpty
@@ -73,7 +77,10 @@ final class HUD {
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.25
                 self?.panel.animator().alphaValue = 0
-            }, completionHandler: { self?.panel.orderOut(nil) })
+            }, completionHandler: {
+                guard let self, self.shown == current else { return }
+                self.panel.orderOut(nil)
+            })
         }
         hideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)

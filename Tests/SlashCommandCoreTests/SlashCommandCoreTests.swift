@@ -669,6 +669,57 @@ final class ConfigTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: untouched.path))
     }
 
+    func testSavingThroughALinkKeepsTheLink() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let real = root.appendingPathComponent("managed/presets.json")
+        let link = root.appendingPathComponent("config/presets.json")
+        try ConfigStore(url: real).save(.starter)
+        try FileManager.default.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        var edited = SlashCommandConfig.starter
+        edited.slots.removeLast()
+        try ConfigStore(url: link).save(edited)
+
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), real.path, "링크가 보통 파일로 바뀌면 안 된다")
+        XCTAssertEqual(try ConfigStore(url: real).load(), edited, "링크가 가리키는 파일에 써야 한다")
+    }
+
+    func testShiftAloneIsNotAUsableShortcut() throws {
+        XCTAssertFalse(SlashCommandConfig.modifiersAreUsable([]))
+        XCTAssertFalse(SlashCommandConfig.modifiersAreUsable(["shift"]))
+        XCTAssertTrue(SlashCommandConfig.modifiersAreUsable(["option"]))
+        XCTAssertTrue(SlashCommandConfig.modifiersAreUsable(["shift", "control"]))
+        // 파일에 Shift 만 적혀 있으면(모르는 이름을 걸러 낸 뒤에도) 기본 조합으로 읽는다 — 터미널에서 `!` 를 칠 수 있어야 한다.
+        for written in [#"["shift"]"#, #"["ctrl", "shift"]"#, "[]"] {
+            let json = #"{"version": 1, "modifiers": \#(written), "slots": []}"#
+            let config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(json.utf8))
+            XCTAssertEqual(config.modifiers, SlashCommandConfig.defaultModifiers, written)
+        }
+    }
+
+    func testMenuTitleShowsOnlyWhatTheFrontAgentWouldGet() {
+        var slot = Slot(claude: AgentPreset(model: "opus", effort: "high"), codex: AgentPreset(model: "gpt-6-astra", effort: "xhigh"),
+                        grok: AgentPreset(model: "grok-4.7", effort: "low"))
+        XCTAssertEqual(slot.menuTitle(for: .claude), "opus · high")
+        XCTAssertEqual(slot.menuTitle(for: .codex), "gpt-6-astra · xhigh")
+        XCTAssertNil(slot.menuTitle(for: .cursor), "그 에이전트의 설정이 없으면 그 번호는 아무것도 하지 않는다")
+        XCTAssertEqual(slot.menuTitle(for: nil), "Claude Code opus · high, Codex gpt-6-astra · xhigh +1")
+        XCTAssertEqual(slot.agents, [.claude, .codex, .grok])
+        slot.name = "밤샘"
+        XCTAssertEqual(slot.menuTitle(for: .claude), "밤샘 — opus · high")
+        XCTAssertEqual(slot.menuTitle(for: nil), "밤샘")
+        XCTAssertEqual(Slot().summary(), "No agents set")
+    }
+
+    func testAppleScriptIsTimeLimited() {
+        let wrapped = GhosttyIO.timeLimited("tell application \"Ghostty\"\n    return 1\nend tell")
+        XCTAssertTrue(wrapped.hasPrefix("with timeout of \(GhosttyIO.replySeconds) seconds\n"))
+        XCTAssertTrue(wrapped.hasSuffix("\nend timeout"))
+        XCTAssertLessThanOrEqual(GhosttyIO.replySeconds, 10, "응답 없는 Ghostty 를 기다리는 동안 주 스레드가 멈춘다")
+    }
+
     func testSwitcherPlanErrors() throws {
         let switcher = Switcher(config: .starter, codexModels: { CodexModels(models: []) })
         XCTAssertThrowsError(try switcher.plan(slot: 0, agent: .claude))
@@ -3091,5 +3142,96 @@ final class AbsentOrUnreadableDefaultsTests: XCTestCase {
         _ = try OpenCodeDriver(io: oc, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: false)
             .apply(AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "max"))
         XCTAssertEqual(oc.models[0].variant, "max")
+    }
+}
+
+final class L10nTests: XCTestCase {
+    /// repo 의 `Resources/`(번역 파일)와 `Sources/`.
+    static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    static let resources = root.appendingPathComponent("Resources")
+
+    func testPicksTheFirstPreferredLanguageWeHave() {
+        let have = ["ar", "de", "en", "es", "fr", "ja", "ko", "pt", "zh-Hans"]
+        XCTAssertEqual(L10n.pick(from: have, preferences: ["en-KR", "ko-KR"]), "en")
+        XCTAssertEqual(L10n.pick(from: have, preferences: ["ko-KR", "en-KR"]), "ko")
+        XCTAssertEqual(L10n.pick(from: have, preferences: ["pt-BR"]), "pt")
+        XCTAssertEqual(L10n.pick(from: have, preferences: ["zh-Hans-CN"]), "zh-Hans")
+        XCTAssertEqual(L10n.pick(from: have, preferences: ["zh-CN"]), "zh-Hans", "문자를 적지 않은 중국어는 지역으로 가린다")
+        XCTAssertEqual(L10n.pick(from: have, preferences: ["zh-TW", "ja-JP"]), "ja", "번체를 간체로 대신하지 않는다")
+        XCTAssertEqual(L10n.pick(from: have, preferences: ["it-IT"]), "en")
+        XCTAssertEqual(L10n.pick(from: have, preferences: []), "en")
+        XCTAssertEqual(L10n.pick(from: ["ko"], preferences: ["en-US", "ko-KR"]), "en", "영어는 번역 파일이 없어도 가진 언어다")
+    }
+
+    func testFormatFillsSequentialAndNumberedPlaceholders() {
+        XCTAssertEqual(L10n.format("%@ on %@", ["claude", "Ghostty"]), "claude on Ghostty")
+        XCTAssertEqual(L10n.format("%2$@ 의 %1$@", ["claude", "Ghostty"]), "Ghostty 의 claude")
+        XCTAssertEqual(L10n.format("%@ is 100%% sure", [3]), "3 is 100% sure")
+        XCTAssertEqual(L10n.format("100% as written", []), "100% as written", "값이 없으면 문장을 건드리지 않는다")
+        XCTAssertEqual(L10n.format("%@ and %@", ["one"]), "one and %@", "값이 모자라면 자리표를 남긴다")
+        XCTAssertEqual(L10n.format("50% of %@", ["x"]), "50% of x", "자리표가 아닌 % 는 그대로")
+    }
+
+    /// 코드에서 `loc("…")` 로 쓰는 영어 문장들.
+    static func keysInCode() throws -> Set<String> {
+        var keys: Set<String> = []
+        let pattern = try NSRegularExpression(pattern: #"\bloc\(\s*"((?:[^"\\]|\\.)*)""#)
+        let sources = root.appendingPathComponent("Sources")
+        for case let url as URL in FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)! where url.pathExtension == "swift" {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            for match in pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+                let raw = String(text[Range(match.range(at: 1), in: text)!])
+                keys.insert(raw.replacingOccurrences(of: "\\n", with: "\n").replacingOccurrences(of: "\\\"", with: "\"").replacingOccurrences(of: "\\\\", with: "\\"))
+            }
+        }
+        return keys
+    }
+
+    /// 자리표를 번호로 고쳐 센다: `%@ %@` 와 `%2$@ %1$@` 는 같은 자리표들이다.
+    static func placeholders(_ text: String) -> [Int] {
+        var found: [Int] = []
+        var next = 1
+        var rest = Substring(text)
+        while let percent = rest.firstIndex(of: "%") {
+            rest = rest[rest.index(after: percent)...]
+            if rest.first == "%" { rest = rest.dropFirst(); continue }
+            if rest.first == "@" { found.append(next); next += 1; continue }
+            let digits = rest.prefix(while: \.isNumber)
+            if let position = Int(digits), rest.dropFirst(digits.count).hasPrefix("$@") { found.append(position) }
+        }
+        return found.sorted()
+    }
+
+    func testEveryLanguageTranslatesExactlyTheSentencesInCode() throws {
+        let keys = try L10nTests.keysInCode()
+        XCTAssertFalse(keys.isEmpty)
+        let languages = L10n.available(in: L10nTests.resources)
+        XCTAssertTrue(languages.contains("en") && languages.contains("ko"), "\(languages)")
+        for language in languages where language != "en" {
+            let table = L10n.table(in: L10nTests.resources, language: language)
+            XCTAssertFalse(table.isEmpty, "\(language): 번역 파일을 읽지 못했다(문법 오류일 수 있다)")
+            let missing = keys.subtracting(table.keys).sorted()
+            let extra = Set(table.keys).subtracting(keys).sorted()
+            XCTAssertTrue(missing.isEmpty, "\(language): 번역이 없는 문장 \(missing.count)개 — \(missing.prefix(5))")
+            XCTAssertTrue(extra.isEmpty, "\(language): 코드에 없는 문장 \(extra.count)개 — \(extra.prefix(5))")
+            for (key, value) in table where keys.contains(key) {
+                XCTAssertEqual(L10nTests.placeholders(value), L10nTests.placeholders(key), "\(language): 자리표가 다르다 — \(key)")
+                XCTAssertFalse(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "\(language): 빈 번역 — \(key)")
+            }
+        }
+    }
+
+    func testEnglishFileAddsNothing() {
+        XCTAssertTrue(L10n.table(in: L10nTests.resources, language: "en").isEmpty, "영어는 코드의 문장이 기준이다 — en 파일에는 번역을 두지 않는다")
+    }
+
+    func testTranslatedSentenceIsUsed() {
+        defer { L10n.use(language: "en", directory: nil) }
+        L10n.use(language: "ko", directory: L10nTests.resources)
+        XCTAssertEqual(L10n.language, "ko")
+        XCTAssertEqual(loc("Quit Slash Command"), "Slash Command 종료")
+        XCTAssertEqual(loc("A sentence nobody translated"), "A sentence nobody translated")
+        L10n.use(language: "en", directory: nil)
+        XCTAssertEqual(loc("Quit Slash Command"), "Quit Slash Command")
     }
 }

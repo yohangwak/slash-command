@@ -143,9 +143,19 @@ public struct GhosttyIO: TerminalIO {
     /// AppleScript 를 이 프로세스 안에서 실행한다. `osascript` 를 띄우면 한 번에 0.2~0.3초가 든다(2026-10-06 실측).
     /// 결과는 `osascript` 가 찍던 것과 같은 꼴(참·거짓은 "true"·"false")로 돌려준다.
     static func osascript(_ script: String) -> ProcResult {
+        let bounded = timeLimited(script)
         // NSAppleScript 는 주 스레드에서만 쓰게 돼 있다.
-        if Thread.isMainThread { return runAppleScript(script) }
-        return DispatchQueue.main.sync { runAppleScript(script) }
+        if Thread.isMainThread { return runAppleScript(bounded) }
+        return DispatchQueue.main.sync { runAppleScript(bounded) }
+    }
+
+    /// Ghostty 의 답을 기다리는 시간(초). AppleScript 는 정하지 않으면 2분까지 기다린다 — Ghostty 가 응답하지 않으면
+    /// 그동안 주 스레드가 멈춰 메뉴·알림·단축키가 다 멎는다. 평소의 답은 수십 ms 다.
+    static let replySeconds = 5
+
+    /// 스크립트 전체를 `with timeout` 으로 감싼다. 마지막 값·`return`·`error` 는 감싸기 전과 같이 나온다(2026-10-11 확인).
+    static func timeLimited(_ script: String) -> String {
+        "with timeout of \(replySeconds) seconds\n\(script)\nend timeout"
     }
 
     private static func runAppleScript(_ source: String) -> ProcResult {

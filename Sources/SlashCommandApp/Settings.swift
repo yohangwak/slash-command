@@ -1,91 +1,95 @@
 import AppKit
+import ServiceManagement
 import SlashCommandCore
 import SwiftUI
 
-/// 편집 화면용 프리셋 한 줄. 에이전트별 설정을 켜고 끌 수 있게 옵셔널을 풀어 둔다.
+/// 에이전트마다 고를 수 있는 모델·effort 목록. 편집 화면의 제안일 뿐이다 — 모델은 직접 쳐 넣어도 된다.
+struct AgentCatalog {
+    let codexModels: [String]
+    let grokModels: [String]
+
+    static let claudeModels = ["fable", "opus", "sonnet", "haiku"]
+    static let cursorModels = ["Grok 4.7", "Claude Opus 5.5", "Claude Fable 5.1", "GPT-5.6 Sol", "Composer 2.5"]
+    static let antigravityModels = ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro", "Claude Opus 5.5", "Claude Sonnet 5.5"]
+
+    /// codex·grok 의 목록은 그 도구들이 디스크에 둔 것을 읽는다(없으면 빈 목록).
+    static func load() -> AgentCatalog {
+        AgentCatalog(codexModels: (try? CodexModels.load().listed.map(\.slug)) ?? [],
+                     grokModels: GrokModels.load().models.map(\.id))
+    }
+
+    func models(for agent: Agent) -> [String] {
+        switch agent {
+        case .claude: return AgentCatalog.claudeModels
+        case .codex: return codexModels
+        case .grok: return grokModels
+        case .cursor: return AgentCatalog.cursorModels
+        case .antigravity: return AgentCatalog.antigravityModels
+        case .opencode: return []
+        }
+    }
+
+    static func efforts(for agent: Agent) -> [String] {
+        switch agent {
+        case .claude, .cursor: return ["low", "medium", "high", "xhigh", "max"]
+        case .codex: return ["low", "medium", "high", "xhigh", "max", "ultra"]
+        case .grok: return ["low", "medium", "high", "xhigh"]
+        case .antigravity: return ["low", "medium", "high"]
+        case .opencode: return ["Default", "low", "medium", "high", "max"]
+        }
+    }
+
+    /// 프리셋에 에이전트를 새로 넣을 때의 첫 값.
+    func starter(for agent: Agent) -> AgentPreset {
+        AgentPreset(model: agent == .claude ? "opus" : models(for: agent).first ?? "", effort: "high")
+    }
+}
+
+/// 편집 화면용 프리셋 한 개.
 struct EditableSlot: Identifiable {
     let id = UUID()
     var name: String
-    var claudeOn: Bool
-    var claudeModel: String
-    var claudeEffort: String
-    var codexOn: Bool
-    var codexModel: String
-    var codexEffort: String
-    var grokOn: Bool
-    var grokModel: String
-    var grokEffort: String
-    var cursorOn: Bool
-    var cursorModel: String
-    var cursorEffort: String
-    var antigravityOn: Bool
-    var antigravityModel: String
-    var antigravityEffort: String
-    var opencodeOn: Bool
-    var opencodeModel: String
-    var opencodeEffort: String
+    var presets: [Agent: AgentPreset]
 
     init(_ slot: Slot) {
         name = slot.name
-        claudeOn = slot.claude != nil
-        claudeModel = slot.claude?.model ?? "opus"
-        claudeEffort = slot.claude?.effort ?? "high"
-        codexOn = slot.codex != nil
-        codexModel = slot.codex?.model ?? ""
-        codexEffort = slot.codex?.effort ?? "high"
-        grokOn = slot.grok != nil
-        grokModel = slot.grok?.model ?? ""
-        grokEffort = slot.grok?.effort ?? "high"
-        cursorOn = slot.cursor != nil
-        cursorModel = slot.cursor?.model ?? ""
-        cursorEffort = slot.cursor?.effort ?? "high"
-        antigravityOn = slot.antigravity != nil
-        antigravityModel = slot.antigravity?.model ?? ""
-        antigravityEffort = slot.antigravity?.effort ?? "high"
-        opencodeOn = slot.opencode != nil
-        opencodeModel = slot.opencode?.model ?? ""
-        opencodeEffort = slot.opencode?.effort ?? "high"
+        presets = slot.presets
     }
 
+    /// 저장할 모양: 이름과 모델의 앞뒤 빈칸을 뗀다.
     var slot: Slot {
-        Slot(name: name.trimmingCharacters(in: .whitespaces),
-             claude: claudeOn ? AgentPreset(model: claudeModel.trimmingCharacters(in: .whitespaces), effort: claudeEffort) : nil,
-             codex: codexOn ? AgentPreset(model: codexModel.trimmingCharacters(in: .whitespaces), effort: codexEffort) : nil,
-             grok: grokOn ? AgentPreset(model: grokModel.trimmingCharacters(in: .whitespaces), effort: grokEffort) : nil,
-             cursor: cursorOn ? AgentPreset(model: cursorModel.trimmingCharacters(in: .whitespaces), effort: cursorEffort) : nil,
-             antigravity: antigravityOn ? AgentPreset(model: antigravityModel.trimmingCharacters(in: .whitespaces), effort: antigravityEffort) : nil,
-             opencode: opencodeOn ? AgentPreset(model: opencodeModel.trimmingCharacters(in: .whitespaces), effort: opencodeEffort) : nil)
+        var made = Slot(name: name.trimmingCharacters(in: .whitespaces))
+        for (agent, preset) in presets {
+            made.presets[agent] = AgentPreset(model: preset.model.trimmingCharacters(in: .whitespaces), effort: preset.effort)
+        }
+        return made
     }
 }
 
 final class SettingsModel: ObservableObject {
     @Published var slots: [EditableSlot] = []
+    /// 펼쳐 놓은 프리셋들.
+    @Published var expanded: Set<UUID> = []
     @Published var keepDefaults = true
     @Published var acceptSwitchPrompt = true
     @Published var effortKeys = true
     @Published var modifiers: Set<String> = Set(SlashCommandConfig.defaultModifiers)
-    @Published var status = ""
+    @Published var message = ""
+    @Published var messageIsError = false
+    /// 프리셋 파일을 읽지 못했을 때의 사유. 이때는 저장을 막는다 — 빈 화면을 저장하면 그 파일을 덮어쓴다.
+    @Published var loadError: String?
+    @Published var launchAtLogin = false
 
     let store: ConfigStore
     let onSaved: () -> Void
-    let codexModels: [String]
-    let grokModels: [String]
+    let catalog: AgentCatalog
+    /// 디스크에 있는 내용. 화면의 내용과 다르면 «저장하지 않은 변경» 이다.
+    private var saved: SlashCommandConfig?
 
-    static let claudeModels = ["fable", "opus", "sonnet", "haiku"]
-    static let claudeEfforts = ["low", "medium", "high", "xhigh", "max"]
-    static let codexEfforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
-    static let grokEfforts = ["low", "medium", "high", "xhigh"]
-    static let cursorModels = ["Grok 4.7", "Claude Opus 5.5", "Claude Fable 5.1", "GPT-5.6 Sol", "Composer 2.5"]
-    static let cursorEfforts = ["low", "medium", "high", "xhigh", "max"]
-    static let antigravityModels = ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro", "Claude Opus 5.5", "Claude Sonnet 5.5"]
-    static let antigravityEfforts = ["low", "medium", "high"]
-    static let opencodeEfforts = ["Default", "low", "medium", "high", "max"]
-
-    init(store: ConfigStore, onSaved: @escaping () -> Void) {
+    init(store: ConfigStore, catalog: AgentCatalog = .load(), onSaved: @escaping () -> Void) {
         self.store = store
+        self.catalog = catalog
         self.onSaved = onSaved
-        codexModels = (try? CodexModels.load().listed.map(\.slug)) ?? []
-        grokModels = GrokModels.load().models.map(\.id)
         reload()
     }
 
@@ -93,54 +97,123 @@ final class SettingsModel: ObservableObject {
         SlashCommandConfig(modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains), slots: []).modifierSymbols
     }
 
+    /// 화면의 내용으로 만든 설정. 편집 화면이 모르는 값(`version`)은 읽은 것을 그대로 둔다.
+    var draft: SlashCommandConfig {
+        SlashCommandConfig(version: saved?.version ?? 1,
+                           keepDefaults: keepDefaults,
+                           acceptSwitchPrompt: acceptSwitchPrompt,
+                           effortKeys: effortKeys,
+                           modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains),
+                           slots: slots.map(\.slot))
+    }
+
+    var isDirty: Bool {
+        guard let saved else { return false }
+        return draft != saved
+    }
+
+    var canSave: Bool { loadError == nil && isDirty }
+
     func reload() {
         do {
             let config = try store.load()
+            saved = config
             slots = config.slots.map(EditableSlot.init)
             keepDefaults = config.keepDefaults
             acceptSwitchPrompt = config.acceptSwitchPrompt
             effortKeys = config.effortKeys
             modifiers = Set(config.modifiers)
-            status = ""
+            expanded = slots.count == 1 ? Set(slots.map(\.id)) : []
+            loadError = nil
+            say("")
         } catch {
-            status = "\(error)"
+            saved = nil
+            loadError = "\(error)"
         }
+        refreshLaunchAtLogin()
+    }
+
+    private func say(_ text: String, error: Bool = false) {
+        message = text
+        messageIsError = error
     }
 
     func add() {
         guard slots.count < SlashCommandConfig.maxSlots else { return }
-        var slot = EditableSlot(Slot(claude: AgentPreset(model: "opus", effort: "high")))
-        slot.codexModel = codexModels.first ?? ""
-        slot.grokModel = grokModels.first ?? ""
+        let slot = EditableSlot(Slot(claude: catalog.starter(for: .claude)))
         slots.append(slot)
+        expanded.insert(slot.id)
+    }
+
+    func delete(_ id: UUID) {
+        slots.removeAll { $0.id == id }
+        expanded.remove(id)
+    }
+
+    /// 그 프리셋을 가리키는 바인딩. 지운 뒤에 늦게 온 갱신은 버린다(자리 번호로 묶으면 지울 때 범위를 벗어난다).
+    func binding(for id: UUID, fallback: EditableSlot) -> Binding<EditableSlot> {
+        Binding(get: { [weak self] in self?.slots.first { $0.id == id } ?? fallback },
+                set: { [weak self] value in
+                    guard let self, let index = self.slots.firstIndex(where: { $0.id == id }) else { return }
+                    self.slots[index] = value
+                })
     }
 
     func save() {
+        guard loadError == nil else { return }
         for (index, slot) in slots.enumerated() {
-            if slot.claudeOn && slot.claudeModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.codexOn && slot.codexModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.grokOn && slot.grokModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.cursorOn && slot.cursorModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.antigravityOn && slot.antigravityModel.trimmingCharacters(in: .whitespaces).isEmpty
-                || slot.opencodeOn && slot.opencodeModel.trimmingCharacters(in: .whitespaces).isEmpty {
-                status = "\(index + 1)번 프리셋의 모델이 비어 있습니다."
-                return
+            for agent in Agent.allCases {
+                if let preset = slot.presets[agent], preset.model.trimmingCharacters(in: .whitespaces).isEmpty {
+                    expanded.insert(slot.id)
+                    say(loc("Preset %@: enter a model for %@.", index + 1, agent.displayName), error: true)
+                    return
+                }
             }
         }
-        guard !modifiers.isEmpty else {
-            status = "단축키 조합 키를 하나 이상 골라 주세요."
+        guard SlashCommandConfig.modifiersAreUsable(Array(modifiers)) else {
+            say(loc("Pick Control, Option or Command for the shortcut. Shift alone would take over typing in the terminal."), error: true)
             return
         }
         do {
-            try store.save(SlashCommandConfig(keepDefaults: keepDefaults,
-                                      acceptSwitchPrompt: acceptSwitchPrompt,
-                                      effortKeys: effortKeys,
-                                      modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains),
-                                      slots: slots.map(\.slot)))
-            status = "저장했습니다."
+            let config = draft
+            try store.save(config)
+            saved = config
+            say(loc("Saved"))
             onSaved()
         } catch {
-            status = "저장하지 못했습니다: \(error.localizedDescription)"
+            say(loc("Could not save: %@", error.localizedDescription), error: true)
+        }
+    }
+
+    // MARK: 로그인할 때 실행
+
+    func refreshLaunchAtLogin() {
+        launchAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    func setLaunchAtLogin(_ on: Bool) {
+        do {
+            try LoginItem.set(on)
+        } catch {
+            say(loc("Could not change the login item: %@", error.localizedDescription), error: true)
+        }
+        refreshLaunchAtLogin()
+    }
+}
+
+/// 로그인할 때 실행. 메뉴·편집 화면·명령줄이 같은 규칙을 쓴다.
+enum LoginItem {
+    /// «승인 대기» 도 등록된 상태다 — 다시 등록해도 달라지지 않으므로 그때는 시스템 설정의 로그인 항목 화면을 연다.
+    static func set(_ on: Bool) throws {
+        let service = SMAppService.mainApp
+        if on {
+            if service.status == .requiresApproval {
+                SMAppService.openSystemSettingsLoginItems()
+            } else if service.status != .enabled {
+                try service.register()
+            }
+        } else if service.status == .enabled || service.status == .requiresApproval {
+            try service.unregister()
         }
     }
 }
@@ -150,125 +223,240 @@ struct SettingsView: View {
     @ObservedObject var permissions: PermissionsModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            PermissionsBox(model: permissions)
+        VStack(spacing: 0) {
+            Form {
+                PermissionsSection(model: permissions)
+                presets
+                shortcut
+                behavior
+                general
+            }
+            .formStyle(.grouped)
+            Divider()
+            footer
+        }
+        .frame(width: 620)
+        .frame(minHeight: 420, idealHeight: 720)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
 
-            Text("프리셋").font(.title2.weight(.semibold))
-            Text("Ghostty·Orca 터미널에서 \(model.symbols)번호를 누르면, 맨 앞 세션이 claude·codex·grok·cursor·agy·opencode 중 무엇인지에 맞춰 그 번호의 모델과 effort 로 바꿉니다.")
-                .font(.callout).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(Array(model.slots.enumerated()), id: \.element.id) { index, _ in
-                        SlotRow(shortcut: "\(model.symbols)\(index + 1)", slot: $model.slots[index], codexModels: model.codexModels, grokModels: model.grokModels) {
-                            model.slots.remove(at: index)
-                        }
+    private var presets: some View {
+        Section {
+            if let problem = model.loadError {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(loc("The presets file could not be read."), systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(problem).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Button(loc("Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([model.store.url]) }
+                        Button(loc("Read Again")) { model.reload() }
                     }
                 }
-            }
-            .frame(minHeight: 220)
-
-            HStack {
-                Button("프리셋 추가") { model.add() }
-                    .disabled(model.slots.count >= SlashCommandConfig.maxSlots)
-                Spacer()
-            }
-
-            HStack(spacing: 14) {
-                Text("단축키")
-                ForEach([("control", "⌃ Control"), ("option", "⌥ Option"), ("shift", "⇧ Shift"), ("command", "⌘ Command")], id: \.0) { key, label in
-                    Toggle(label, isOn: Binding(
-                        get: { model.modifiers.contains(key) },
-                        set: { on in if on { model.modifiers.insert(key) } else { model.modifiers.remove(key) } }))
+                .padding(.vertical, 4)
+            } else {
+                ForEach(Array(model.slots.enumerated()), id: \.element.id) { index, slot in
+                    PresetRow(shortcut: "\(model.symbols)\(index + 1)",
+                              slot: model.binding(for: slot.id, fallback: slot),
+                              isExpanded: Binding(get: { model.expanded.contains(slot.id) },
+                                                  set: { open in if open { model.expanded.insert(slot.id) } else { model.expanded.remove(slot.id) } }),
+                              catalog: model.catalog,
+                              onDelete: { model.delete(slot.id) })
                 }
-                Text("+ 번호").foregroundStyle(.secondary)
+                Button { model.add() } label: { Label(loc("Add Preset"), systemImage: "plus") }
+                    .disabled(model.slots.count >= SlashCommandConfig.maxSlots)
             }
-
-            Toggle("\(model.symbols)= · \(model.symbols)- 로 effort 만 한 단계 올리고 내린다", isOn: $model.effortKeys)
-
-            Toggle("이 세션만 바꾼다(새 세션 기본값은 그대로)", isOn: $model.keepDefaults)
-            Text("켜 두면 claude·codex 선택창에서 「이 세션만」으로 확정합니다. 끄면 claude 는 새로 여는 세션의 기본값까지 바뀝니다.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Toggle("claude 의 확인 창(Switch model? · Change effort level?)을 자동으로 받아들인다", isOn: $model.acceptSwitchPrompt)
-            Text("claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 대화 기록을 다시 읽는다고 알리고 한 번 더 묻습니다. 켜 두면 우리가 고른 그 값을 물을 때만 받아들이고, 꺼 두면 그 창에서 직접 Enter 를 눌러야 바뀝니다.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack {
-                Text(model.status).font(.callout).foregroundStyle(.secondary)
-                Spacer()
-                Button("되돌리기") { model.reload() }
-                Button("저장") { model.save() }.keyboardShortcut(.defaultAction)
-            }
+        } header: {
+            Text(loc("Presets"))
+        } footer: {
+            Text(loc("In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for.", model.symbols))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(20)
-        .frame(width: 640)
+    }
+
+    private var shortcut: some View {
+        Section {
+            LabeledContent(loc("Modifier keys")) {
+                HStack(spacing: 6) {
+                    ForEach([("control", "⌃"), ("option", "⌥"), ("shift", "⇧"), ("command", "⌘")], id: \.0) { key, symbol in
+                        Toggle(symbol, isOn: Binding(
+                            get: { model.modifiers.contains(key) },
+                            set: { on in if on { model.modifiers.insert(key) } else { model.modifiers.remove(key) } }))
+                            .toggleStyle(.button)
+                            .help(key.capitalized)
+                    }
+                    Text(loc("+ number")).foregroundStyle(.secondary)
+                }
+            }
+            Toggle(loc("%@= and %@- raise and lower the effort only", model.symbols, model.symbols), isOn: $model.effortKeys)
+        } header: {
+            Text(loc("Shortcut"))
+        } footer: {
+            Text(loc("The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys."))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var behavior: some View {
+        Section {
+            Toggle(isOn: $model.keepDefaults) {
+                described(loc("Change this session only"),
+                          loc("The default for new sessions stays as it is. Agents that always save the choice as their default get that default put back after the switch."))
+            }
+            Toggle(isOn: $model.acceptSwitchPrompt) {
+                described(loc("Accept Claude Code's confirmation automatically"),
+                          loc("Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose."))
+            }
+        } header: {
+            Text(loc("Behavior"))
+        }
+    }
+
+    /// 스위치의 이름과 그 아래의 설명.
+    private func described(_ title: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var general: some View {
+        Section {
+            Toggle(loc("Open at login"), isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
+            LabeledContent(loc("Presets file")) {
+                HStack(spacing: 8) {
+                    Text((model.store.url.path as NSString).abbreviatingWithTildeInPath)
+                        .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                    Button(loc("Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([model.store.url]) }
+                }
+            }
+        } header: {
+            Text(loc("General"))
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 10) {
+            if !model.message.isEmpty, model.messageIsError || !model.isDirty {
+                Label(model.message, systemImage: model.messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(model.messageIsError ? Color.orange : Color.secondary)
+                    .lineLimit(2)
+            } else if model.isDirty {
+                Text(loc("Unsaved changes")).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(loc("Revert")) { model.reload() }.disabled(!model.isDirty)
+            Button(loc("Save")) { model.save() }.keyboardShortcut(.defaultAction).disabled(!model.canSave)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
     }
 }
 
-private struct SlotRow: View {
-    let shortcut: String
-    @Binding var slot: EditableSlot
-    let codexModels: [String]
-    let grokModels: [String]
-    let onDelete: () -> Void
+/// 단축키를 키 모양으로 보여 준다(`⌥⇧1`).
+private struct KeyBadge: View {
+    let text: String
 
     var body: some View {
-        GroupBox {
+        Text(text)
+            .font(.system(.callout, design: .rounded).weight(.medium))
+            .monospacedDigit()
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.primary.opacity(0.15)))
+    }
+}
+
+/// 프리셋 한 개. 접혀 있으면 한 줄(단축키 · 이름 또는 요약), 펼치면 에이전트별 모델과 effort.
+private struct PresetRow: View {
+    let shortcut: String
+    @Binding var slot: EditableSlot
+    @Binding var isExpanded: Bool
+    let catalog: AgentCatalog
+    let onDelete: () -> Void
+
+    private var agents: [Agent] { Agent.allCases.filter { slot.presets[$0] != nil } }
+    private var missing: [Agent] { Agent.allCases.filter { slot.presets[$0] == nil } }
+
+    /// 접힌 줄의 요약: `Claude Code opus · Codex gpt-6-astra · …`
+    private var summary: String {
+        let parts = agents.compactMap { agent in slot.presets[agent].map { "\(agent.displayName) \($0.model)" } }
+        return parts.isEmpty ? loc("No agents set") : parts.joined(separator: "  ·  ")
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(shortcut).font(.system(.body, design: .monospaced)).foregroundStyle(.secondary)
-                    TextField("이름(선택)", text: $slot.name).textFieldStyle(.roundedBorder).frame(width: 180)
-                    Spacer()
-                    Button(role: .destructive, action: onDelete) { Image(systemName: "trash") }
-                        .buttonStyle(.borderless).help("이 프리셋 삭제")
+                TextField("", text: $slot.name, prompt: Text(loc("Name (optional)")))
+                    .textFieldStyle(.roundedBorder).labelsHidden()
+                ForEach(agents, id: \.self) { agent in
+                    AgentRow(agent: agent,
+                             preset: Binding(get: { slot.presets[agent] ?? catalog.starter(for: agent) },
+                                             set: { if slot.presets[agent] != nil { slot.presets[agent] = $0 } }),
+                             models: catalog.models(for: agent),
+                             efforts: AgentCatalog.efforts(for: agent),
+                             onRemove: { slot.presets[agent] = nil })
                 }
-                AgentRow(label: "claude", isOn: $slot.claudeOn, model: $slot.claudeModel, effort: $slot.claudeEffort,
-                         models: SettingsModel.claudeModels, efforts: SettingsModel.claudeEfforts)
-                AgentRow(label: "codex", isOn: $slot.codexOn, model: $slot.codexModel, effort: $slot.codexEffort,
-                         models: codexModels, efforts: SettingsModel.codexEfforts)
-                AgentRow(label: "grok", isOn: $slot.grokOn, model: $slot.grokModel, effort: $slot.grokEffort,
-                         models: grokModels, efforts: SettingsModel.grokEfforts)
-                AgentRow(label: "cursor", isOn: $slot.cursorOn, model: $slot.cursorModel, effort: $slot.cursorEffort,
-                         models: SettingsModel.cursorModels, efforts: SettingsModel.cursorEfforts)
-                AgentRow(label: "agy", isOn: $slot.antigravityOn, model: $slot.antigravityModel, effort: $slot.antigravityEffort,
-                         models: SettingsModel.antigravityModels, efforts: SettingsModel.antigravityEfforts)
-                AgentRow(label: "opencode", isOn: $slot.opencodeOn, model: $slot.opencodeModel, effort: $slot.opencodeEffort,
-                         models: [], efforts: SettingsModel.opencodeEfforts)
+                HStack {
+                    Menu {
+                        ForEach(missing, id: \.self) { agent in
+                            Button(agent.displayName) { slot.presets[agent] = catalog.starter(for: agent) }
+                        }
+                    } label: {
+                        Label(loc("Add Agent"), systemImage: "plus")
+                    }
+                    .fixedSize()
+                    .disabled(missing.isEmpty)
+                    Spacer()
+                    Button(role: .destructive, action: onDelete) { Label(loc("Delete Preset"), systemImage: "trash") }
+                }
             }
-            .padding(4)
+            .padding(.vertical, 6)
+        } label: {
+            HStack(spacing: 10) {
+                KeyBadge(text: shortcut)
+                if !slot.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text(slot.name).fontWeight(.medium).lineLimit(1)
+                }
+                Text(summary).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { isExpanded.toggle() }
         }
     }
 }
 
 private struct AgentRow: View {
-    let label: String
-    @Binding var isOn: Bool
-    @Binding var model: String
-    @Binding var effort: String
+    let agent: Agent
+    @Binding var preset: AgentPreset
     let models: [String]
     let efforts: [String]
+    let onRemove: () -> Void
 
     var body: some View {
-        HStack {
-            Toggle(label, isOn: $isOn).frame(width: 80, alignment: .leading)
-            HStack {
-                TextField("모델", text: $model).textFieldStyle(.roundedBorder).frame(width: 200)
-                Menu("고르기") {
-                    ForEach(models, id: \.self) { name in Button(name) { model = name } }
-                }
-                .frame(width: 80)
-                Picker("effort", selection: $effort) {
-                    ForEach(efforts.contains(effort) ? efforts : efforts + [effort], id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden().frame(width: 110)
+        HStack(spacing: 8) {
+            Text(agent.displayName).frame(width: 96, alignment: .leading)
+            TextField("", text: $preset.model, prompt: Text(loc("Model")))
+                .textFieldStyle(.roundedBorder).labelsHidden()
+            Menu {
+                ForEach(models, id: \.self) { name in Button(name) { preset.model = name } }
+            } label: {
+                Image(systemName: "chevron.down")
             }
-            .disabled(!isOn)
-            .opacity(isOn ? 1 : 0.45)
-            Spacer()
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .disabled(models.isEmpty)
+            .help(models.isEmpty ? loc("No model list for this agent. Type the name it shows on screen.") : loc("Choose a model"))
+            Picker(loc("Effort"), selection: $preset.effort) {
+                ForEach(efforts.contains(preset.effort) ? efforts : efforts + [preset.effort], id: \.self) { Text($0).tag($0) }
+            }
+            .labelsHidden().frame(width: 104)
+            Button(action: onRemove) { Image(systemName: "minus.circle") }
+                .buttonStyle(.borderless)
+                .help(loc("Remove %@ from this preset", agent.displayName))
         }
     }
 }
@@ -290,14 +478,20 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     func present() {
         if window == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, permissions: permissions)))
-            window.title = "Slash Command"
-            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.title = loc("Slash Command Settings")
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
             window.delegate = self
+            // 너비는 고정하고 높이만 바꿀 수 있게 한다. 처음 높이는 화면에 맞춘다.
+            let height = min(720, (NSScreen.main?.visibleFrame.height ?? 800) - 80)
+            window.setContentSize(NSSize(width: 620, height: height))
+            window.contentMinSize = NSSize(width: 620, height: 420)
+            window.contentMaxSize = NSSize(width: 620, height: 10_000)
             window.center()
             self.window = window
         }
-        model.reload()
+        // 저장하지 않은 편집이 있으면 그대로 둔다 — 창을 다시 불러냈다고 지우지 않는다.
+        if model.isDirty { model.refreshLaunchAtLogin() } else { model.reload() }
         permissions.start()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)

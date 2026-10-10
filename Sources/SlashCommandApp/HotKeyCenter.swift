@@ -38,9 +38,10 @@ final class HotKeyCenter {
         }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
 
-    func register(count: Int, modifiers: [String], effortKeys: Bool) {
+    /// `retry` 면 같은 설정이어도 다시 잡는다 — 앞서 다른 앱이 쥐고 있어 못 잡은 키를 다시 시도할 때.
+    func register(count: Int, modifiers: [String], effortKeys: Bool, retry: Bool = false) {
         let wanted = min(count, HotKeyCenter.keyCodes.count)
-        guard wanted != registeredCount || modifiers != registeredModifiers || effortKeys != registeredEffortKeys else { return }
+        guard retry || wanted != registeredCount || modifiers != registeredModifiers || effortKeys != registeredEffortKeys else { return }
         unregister()
         let masks = ["shift": shiftKey, "option": optionKey, "control": controlKey, "command": cmdKey]
         let mask = modifiers.compactMap { masks[$0] }.reduce(0, |)
