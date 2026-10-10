@@ -1,53 +1,67 @@
 # Slash Command — 할 일 · 이어받기
 
-마지막 갱신: 2026-10-10 10:20 KST (개명 PR #12 · 저장소 이름 변경 · 아이콘 PR #14 · 네 맥 설치까지). 이 파일은 main 에 있다.
+마지막 갱신: 2026-10-11 08:05 KST (화면 개편 #16 · 영어 기준과 9개 언어 #17 · `run` 확대 #18 · 확인한 판 #19 · 세 맥 설치까지). 이 파일은 main 에 있다.
 
 ## 새 대화에서 이렇게 말하면 이어진다
 
 > slash-command repo 의 `TODO.md` 를 끝까지 읽고 이어서 진행해줘.
 
-(비서 기록은 `ai-assistant` 의 `log/2026-10-08-0745-modelswitch-session-close-*.md` · `log/2026-10-10-0715-modelswitch-studio-install-*.md` 와 그 뒤의 개명 기록.)
+(비서 기록은 `ai-assistant` 의 `log/2026-10-10-*slashcommand*` · `log/2026-10-11-*slashcommand*`.)
 
 ## 지금 상태
 
-- **main = `6018116`(PR #14, 2026-10-10 머지) — 새 아이콘. 그 앞의 `14815d5`(PR #12)가 ModelSwitch 를 Slash Command 로 개명**(요한님 결정: 지금은 모델 전환만 하지만 다른 슬래시 명령으로 넓힐 자리를 둔다). 기능은 PR #10(`19e9c87`) 그대로다. 테스트 190개.
-  - 앱 `Slash Command.app` · 번들 id `com.yohangwak.slashcommand` · 명령 `slashcommand` · 설정 `~/.config/slashcommand/presets.json` · 기록 `~/Library/Logs/SlashCommand/slashcommand.log`.
-  - **네 맥(집 맥 = Mac Studio · 집 맥 2 = 옛 Mac mini · 사 맥 · 맥북) 모두 `6018116` 빌드가 깔려 실행 중이다**(2026-10-10 10:16, 실행 파일 sha256 `df5479eb…`, `Apple Development` 서명, 로그인 항목 켬). 옛 `ModelSwitch.app` 과 `modelswitch` 링크는 지웠다.
-  - 아래 항목에서 2026-10-08 까지의 «집 맥» 은 옛 Mac mini(지금 «집 맥 2»)다.
-- **GitHub 저장소도 `yohangwak/slash-command` 로 바꿨다**(2026-10-10, 요한님 요청. 옛 주소 `yohangwak/modelswitch` 는 GitHub 가 넘겨 준다). 리뷰어 러너와 머지 규칙은 그대로 따라왔다. 클론의 remote 는 집 맥(`~/Repos/yohangwak/slash-command`)과 집 맥 2 를 고쳤다 — 집 맥 2 의 클론은 폴더 이름이 아직 `~/Repos/yohangwak/modelswitch` 다(그 맥의 Orca 기록이 그 경로를 가리켜 건드리지 않았다. 첫 커밋 상태의 빈 클론이다).
-- **아이콘**: 앱 아이콘과 메뉴 막대 아이콘을 «키 하나에 슬래시» 로 바꿨다(앱 `scripts/make-icon.swift` → `scripts/AppIcon.icns`, 메뉴 막대 `Sources/SlashCommandApp/StatusIcon.swift`).
-- 이 repo 는 자동 리뷰어(pullfrog)의 승인 체크(`pullfrog-approval`)가 통과해야 머지된다. 우회 머지는 하지 않는다(요한님이 «리뷰 승인 없이 머지» 를 허락한 적 없음). 리뷰 1회에 5~16분.
-- PR #8·#9 는 #10 으로 대체되어 닫았다. **iTerm2 코드는 `yohangwak/agents` 브랜치(`a460a8f`)에 보관돼 있다** — main 에는 없다(아래 「다음 할 일」 2번).
+- **main = `2345c4e`(PR #19, 2026-10-11).** 테스트 205개(Xcode 가 있는 맥에서 — 집 맥 2).
+- **2026-10-11 에 들어간 것**(요한님이 메뉴·설정 창 사진을 보내며 «디자인 uxui 등 개선 추가 수정 버그등 전체적으로 살펴보고 진행» · «9가지 언어 … 시스템 언어 자동» 을 요청):
+  - **메뉴(#16)**: 프리셋 한 줄이 화면 폭만 했다 → 맨 앞 세션의 에이전트를 알아내(아무것도 보내지 않는다) 그 에이전트에 «지금 누르면 되는 값» 만 보여 준다(`Claude Code · Orca` 아래 `opus · high`). 권한·단축키 줄은 문제가 있을 때만 생긴다.
+  - **설정 창(#16)**: 묶음별 칸 · 프리셋은 접힌 한 줄(전에는 3개 중 1개만 보였다) · 쓰는 에이전트만 「Add Agent」 로 · 높이 조절 · 바뀐 것이 있을 때만 Save/Revert.
+  - **버그(#16)**: 독립 검토(코드만 읽은 다른 에이전트)가 낸 14건을 코드로 판정해 고쳤다 — 프리셋 파일을 못 읽은 채 저장하면 빈 목록으로 덮어쓰던 것 · 창을 다시 띄우면 저장 안 한 편집이 사라지던 것 · 프리셋 삭제 때 범위 밖 접근 · 글 상자에서 ⌘C/⌘V/⌘A/⌘Z 가 안 듣던 것(주 메뉴가 없었다) · Shift 만으로 단축키를 잡을 수 있던 것 · 링크로 걸린 프리셋 파일이 보통 파일로 바뀌던 것 · Ghostty AppleScript 에 시간 제한이 없던 것(이제 5초) · 못 잡은 단축키를 다시 안 잡던 것 · 알림이 앞 알림의 사라짐에 같이 지워지던 것 · 기록 파일이 끝없이 자라던 것(2MB 에서 넘긴다) 등.
+  - **언어(#16·#17)**: 영어가 기준(`loc("영어 문장", 값…)`), 번역은 `Resources/<언어>.lproj`, 시스템 언어 순서로 자동 선택. **9개**: 영어 · 한국어 · 일본어 · 중국어(간체) · 스페인어 · 프랑스어 · 독일어 · 포르투갈어 · 아랍어. 한국어 말고는 기계 번역(원어민 검수 없음). 명령줄 도구의 자체 출력·기록 표지는 영어 고정.
+  - **`run`(#18)**: antigravity · opencode 도 프리셋으로 새 세션을 연다(각 CLI 의 모델 목록에서 id 를 찾는다). cursor 는 아직 안 된다.
+  - **확인한 판(#19)**: claude 2.1.296 · codex 0.162.0 — 따로 연 시험 세션에서 실제로 전환해 확인(아래 「실기 확인」).
+- **깔린 앱**: 집 맥(Mac Studio) · 집 맥 2(옛 Mac mini) · 사 맥 = main `2345c4e` 빌드(2026-10-11 07:58, 실행 파일 sha256 `399b39ee…`, `Apple Development` 서명, 로그인 항목 켬). **맥북은 꺼져 있어(SSH 시간 초과) 아직 `6018116`(옛 화면·한국어 고정)이다.**
+- **화면 언어**: 새 빌드를 깐 세 맥은 시스템 언어 1순위가 영어(`en-KR`)라 앱이 영어로 뜬다(맥북은 옛 빌드라 한국어 고정이다 — 그 맥의 시스템 언어는 확인하지 못했다). 한국어로 보려면 시스템 설정 → 일반 → 언어 및 지역 → 응용 프로그램에서 Slash Command 를 한국어로.
+- **실기 확인(2026-10-11, 집 맥, 설치한 빌드)**: Orca 에 따로 연 시험 세션에서 claude 2.1.296(프리셋 2→3→1 · effort 내림/올림 · 없는 번호 거절, 한 번에 0.21초)과 codex 0.162.0(프리셋 2→1 · effort 내림/올림 · 설정 없는 번호 거절, 0.18초). 두 에이전트의 기본값 파일은 시험 전 사본과 같다. 그 전에 요한님이 06:23 에 단축키로 6번 전환한 기록도 있다(개명 빌드). 손쉬운 사용 권한은 다시 빌드해 깔아도 유지됐다(같은 인증서로 서명).
+- GitHub 저장소 `yohangwak/slash-command`. 자동 리뷰어(pullfrog)의 승인 체크(`pullfrog-approval`)가 통과해야 머지된다 — 우회 머지는 하지 않는다. 리뷰 1회 3~8분.
+- **iTerm2 코드는 `yohangwak/agents` 브랜치(`a460a8f`)에 보관돼 있다** — main 에는 없다(아래 2번).
 
 ## 요한님 손이 필요한 것
 
-1. **네 맥 모두: Slash Command 에 손쉬운 사용(Accessibility) 켜기.** 번들 id 가 바뀌어 옛 허용은 이어지지 않는다(2026-10-10 07:40 관측 — 집 맥·집 맥 2·맥북: 꺼짐, 사 맥: 확인 못 함. 집 맥 2 는 ModelSwitch 때 켜져 있었다). 메뉴 막대 아이콘 → 「프리셋·권한…」 → 맨 위 「권한」 상자의 「설정 열기…」 → 열린 목록에서 Slash Command 스위치 켜기. Ghostty 는 이 권한이 없으면 단축키가 동작하지 않고, Orca 는 «탭 옮긴 직후» 수정이 작동하지 않는다. 켠 뒤 Ghostty 에서 처음 단축키를 누르면 자동화(Slash Command → Ghostty) 허용 창이 한 번 뜬다. 목록에 남은 ModelSwitch 항목은 지워도 된다.
-2. 켠 뒤 확인: Orca 에서 탭을 «클릭» 으로 옮기고 바로 단축키 → 알림에 뜨는 대상이 방금 옮긴 탭인지. (내 시험은 CLI 로 탭을 바꾼 것 7/7 — 클릭 경로는 미확인.) **개명한 빌드로는 실제 전환을 아직 한 번도 보내지 않았다**(설치·실행·프리셋 읽기까지만 확인 — 2026-10-10 10:20 기준 그대로).
-3. 새 에이전트 4종을 단축키로 써 보기(집 맥·집 맥 2 프리셋 1~3번에 설정을 넣어 뒀다 — 아래 「내가 바꿔 둔 것」. 집 맥에는 grok·cursor-agent·opencode 가 깔려 있지 않다).
+1. **새 화면을 눈으로 한 번 봐 주기.** 메뉴와 설정 창은 그림으로 뽑아 확인했을 뿐 실제 화면에서 눌러 보지 못했다: 설정 창의 글 상자에서 ⌘V 가 되는지 · 프리셋 줄을 눌러 펼쳐지는지 · 저장 뒤 단축키가 그대로인지 · 알림이 뜨는 자리.
+2. **손쉬운 사용 켜기**: 집 맥은 켜져 있다. 집 맥 2 는 꺼져 있고(2026-10-11 관측), 사 맥은 확인하지 못했다. 설정 창 맨 위 「Permissions」 의 「Open Settings…」.
+3. **맥북을 켜면** 새 빌드를 깔아야 한다(다음 세션이 `tar` 로 — 아래 「빌드·설치 방법」). iTerm2 · tmux · kitty · WezTerm 실측(아래 2·6번)도 맥북에서만 된다.
+4. **실기 재확인에 필요한 것**(아래 1·4번): 집 맥에는 grok · cursor-agent · opencode 가 없고 antigravity 는 로그인돼 있지 않다. 이 맥에서 시험하려면 깔고 로그인해 주거나, 그 에이전트들이 있는 집 맥 2 의 Orca 에 시험 터미널을 열어 줘야 한다.
+5. 결정이 필요한 것: 라이선스 · Developer ID 서명/공증(공개 배포를 할지) · 번역을 원어민에게 보일지.
+6. 시스템 설정의 손쉬운 사용 목록에 남은 옛 ModelSwitch 항목은 − 로 지워도 된다.
 
 ## 다음 할 일 (순서대로)
 
-1. **실기 재확인(이번에 못 한 것)**: 2026-10-08 의 마지막 수정들(기본값 파일 없음/읽지 못함 처리 · opencode 상태 폴더 찾기 · 암묵 Default)은 단위 테스트만 통과했고 실제 터미널에서는 못 돌렸다 — Orca 가 1.4.222 로 다시 시작된 뒤 시험 터미널 화면이 10줄 안팎으로 깨져 읽혔다(원인 미확인. 후보: 다시 시작한 뒤 한 번도 띄우지 않은 탭). 그 탭들을 한 번 띄운 뒤 `slashcommand doctor --orca <핸들> --agent <에이전트> --screen` 으로 «입력창 보임» 인지 보고 시험한다.
-2. **iTerm2 를 별도 PR 로**: `yohangwak/agents` 에서 iTerm2 조각(그 브랜치는 개명 전이라 `ModelSwitch*` 이름이다 — 얹을 때 `SlashCommand*` 로 바꾼다. `ITermIO`·`ITermBroadcast`·`Detector.iterm()`·`--iterm`·테스트·`Permissions.automatedTerminals` 의 iTerm2 줄)을 main 위로 다시 얹는다. 남은 문제는 «입력 방송(Broadcast Input)» — 켜져 있으면 다른 칸에도 입력이 간다(맥북 실측). 지금 방어(맨 앞 창 확인 → 메뉴 읽기 → 다시 확인)는 리뷰어가 «최선의 노력일 뿐» 이라며 승인하지 않았다. 구조적 해법 후보: iTerm2 Python API 의 `suppress_broadcast`(설정·클라이언트 필요 — 미조사). 요한님 결정이 필요하면 선택지로 올린다.
-3. **설정 창 다듬기**: 에이전트가 6개가 되어 프리셋 한 줄이 길다(창 높이 838, 프리셋 1개만 보임). 쓰는 에이전트만 보이고 「추가」 로 늘리는 꼴로.
-4. **opencode**: 즐겨찾기한 비슷한 이름이 맨 위에 오면 고르지 않고 멈춘다(`GLM-5.3` 을 찾는데 `GLM-5.3-Flash` 가 맨 위). 목록 커서가 글자로 안 보여서다 — 아래로 내려가 고른 뒤 모델 줄로 확인하는 방법을 재 볼 것.
-5. **`run`(새 세션 열기)**: cursor·agy·opencode 는 `--model` 이 받는 id 가 화면 이름과 달라 막아 뒀다. 각 CLI 의 `models` 출력으로 이름→id 를 풀 수 있는지.
-6. **범용 목표의 나머지**(요한님: «누구나 유용하게 쓸 수 있게»): 화면을 못 읽는 터미널(Terminal.app·VS Code 등)을 어떻게 할지 · tmux·kitty·WezTerm 에 단축키 붙이기 · 문구를 영어 기준으로(영어+한국어) · 서명/공증(Developer ID)·라이선스·자동 업데이트 · CI. 순서와 근거는 `docs/PLAN-generalization.md`.
-7. 작은 창에서 claude 가 명령 방식으로 가는 것(선택창에 모델 행이 다 안 보일 때 기본값을 잠깐 바꿨다 되돌림) — 범용이면 더 안전한 길을 찾을 것.
+1. **실기 재확인(막혀 있다 — 위 4번)**: 2026-10-08 의 마지막 수정들(기본값 파일 없음/읽지 못함 처리 · opencode 상태 폴더 찾기 · 암묵 Default)은 단위 테스트만 통과했고 grok · cursor · antigravity · opencode 의 실제 터미널에서는 못 돌렸다. claude · codex 는 2026-10-11 에 확인했다.
+2. **iTerm2 를 별도 PR 로**: `yohangwak/agents` 의 iTerm2 조각(`ITermIO`·`ITermBroadcast`·`Detector.iterm()`·`--iterm`·테스트·`Permissions.automatedTerminals` 의 iTerm2 줄)을 main 위로 다시 얹는다. 그 브랜치는 개명·영어 전환 전이다 — 이름을 `SlashCommand*` 로, 문구를 `loc("…")` 로 바꿔야 한다. 남은 문제는 «입력 방송(Broadcast Input)». **2026-10-11 조사**: iTerm2 의 Python API 문서에 `Session.async_send_text(text, suppress_broadcast=True)` 가 있고 «방송이 켜져 있어도 그 세션에만 보낸다» 고 적혀 있다 — 구조적 해법이다. AppleScript 의 `write text` 문서에는 방송 이야기가 없다. 그 API 는 iTerm2 설정에서 켜야 하고(Python API), 통로는 웹소켓 + protobuf 다(쿠키는 AppleScript 로 받는다) — 우리 쪽에 그 통신을 넣어야 한다. 구현·실측은 iTerm2 가 있는 맥북에서.
+3. ~~설정 창 다듬기~~ — 끝(#16).
+4. **opencode**(막혀 있다 — 위 4번): 즐겨찾기한 비슷한 이름이 맨 위에 오면 고르지 않고 멈춘다(`GLM-5.3` 을 찾는데 `GLM-5.3-Flash` 가 맨 위). 아래로 내려가 고른 뒤 모델 줄로 확인하는 방법을 재 볼 것.
+5. **`run`**: antigravity · opencode 는 끝(#18). **cursor 가 남았다** — `cursor-agent` 는 SSH 에서 «로그인 키체인이 잠겼다» 며 아무것도 안 해서 모델 목록 명령이 있는지조차 못 봤다. 로그인 세션의 터미널에서 `cursor-agent --help` · `cursor-agent models` 를 보면 된다. opencode 는 여는 옵션에 variant 가 없어 모델만 맞춘다(그렇게 알린다).
+6. **범용 목표의 나머지**(요한님: «누구나 유용하게 쓸 수 있게»): 화면을 못 읽는 터미널(Terminal.app·VS Code 등) · tmux·kitty·WezTerm 에 단축키 붙이기(맥북에서) · 서명/공증(Developer ID)·라이선스·자동 업데이트 · CI(맥 러너를 쓰지 않는 조건에서 무엇을 돌릴지) · 번역 검수. ~~문구를 영어 기준으로~~ 는 끝(#17). 순서와 근거는 `docs/PLAN-generalization.md`.
+7. 작은 창에서 claude 가 명령 방식으로 가는 것(선택창에 모델 행이 다 안 보일 때 기본값을 잠깐 바꿨다 되돌림) — 범용이면 더 안전한 길을 찾을 것. 창 크기를 정할 수 있는 터미널(tmux)이 있어야 재현된다(맥북).
+8. **독립 검토에서 확인하지 못하고 남긴 것**: 알림(HUD)이 여러 모니터에서 터미널이 있는 화면에 뜨는지(`NSScreen.main`) · Ghostty 가 응답하지 않을 때 실제로 5초 뒤에 풀리는지 · 설정 창에서 저장하면 편집 화면이 모르는 키(나중 판이 쓴 것)가 사라진다(`version` 은 지킨다).
 
 ## 내가 바꿔 둔 것 (되돌릴 수 있게)
 
-- **프리셋**(`~/.config/slashcommand/presets.json`): 각 맥의 옛 `~/.config/modelswitch/presets.json` 을 그대로 옮긴 것이다. 집 맥(Studio)은 집 맥 2 의 것을 가져왔다. 집 맥·집 맥 2 의 1~3번에는 grok·cursor·antigravity·opencode 설정이 들어 있다(2026-10-08 에 추가, 원래는 claude·codex 뿐 — 빼려면 그 키들만 지운다).
-- **옛 이름의 흔적 정리(2026-10-10, 네 맥)**: 옛 설정 폴더 `~/.config/modelswitch` 는 프리셋이 새 것과 같은 것을 확인하고 지웠다(집 맥 2 의 `presets.json.bak-names` 는 새 폴더로 옮겼다). 옛 기록 `~/Library/Logs/ModelSwitch/modelswitch.log` 는 새 기록 파일 앞에 붙이고 지웠다. 옛 환경설정(`com.yohangwak.modelswitch`)도 지웠다. **남은 것**: 시스템 설정의 손쉬운 사용 목록에 있는 ModelSwitch 항목 — 앱이 없어 `tccutil` 로는 지워지지 않는다(목록에서 − 로 지운다).
-- **깔린 앱**: 네 맥 모두 main(`6018116`) 빌드. iTerm2 단축키는 없다. 실제 메뉴 막대에서 새 아이콘이 어떻게 보이는지는 화면으로 확인하지 못했다(그림은 따로 그려서 봤고, 설치된 앱의 아이콘은 시스템이 새 것으로 돌려준다).
-- **빌드·설치 방법(지금 환경)**: 서명 인증서와 Xcode 는 집 맥 2 에 있다(사 맥·맥북은 확인하지 않았다). 집 맥(Studio)은 Command Line Tools 뿐이라 `swift build` 는 되지만 `swift test` 는 `XCTest` 가 없어 실패하고, 서명은 임시(ad-hoc)가 된다(빌드마다 권한을 다시 묻는다). 그래서 테스트와 서명 빌드는 집 맥 2 의 임시 폴더에서 했다. **SSH 세션에서는 `codesign` 이 `errSecInternalComponent` 로 실패한다**(로그인 키체인이 잠겨 있다) — `scripts/build-app.sh` 를 로그인 세션의 일회성 launchd 작업(`launchctl bootstrap gui/<uid>`)으로 돌린 뒤 작업과 폴더를 지웠다. 다른 맥에는 `tar -C dist -cf - "Slash Command.app" | ssh <맥> 'tar -C ~/Applications -xf -'`(`scp -r` 은 조용히 실패한 적이 있다). 집 맥에 Xcode 와 인증서를 두면 이 우회가 필요 없다(요한님 손).
-- **시험 터미널**(요한님이 연 것): cursor 세션이 Grok 4.7 **Medium** 으로 남았다(원래 High). 나머지는 원래 모델. 각 에이전트의 기본값 파일은 시험 전과 같다(해시 확인).
+- **프리셋**(`~/.config/slashcommand/presets.json`): 2026-10-10 에 각 맥의 옛 ModelSwitch 프리셋을 옮긴 것 그대로다. 집 맥·집 맥 2 의 1~3번에는 grok·cursor·antigravity·opencode 설정이 들어 있다(2026-10-08 에 추가 — 빼려면 설정 창에서 그 에이전트 줄의 − 를 누른다).
+- **깔린 앱**: 위 「지금 상태」. 2026-10-11 설치 전의 앱은 지웠다(되돌리려면 `6018116` 을 다시 빌드).
+- **빌드·설치 방법(지금 환경)**: 서명 인증서와 Xcode 는 집 맥 2 에 있다(사 맥·맥북은 확인하지 않았다). 집 맥(Studio)은 Command Line Tools 뿐이라 `swift build` 는 되지만 `swift test` 는 `XCTest` 가 없어 실패하고 서명은 임시(ad-hoc)가 된다. 그래서 테스트와 서명 빌드는 집 맥 2 의 임시 폴더에서 한다. **SSH 세션에서는 `codesign` 이 `errSecInternalComponent` 로 실패한다**(로그인 키체인이 잠겨 있다) — `scripts/build-app.sh` 를 로그인 세션의 일회성 launchd 작업(`launchctl bootstrap gui/<uid>`)으로 돌린 뒤 작업과 폴더를 지운다. 다른 맥에는 `tar -C dist -cf - "Slash Command.app" | ssh <맥> 'tar -C ~/Applications -xf -'`(`scp -r` 은 조용히 실패한 적이 있다). 집 맥에 Xcode 와 인증서를 두면 이 우회가 필요 없다(요한님 손).
+- **시험 세션**: 2026-10-11 에 연 claude · codex 시험 터미널은 닫았다. codex 는 시험 세션을 열 때 `~/.codex/config.toml` 에 그 폴더의 trust 항목을 넣는다 — 시험 전 사본으로 되돌렸다.
 - 맥북: Homebrew 로 깐 tmux·kitty·WezTerm·iTerm2 는 요한님 뜻대로 남겨 뒀다. iTerm2 에 방송(Broadcast Input)을 켠 두 칸 창이 열려 있을 수 있다.
 
 ## 알아 둘 함정 (다시 밟지 않게)
 
 - 시험은 반드시 따로 연 시험 세션에서. 시험 전에 각 에이전트의 기본값 파일을 «사본» 으로 남기고(해시만 남기면 달라졌을 때 대조할 수 없다) 끝나면 대조한다: claude `~/.claude/settings.json` · codex `~/.codex/config.toml` · grok `~/.grok/config.toml` · cursor `~/.cursor/cli-config.json`(인증 정보가 들어 있다 — 내용을 출력하지 않는다) · agy `~/.gemini/antigravity-cli/settings.json` · opencode `~/.local/state/opencode/model.json`.
-- 화면 표본은 `orca terminal read` 가 아니라 **`slashcommand doctor … --dump 파일.json`** 으로 뜬다(전자는 아래쪽 줄이 빠질 수 있다 — agy 에서 겪음).
+- 🔴 **대상(`--orca <핸들> --agent …`)은 명령에 글자 그대로 쓴다.** zsh 에서 `$T` 처럼 변수에 묶어 넘기면 한 덩이 인자가 되어 대상 지정이 통째로 빠지고, 그러면 명령은 «맨 앞 세션»(요한님이 쓰고 있는 세션)을 대상으로 삼는다. 2026-10-11 에 그렇게 넘겼다 — 그때는 `apply 2` 도 한 덩이라 사용법만 찍히고 아무것도 보내지 않았다.
+- codex 는 시작할 때 업데이트 창을 띄울 수 있다(`1. Update now` 에 커서). 그 창에서는 `doctor` 가 «input box not visible» 이라 전환하지 않는다. Esc 로 건너뛴다 — Enter 는 업데이트를 돌린다.
+- 화면 표본은 `orca terminal read` 가 아니라 **`slashcommand doctor … --dump 파일.json`** 으로 뜬다(전자는 아래쪽 줄이 빠질 수 있다 — agy 에서 겪음). `doctor` 의 대상은 `--orca`·`--ghostty`(시험 단계는 `--tmux`·`--kitty`·`--wezterm`)로 정한다. `--bundle` 은 `where` 의 것이다 — `doctor` 는 그것을 무시하고 맨 앞 앱을 본다.
+- 화면을 눈으로 볼 때: `SlashCommand --snapshot 파일.png`(설정 창) · `--menu-text [번들 id]`(메뉴). 화면 녹화 권한이 필요 없다.
+- **번역**: 문장을 바꾸거나 더하면 8개 언어 파일을 다 고쳐야 테스트가 통과한다. 테스트는 «빠진 문장 · 남는 문장 · 자리표 수» 만 본다 — 값이 둘 이상인 문장에서 어순이 영어와 달라지면 `%1$@`·`%2$@` 로 번호를 붙여야 하고, 그건 눈으로 봐야 한다(2026-10-11 아랍어에서 프리셋 번호와 에이전트가 뒤바뀐 것을 리뷰어가 잡았다).
+- 기존 테스트는 한국어 번역표를 켜고 돈다(`KoreanMessagesTestCase`). 새 문장을 보는 테스트를 쓸 때 영어를 기대하면 실패한다 — `loc("…")` 로 비교하거나 영어 상태에서 도는 `L10nTests` 에 넣는다.
+- 메뉴(주 스레드)에서 오래 걸릴 수 있는 것을 부르지 않는다: 자동화 권한 확인(`AEDeterminePermissionToAutomateTarget`)은 뒤에서 알아 둔 값을 본다.
 - grok·cursor·agy·opencode 는 «이 세션만» 이 없다. 손으로 시험해도 기본값 파일이 바뀐다.
 - cursor: 글자를 한 덩이로 보내면 붙여넣기로 보고 무시한다(한 글자씩). 편집 화면의 `◯ Fast` 는 Effort 가 아니다.
 - 리뷰어의 지적은 «주장» 이다 — 코드나 실제 화면으로 재고 나서 고친다(판정 기록은 `docs/PLAN-generalization.md` 끝).
