@@ -19,7 +19,7 @@
   - **`run`(#18)**: antigravity · opencode 도 프리셋으로 새 세션을 연다(각 CLI 의 모델 목록에서 id 를 찾는다). cursor 는 아직 안 된다.
   - **확인한 판(#19)**: claude 2.1.296 · codex 0.162.0 — 따로 연 시험 세션에서 실제로 전환해 확인(아래 「실기 확인」).
 - **깔린 앱**: 집 맥(Mac Studio) · 집 맥 2(옛 Mac mini) · 사 맥 = main `2345c4e` 빌드(2026-10-11 07:58, 실행 파일 sha256 `399b39ee…`, `Apple Development` 서명, 로그인 항목 켬). **맥북은 꺼져 있어(SSH 시간 초과) 아직 `6018116`(옛 화면·한국어 고정)이다.**
-- **화면 언어**: 네 맥 모두 시스템 언어 1순위가 영어(`en-KR`)라 앱이 영어로 뜬다. 한국어로 보려면 시스템 설정 → 일반 → 언어 및 지역 → 응용 프로그램에서 Slash Command 를 한국어로.
+- **화면 언어**: 새 빌드를 깐 세 맥은 시스템 언어 1순위가 영어(`en-KR`)라 앱이 영어로 뜬다(맥북은 옛 빌드라 한국어 고정이다 — 그 맥의 시스템 언어는 확인하지 못했다). 한국어로 보려면 시스템 설정 → 일반 → 언어 및 지역 → 응용 프로그램에서 Slash Command 를 한국어로.
 - **실기 확인(2026-10-11, 집 맥, 설치한 빌드)**: Orca 에 따로 연 시험 세션에서 claude 2.1.296(프리셋 2→3→1 · effort 내림/올림 · 없는 번호 거절, 한 번에 0.21초)과 codex 0.162.0(프리셋 2→1 · effort 내림/올림 · 설정 없는 번호 거절, 0.18초). 두 에이전트의 기본값 파일은 시험 전 사본과 같다. 그 전에 요한님이 06:23 에 단축키로 6번 전환한 기록도 있다(개명 빌드). 손쉬운 사용 권한은 다시 빌드해 깔아도 유지됐다(같은 인증서로 서명).
 - GitHub 저장소 `yohangwak/slash-command`. 자동 리뷰어(pullfrog)의 승인 체크(`pullfrog-approval`)가 통과해야 머지된다 — 우회 머지는 하지 않는다. 리뷰 1회 3~8분.
 - **iTerm2 코드는 `yohangwak/agents` 브랜치(`a460a8f`)에 보관돼 있다** — main 에는 없다(아래 2번).
@@ -57,7 +57,7 @@
 - 시험은 반드시 따로 연 시험 세션에서. 시험 전에 각 에이전트의 기본값 파일을 «사본» 으로 남기고(해시만 남기면 달라졌을 때 대조할 수 없다) 끝나면 대조한다: claude `~/.claude/settings.json` · codex `~/.codex/config.toml` · grok `~/.grok/config.toml` · cursor `~/.cursor/cli-config.json`(인증 정보가 들어 있다 — 내용을 출력하지 않는다) · agy `~/.gemini/antigravity-cli/settings.json` · opencode `~/.local/state/opencode/model.json`.
 - 🔴 **대상(`--orca <핸들> --agent …`)은 명령에 글자 그대로 쓴다.** zsh 에서 `$T` 처럼 변수에 묶어 넘기면 한 덩이 인자가 되어 대상 지정이 통째로 빠지고, 그러면 명령은 «맨 앞 세션»(요한님이 쓰고 있는 세션)을 대상으로 삼는다. 2026-10-11 에 그렇게 넘겼다 — 그때는 `apply 2` 도 한 덩이라 사용법만 찍히고 아무것도 보내지 않았다.
 - codex 는 시작할 때 업데이트 창을 띄울 수 있다(`1. Update now` 에 커서). 그 창에서는 `doctor` 가 «input box not visible» 이라 전환하지 않는다. Esc 로 건너뛴다 — Enter 는 업데이트를 돌린다.
-- 화면 표본은 `orca terminal read` 가 아니라 **`slashcommand doctor … --dump 파일.json`** 으로 뜬다(전자는 아래쪽 줄이 빠질 수 있다 — agy 에서 겪음). `doctor` 의 대상은 `--orca`·`--ghostty` 로만 정한다(`--bundle` 은 `where` 의 것이다 — `doctor` 는 무시하고 맨 앞 앱을 본다).
+- 화면 표본은 `orca terminal read` 가 아니라 **`slashcommand doctor … --dump 파일.json`** 으로 뜬다(전자는 아래쪽 줄이 빠질 수 있다 — agy 에서 겪음). `doctor` 의 대상은 `--orca`·`--ghostty`(시험 단계는 `--tmux`·`--kitty`·`--wezterm`)로 정한다. `--bundle` 은 `where` 의 것이다 — `doctor` 는 그것을 무시하고 맨 앞 앱을 본다.
 - 화면을 눈으로 볼 때: `SlashCommand --snapshot 파일.png`(설정 창) · `--menu-text [번들 id]`(메뉴). 화면 녹화 권한이 필요 없다.
 - **번역**: 문장을 바꾸거나 더하면 8개 언어 파일을 다 고쳐야 테스트가 통과한다. 테스트는 «빠진 문장 · 남는 문장 · 자리표 수» 만 본다 — 값이 둘 이상인 문장에서 어순이 영어와 달라지면 `%1$@`·`%2$@` 로 번호를 붙여야 하고, 그건 눈으로 봐야 한다(2026-10-11 아랍어에서 프리셋 번호와 에이전트가 뒤바뀐 것을 리뷰어가 잡았다).
 - 기존 테스트는 한국어 번역표를 켜고 돈다(`KoreanMessagesTestCase`). 새 문장을 보는 테스트를 쓸 때 영어를 기대하면 실패한다 — `loc("…")` 로 비교하거나 영어 상태에서 도는 `L10nTests` 에 넣는다.
