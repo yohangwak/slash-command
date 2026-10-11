@@ -1,0 +1,17 @@
+{
+  "draft": null,
+  "tail": [
+    "",
+    "  ⎿  Kept model as Sonnet 5.5",
+    "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔",
+    "   Select model",
+    "   Switch between Claude models. Your pick becomes the default for new",
+    "   sessions. For other/previous model names, specify with --model.",
+    "",
+    "   ❯ 4.  Sonnet 5.5 ✔           Most efficient for simpler tasks",
+    "      … +9 models",
+    "",
+    "   ● High effort ←/→ to adjust",
+    ""
+  ]
+}

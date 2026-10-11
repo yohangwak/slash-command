@@ -2,7 +2,7 @@
 
 "             verified version" = "             確認済みのバージョン";
 "%@ is not running, so this cannot be checked now." = "%@ が実行されていないため、今は確認できません。";
-"%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ には対応していません。GhosttyまたはOrcaのターミナルで押してください。";
+"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ には対応していません。Ghostty・Orca・WezTerm・kitty のターミナルで押してください。";
 "%@ version  installed %@ · running %@" = "%@ のバージョン  インストール済み %@ · 実行中 %@";
 "%@ — no agent found in the front session" = "%@ — 最前面のセッションでエージェントが見つかりません";
 "%@ — not set for %@" = "%1$@ — %2$@ の設定がありません";
@@ -229,6 +229,7 @@
 "The effort in the Claude Code picker did not move." = "Claude Code の選択画面の effort が動きませんでした。";
 "The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder." = "Ghostty の最前面のターミナル(%@)は、Claude Code と Codex が同じフォルダで動いているため区別できません。";
 "The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Ghostty の最前面のターミナル(%@)は、対応しているエージェント(Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)のセッションではありません。";
+"The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "%@ の最前面のターミナル(%@)は、対応しているエージェント(Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)のセッションではありません。";
 "The frontmost Orca tab is not a terminal." = "Orca の最前面のタブはターミナルではありません。";
 "The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Orca の最前面のターミナル(%@)は、対応しているエージェント(Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)のセッションではありません。";
 "The frontmost Orca workspace has no open terminal." = "Orca の最前面のワークスペースに開いているターミナルがありません。";
@@ -265,3 +266,7 @@
 "unknown" = "不明";
 "⚠️           unverified version: %@ (verified: %@) — if the wording on screen has changed, switching stops instead of guessing" = "⚠️           未確認のバージョン: %@ (確認済み: %@) — 画面の文言が変わっている場合は、推測せずに切り替えを中止します";
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           バージョンを読み取れないもの: %@ — 確認済みのバージョンかどうか判断できません";
+"Could not read the frontmost %@ terminal: %@" = "%@ の最前面のターミナルを読み取れませんでした: %@";
+"kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "kitty のリモートコントロールがオフです。kitty.conf に `allow_remote_control socket-only` と `listen_on unix:/tmp/kitty` を追加して、kitty を再起動してください。";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "送信しませんでした: この tmux ウィンドウで `synchronize-panes` がオンのため、ほかのペインにも同じ入力が届きます。オフにしてからもう一度押してください。";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "変更していません: ウィンドウが低く、モデルの選択画面が全部表示されません。ウィンドウを高くしてからもう一度押してください。";

@@ -186,6 +186,15 @@ public enum Picker {
     static let footerMarks = ["s to use this session only", "Enter to set as default",              // claude
                               "esc back"]                                                         // codex
 
+    /// 창이 낮아 «맨 아래 안내 줄이 잘린» 선택창: 화면 끝쪽에 머리말(`Select model`)이 있고 그 아래에 커서가 놓인 행이 있는데 안내 줄이 없다
+    /// (2026-10-12 실측: 11줄짜리 tmux 칸의 claude — 머리말 · 설명 두 줄 · 커서 행 · `… +9 models` · effort 줄까지만 그려진다).
+    public static func clipped(_ lines: [String], header: String) -> Bool {
+        guard open(lines) == nil else { return false }
+        let shown = lines.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard let at = shown.suffix(12).lastIndex(where: { $0 == header }) else { return false }
+        return shown[(at + 1)...].contains { row($0)?.selected == true }
+    }
+
     /// 화면 «맨 아래»에 떠 있는 선택창.
     public struct Open: Equatable, Sendable {
         public let header: String

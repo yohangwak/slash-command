@@ -2,7 +2,7 @@
 
 "             verified version" = "             已验证的版本";
 "%@ is not running, so this cannot be checked now." = "%@ 未在运行，现在无法检查。";
-"%@ is not supported. Press it in a Ghostty or Orca terminal." = "不支持 %@。请在 Ghostty 或 Orca 终端中按下。";
+"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "不支持 %@。请在 Ghostty、Orca、WezTerm 或 kitty 终端中按下。";
 "%@ version  installed %@ · running %@" = "%@ 版本  已安装 %@ · 运行中 %@";
 "%@ — no agent found in the front session" = "%@ — 在最前面的会话中未找到代理";
 "%@ — not set for %@" = "%1$@ — 未为 %2$@ 设置";
@@ -229,6 +229,7 @@
 "The effort in the Claude Code picker did not move." = "Claude Code 选择器中的 effort 没有移动。";
 "The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder." = "无法区分 Ghostty 最前面的终端（%@）：Claude Code 和 Codex 都在同一个文件夹中运行。";
 "The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Ghostty 最前面的终端（%@）不是受支持的代理会话（Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode）。";
+"The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "%@ 最前面的终端（%@）不是受支持的代理会话（Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode）。";
 "The frontmost Orca tab is not a terminal." = "Orca 最前面的标签页不是终端。";
 "The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Orca 最前面的终端（%@）不是受支持的代理会话（Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode）。";
 "The frontmost Orca workspace has no open terminal." = "Orca 最前面的工作区没有打开的终端。";
@@ -265,3 +266,7 @@
 "unknown" = "未知";
 "⚠️           unverified version: %@ (verified: %@) — if the wording on screen has changed, switching stops instead of guessing" = "⚠️           未验证的版本：%1$@（已验证：%2$@）— 如果屏幕上的措辞已改变，将停止切换而不是猜测";
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           无法读取版本的有：%@ — 无法判断是否为已验证的版本";
+"Could not read the frontmost %@ terminal: %@" = "无法读取 %@ 最前面的终端：%@";
+"kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "kitty 的远程控制已关闭。请在 kitty.conf 中加入 `allow_remote_control socket-only` 和 `listen_on unix:/tmp/kitty`，然后重新启动 kitty。";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "未发送：此 tmux 窗口已开启 `synchronize-panes`，按键也会进入其他窗格。请关闭后再按一次。";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "未作更改：窗口太矮，无法完整显示模型选择器。请把窗口拉高后再按一次。";

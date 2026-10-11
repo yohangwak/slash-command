@@ -4,13 +4,12 @@ import Foundation
 public enum TerminalHost: Equatable, Sendable {
     case ghostty(terminalID: String)
     case orca(handle: String)
-    // 아래 셋은 시험 단계다: 대상을 명령줄에서 직접 지정할 때만 쓴다(단축키로 맨 앞 세션을 찾는 것은 아직 없다).
-    /// tmux pane(`%3`, `세션:창.칸`). `socket` 은 `tmux -L` 의 이름.
+    /// tmux pane(`%3`, `세션:창.칸`). `socket` 은 `tmux -L` 의 이름이거나 `-S` 의 경로(`/` 가 들어 있으면 경로).
     case tmux(socket: String?, pane: String)
     /// kitty 창 id 와 원격 제어 소켓(`unix:/path`).
     case kitty(socket: String, window: String)
-    /// WezTerm pane id.
-    case wezterm(pane: String)
+    /// WezTerm pane id. `socket` 은 그 GUI 의 mux 소켓 경로(없으면 `wezterm cli` 가 고르는 GUI).
+    case wezterm(socket: String?, pane: String)
 
     public var appName: String {
         switch self {
@@ -39,7 +38,7 @@ public struct Target: Equatable, Sendable {
 public enum Detector {
     public static let ghosttyBundleID = "com.mitchellh.ghostty"
     public static let orcaBundleID = "com.stablyai.orca"
-    public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID]
+    public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID, weztermBundleID, kittyBundleID]
 
     /// 지금 맨 앞 앱의 맨 앞 터미널과 그 안의 에이전트.
     public static func frontmost() throws -> Target {
@@ -54,9 +53,16 @@ public enum Detector {
         switch bundleID {
         case ghosttyBundleID: return try ghostty()
         case orcaBundleID: return try orca()
+        // 같은 앱을 둘 이상 띄웠을 수 있다 — 그 가운데 «맨 앞» 인 프로세스를 짚어 준다.
+        case weztermBundleID: return try wezterm(frontPID: activeProcess(bundleID: weztermBundleID))
+        case kittyBundleID: return try kitty(frontPID: activeProcess(bundleID: kittyBundleID))
         default:
-            throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty or Orca terminal.", appName))
+            throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal.", appName))
         }
+    }
+
+    static func activeProcess(bundleID: String) -> Int32? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first(where: \.isActive)?.processIdentifier
     }
 
     // MARK: Ghostty

@@ -2,7 +2,7 @@
 
 "             verified version" = "             versão verificada";
 "%@ is not running, so this cannot be checked now." = "%@ não está em execução, então não é possível verificar agora.";
-"%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ não é compatível. Pressione-o em um terminal Ghostty ou Orca.";
+"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ não é compatível. Pressione-o em um terminal Ghostty, Orca, WezTerm ou kitty.";
 "%@ version  installed %@ · running %@" = "Versão de %@  instalada %@ · em execução %@";
 "%@ — no agent found in the front session" = "%@ — nenhum agente encontrado na sessão da frente";
 "%@ — not set for %@" = "%@ — não configurado para %@";
@@ -229,6 +229,7 @@
 "The effort in the Claude Code picker did not move." = "O effort no seletor do Claude Code não se moveu.";
 "The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder." = "Não é possível distinguir o terminal da frente do Ghostty (%@): o Claude Code e o Codex estão em execução na mesma pasta.";
 "The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "O terminal da frente do Ghostty (%@) não é uma sessão de agente compatível (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
+"The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "O terminal da frente do %@ (%@) não é uma sessão de agente compatível (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca tab is not a terminal." = "A aba da frente do Orca não é um terminal.";
 "The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "O terminal da frente do Orca (%@) não é uma sessão de agente compatível (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca workspace has no open terminal." = "O workspace da frente do Orca não tem nenhum terminal aberto.";
@@ -265,3 +266,7 @@
 "unknown" = "desconhecido";
 "⚠️           unverified version: %@ (verified: %@) — if the wording on screen has changed, switching stops instead of guessing" = "⚠️           versão não verificada: %@ (verificada: %@) — se o texto na tela mudou, a troca é interrompida em vez de adivinhar";
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           versão não legível para: %@ — não é possível saber se é uma versão verificada";
+"Could not read the frontmost %@ terminal: %@" = "Não foi possível ler o terminal da frente do %@: %@";
+"kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "O controle remoto do kitty está desativado. Adicione `allow_remote_control socket-only` e `listen_on unix:/tmp/kitty` ao kitty.conf e reinicie o kitty.";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "Não enviado: o `synchronize-panes` do tmux está ativado nesta janela, então as teclas iriam também para os outros painéis. Desative-o e pressione novamente.";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "Nada foi alterado: a janela é baixa demais para mostrar todo o seletor de modelo. Aumente a altura e pressione novamente.";

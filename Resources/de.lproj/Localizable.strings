@@ -2,7 +2,7 @@
 
 "             verified version" = "             geprüfte Version";
 "%@ is not running, so this cannot be checked now." = "%@ läuft nicht, daher kann jetzt nichts geprüft werden.";
-"%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ wird nicht unterstützt. Das Kürzel in einem Ghostty- oder Orca-Terminal drücken.";
+"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ wird nicht unterstützt. Das Kürzel in einem Ghostty-, Orca-, WezTerm- oder kitty-Terminal drücken.";
 "%@ version  installed %@ · running %@" = "%@-Version  installiert %@ · läuft %@";
 "%@ — no agent found in the front session" = "%@ – in der vordersten Sitzung wurde kein Agent gefunden";
 "%@ — not set for %@" = "%1$@ – nicht festgelegt für %2$@";
@@ -229,6 +229,7 @@
 "The effort in the Claude Code picker did not move." = "Der effort in der Claude-Code-Auswahl hat sich nicht bewegt.";
 "The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder." = "Das vorderste Ghostty-Terminal (%@) lässt sich nicht unterscheiden: Claude Code und Codex laufen im selben Ordner.";
 "The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Das vorderste Ghostty-Terminal (%@) ist keine Sitzung eines unterstützten Agenten (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
+"The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Das vorderste %@-Terminal (%@) ist keine Sitzung eines unterstützten Agenten (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca tab is not a terminal." = "Der vorderste Orca-Tab ist kein Terminal.";
 "The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Das vorderste Orca-Terminal (%@) ist keine Sitzung eines unterstützten Agenten (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca workspace has no open terminal." = "Der vorderste Orca-Arbeitsbereich hat kein geöffnetes Terminal.";
@@ -265,3 +266,7 @@
 "unknown" = "unbekannt";
 "⚠️           unverified version: %@ (verified: %@) — if the wording on screen has changed, switching stops instead of guessing" = "⚠️           nicht geprüfte Version: %@ (geprüft: %@) – wenn sich der Bildschirmtext geändert hat, bricht der Wechsel ab, statt zu raten";
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           Version nicht lesbar für: %@ – es ist unklar, ob es eine geprüfte Version ist";
+"Could not read the frontmost %@ terminal: %@" = "Das vorderste %@-Terminal konnte nicht gelesen werden: %@";
+"kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "Die Fernsteuerung von kitty ist aus. `allow_remote_control socket-only` und `listen_on unix:/tmp/kitty` in kitty.conf eintragen und kitty neu starten.";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "Nicht gesendet: In diesem tmux-Fenster ist `synchronize-panes` an, die Tasten würden also auch in die anderen Bereiche gehen. Ausschalten und erneut drücken.";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "Nichts geändert: Das Fenster ist zu niedrig, um die Modellauswahl ganz zu zeigen. Fenster höher ziehen und erneut drücken.";
