@@ -115,7 +115,7 @@
 "No model list for this agent. Type the name it shows on screen." = "لا توجد قائمة نماذج لهذا الوكيل. اكتب الاسم الذي يظهر على شاشته.";
 "No presets yet — add one in Settings" = "لا توجد إعدادات مسبقة بعد — أضف واحدًا في الإعدادات";
 "Not asked yet" = "لم يُسأل بعد";
-"Not chosen: the top row of the OpenCode dialog is not '%@' (%@)." = "لم يُختر: الصف العلوي في مربع حوار OpenCode ليس '%@' (%@).";
+"Not chosen: the OpenCode dialog has no row '%@' (top row: %@)." = "لم يُختر: لا يوجد صف '%@' في مربع حوار OpenCode (الصف العلوي: %@).";
 "Not confirmed: the cursor in the Cursor list is not on the '%@' row." = "لم يُؤكَّد: المؤشر في قائمة Cursor ليس على الصف '%@'.";
 "Not running" = "غير قيد التشغيل";
 "Not switched" = "لم يتم التبديل";

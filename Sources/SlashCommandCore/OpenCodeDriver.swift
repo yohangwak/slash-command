@@ -1,6 +1,6 @@
 import Foundation
 
-// opencode(1.18.35)로 모델·variant(effort)를 바꾼다.
+// opencode(1.18.35 · 2.0.25)로 모델·variant(effort)를 바꾼다.
 //
 // 2026-10-07 집 맥 실측(요한님의 시험 터미널):
 // - `/models` 가 «Select model» 대화상자를 연다. 글자를 치면 «이름 + 제공자» 로 걸러지고(`GLM-5.3-Flash OpenCode Go` 한 줄이면 한 행),
@@ -10,6 +10,14 @@ import Foundation
 // - 🔴 둘 다 «새 세션 기본값»을 `~/.local/state/opencode/model.json` 의 `recent`(마지막으로 쓴 모델)와 `variant`(모델마다의 variant)로 저장한다.
 //   「이 세션만」이 없으므로 전환 뒤 그 두 키만 전환 전 값으로 되돌린다.
 // - 작업 중에는 입력 상자 아래 줄이 `esc interrupt` 다. 입력 상자는 그대로 비어 보인다.
+//
+// 2026-10-11·12 집 맥 실측(2.0.25, 따로 연 시험 세션):
+// - 제공자가 둘 이상이면 예전처럼 «이름 + 제공자» 로 걸러지고 걸러진 행 오른쪽에 제공자 칸이 있다.
+//   제공자가 하나뿐이면 이름으로만 걸러지고(`Big Pickle OpenCode Zen` → `No results found`, `Big Pickle` → 한 행) 행에 제공자 칸이 없다.
+//   그때도 지금 모델의 행에는 `●` 가 붙는다(`● Big Pickle        Free`).
+// - 걸러진 행의 순서는 «가장 비슷한 것» 이 아니다: `GLM-5.3 OpenCode Go` 를 치면 `GLM-5.3-Flash` 가 맨 위, `GLM-5.3` 이 둘째다.
+//   걸러진 직후 커서는 맨 위 행이고 ↓ 한 번에 한 행씩 내려간다(둘째·셋째 행을 6번 골라 6번 그 행).
+// - 대화상자 맨 아래 줄은 `Connect an integration ctrl+a  Favorite ctrl+f`(제공자 하나일 때는 `View all integrations ctrl+a`)다.
 
 public enum OpenCodeScreen {
     public struct Row: Equatable, Sendable {
@@ -117,8 +125,8 @@ public enum OpenCodeScreen {
         guard let search = nextNonBlank() else { return nil }
         var rows: [Row] = []
         if var text = nextNonBlank() {
-            while true {
-                if text.hasPrefix("Connect provider") { break }
+            // 걸러진 것이 없으면 행 자리에 `No results found` 한 줄이 있다. 맨 아래의 안내 줄도 행이 아니다.
+            while !isDialogFooter(text), text != "No results found" {
                 var current = false
                 if text.hasPrefix("●") { current = true; text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces) }
                 rows.append(Row(text: normalizeRow(text), current: current))
@@ -130,6 +138,11 @@ public enum OpenCodeScreen {
             }
         }
         return (title, search, rows)
+    }
+
+    /// 대화상자 맨 아래의 안내 줄: `Connect provider …`(1.x) · `Connect an integration ctrl+a  Favorite ctrl+f` · `View all integrations ctrl+a`(2.x).
+    static func isDialogFooter(_ text: String) -> Bool {
+        text.hasPrefix("Connect provider") || text.hasPrefix("Connect an integration") || text.hasPrefix("View all integrations")
     }
 
     /// `GLM-5.3-Flash (Favorite)        OpenCode Go` → `GLM-5.3-Flash OpenCode Go`.
@@ -296,8 +309,10 @@ public struct OpenCodeDriver {
             return SlashCommandError(message)
         }
         let currentModel = OpenCodeScreen.status(io.freshSnapshot()?.lines ?? [])?.model
-        if currentModel.map({ OpenCodeScreen.key($0) }) != OpenCodeScreen.key(preset.model) {
-            try pickModel(preset.model, failure: fail)
+        // 낱말 사이는 한 칸으로 — 검색칸에 친 글에서 낱말을 지울 때 글자 수가 맞아야 한다.
+        let model = preset.model.split(separator: " ").joined(separator: " ")
+        if currentModel.map({ OpenCodeScreen.key($0) }) != OpenCodeScreen.key(model) {
+            try pickModel(model, current: currentModel, failure: fail)
         }
         let variant = preset.effort.trimmingCharacters(in: .whitespaces)
         if !variant.isEmpty {
@@ -305,7 +320,7 @@ public struct OpenCodeDriver {
         } else if OpenCodeScreen.dialogTitle(io.freshSnapshot()?.lines ?? []) == "Select variant" {
             back()   // variant 를 정하지 않는 프리셋 — 자동으로 뜬 대화상자는 그대로 닫는다
         }
-        return try finish(before: before, failure: fail)
+        return try finish(before: before, model: model, failure: fail)
     }
 
     /// 모델은 그대로 두고 variant 만 한 단계 올리거나 내린다. 단계는 `/variants` 대화상자의 순서(Default · low · high · max…)다.
@@ -333,7 +348,7 @@ public struct OpenCodeDriver {
             throw error
         }
         try chooseInOpenDialog(text: dialog.rows[next].text, failure: fail)
-        return try finish(before: before, failure: fail)
+        return try finish(before: before, model: nil, failure: fail)
     }
 
     // MARK: 단계
@@ -359,23 +374,103 @@ public struct OpenCodeDriver {
         }
     }
 
-    /// 열려 있는 대화상자에서 `text` 를 쳐 걸러 낸 뒤 맨 위 행이 그 글과 같을 때만 Enter 로 고른다(커서는 글자로 보이지 않는다).
-    private func chooseInOpenDialog(text: String, failure: (String, String?) -> SlashCommandError) throws {
-        try io.type(text)
-        guard let lines = try poll(timeoutMs: 2000, { OpenCodeScreen.dialog($0)?.search.lowercased() == text.lowercased() }),
-              let dialog = OpenCodeScreen.dialog(lines) else {
-            throw failure(loc("The OpenCode dialog was not filtered to '%@'.", text), nil)
+    typealias Dialog = (title: String, search: String, rows: [OpenCodeScreen.Row])
+
+    /// 검색칸의 글이 `text` 가 되고 행들이 두 번 이어서 같게 읽힐 때의 대화상자. 걸러진 행은 글보다 늦게 바뀔 수 있다.
+    private func settled(search text: String) throws -> Dialog? {
+        var last: [OpenCodeScreen.Row]?
+        let lines = try poll(timeoutMs: 2000) { lines in
+            guard let dialog = OpenCodeScreen.dialog(lines), dialog.search.lowercased() == text.lowercased() else { last = nil; return false }
+            defer { last = dialog.rows }
+            return last == dialog.rows
         }
-        guard let first = dialog.rows.first, OpenCodeScreen.key(first.text) == OpenCodeScreen.key(text) else {
+        return lines.flatMap { OpenCodeScreen.dialog($0) }
+    }
+
+    /// 걸러진 행 가운데 `text` 와 «같은» 행으로 내려가 Enter 로 고른다. 커서는 글자로 보이지 않는다 — 걸러진 직후에는 맨 위 행에 있고
+    /// ↓ 한 번에 한 행씩 내려간다(실측). 비슷한 이름이 위에 오는 일이 흔해서(`GLM-5.3` 위에 `GLM-5.3-Flash`) 맨 위 행만 볼 수는 없다.
+    /// 무엇이 골라졌는지는 부른 쪽이 입력 상자의 모델 줄로 확인한다.
+    private func choose(row text: String, in dialog: Dialog, failure: (String, String?) -> SlashCommandError) throws {
+        guard let at = dialog.rows.firstIndex(where: { OpenCodeScreen.key($0.text) == OpenCodeScreen.key(text) }) else {
             let top = dialog.rows.first?.text ?? loc("no rows")
-            throw failure(loc("Not chosen: the top row of the OpenCode dialog is not '%@' (%@).", text, top), nil)
+            throw failure(loc("Not chosen: the OpenCode dialog has no row '%@' (top row: %@).", text, top), nil)
+        }
+        if at > 0 {
+            for _ in 0..<at { try io.press(.down) }
+            // 내려가는 사이에 행이 바뀌었으면 센 칸 수가 그 행이 아니다.
+            guard let now = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []), now.rows == dialog.rows else {
+                throw failure(loc("The OpenCode dialog was not filtered to '%@'.", text), nil)
+            }
         }
         try io.press(.enter)
     }
 
-    private func pickModel(_ model: String, failure: (String, String?) -> SlashCommandError) throws {
+    /// 열려 있는 대화상자에서 `text` 를 쳐 걸러 낸 뒤 그 글과 같은 행을 고른다.
+    private func chooseInOpenDialog(text: String, failure: (String, String?) -> SlashCommandError) throws {
+        try io.type(text)
+        guard let dialog = try settled(search: text) else {
+            throw failure(loc("The OpenCode dialog was not filtered to '%@'.", text), nil)
+        }
+        try choose(row: text, in: dialog, failure: failure)
+    }
+
+    /// 검색칸의 글자 `count` 개를 지운다. 한 번에 보낸다 — 터미널에 따라 쓰기 한 번이 수십 ms 다.
+    private func erase(_ count: Int) throws {
+        if count > 0 { try io.type(String(repeating: Key.backspace.bytes, count: count)) }
+    }
+
+    /// 제공자가 하나뿐인 opencode 2 의 대화상자(이름으로만 걸러지고 행에 제공자 칸이 없다)에서 «제공자가 무엇인지» 를 대화상자로 확인한다.
+    /// 지금 모델 줄(`Exo Free OpenCode Zen`)에서 뒤의 낱말을 하나씩 지워 가며 걸렀을 때, `●`(지금 모델) 표시가 붙고 남은 글과 같은 행이 나오면
+    /// 남은 글이 모델 이름이고 지운 낱말들이 제공자다. 글의 끝이 우연히 같다는 것만으로는 제공자라고 보지 않는다
+    /// (`Big Pickle Free OpenCode Zen` 의 `Free OpenCode Zen` 은 `Exo Free OpenCode Zen` 의 끝과 같지만 제공자가 아니다 — PR #24 리뷰).
+    /// `typed` 는 지금 검색칸에 들어 있는 글. 돌아올 때 검색칸은 비어 있다.
+    private func soleProvider(current: String, typed: String, failure: (String, String?) -> SlashCommandError) throws -> [String]? {
+        try erase(typed.count)
+        try io.type(current)
+        guard try settled(search: current) != nil else {
+            throw failure(loc("The OpenCode dialog was not filtered to '%@'.", current), nil)
+        }
+        var words = current.split(separator: " ").map(String.init)
+        var provider: [String] = []
+        while words.count > 1 {
+            let word = words.removeLast()
+            provider.insert(word, at: 0)
+            try erase(word.count + 1)
+            let name = words.joined(separator: " ")
+            guard let dialog = try settled(search: name) else {
+                throw failure(loc("The OpenCode dialog was not filtered to '%@'.", name), nil)
+            }
+            if dialog.rows.contains(where: { $0.current && OpenCodeScreen.key($0.text) == OpenCodeScreen.key(name) }) {
+                try erase(name.count)
+                return provider
+            }
+        }
+        try erase(words.joined(separator: " ").count)
+        return nil
+    }
+
+    private func pickModel(_ model: String, current: String?, failure: (String, String?) -> SlashCommandError) throws {
         try openDialog(command: "/models", title: "Select model", failure: failure)
-        try chooseInOpenDialog(text: model, failure: failure)
+        try io.type(model)
+        guard var dialog = try settled(search: model) else {
+            throw failure(loc("The OpenCode dialog was not filtered to '%@'.", model), nil)
+        }
+        var row = model
+        // 걸러진 것이 없다 — 제공자가 하나뿐이라 이름으로만 걸러지는 대화상자일 수 있다. 제공자를 확인한 뒤, 프리셋이 그 제공자의 것이면 이름으로 다시 거른다.
+        if dialog.rows.isEmpty, let current, let provider = try soleProvider(current: current, typed: model, failure: failure) {
+            let words = model.split(separator: " ").map(String.init)
+            let ending = words.suffix(provider.count)
+            guard words.count > provider.count, zip(ending, provider).allSatisfy({ OpenCodeScreen.key($0) == OpenCodeScreen.key($1) }) else {
+                throw failure(loc("Not chosen: the OpenCode dialog has no row '%@' (top row: %@).", model, loc("no rows")), nil)
+            }
+            row = words.dropLast(provider.count).joined(separator: " ")
+            try io.type(row)
+            guard let named = try settled(search: row) else {
+                throw failure(loc("The OpenCode dialog was not filtered to '%@'.", row), nil)
+            }
+            dialog = named
+        }
+        try choose(row: row, in: dialog, failure: failure)
         // 기억해 둔 variant 가 없는 모델은 variant 대화상자가 이어서 뜬다 — 닫힐 때까지 기다린다(다음 단계가 처리한다).
         guard (try poll(timeoutMs: 3000) { lines in
             if OpenCodeScreen.dialogTitle(lines) == "Select variant" { return true }
@@ -400,9 +495,13 @@ public struct OpenCodeDriver {
         try chooseInOpenDialog(text: wanted.text, failure: failure)
     }
 
-    private func finish(before: DefaultsSnapshot?, failure: (String, String?) -> SlashCommandError) throws -> Outcome {
+    /// `model` 을 주면 입력 상자의 모델 줄이 그 모델일 때만 성공이다 — 대화상자에서 행을 «세어서» 골랐으므로 결과를 글자로 확인한다.
+    private func finish(before: DefaultsSnapshot?, model: String?, failure: (String, String?) -> SlashCommandError) throws -> Outcome {
         guard let lines = try poll(timeoutMs: 4000, { OpenCodeScreen.idle($0) }), let status = OpenCodeScreen.status(lines) else {
             throw failure(loc("Stopped: the OpenCode input box did not come back."), nil)
+        }
+        if let model, OpenCodeScreen.key(status.model) != OpenCodeScreen.key(model) {
+            throw failure(loc("The OpenCode model line did not change to '%@'.", model), nil)
         }
         var warning: String?
         if let before {
