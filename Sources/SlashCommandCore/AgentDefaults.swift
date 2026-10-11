@@ -176,7 +176,8 @@ public enum LaunchDefaults {
     }
 
     /// `rounds` 번(사이마다 150ms) 기본값 파일을 본다. 모델이 살아 있는 열기의 모델로 바뀌어 있으면 기준 값으로 되돌리고,
-    /// 다른 값으로 바뀌어 있으면 그 값을 새 기준으로 삼는다. 처음 되돌린 뒤에는 3초만 더 본다. 이 프로세스가 되돌린 횟수를 돌려준다.
+    /// 다른 값으로 바뀌어 있으면 그 값을 새 기준으로 삼는다. «이 열기» 가 쓴 것을 되돌린 뒤에는 3초만 더 본다 —
+    /// 겹쳐 연 다른 열기의 것을 되돌렸을 때는 줄이지 않는다(이 열기는 아직 쓰지 않았을 수 있다). 이 프로세스가 되돌린 횟수를 돌려준다.
     @discardableResult
     public static func keep(agent: Agent, ticket: String, defaults: URL? = nil, record: URL? = nil, rounds: Int,
                             sleep: (Int) -> Void, now: () -> Date = { Date() }) -> Int {
@@ -185,21 +186,22 @@ public enum LaunchDefaults {
         let record = record ?? recordURL
         var restored = 0
         var left = rounds
+        var shortened = false
         while left > 0 {
             left -= 1
             sleep(150)
-            let outcome: Bool? = try? locked(record) {
-                guard var current = load(record, now: now()), current.launches[ticket] != nil else { return nil }
+            let outcome: Round? = try? locked(record) {
+                guard var current = load(record, now: now()), let mine = current.launches[ticket] else { return nil }
                 // 읽지 못한 회차는 건너뛴다(에이전트가 쓰는 중일 수 있다).
-                guard let keys = modelKeys(defaults) else { return false }
-                if NSDictionary(dictionary: keys).isEqual(to: current.original) { return false }
+                guard let keys = modelKeys(defaults) else { return .nothing }
+                if NSDictionary(dictionary: keys).isEqual(to: current.original) { return .nothing }
                 let written = keys["model"] as? [String: Any] ?? [:]
                 guard current.launches.values.contains(where: { wrote(launch: $0.model, model: written) }) else {
                     // 살아 있는 열기의 모델이 아니다 — 다른 세션이 바꾼 값이다. 되돌리지 않고 기준으로 삼는다.
                     current.original = keys
                     current.fileExisted = FileManager.default.fileExists(atPath: defaults.path)
                     try save(current, to: record)
-                    return false
+                    return .nothing
                 }
                 let snapshot: DefaultsSnapshot
                 if current.fileExisted {
@@ -207,29 +209,48 @@ public enum LaunchDefaults {
                 } else {
                     snapshot = .absent
                 }
-                return CursorDefaults(url: defaults).restore(to: snapshot) == .restored
+                guard CursorDefaults(url: defaults).restore(to: snapshot) == .restored else { return .nothing }
+                return wrote(launch: mine.model, model: written) ? .restoredMine : .restoredAnother
             }
             guard let outcome else { break }   // 기록에 이 열기가 없다 — 끝났다
-            if outcome {
-                restored += 1
-                if restored == 1 { left = min(left, 20) }
+            if outcome != .nothing { restored += 1 }
+            if outcome == .restoredMine, !shortened {
+                shortened = true
+                left = min(left, 20)
             }
         }
         end(ticket: ticket, record: record, now: now())
         return restored
     }
 
-    /// 기본값 파일의 `model` 값이 그 id 로 «연» 결과인가.
+    enum Round { case nothing, restoredMine, restoredAnother }
+
+    /// 기본값 파일의 `model` 값이 그 id 로 «연» 결과인가. 여는 id 에서 꾸밈(effort · `thinking` · `fast`, 앞의 `cursor-`)을 떼어 낸
+    /// «모델 id 전체» 가 같을 때만이다 — 앞머리만 같은 다른 모델(`claude-opus-5-5-high` 로 열었는데 저장된 것은 `claude-opus-5`)은 아니다.
     /// 2026-10-11 실측(여덟 가지 id): `grok-4.7-high` → `grok-4.7` · `claude-opus-5-thinking-high` → `claude-opus-5` ·
     /// `cursor-grok-4.6-high` → `grok-4.6` · `gpt-5.5-extra-high` → `gpt-5.5` · `composer-2.5` → 그대로 · `auto` → `default`(aliases 에 `auto`).
+    /// 다른 세션이 «같은 모델» 로 일부러 바꾼 것은 가려낼 수 없다 — 그 경우는 되돌린다.
     static func wrote(launch: String, model: [String: Any]) -> Bool {
         let launch = launch.lowercased()
         if let aliases = model["aliases"] as? [String], aliases.contains(where: { $0.lowercased() == launch }) { return true }
+        let bases = launchBases(launch)
         for key in ["modelId", "displayModelId"] {
             guard let id = (model[key] as? String)?.lowercased(), !id.isEmpty else { continue }
-            if id == launch || launch.hasPrefix(id + "-") || launch.hasSuffix("-" + id) || launch.contains("-" + id + "-") { return true }
+            if bases.contains(id) { return true }
         }
         return false
+    }
+
+    /// 여는 id 가 가리키는 모델 id 의 후보: 꾸밈을 뗀 것과, 거기서 앞의 `cursor-` 까지 뗀 것.
+    static func launchBases(_ launch: String) -> Set<String> {
+        let decorations: Set<String> = ["fast", "thinking", "low", "medium", "high", "xhigh", "extra", "max", "none", "minimal"]
+        var parts = launch.lowercased().split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        while parts.count > 1, let last = parts.last, decorations.contains(last) { parts.removeLast() }
+        // `claude-4.6-sonnet-medium-thinking` 처럼 꾸밈이 이어 붙는 것은 위에서 다 떼인다. 가운데에 낀 것은 떼지 않는다.
+        let base = parts.joined(separator: "-")
+        var bases: Set<String> = [launch, base]
+        if base.hasPrefix("cursor-") { bases.insert(String(base.dropFirst("cursor-".count))) }
+        return bases
     }
 
     /// 기본값 파일의 모델 키들. 파일이 없으면 빈 것, 읽거나 풀지 못하면 nil.

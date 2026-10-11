@@ -3323,8 +3323,45 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         }
         XCTAssertTrue(LaunchDefaults.wrote(launch: "auto", model: ["modelId": "default", "displayModelId": "auto", "aliases": ["auto"]]))
         XCTAssertFalse(LaunchDefaults.wrote(launch: "grok-4.7-high", model: ["modelId": "grok-4.6"]))
-        XCTAssertFalse(LaunchDefaults.wrote(launch: "claude-opus-5-high", model: ["modelId": "claude-opus-5-5"]), "앞머리만 같은 다른 모델")
+        // 앞머리만 같은 다른 모델 — 양쪽 다(리뷰 2026-10-11: 5.5 로 열었는데 남이 저장한 5 를 «내가 쓴 것» 으로 봤다).
+        XCTAssertFalse(LaunchDefaults.wrote(launch: "claude-opus-5-high", model: ["modelId": "claude-opus-5-5"]))
+        XCTAssertFalse(LaunchDefaults.wrote(launch: "claude-opus-5-5-high", model: ["modelId": "claude-opus-5"]))
+        XCTAssertFalse(LaunchDefaults.wrote(launch: "claude-opus-5-5-thinking-max-fast", model: ["modelId": "claude-opus-5"]))
+        XCTAssertFalse(LaunchDefaults.wrote(launch: "gpt-5.4-mini-high", model: ["modelId": "gpt-5.4"]))
+        XCTAssertTrue(LaunchDefaults.wrote(launch: "claude-4.6-sonnet-medium-thinking", model: ["modelId": "claude-4.6-sonnet"]))
+        XCTAssertTrue(LaunchDefaults.wrote(launch: "claude-opus-5-5-thinking-max-fast", model: ["modelId": "claude-opus-5-5"]))
         XCTAssertFalse(LaunchDefaults.wrote(launch: "grok-4.7-high", model: [:]))
+    }
+
+    func testLaunchLeavesASimilarlyNamedModelSavedByAnotherSession() throws {
+        let (url, record) = launchFiles()
+        try JSONSerialization.data(withJSONObject: ["version": 1], options: [.sortedKeys]).write(to: url)
+        try cursorWrites("grok-4.7", to: url)
+        let ticket = try LaunchDefaults.begin(agent: .cursor, model: "claude-opus-5-5-high", defaults: url, record: record)
+        var round = 0
+        XCTAssertEqual(LaunchDefaults.keep(agent: .cursor, ticket: ticket, defaults: url, record: record, rounds: 6, sleep: { _ in
+            round += 1
+            if round == 2 { try? self.cursorWrites("claude-opus-5", to: url) }   // 다른 세션이 Opus 5 를 골랐다
+        }), 0)
+        XCTAssertEqual(savedModel(url), "claude-opus-5", "남이 고른 Opus 5 는 그대로다 — 우리가 연 것은 Opus 5.5")
+    }
+
+    func testRestoringAnotherLaunchDoesNotCutThisLaunchsWatchShort() throws {
+        // 리뷰(2026-10-11): B 의 지킴이가 A 의 쓰기를 되돌리고는 «되돌렸으니 3초만» 으로 줄여, 5초 뒤 B 가 쓴 것을 아무도 되돌리지 않았다.
+        let (url, record) = launchFiles()
+        try JSONSerialization.data(withJSONObject: ["version": 1], options: [.sortedKeys]).write(to: url)
+        try cursorWrites("grok-4.7", to: url)
+        _ = try LaunchDefaults.begin(agent: .cursor, model: "claude-opus-5-5-high", defaults: url, record: record)
+        let second = try LaunchDefaults.begin(agent: .cursor, model: "gemini-3.7-flash-high", defaults: url, record: record)
+        var round = 0
+        let restored = LaunchDefaults.keep(agent: .cursor, ticket: second, defaults: url, record: record, rounds: 60, sleep: { _ in
+            round += 1
+            if round == 1 { try? self.cursorWrites("claude-opus-5-5", to: url) }      // A 가 쓴다 — B 의 지킴이가 되돌린다
+            if round == 35 { try? self.cursorWrites("gemini-3.7-flash", to: url) }    // 5초 뒤(3초를 넘겨) B 가 쓴다
+        })
+        XCTAssertEqual(restored, 2)
+        XCTAssertEqual(savedModel(url), "grok-4.7", "B 가 늦게 쓴 것도 되돌렸다")
+        XCTAssertEqual(round, 35 + 20, "자기 것을 되돌린 뒤에야 3초로 줄인다")
     }
 
     /// 2026-10-11 `agy models` 의 출력(agy 1.3.3)에서 떼어 온 줄들.
