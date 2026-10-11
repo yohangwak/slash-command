@@ -152,16 +152,16 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 ## 한계
 
 - codex 선택창의 모델 순서는 `~/.codex/models_cache.json` 에서 계산한다. 10번째 이후 모델은 숫자 키로 고를 수 없다.
-- claude 선택창에서 접혀 보이지 않는 모델(`… +2 models`, 낮은 창에서는 커서 행 하나만 보인다)은 커서를 맨 위로 올린 뒤 한 칸씩 내려가며 찾는다(90×14 에서 2~3.5초). 그래도 못 찾을 때만 명령 방식으로 간다(기본값을 바꿨다 되돌린다).
+- claude 선택창에서 접혀 보이지 않는 모델(`… +2 models`, 낮은 창에서는 커서 행 하나만 보인다)은 커서를 맨 위로 올린 뒤 한 칸씩 내려가며 찾는다(90×14 에서 2~3.5초). 그래도 못 찾을 때만 명령 방식으로 간다(기본값을 바꿨다 되돌린다). 창이 더 낮아(11줄) 선택창의 맨 아래 안내 줄까지 잘리면 선택창을 닫고 물러난다 — 프리셋은 명령 방식으로 가고, effort 만 바꾸는 것은 «창이 낮다» 고 알린다.
 - Orca 의 「화면에 떠 있는 워크스페이스」는 공개 인터페이스가 아닌 상태 DB 에서 읽는다. 형식이 바뀌면 추측하지 않고 실패한다.
 - **Orca 에서 탭을 옮긴 직후:** 상태 DB 와 `terminal.list` 의 «활성 탭» 은 UI 보다 1.3~2.5초 늦다. 그래서 «손쉬운 사용» 권한이 있으면 Orca 의 탭 줄(접근성 트리, 활성 탭만 `text-foreground` 클래스)을 읽어 터미널 목록의 탭 제목 순서와 맞춘다 — 2026-10-07 같은 전환 7회에서 0.3초 뒤 7/7 맞음(DB 방식은 0/7). 권한이 없거나 탭 줄에 터미널이 아닌 탭이 섞여 맞지 않으면 옛 DB 방식으로 되돌아가고(지연 위험 그대로), 탭 제목 순서가 똑같은 워크스페이스가 둘이면 (늦은 DB 로 고르지 않고) 보내지 않는다. 분할 창의 활성 분할은 아직 목록 값을 쓴다.
 - Orca 앱 소켓도 공개 인터페이스가 아니다(`orca` 명령이 쓰는 통로). 못 쓰면 `orca` 명령으로 되돌아간다(회당 0.2초).
 - Ghostty 의 codex 는 3~4.6초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다(다른 접근성 속성도 같은 보관본을 준다).
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
 - 단축키로 되는 터미널은 Ghostty · Orca · WezTerm · kitty 다(2026-10-12 집 맥 2 에서 WezTerm · kitty 와 그 안의 tmux 로 claude · codex 의 프리셋 · effort 전환을 확인, 1.1~1.8초).
-  - **WezTerm**: 설정할 것이 없다(`wezterm cli` 로 포커스된 pane 과 그 tty 를 안다).
-  - **kitty**: 원격 제어를 켜야 한다 — `kitty.conf` 에 `allow_remote_control socket-only` 와 `listen_on unix:/tmp/kitty`(또는 `kitty --listen-on unix:/경로` 로 띄운다). 소켓에 닿을 수 있는 프로그램은 kitty 의 창에 글자를 넣고 화면을 읽을 수 있게 된다는 뜻이다 — 그것이 싫으면 켜지 않는다(꺼져 있으면 그렇게 알리고 멈춘다).
-  - **tmux**: WezTerm · kitty 의 맨 앞 칸에서 tmux 가 돌고 있으면 그 클라이언트가 보고 있는 tmux 칸의 에이전트로 간다(쓰기·읽기도 tmux 로). Ghostty · Orca 안의 tmux 와 그 밖의 터미널 앱(Terminal.app · iTerm2 등) 안의 tmux 는 아직 단축키로 안 된다 — 그 탭의 tty 를 알 수 없고, tmux 의 포커스 표시는 `focus-events on` 을 켜기 전에 붙은 클라이언트에서 뒤로 가도 «앞» 으로 남는다(실측). 대상을 직접 적으면 된다: `slashcommand apply 2 --tmux <pane> [--tmux-socket <이름이나 경로>] --agent claude`.
+  - **WezTerm**: 설정할 것이 없다(`wezterm cli` 로 포커스된 pane 과 그 tty 를 안다). WezTerm 을 둘 이상 띄웠으면 맨 앞 것의 소켓(`gui-sock-<pid>`)에 묻고 쓴다.
+  - **kitty**: 원격 제어를 켜야 한다 — `kitty.conf` 에 `allow_remote_control socket-only` 와 `listen_on unix:/tmp/kitty`(또는 `kitty --listen-on unix:/경로` 로 띄운다). 소켓에 닿을 수 있는 프로그램은 kitty 의 창에 글자를 넣고 화면을 읽을 수 있게 된다는 뜻이다 — 그것이 싫으면 켜지 않는다(꺼져 있으면 그렇게 알리고 멈춘다). 소켓 주소는 설정 파일을 읽어 추측하지 않고 맨 앞 kitty 프로세스가 실제로 열어 둔 소켓에서 안다 — `--config` 나 `include` 로 둔 설정, `~` · 환경변수가 든 주소도 그대로 된다.
+  - **tmux**: WezTerm · kitty 의 맨 앞 칸에서 tmux 가 돌고 있으면 그 클라이언트가 보고 있는 tmux 칸의 에이전트로 간다(쓰기·읽기도 tmux 로). `suspend-client` 나 Ctrl-Z 로 멈춰 둔 클라이언트는 따라가지 않는다(화면에는 셸이 보인다). 그 창의 `synchronize-panes` 가 켜져 있으면 다른 칸에도 같은 글이 들어가므로 보내지 않고 그렇게 알린다(확인과 쓰기가 tmux 의 한 명령이다). Ghostty · Orca 안의 tmux 와 그 밖의 터미널 앱(Terminal.app · iTerm2 등) 안의 tmux 는 아직 단축키로 안 된다 — 그 탭의 tty 를 알 수 없고, tmux 의 포커스 표시는 `focus-events on` 을 켜기 전에 붙은 클라이언트에서 뒤로 가도 «앞» 으로 남는다(실측). 대상을 직접 적으면 된다: `slashcommand apply 2 --tmux <pane> [--tmux-socket <이름이나 경로>] --agent claude`.
   - 대상을 직접 적는 길: `--kitty <창 id> --kitty-socket unix:/경로 --agent …`, `--wezterm <pane id> --agent …`, `--bundle <번들 id>`(그 앱이 맨 앞인 것처럼 — 단축키가 가는 길 그대로).
   - iTerm2 는 맥북에서 전환까지 확인했지만(약 1초) 입력 방송(Broadcast Input)이 켜져 있으면 다른 칸에도 입력이 들어가는 문제를 구조적으로 막지 못해 아직 넣지 않았다(별도 작업). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
 - 새 에이전트들의 한계: cursor 의 매개변수 편집에서 Effort 말고 Context·Fast 는 건드리지 않는다 · cursor 는 목록이 10줄씩 보이므로 이름을 걸러서 찾는다(이름이 둘 이상 겹치면 정확히 같은 이름만 고른다) · agy 는 긴 출력 뒤에 입력창이 다시 그려지지 않을 때가 있어(Ctrl+L 로 풀린다) 그때는 «입력창이 보이지 않는다» 로 멈춘다 · opencode 의 목록 커서는 글자로 보이지 않는다. 걸러낸 행 가운데 «프리셋과 같은 행» 까지 ↓ 로 세어 내려가 고르고(`GLM-5.3` 을 찾으면 `GLM-5.3-Flash` 가 맨 위에 온다 — 2026-10-12 실측: 둘째·셋째 행을 매번 그 행으로), 끝나고 입력 상자의 모델 줄이 프리셋과 같지 않으면 실패로 알린다.

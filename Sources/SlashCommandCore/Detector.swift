@@ -8,8 +8,8 @@ public enum TerminalHost: Equatable, Sendable {
     case tmux(socket: String?, pane: String)
     /// kitty 창 id 와 원격 제어 소켓(`unix:/path`).
     case kitty(socket: String, window: String)
-    /// WezTerm pane id.
-    case wezterm(pane: String)
+    /// WezTerm pane id. `socket` 은 그 GUI 의 mux 소켓 경로(없으면 `wezterm cli` 가 고르는 GUI).
+    case wezterm(socket: String?, pane: String)
 
     public var appName: String {
         switch self {
@@ -53,12 +53,16 @@ public enum Detector {
         switch bundleID {
         case ghosttyBundleID: return try ghostty()
         case orcaBundleID: return try orca()
-        case weztermBundleID: return try wezterm()
-        case kittyBundleID:
-            return try kitty(frontPID: NSRunningApplication.runningApplications(withBundleIdentifier: kittyBundleID).first(where: \.isActive)?.processIdentifier)
+        // 같은 앱을 둘 이상 띄웠을 수 있다 — 그 가운데 «맨 앞» 인 프로세스를 짚어 준다.
+        case weztermBundleID: return try wezterm(frontPID: activeProcess(bundleID: weztermBundleID))
+        case kittyBundleID: return try kitty(frontPID: activeProcess(bundleID: kittyBundleID))
         default:
             throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal.", appName))
         }
+    }
+
+    static func activeProcess(bundleID: String) -> Int32? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first(where: \.isActive)?.processIdentifier
     }
 
     // MARK: Ghostty

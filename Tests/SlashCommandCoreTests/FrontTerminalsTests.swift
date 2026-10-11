@@ -3,8 +3,11 @@ import XCTest
 
 /// 맨 앞 세션 찾기(WezTerm · kitty · 그 안의 tmux). JSON 은 2026-10-12 집 맥 2 에서 받은 것을 줄인 것이다.
 final class FrontTerminalsTests: XCTestCase {
-    private func entry(_ pid: Int32, parent: Int32 = 1, device: UInt32, _ arguments: String...) -> ProcessTable.Entry {
-        ProcessTable.Entry(pid: pid, parent: parent, hasTerminal: true, terminalDevice: device, arguments: arguments, environment: [], executable: "")
+    /// `foreground` 가 false 면 그 터미널의 앞 작업이 아니다(Ctrl-Z · `tmux suspend-client` 로 멈춰 둔 것).
+    private func entry(_ pid: Int32, parent: Int32 = 1, device: UInt32, foreground: Bool = true, _ arguments: String...) -> ProcessTable.Entry {
+        ProcessTable.Entry(pid: pid, parent: parent, hasTerminal: true, terminalDevice: device,
+                           processGroup: pid, foregroundGroup: foreground ? pid : pid + 1000,
+                           arguments: arguments, environment: [], executable: "")
     }
 
     // MARK: WezTerm
@@ -14,51 +17,58 @@ final class FrontTerminalsTests: XCTestCase {
      {"window_id":0,"tab_id":1,"pane_id":1,"workspace":"default","title":"Repos","cwd":"file:///Users/me/Repos","is_active":true,"tty_name":"/dev/ttys006"}]
     """
 
-    private func wezClients(_ rows: [(focused: Int?, idle: Int)]) -> Data {
+    private func wezClients(_ rows: [(pid: Int, focused: Int?, idle: Int)]) -> Data {
         let items = rows.map { row in
-            "{\"username\":\"me\",\"pid\":1667,\"idle_time\":{\"secs\":\(row.idle),\"nanos\":5},\"workspace\":\"default\",\"focused_pane_id\":\(row.focused.map(String.init) ?? "null")}"
+            "{\"username\":\"me\",\"pid\":\(row.pid),\"idle_time\":{\"secs\":\(row.idle),\"nanos\":5},\"workspace\":\"default\",\"focused_pane_id\":\(row.focused.map(String.init) ?? "null")}"
         }
         return Data("[\(items.joined(separator: ","))]".utf8)
     }
 
     func testWezTermFocusedPane() {
-        let pane = WezTermFront.focusedPane(clients: wezClients([(1, 3)]), panes: Data(wezPanes.utf8))
+        let pane = WezTermFront.focusedPane(clients: wezClients([(1667, 1, 3)]), panes: Data(wezPanes.utf8), frontPID: 1667)
         XCTAssertEqual(pane, WezTermFront.Pane(id: "1", tty: "/dev/ttys006", title: "Repos"))
-        XCTAssertEqual(WezTermFront.focusedPane(clients: wezClients([(0, 3)]), panes: Data(wezPanes.utf8))?.tty, "/dev/ttys000")
+        XCTAssertEqual(WezTermFront.focusedPane(clients: wezClients([(1667, 0, 3)]), panes: Data(wezPanes.utf8), frontPID: nil)?.tty, "/dev/ttys000",
+                       "맨 앞 GUI 를 모를 때는 클라이언트가 하나뿐일 때만")
     }
 
-    func testWezTermPicksTheMostRecentlyUsedClient() {
-        let pane = WezTermFront.focusedPane(clients: wezClients([(0, 900), (1, 2), (nil, 0)]), panes: Data(wezPanes.utf8))
-        XCTAssertEqual(pane?.id, "1", "포커스 pane 을 모르는 클라이언트는 세지 않는다")
+    func testWezTermTakesTheFrontmostGUINotTheLastTypedIn() {
+        // GUI 둘이 한 mux 를 같이 쓴다. A 에 글자를 치고 B 로 포커스만 옮기면 A 의 idle 이 더 짧다 — 맨 앞은 B 다(PR #25 리뷰).
+        let clients = wezClients([(100, 0, 2), (200, 1, 900)])
+        XCTAssertEqual(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: 200)?.id, "1")
+        XCTAssertEqual(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: 100)?.id, "0")
+        XCTAssertNil(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: nil), "어느 GUI 가 맨 앞인지 모르면 고르지 않는다")
+        XCTAssertNil(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: 300), "맨 앞 GUI 의 클라이언트가 목록에 없다")
     }
 
     func testWezTermWithNothingToGoOn() {
-        XCTAssertNil(WezTermFront.focusedPane(clients: wezClients([(7, 1)]), panes: Data(wezPanes.utf8)), "목록에 없는 pane")
-        XCTAssertNil(WezTermFront.focusedPane(clients: Data("[]".utf8), panes: Data(wezPanes.utf8)))
-        XCTAssertNil(WezTermFront.focusedPane(clients: Data("not json".utf8), panes: Data(wezPanes.utf8)))
+        XCTAssertNil(WezTermFront.focusedPane(clients: wezClients([(1, 7, 1)]), panes: Data(wezPanes.utf8), frontPID: 1), "목록에 없는 pane")
+        XCTAssertNil(WezTermFront.focusedPane(clients: wezClients([(1, nil, 1)]), panes: Data(wezPanes.utf8), frontPID: 1), "포커스 pane 을 모른다")
+        XCTAssertNil(WezTermFront.focusedPane(clients: Data("[]".utf8), panes: Data(wezPanes.utf8), frontPID: nil))
+        XCTAssertNil(WezTermFront.focusedPane(clients: Data("not json".utf8), panes: Data(wezPanes.utf8), frontPID: nil))
+    }
+
+    func testWezTermSocketOfAGUI() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("wez-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let folder = home.appendingPathComponent(".local/share/wezterm")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data().write(to: folder.appendingPathComponent("gui-sock-1667"))
+        XCTAssertEqual(WezTermFront.socket(ofGUI: 1667, home: home), folder.appendingPathComponent("gui-sock-1667").path)
+        XCTAssertNil(WezTermFront.socket(ofGUI: 9, home: home), "그 GUI 의 소켓이 없으면 wezterm cli 의 기본대로")
+        XCTAssertNil(WezTermFront.socket(ofGUI: nil, home: home))
+        XCTAssertNil(WezTermFront.environment(socket: nil))
+        XCTAssertEqual(WezTermFront.environment(socket: "/x/gui-sock-1")?["WEZTERM_UNIX_SOCKET"], "/x/gui-sock-1")
     }
 
     // MARK: kitty
 
-    func testKittySocketFromLaunchArguments() {
-        let instances: [(pid: Int32, arguments: [String])] = [
-            (2111, ["/Applications/kitty.app/Contents/MacOS/kitty"]),
-            (33356, ["/Applications/kitty.app/Contents/MacOS/kitty", "-o", "allow_remote_control=yes", "--listen-on", "unix:/tmp/sc-kitty", "-d", "/tmp"]),
-            (400, ["kitty", "--listen-on=unix:/tmp/k-{kitty_pid}"]),
-        ]
-        XCTAssertEqual(KittyFront.sockets(instances: instances, conf: nil, frontPID: nil), ["unix:/tmp/sc-kitty", "unix:/tmp/k-400"])
-        XCTAssertEqual(KittyFront.sockets(instances: instances, conf: nil, frontPID: 33356), ["unix:/tmp/sc-kitty"])
-        XCTAssertEqual(KittyFront.sockets(instances: instances, conf: nil, frontPID: 2111), [], "맨 앞 kitty 는 원격 제어 없이 떴다 — 다른 kitty 의 소켓을 쓰지 않는다")
-    }
-
-    func testKittySocketFromConf() {
-        let instances: [(pid: Int32, arguments: [String])] = [(2111, ["kitty"])]
-        let conf = "font_size 13\n# listen_on unix:/tmp/old\nallow_remote_control socket-only\nlisten_on   unix:/tmp/kitty\n"
-        XCTAssertEqual(KittyFront.sockets(instances: instances, conf: conf, frontPID: nil), ["unix:/tmp/kitty-2111"], "설정 파일의 값에는 kitty 가 -<pid> 를 붙인다")
-        XCTAssertEqual(KittyFront.sockets(instances: instances, conf: "listen_on unix:/tmp/k-{kitty_pid}.sock\n", frontPID: nil), ["unix:/tmp/k-2111.sock"])
-        XCTAssertEqual(KittyFront.sockets(instances: instances, conf: "listen_on none\n", frontPID: nil), [])
-        XCTAssertEqual(KittyFront.sockets(instances: instances, conf: "listen_on tcp:localhost:5000\n", frontPID: nil), [], "유닉스 소켓만")
-        XCTAssertEqual(KittyFront.sockets(instances: [(5, ["kitty", "--listen-on", "unix:/tmp/a"])], conf: conf, frontPID: nil), ["unix:/tmp/a"], "인자가 설정 파일을 이긴다")
+    func testKittyBoundSockets() {
+        // 2026-10-12 집 맥 2: `lsof -a -p <pid> -U -Fn`. 원격 제어를 켠 kitty 와 켜지 않은 kitty.
+        XCTAssertEqual(KittyFront.boundSockets(lsofOutput: "p33356\nf4\nn->0xd1dda1117d7f9d95\nf9\nn/tmp/sc-kitty\n"), ["unix:/tmp/sc-kitty"])
+        XCTAssertEqual(KittyFront.boundSockets(lsofOutput: "p2111\nf4\nn->0xd1dda1117d7f9d95\n"), [], "이름 없는 소켓뿐 — 원격 제어가 꺼져 있다")
+        XCTAssertEqual(KittyFront.boundSockets(lsofOutput: "p7\nf9\nn/Users/me/kitty.sock\nf10\nn/Users/me/kitty.sock\nf11\nn/private/tmp/kitty-7\n"),
+                       ["unix:/Users/me/kitty.sock", "unix:/private/tmp/kitty-7"], "설정이 어디에 있든, 실제로 열린 주소")
+        XCTAssertEqual(KittyFront.boundSockets(lsofOutput: ""), [])
     }
 
     private func kittyLS(focusedOS: [Bool], focusedTab: Int = 0) -> Data {
@@ -116,6 +126,15 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertEqual(TmuxFront.arguments(socket: "/tmp/my.sock"), ["-S", "/tmp/my.sock"])
     }
 
+    func testTmuxWriteRefusesSynchronizedPanes() {
+        // 확인(`#{pane_synchronized}`)과 쓰기가 tmux 의 한 명령이다 — 켜져 있으면 쓰지 않고 표지를 찍는다.
+        let arguments = TmuxIO.sendArguments(pane: "%5", bytes: "/m\r")
+        XCTAssertEqual(arguments, ["if-shell", "-F", "-t", "%5", "#{pane_synchronized}",
+                                   "display-message -p \(TmuxIO.synchronizedMark)", "send-keys -t '%5' -H 2f 6d 0d"])
+        XCTAssertEqual(TmuxIO.sendArguments(pane: "my work:0.1", bytes: "a").last, "send-keys -t 'my work:0.1' -H 61")
+        XCTAssertEqual(TmuxIO.quoted("it's"), "'it'\\''s'")
+    }
+
     // MARK: 그 터미널의 프로세스
 
     func testAgentOnATerminal() {
@@ -133,9 +152,40 @@ final class FrontTerminalsTests: XCTestCase {
         let table: (entries: [ProcessTable.Entry], parents: [Int32: Int32]) = (
             [entry(10, device: 7, "-zsh"), entry(11, parent: 10, device: 7, "codex"), entry(30, device: 9, "-zsh"), entry(31, parent: 30, device: 9, "claude")],
             [10: 1, 11: 10, 30: 1, 31: 30])
-        let target = try Detector.session(host: .wezterm(pane: "1"), appName: "WezTerm", label: "Repos", table: table, device: 7)
-        XCTAssertEqual(target, Target(host: .wezterm(pane: "1"), agent: .codex, label: "Repos"), "다른 터미널의 에이전트는 보지 않는다")
-        XCTAssertThrowsError(try Detector.session(host: .wezterm(pane: "2"), appName: "WezTerm", label: "zsh", table: table, device: 8))
+        let target = try Detector.session(host: .wezterm(socket: nil, pane: "1"), appName: "WezTerm", label: "Repos", table: table, device: 7)
+        XCTAssertEqual(target, Target(host: .wezterm(socket: nil, pane: "1"), agent: .codex, label: "Repos"), "다른 터미널의 에이전트는 보지 않는다")
+        XCTAssertThrowsError(try Detector.session(host: .wezterm(socket: nil, pane: "2"), appName: "WezTerm", label: "zsh", table: table, device: 8))
+    }
+
+    func testSuspendedTmuxClientIsNotTheSessionInFront() throws {
+        // `tmux suspend-client`(또는 Ctrl-Z): 클라이언트는 그 tty 에 남아 있지만 화면에는 셸이 보인다. 그 뒤의 tmux 칸으로 들어가지 않는다(PR #25 리뷰).
+        let suspended = entry(21, parent: 20, device: 7, foreground: false, "tmux", "-L", "x", "attach")
+        let shellOnly: (entries: [ProcessTable.Entry], parents: [Int32: Int32]) = ([entry(20, device: 7, "-zsh"), suspended], [20: 1, 21: 20])
+        XCTAssertThrowsError(try Detector.session(host: .wezterm(socket: nil, pane: "0"), appName: "WezTerm", label: "zsh", table: shellOnly, device: 7)) { error in
+            XCTAssertEqual((error as? SlashCommandError)?.message,
+                           loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", "zsh"))
+        }
+        // 멈춰 둔 뒤 그 셸에서 에이전트를 띄웠으면, 보이는 것은 그 에이전트다 — 바깥 터미널이 대상이다.
+        let withAgent: (entries: [ProcessTable.Entry], parents: [Int32: Int32]) = (shellOnly.entries + [entry(22, parent: 20, device: 7, "claude")], [20: 1, 21: 20, 22: 20])
+        XCTAssertEqual(try Detector.session(host: .wezterm(socket: nil, pane: "0"), appName: "WezTerm", label: "zsh", table: withAgent, device: 7).host,
+                       .wezterm(socket: nil, pane: "0"))
+    }
+
+    // MARK: 낮은 창의 잘린 선택창
+
+    struct Fixture: Decodable { let tail: [String] }
+
+    func testPickerWhoseHintRowIsCutOff() throws {
+        // 2026-10-12 집 맥 2, 11줄짜리 tmux 칸의 claude 2.1.295: 선택창의 맨 아래 안내 줄이 그려지지 않는다.
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "claude-picker-clipped", withExtension: "json", subdirectory: "Fixtures"))
+        let lines = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+        XCTAssertNil(Picker.open(lines), "안내 줄이 없어 열린 선택창으로는 읽히지 않는다")
+        XCTAssertTrue(Picker.clipped(lines, header: "Select model"))
+        XCTAssertFalse(Picker.clipped(lines, header: "Select Model and Effort"), "다른 선택창의 머리말")
+        XCTAssertFalse(Picker.clipped(["  Select model", "  some text", "❯ "], header: "Select model"), "커서가 놓인 행이 없다")
+        let whole = lines + ["   Enter to set as default · s to use this session only · Esc to cancel"]
+        XCTAssertNotNil(Picker.open(whole))
+        XCTAssertFalse(Picker.clipped(whole, header: "Select model"), "안내 줄이 보이면 잘린 것이 아니다")
     }
 
     func testTerminalDevice() {

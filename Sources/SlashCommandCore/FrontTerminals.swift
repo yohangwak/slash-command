@@ -5,7 +5,7 @@ import Foundation
 //
 // 2026-10-12 집 맥 2 실측(WezTerm · kitty · tmux 를 그 화면에서 연 뒤 ssh 로):
 // - WezTerm: `wezterm cli list-clients` 가 GUI 의 `focused_pane_id` 를, `cli list` 가 그 pane 의 `tty_name` 을 준다.
-// - kitty: 원격 제어 소켓은 kitty 를 띄운 인자나 kitty.conf 에서 안다(창 안 프로세스의 환경변수는 읽히지 않았다).
+// - kitty: 원격 제어 소켓은 그 kitty 프로세스가 열어 둔 유닉스 소켓에서 안다(`lsof`. 창 안 프로세스의 환경변수는 읽히지 않았다).
 //   `kitty @ ls` 가 OS 창 → 탭 → 창의 `is_focused` 와 그 창에서 앞에 도는 프로세스의 pid 를 준다.
 //   🔴 `ls` 의 `env` 에는 그 창의 환경변수가 통째로 들어 있다(비밀이 섞일 수 있다) — 읽지도 남기지도 않는다.
 // - WezTerm 의 `focused_pane_id` 는 WezTerm 이 맨 앞 앱일 때 탭을 바꾸면 바로 따라온다. 뒤에 있는 동안 `cli activate-pane` 으로 바꾼 것은
@@ -47,19 +47,37 @@ public enum WezTermFront {
         public let title: String
     }
 
-    /// `cli list-clients` 와 `cli list` 의 JSON 에서 포커스된 pane. GUI 가 여럿 붙어 있으면 가장 최근에 쓴 것(`idle_time` 이 가장 짧은 것).
-    static func focusedPane(clients: Data, panes: Data) -> Pane? {
+    /// `cli list-clients` 와 `cli list` 의 JSON 에서 포커스된 pane. `frontPID` 는 맨 앞 WezTerm GUI 의 pid — 그 GUI 의 클라이언트만 본다.
+    /// GUI 여럿이 한 mux 를 같이 쓰면 클라이언트가 여럿인데, «가장 최근에 글자를 받은» 것이 맨 앞은 아니다(`idle_time` 은 입력만 센다 — PR #25 리뷰).
+    /// `frontPID` 를 모를 때(그 앱이 맨 앞이 아닌 채로 묻는 시험)는 클라이언트가 하나뿐일 때만 답한다.
+    static func focusedPane(clients: Data, panes: Data, frontPID: Int32?) -> Pane? {
         guard let clientList = try? JSONSerialization.jsonObject(with: clients) as? [[String: Any]],
               let paneList = try? JSONSerialization.jsonObject(with: panes) as? [[String: Any]] else { return nil }
-        func idle(_ client: [String: Any]) -> Double {
-            let time = client["idle_time"] as? [String: Any]
-            return (time?["secs"] as? Double ?? .infinity) + (time?["nanos"] as? Double ?? 0) / 1_000_000_000
+        let client: [String: Any]?
+        if let frontPID {
+            client = clientList.first { ($0["pid"] as? Int).map(Int32.init) == frontPID }
+        } else {
+            client = clientList.count == 1 ? clientList.first : nil
         }
-        guard let client = clientList.filter({ $0["focused_pane_id"] is Int }).min(by: { idle($0) < idle($1) }),
-              let focused = client["focused_pane_id"] as? Int,
+        guard let focused = client?["focused_pane_id"] as? Int,
               let pane = paneList.first(where: { $0["pane_id"] as? Int == focused }),
               let tty = pane["tty_name"] as? String, !tty.isEmpty else { return nil }
         return Pane(id: String(focused), tty: tty, title: pane["title"] as? String ?? "")
+    }
+
+    /// 그 GUI 의 mux 소켓(`~/.local/share/wezterm/gui-sock-<pid>`). `wezterm cli` 는 가만두면 «어느» GUI 에 붙을지 스스로 고른다 —
+    /// GUI 를 둘 이상 띄웠으면 맨 앞 것의 소켓을 `WEZTERM_UNIX_SOCKET` 으로 짚어 준다. 파일이 없으면 nil(그때는 `wezterm cli` 의 기본대로).
+    static func socket(ofGUI pid: Int32?, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String? {
+        guard let pid else { return nil }
+        let path = home.appendingPathComponent(".local/share/wezterm/gui-sock-\(pid)").path
+        return FileManager.default.fileExists(atPath: path) ? path : nil
+    }
+
+    static func environment(socket: String?) -> [String: String]? {
+        guard let socket else { return nil }
+        var environment = ProcessInfo.processInfo.environment
+        environment["WEZTERM_UNIX_SOCKET"] = socket
+        return environment
     }
 }
 
@@ -71,51 +89,35 @@ public enum KittyFront {
         public let pids: [Int32]
     }
 
-    /// 돌고 있는 kitty 들의 원격 제어 소켓. `frontPID`(맨 앞 kitty 의 pid)를 주면 그 kitty 의 것만.
-    /// 소켓은 kitty 를 띄운 인자(`--listen-on unix:/path`)나 kitty.conf 의 `listen_on` 에 있다. 설정 파일의 값에는 kitty 가 `-<pid>` 를 붙인다
-    /// (`{kitty_pid}` 가 들어 있으면 그 자리에 넣는다). 창 안 프로세스의 환경변수(`KITTY_LISTEN_ON`)는 맥에서 읽히지 않는다
-    /// (2026-10-12 실측: kitty 가 셸을 `login` 으로 띄워, 그 셸과 자식들의 환경이 가려진다).
-    static func sockets(instances: [(pid: Int32, arguments: [String])], conf: String?, frontPID: Int32?) -> [String] {
-        var configured: String?
-        for line in (conf ?? "").split(separator: "\n") {
-            let words = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
-            if words.count >= 2, words[0] == "listen_on" { configured = words[1] }
-        }
-        if configured == "none" { configured = nil }
+    /// 그 kitty 프로세스가 «실제로 열어 둔» 유닉스 소켓들(`lsof -a -p <pid> -U -Fn` 의 출력에서 경로가 있는 것).
+    /// 설정을 읽어 추측하지 않는다 — 소켓 주소는 `--listen-on` · `--config` 로 준 파일 · `include` 한 파일 어디에나 있을 수 있고,
+    /// kitty 가 환경변수 · `~` · 상대 경로 · `{kitty_pid}` 를 풀어서 연다(PR #25 리뷰). 창 안 프로세스의 환경변수(`KITTY_LISTEN_ON`)는 맥에서
+    /// 읽히지 않는다(2026-10-12 실측: kitty 가 셸을 `login` 으로 띄워, 그 셸과 자식들의 환경이 가려진다).
+    static func boundSockets(lsofOutput: String) -> [String] {
         var found: [String] = []
-        for instance in instances where frontPID == nil || instance.pid == frontPID {
-            var socket: String?
-            for (index, argument) in instance.arguments.enumerated() {
-                if argument == "--listen-on", index + 1 < instance.arguments.count { socket = instance.arguments[index + 1] }
-                if argument.hasPrefix("--listen-on=") { socket = String(argument.dropFirst("--listen-on=".count)) }
-            }
-            let pid = String(instance.pid)
-            if let given = socket {
-                socket = given.replacingOccurrences(of: "{kitty_pid}", with: pid)
-            } else if let configured {
-                socket = configured.contains("{kitty_pid}") ? configured.replacingOccurrences(of: "{kitty_pid}", with: pid) : "\(configured)-\(pid)"
-            }
-            if let socket, socket.hasPrefix("unix:"), !found.contains(socket) { found.append(socket) }
+        for line in lsofOutput.split(separator: "\n") where line.hasPrefix("n/") {
+            let socket = "unix:" + line.dropFirst()
+            if !found.contains(socket) { found.append(socket) }
         }
         return found
     }
 
-    /// kitty 본체 프로세스들(창 없는 도우미 `kitty +runpy …` 는 뺀다).
-    static func instances() -> [(pid: Int32, arguments: [String])] {
-        ProcessTable.allPIDs().compactMap { pid in
+    /// kitty 본체 프로세스들의 pid(창 없는 도우미 `kitty +runpy …` 는 뺀다).
+    static func instances() -> [Int32] {
+        ProcessTable.allPIDs().filter { pid in
             guard ProcessTable.executablePath(of: pid).hasSuffix("/Contents/MacOS/kitty"),
-                  let arguments = ProcessTable.commandLine(of: pid)?.arguments,
-                  arguments.count < 2 || !arguments[1].hasPrefix("+") else { return nil }
-            return (pid, arguments)
+                  let arguments = ProcessTable.commandLine(of: pid)?.arguments else { return false }
+            return arguments.count < 2 || !arguments[1].hasPrefix("+")
         }
     }
 
-    static var confURL: URL {
-        let environment = ProcessInfo.processInfo.environment
-        if let directory = environment["KITTY_CONFIG_DIRECTORY"], !directory.isEmpty { return URL(fileURLWithPath: directory).appendingPathComponent("kitty.conf") }
-        let base = environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config")
-        return base.appendingPathComponent("kitty/kitty.conf")
+    static func sockets(of pids: [Int32]) -> [String] {
+        var found: [String] = []
+        for pid in pids {
+            let listed = Proc.run("/usr/sbin/lsof", ["-a", "-p", String(pid), "-U", "-Fn"], timeout: 5)
+            for socket in boundSockets(lsofOutput: listed.out) where !found.contains(socket) { found.append(socket) }
+        }
+        return found
     }
 
     /// `kitty @ ls` 의 JSON 에서 포커스된 OS 창 → 탭 → 창. OS 창이 하나뿐이면 kitty 가 맨 앞 앱이 아니어도(포커스 표시가 없어도) 그 창이다.
@@ -211,7 +213,9 @@ extension Detector {
     static func session(host: TerminalHost, appName: String, label: String,
                         table: (entries: [ProcessTable.Entry], parents: [Int32: Int32]), device: UInt32) throws -> Target {
         let attached = table.entries.filter { $0.terminalDevice == device }
-        if let client = attached.first(where: TTYProcesses.isTmuxClient) {
+        // tmux 클라이언트가 그 터미널의 «앞 작업» 일 때만 tmux 로 들어간다. `suspend-client` 나 Ctrl-Z 로 멈춰 둔 클라이언트는
+        // 그 tty 에 남아 있지만 화면에는 셸이 보인다 — 그 뒤의 tmux 칸은 보이지 않는 세션이다(PR #25 리뷰).
+        if let client = attached.first(where: { TTYProcesses.isTmuxClient($0) && $0.isForeground }) {
             return try TmuxFront.target(client: client, table: table, outer: appName)
         }
         guard let agent = TTYProcesses.agent(in: attached, parents: table.parents) else {
@@ -220,18 +224,22 @@ extension Detector {
         return Target(host: host, agent: agent, label: label)
     }
 
-    public static func wezterm() throws -> Target {
+    /// `frontPID` 는 맨 앞 WezTerm GUI 의 pid.
+    public static func wezterm(frontPID: Int32? = nil) throws -> Target {
         guard let wezterm = Proc.locate("wezterm", extra: ["/Applications/WezTerm.app/Contents/MacOS"]) else {
             throw SlashCommandError(loc("The wezterm command was not found."))
         }
-        let clients = Proc.run(wezterm, ["cli", "list-clients", "--format", "json"], timeout: 5)
-        let panes = Proc.run(wezterm, ["cli", "list", "--format", "json"], timeout: 5)
-        guard clients.ok, panes.ok, let pane = WezTermFront.focusedPane(clients: Data(clients.out.utf8), panes: Data(panes.out.utf8)),
+        let socket = WezTermFront.socket(ofGUI: frontPID)
+        let environment = WezTermFront.environment(socket: socket)
+        let clients = Proc.run(wezterm, ["cli", "list-clients", "--format", "json"], env: environment, timeout: 5)
+        let panes = Proc.run(wezterm, ["cli", "list", "--format", "json"], env: environment, timeout: 5)
+        guard clients.ok, panes.ok,
+              let pane = WezTermFront.focusedPane(clients: Data(clients.out.utf8), panes: Data(panes.out.utf8), frontPID: frontPID),
               let device = TTYProcesses.device(ofTTY: pane.tty) else {
             let detail = (clients.ok ? panes.err : clients.err).trimmingCharacters(in: .whitespacesAndNewlines)
             throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "WezTerm", String(detail.suffix(160))))
         }
-        return try session(host: .wezterm(pane: pane.id), appName: "WezTerm", label: pane.title, table: ProcessTable.snapshot(), device: device)
+        return try session(host: .wezterm(socket: socket, pane: pane.id), appName: "WezTerm", label: pane.title, table: ProcessTable.snapshot(), device: device)
     }
 
     /// `frontPID` 는 맨 앞 kitty 의 pid(kitty 를 둘 이상 띄웠을 때 그 kitty 의 소켓을 고른다).
@@ -240,9 +248,8 @@ extension Detector {
             throw SlashCommandError(loc("The kitty command was not found."))
         }
         let table = ProcessTable.snapshot()
-        let conf = try? String(contentsOf: KittyFront.confURL, encoding: .utf8)
-        let sockets = KittyFront.sockets(instances: KittyFront.instances(), conf: conf, frontPID: frontPID)
-            .filter { FileManager.default.fileExists(atPath: String($0.dropFirst("unix:".count))) }
+        // 맨 앞 kitty 를 알면 그 kitty 의 소켓만 본다 — 원격 제어 없이 뜬 kitty 가 맨 앞일 때 다른 kitty 의 창으로 가지 않는다.
+        let sockets = KittyFront.sockets(of: frontPID.map { [$0] } ?? KittyFront.instances())
         guard !sockets.isEmpty else {
             throw SlashCommandError(loc("kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty."))
         }

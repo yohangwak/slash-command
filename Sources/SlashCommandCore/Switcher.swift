@@ -181,11 +181,11 @@ public struct Switcher {
                 throw SlashCommandError(loc("The kitty command was not found."))
             }
             return KittyIO(kitty: kitty, socket: socket, window: window)
-        case .wezterm(let pane):
+        case .wezterm(let socket, let pane):
             guard let wezterm = Proc.locate("wezterm", extra: ["/Applications/WezTerm.app/Contents/MacOS"]) else {
                 throw SlashCommandError(loc("The wezterm command was not found."))
             }
-            return WezTermIO(wezterm: wezterm, pane: pane)
+            return WezTermIO(wezterm: wezterm, socket: socket, pane: pane)
         }
     }
 
@@ -495,6 +495,18 @@ public struct Runner {
                     return (header.map { open.header.hasPrefix($0) } ?? true) && (footer.map { open.footer.contains($0) } ?? true)
                 }
                 if !shown {
+                    // 창이 낮으면 선택창의 맨 아래 안내 줄이 잘려, 열려 있는데도 알아보지 못한다. 머리말과 커서 행이 보이면 그 선택창이다 —
+                    // 열어 둔 채 끝내지 않고 닫는다(전에는 «열리지 않았다» 고 하고 선택창을 남겼다 — 2026-10-12 실측).
+                    if let header, let lines = io.screen(), Picker.clipped(lines, header: header) {
+                        try io.press(.escape)
+                        _ = try poll(timeoutMs: 1500) { !Picker.clipped($0, header: header) }
+                        var error = SlashCommandError(loc("Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again."))
+                        if let after = io.screen(), !Picker.clipped(after, header: header), !Picker.isOpen(after),
+                           Readiness.claudePromptVisible(after) || Readiness.codexComposerVisible(after) {
+                            error.cleanlyAborted = true
+                        }
+                        throw error
+                    }
                     _ = try? run(abort)
                     throw SlashCommandError(failure)
                 }

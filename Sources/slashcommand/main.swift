@@ -47,7 +47,7 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     let more: [(String, (String) -> TerminalHost?)] = [
         ("--tmux", { .tmux(socket: value(after: "--tmux-socket", in: args), pane: $0) }),
         ("--kitty", { id in value(after: "--kitty-socket", in: args).map { .kitty(socket: $0, window: id) } }),
-        ("--wezterm", { .wezterm(pane: $0) }),
+        ("--wezterm", { .wezterm(socket: nil, pane: $0) }),
     ]
     for (flag, make) in more {
         guard let id = value(after: flag, in: args) else { continue }

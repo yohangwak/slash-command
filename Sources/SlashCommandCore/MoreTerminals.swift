@@ -14,11 +14,28 @@ public struct TmuxIO: TerminalIO {
         Proc.run(tmux, TmuxFront.arguments(socket: socket) + arguments, timeout: 5)
     }
 
+    static let synchronizedMark = "SLASHCOMMAND-PANES-SYNCHRONIZED"
+
+    /// tmux 명령 글 안에 넣을 대상 이름(세션 이름에 빈칸·따옴표가 있을 수 있다).
+    static func quoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// 그 칸에 바이트를 넣는 tmux 인자. 🔴 그 창의 `synchronize-panes` 가 켜져 있으면 `send-keys -t <칸>` 은 대상을 적었어도 «다른 칸들에도»
+    /// 같은 글을 넣는다(2026-10-12 실측 — PR #25 리뷰). 확인과 쓰기를 tmux 의 한 명령(`if-shell -F`)으로 묶어, 켜져 있으면 쓰지 않고 표지를 찍는다.
+    static func sendArguments(pane: String, bytes: String) -> [String] {
+        let hex = Array(bytes.utf8).map { String(format: "%02x", $0) }.joined(separator: " ")
+        return ["if-shell", "-F", "-t", pane, "#{pane_synchronized}",
+                "display-message -p \(synchronizedMark)", "send-keys -t \(quoted(pane)) -H \(hex)"]
+    }
+
     private func write(_ bytes: String) throws {
-        let hex = Array(bytes.utf8).map { String(format: "%02x", $0) }
-        let result = run(["send-keys", "-t", pane, "-H"] + hex)
+        let result = run(TmuxIO.sendArguments(pane: pane, bytes: bytes))
         guard result.ok else {
             throw SlashCommandError(loc("Could not type into tmux: %@", result.err.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }
+        if result.out.contains(TmuxIO.synchronizedMark) {
+            throw SlashCommandError(loc("Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again."))
         }
     }
 
@@ -71,10 +88,12 @@ public struct KittyIO: TerminalIO {
 /// 실측: 쓰기 15ms, 화면에 보이기까지 약 23ms, 없는 pane 은 실패. 🔴 `--no-paste` 가 없으면 글이 붙여넣기 표시로 감싸여 들어간다.
 public struct WezTermIO: TerminalIO {
     public let wezterm: String
+    /// 그 GUI 의 mux 소켓. 대상을 찾을 때 쓴 것과 같은 GUI 에 쓰고 읽는다.
+    public var socket: String?
     public let pane: String
 
     private func run(_ arguments: [String]) -> ProcResult {
-        Proc.run(wezterm, ["cli"] + arguments, timeout: 5)
+        Proc.run(wezterm, ["cli"] + arguments, env: WezTermFront.environment(socket: socket), timeout: 5)
     }
 
     private func write(_ bytes: String) throws {

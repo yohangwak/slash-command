@@ -268,3 +268,5 @@
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           バージョンを読み取れないもの: %@ — 確認済みのバージョンかどうか判断できません";
 "Could not read the frontmost %@ terminal: %@" = "%@ の最前面のターミナルを読み取れませんでした: %@";
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "kitty のリモートコントロールがオフです。kitty.conf に `allow_remote_control socket-only` と `listen_on unix:/tmp/kitty` を追加して、kitty を再起動してください。";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "送信しませんでした: この tmux ウィンドウで `synchronize-panes` がオンのため、ほかのペインにも同じ入力が届きます。オフにしてからもう一度押してください。";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "変更していません: ウィンドウが低く、モデルの選択画面が全部表示されません。ウィンドウを高くしてからもう一度押してください。";

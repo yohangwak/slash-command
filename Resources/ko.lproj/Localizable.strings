@@ -268,3 +268,5 @@
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           판을 읽지 못한 것: %@ — 확인한 판인지 알 수 없습니다";
 "Could not read the frontmost %@ terminal: %@" = "%@ 의 맨 앞 터미널을 읽지 못했습니다: %@";
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "kitty 의 원격 제어가 꺼져 있습니다. kitty.conf 에 `allow_remote_control socket-only` 와 `listen_on unix:/tmp/kitty` 를 넣고 kitty 를 다시 시작하세요.";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "보내지 않았습니다: 이 tmux 창의 `synchronize-panes` 가 켜져 있어 다른 칸에도 같은 입력이 들어갑니다. 끄고 다시 눌러 주세요.";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "바꾸지 않았습니다: 창이 낮아 모델 선택창이 다 보이지 않습니다. 창을 높이고 다시 눌러 주세요.";

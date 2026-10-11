@@ -858,6 +858,8 @@ final class FakeClaude: TerminalIO {
     var settings: URL?
     /// 낮은 창: 선택창에 커서 행부터 이만큼만 보이고 그 아래는 `… +N models` 로 접힌다(실측: 90×14 에서 1행).
     var windowRows: Int?
+    /// 더 낮은 창: 선택창의 맨 아래 안내 줄까지 잘린다(실측: 11줄 칸).
+    var hintCutOff = false
     private var writes = 0
     private let rule = String(repeating: "─", count: 30)
 
@@ -996,7 +998,7 @@ final class FakeClaude: TerminalIO {
                 ? "   ● \(level == "xhigh" ? "xHigh" : level.capitalized) effort ←/→ to adjust"
                 : "   ○ Effort not supported for \(rows[cursor])"
             return shown + ["   Select model", "   Switch between Claude models. Your pick becomes the default for new sessions."]
-                + list + [effortLine, "   Enter to set as default · s to use this session only · Esc to cancel"]
+                + list + [effortLine] + (hintCutOff ? [] : ["   Enter to set as default · s to use this session only · Esc to cancel"])
         case .confirm:
             return shown + [askingAboutEffort ? "   Change effort level?" : "   Switch model?",
                             "   Your next response will be slower and use more tokens",
@@ -1078,6 +1080,22 @@ final class SwitcherApplyTests: KoreanMessagesTestCase {
         XCTAssertEqual(claude.confirmedBy, "s")
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}", "기본값 파일은 한 번도 쓰이지 않았다")
         XCTAssertFalse(claude.sent.contains { $0.hasPrefix("/model ") || $0.contains("/model sonnet") })
+    }
+
+    func testClosesAPickerWhoseHintRowIsCutOff() throws {
+        // 2026-10-12 실측(11줄짜리 tmux 칸): 안내 줄이 잘려 선택창을 알아보지 못했고, «열리지 않았다» 며 선택창을 열어 둔 채 끝났다.
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.windowRows = 1
+        claude.hintCutOff = true
+        XCTAssertThrowsError(try switcher(config("opus", "medium"), io: claude, settings: settings).stepEffort(up: false, on: target)) { error in
+            XCTAssertEqual((error as? SlashCommandError)?.message,
+                           loc("Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again."))
+        }
+        XCTAssertTrue(Readiness.claudePromptVisible(claude.screen() ?? []), "선택창을 닫고 입력창으로 돌아왔다")
+        XCTAssertEqual(claude.effort, "high", "바뀐 것이 없다")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}")
     }
 
     func testEffortWrapsAroundToReachALowerLevel() throws {

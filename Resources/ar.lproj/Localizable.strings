@@ -268,3 +268,5 @@
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           تعذّرت قراءة الإصدار لـ: %@ — لا يمكن معرفة ما إذا كان إصدارًا تم التحقق منه";
 "Could not read the frontmost %@ terminal: %@" = "تعذّرت قراءة طرفية %@ الأمامية: %@";
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "التحكم عن بُعد في kitty متوقف. أضف `allow_remote_control socket-only` و`listen_on unix:/tmp/kitty` إلى kitty.conf ثم أعد تشغيل kitty.";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "لم يُرسل: خيار `synchronize-panes` في tmux مفعّل في هذه النافذة، فستصل المفاتيح إلى أجزائها الأخرى أيضًا. أوقفه ثم اضغط مرة أخرى.";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "لم يتغيّر شيء: النافذة قصيرة جدًا لعرض منتقي النماذج كاملًا. كبّر ارتفاعها ثم اضغط مرة أخرى.";

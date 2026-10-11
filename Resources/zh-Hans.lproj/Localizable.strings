@@ -268,3 +268,5 @@
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           无法读取版本的有：%@ — 无法判断是否为已验证的版本";
 "Could not read the frontmost %@ terminal: %@" = "无法读取 %@ 最前面的终端：%@";
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "kitty 的远程控制已关闭。请在 kitty.conf 中加入 `allow_remote_control socket-only` 和 `listen_on unix:/tmp/kitty`，然后重新启动 kitty。";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "未发送：此 tmux 窗口已开启 `synchronize-panes`，按键也会进入其他窗格。请关闭后再按一次。";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "未作更改：窗口太矮，无法完整显示模型选择器。请把窗口拉高后再按一次。";

@@ -268,3 +268,5 @@
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           versão não legível para: %@ — não é possível saber se é uma versão verificada";
 "Could not read the frontmost %@ terminal: %@" = "Não foi possível ler o terminal da frente do %@: %@";
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "O controle remoto do kitty está desativado. Adicione `allow_remote_control socket-only` e `listen_on unix:/tmp/kitty` ao kitty.conf e reinicie o kitty.";
+"Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "Não enviado: o `synchronize-panes` do tmux está ativado nesta janela, então as teclas iriam também para os outros painéis. Desative-o e pressione novamente.";
+"Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "Nada foi alterado: a janela é baixa demais para mostrar todo o seletor de modelo. Aumente a altura e pressione novamente.";
