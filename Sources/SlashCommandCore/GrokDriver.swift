@@ -1,6 +1,6 @@
 import Foundation
 
-// grok(xAI 의 Grok Build CLI, 1.0.46)로 모델·effort 를 바꾼다.
+// grok(xAI 의 Grok Build CLI, 1.0.46 · 1.0.50)로 모델·effort 를 바꾼다.
 //
 // 2026-10-07 집 맥 실측(요한님의 시험 터미널):
 // - `/model <모델> [창] [effort]` 한 줄이 이 세션의 모델과 effort 를 바꾸고, 입력 상자 아래 테두리의 이름표가
@@ -9,28 +9,40 @@ import Foundation
 //   `~/.grok/config.toml` 의 `[models] default · default_reasoning_effort` 로 저장한다. 「이 세션만」 확정이 없다.
 //   그래서 claude 의 명령 방식처럼 «전환 뒤 그 두 키만 전환 전 값으로 되돌린다»(다른 키·다른 세션의 쓰기는 건드리지 않는다).
 // - 입력 상자에 쓰던 글이 있으면 명령과 섞이므로 비어 있을 때만 보낸다.
+//
+// 2026-10-12 집 맥 실측(1.0.50, 따로 연 시험 세션):
+// - 막 연 세션(첫 화면)은 안내 줄 자리에 배포 채널 표지 `[stable]` 만 있다(창이 낮으면 `Grok Build  1.0.50 [stable]`).
+//   무엇이든 한 번 하고 나면 예전의 안내 줄이 된다.
+// - 권한 모드가 기본이 아니면 이름표 뒤에 붙는다: `Grok 4.7 (high) · always-approve` · `· plan` · `· auto-review`.
+// - 창이 20줄보다 높으면 아래 테두리와 안내 줄 사이에 빈 줄이 하나 있다. 20줄 이하면 안내 줄이 언제나 `Ctrl+x:shortcuts` 뿐이다.
 
 /// 화면에서 grok 입력 상자를 읽는다. 맨 아래 줄부터 읽는다 — 대화 내용에 비슷한 글이 있어도 보지 않는다.
 public enum GrokScreen {
     public struct Box: Equatable, Sendable {
         /// `│ ❯ ` 뒤의 글(여러 줄이면 이어 붙인다). 비어 있으면 "".
         public let input: String
-        /// 아래 테두리의 이름표(`Grok 4.7 (xhigh)`). 없으면 nil.
+        /// 아래 테두리의 이름표에서 모델 부분(`Grok 4.7 (xhigh)`). 없으면 nil.
         public let label: String?
         public let footer: String
     }
 
     static let placeholders: Set<String> = ["Build anything"]
 
+    /// 막 연 세션의 안내 줄 자리: 배포 채널 표지 하나(`[stable]`), 낮은 창에서는 앞에 판이 붙는다(`Grok Build  1.0.50 [stable]`).
+    static func isChannelTag(_ footer: String) -> Bool {
+        footer.range(of: "^(Grok Build +[0-9][^ ]* +)?\\[[a-z0-9-]+\\]$", options: .regularExpression) != nil
+    }
+
     /// 화면 맨 아래의 입력 상자: 마지막 줄은 안내 줄, 그 위는 아래 테두리(`╰…╯`), 그 위는 `│` 로 시작하는 입력 줄들, 그 위는 위 테두리(`╭`).
     public static func box(_ screen: [String]) -> Box? {
         var lines = screen.map { $0.trimmingCharacters(in: .whitespaces) }
         while lines.last?.isEmpty == true { lines.removeLast() }
-        guard lines.count >= 3, let footer = lines.last, footer.contains("Ctrl+x:shortcuts") else { return nil }
-        let bottom = lines[lines.count - 2]
-        guard bottom.hasPrefix("╰"), bottom.hasSuffix("╯") else { return nil }
+        guard lines.count >= 3, let footer = lines.last, footer.contains("Ctrl+x:shortcuts") || isChannelTag(footer) else { return nil }
+        lines.removeLast()
+        while lines.last?.isEmpty == true { lines.removeLast() }
+        guard lines.count >= 2, let bottom = lines.last, bottom.hasPrefix("╰"), bottom.hasSuffix("╯") else { return nil }
         var rows: [String] = []
-        var index = lines.count - 3
+        var index = lines.count - 2
         while index >= 0, lines[index].hasPrefix("│") {
             rows.insert(lines[index], at: 0)
             index -= 1
@@ -51,22 +63,36 @@ public enum GrokScreen {
         return Box(input: text, label: label(inBorder: bottom), footer: footer)
     }
 
-    /// `╰───── Grok 4.7 (xhigh) ─╯` 에서 이름표.
+    /// `╰───── Grok 4.7 (xhigh) ─╯` 에서 이름표. 뒤에 붙는 권한 모드(` · always-approve`)는 뗀다.
     static func label(inBorder border: String) -> String? {
         var inner = border
         inner.removeFirst()
         inner.removeLast()
         let parts = inner.split(separator: "─", omittingEmptySubsequences: true).map { $0.trimmingCharacters(in: .whitespaces) }
-        return parts.last { !$0.isEmpty }
+        guard let whole = parts.last(where: { !$0.isEmpty }) else { return nil }
+        let model = whole.components(separatedBy: " · ")[0].trimmingCharacters(in: .whitespaces)
+        return model.isEmpty ? nil : model
     }
 
-    /// 입력 상자가 «비어 있고» 아무것도 열려 있지 않은 대기 상태. 안내 줄이 알려진 두 가지(입력 칸 / 대화 칸에 포커스)일 때만 인정한다 —
-    /// 작업 중에는 안내 줄에 `Ctrl+c:cancel` 이 붙고(2026-10-07 실측: 입력 상자는 그대로 비어 보인다), 선택창·명령 목록·글을 쓰는 중에는
-    /// `Enter:send …` 가 붙는다. 처음 보는 안내 줄이면 대기가 아니다.
+    /// 작업 중이면 입력 상자 위에 상태 줄이 있다: `⠹ Waiting for response… 1.4s   1.4s ⇣38.7k [stop]`(스피너로 시작하고 `[stop]` 으로 끝난다).
+    public static func working(_ screen: [String]) -> Bool {
+        screen.contains { line in
+            let text = line.trimmingCharacters(in: .whitespaces)
+            guard let first = text.unicodeScalars.first, (0x2800...0x28FF).contains(first.value) else { return false }
+            return text.hasSuffix("[stop]")
+        }
+    }
+
+    /// 입력 상자가 «비어 있고» 아무것도 열려 있지 않은 대기 상태. 안내 줄이 알려진 꼴(입력 칸 / 대화 칸에 포커스 / 막 연 세션의 채널 표지 /
+    /// 낮은 창의 짧은 안내 줄)일 때만 인정한다 — 작업 중에는 안내 줄에 `Ctrl+c:cancel` 이 붙고(2026-10-07 실측: 입력 상자는 그대로 비어 보인다),
+    /// 선택창·명령 목록·글을 쓰는 중에는 `Enter:send …` 가 붙는다. 처음 보는 안내 줄이면 대기가 아니다.
+    /// 창이 20줄 이하면 안내 줄이 언제나 `Ctrl+x:shortcuts` 뿐이라(1.0.50 실측: 작업 중에도, 선택창이 열려도) 작업 중은 상태 줄로 가린다 —
+    /// 선택창·쓰던 글은 입력 상자에 글이 있어서 걸린다.
     public static func idle(_ screen: [String]) -> Bool {
-        guard let box = box(screen) else { return false }
+        guard let box = box(screen), !working(screen) else { return false }
         let footer = box.footer.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.joined(separator: " ")
-        let known = footer == "Shift+Tab:mode │ Ctrl+x:shortcuts" || (footer.hasPrefix("Space:prompt") && !footer.contains("cancel"))
+        let known = footer == "Shift+Tab:mode │ Ctrl+x:shortcuts" || footer == "Ctrl+x:shortcuts"
+            || (footer.hasPrefix("Space:prompt") && !footer.contains("cancel")) || isChannelTag(footer)
         return known && (box.input.isEmpty || placeholders.contains(box.input))
     }
 
