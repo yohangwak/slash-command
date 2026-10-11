@@ -1,7 +1,6 @@
 /* Arabic. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             الإصدار الذي تم التحقق منه";
-"%@ does not support `run`: the model id it takes when opening a session differs from the on-screen name in the preset. Open the session, then switch with the shortcut." = "لا يدعم %@ الأمر `run`: معرّف النموذج الذي يقبله عند فتح جلسة يختلف عن الاسم الظاهر على الشاشة في الإعداد المسبق. افتح الجلسة ثم بدّل بالاختصار.";
 "%@ is not running, so this cannot be checked now." = "%@ غير قيد التشغيل، لذا لا يمكن التحقق الآن.";
 "%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ غير مدعوم. اضغطه في طرفية Ghostty أو Orca.";
 "%@ version  installed %@ · running %@" = "إصدار %@   مثبّت %@ · قيد التشغيل %@";

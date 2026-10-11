@@ -89,3 +89,31 @@ enum DefaultsFile {
         }
     }
 }
+
+/// 여는 옵션으로 준 모델을 새 세션 기본값으로도 저장하는 에이전트(`Launch.savesLaunchModelAsDefault` — cursor)를 `run` 으로 열 때,
+/// 기본값을 연 «전» 값으로 되돌리는 일. `run` 은 자기 자신을 에이전트로 바꾸므로(exec) 되돌리기는 따로 띄운 프로세스가 맡는다 —
+/// 그래서 연 전 상태를 한 덩이로 넘길 수 있어야 한다(파일로 남기지 않는다: cursor 의 설정 파일에는 인증 정보가 있다).
+public enum LaunchDefaults {
+    /// 지금 기본값 파일의 상태: 첫 바이트가 `A`(파일 없음) 또는 `C`(그 뒤가 파일 내용). 읽지 못하면 던진다 — 되돌릴 값을 모르면 열지 않는다.
+    public static func capture(agent: Agent, url: URL? = nil) throws -> Data {
+        let snapshot = DefaultsFile.snapshot(url ?? CursorDefaults.defaultURL)
+        try DefaultsFile.refuseIfUnreadable(snapshot, name: agent.rawValue)
+        if case .content(let data) = snapshot { return Data("C".utf8) + data }
+        return Data("A".utf8)
+    }
+
+    /// `capture` 가 낸 덩이의 값으로 `rounds` 번(사이마다 150ms) 되돌려 본다. 되돌린 횟수를 돌려준다.
+    /// 에이전트가 언제 쓰는지 모르므로(폴더를 믿느냐는 물음에 답한 뒤일 수도 있다) 한 번 되돌리고 끝내지 않고 끝까지 지켜본다.
+    @discardableResult
+    public static func keep(agent: Agent, captured: Data, url: URL? = nil, rounds: Int, sleep: (Int) -> Void) -> Int {
+        guard agent == .cursor, let flag = captured.first else { return 0 }
+        let snapshot: DefaultsSnapshot = flag == UInt8(ascii: "C") ? .content(Data(captured.dropFirst())) : .absent
+        let defaults = CursorDefaults(url: url ?? CursorDefaults.defaultURL)
+        var restored = 0
+        for _ in 0..<rounds {
+            sleep(150)
+            if defaults.restore(to: snapshot) == .restored { restored += 1 }
+        }
+        return restored
+    }
+}

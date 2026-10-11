@@ -44,7 +44,11 @@ public enum OpenCodeScreen {
         return (input, model, popup, footer)
     }
 
-    static let placeholders: Set<String> = ["Ask anything… \"Fix broken tests\""]
+    /// 빈 입력 상자의 자리 표시 문구: `Ask anything… "Fix broken tests"`. 따옴표 안의 예시는 판마다·뜰 때마다 다르다
+    /// (2026-10-11 실측, 2.0.25: `"Fix a TODO in the codebase"`) — 꼴로 본다.
+    static func isPlaceholder(_ input: String) -> Bool {
+        input.range(of: #"^Ask anything… ".*"$"#, options: .regularExpression) != nil
+    }
 
     /// 대화상자의 머리말 줄에서 (제목, 제목이 시작하는 칸). 머리말은 `Select model        esc` 꼴이고, 대화 중에는 왼쪽에 대화 내용이 겹친다
     /// (2026-10-07 실측) — 그래서 줄 맨 앞이 아니라 줄 «안의» `Select …  esc` 를 찾는다.
@@ -63,7 +67,7 @@ public enum OpenCodeScreen {
 
     public static func idle(_ screen: [String]) -> Bool {
         guard dialogTitle(screen) == nil, let box = box(screen), !box.popup else { return false }
-        guard box.input.isEmpty || placeholders.contains(box.input) else { return false }
+        guard box.input.isEmpty || isPlaceholder(box.input) else { return false }
         return !isBusy(footer: box.footer)
     }
 
@@ -74,7 +78,7 @@ public enum OpenCodeScreen {
 
     public static func draft(_ screen: [String]) -> String? {
         guard let box = box(screen) else { return nil }
-        return placeholders.contains(box.input) ? "" : box.input
+        return isPlaceholder(box.input) ? "" : box.input
     }
 
     /// 입력 상자의 모델 줄(`Build · GLM-5.3-Flash OpenCode Go · high`)에서 (모델, variant).

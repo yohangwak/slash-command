@@ -6,7 +6,7 @@ slashcommand — switch the model and effort of the agent in the frontmost termi
 
   slashcommand apply <number> [target] [--trace]   apply a preset (--trace: time per step)
   slashcommand effort <up|down> [target] [--trace]   keep the model, move the effort one level
-  slashcommand run <number> <claude|codex|grok|antigravity|opencode> [--dry-run] [args…]   open a new session in this terminal with that preset
+  slashcommand run <number> <claude|codex|grok|cursor|antigravity|opencode> [--dry-run] [args…]   open a new session in this terminal with that preset
   slashcommand where                   the frontmost terminal and its agent
   slashcommand probe-orca [--seconds N]  record when Orca's "visible terminal" signals change, on one clock (for testing; sends nothing)
   slashcommand doctor [target] [--screen [--lines N]] [--dump file.json]  check the target, screen reading and input box (sends nothing)
@@ -58,6 +58,23 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     }
     if let orca { return Target(host: .orca(handle: orca), agent: agent, label: orca) }
     return Target(host: .ghostty(terminalID: ghostty!), agent: agent, label: ghostty!)
+}
+
+/// `keep-defaults` 를 따로 띄워 «연 전» 기본값을 표준 입력으로 넘긴다(파일로 남기지 않는다 — 인증 정보가 든 설정 파일이다).
+/// `detach` 면 그 프로세스가 진짜 일꾼을 다시 띄우고 끝나기를 기다린다: 일꾼이 우리(곧 에이전트)의 자식으로 남지 않는다.
+func spawnDefaultsKeeper(agent: Agent, captured: Data, detach: Bool) throws {
+    guard let executable = Bundle.main.executableURL else { throw SlashCommandError("could not find this program's own path") }
+    let process = Process()
+    process.executableURL = executable
+    process.arguments = ["keep-defaults", agent.rawValue] + (detach ? ["--detach"] : [])
+    let input = Pipe()
+    process.standardInput = input
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    input.fileHandleForWriting.write(captured)
+    try? input.fileHandleForWriting.close()
+    if detach { process.waitUntilExit() }
 }
 
 func describe(_ step: Step) -> String {
@@ -121,12 +138,19 @@ do {
         print("→ \(result.summary)")
     case "run":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
-            fail("slashcommand run <number> <claude|codex|grok|antigravity|opencode> [args…]")
+            fail("slashcommand run <number> <claude|codex|grok|cursor|antigravity|opencode> [args…]")
         }
-        if let reason = Launch.unsupportedReason(agent: agent) { fail(reason) }
-        let planned = try Switcher(config: try store.load(), codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
+        let config = try store.load()
+        let planned = try Switcher(config: config, codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
         // `--dry-run` 은 바로 뒤에 올 때만 우리 것이다 — 그 뒤의 인자는 전부 에이전트에 넘긴다.
         let dryRun = args.count > 3 && args[3] == "--dry-run"
+        if agent == .opencode {
+            // opencode 2 는 여는 옵션에 `--model` 이 없다(2.0.25 실측). 없는 옵션을 넘기면 opencode 가 오류로 끝난다.
+            let help = Proc.run("/usr/bin/env", ["opencode", "--help"], timeout: 20)
+            if help.ok, !Launch.openCodeTakesModel(help: help.out + help.err) {
+                fail("this OpenCode version has no option to choose the model when it opens (`opencode --help` lists no --model). Open the session, then switch with the shortcut.")
+            }
+        }
         // 화면 이름이 아니라 id 를 받는 에이전트는 그 CLI 의 모델 목록에서 id 를 찾는다.
         var resolved: Launch.Resolved?
         if let listing = Launch.listing(agent: agent) {
@@ -150,11 +174,25 @@ do {
         if dryRun {
             print(command.joined(separator: " "))
         } else {
+            // cursor 는 `--model` 로 연 모델을 새 세션 기본값으로도 저장한다 — 연 «전» 값을 따로 띄운 프로세스가 되돌린다.
+            if config.keepDefaults, resolved != nil, Launch.savesLaunchModelAsDefault(agent: agent) {
+                try spawnDefaultsKeeper(agent: agent, captured: try LaunchDefaults.capture(agent: agent), detach: true)
+            }
             // 이 프로세스를 에이전트로 바꾼다 — 터미널에서 직접 친 것과 같다.
             var argv: [UnsafeMutablePointer<CChar>?] = command.map { strdup($0) }
             argv.append(nil)
             execvp(command[0], argv)
             fail("could not run \(command[0]): \(String(cString: strerror(errno)))")
+        }
+    case "keep-defaults":
+        // 내부용 — `run` 이 부른다. 표준 입력으로 받은 «연 전» 기본값을 1분 동안 지킨다.
+        guard args.count >= 2, let agent = Agent(rawValue: args[1]) else { fail("slashcommand keep-defaults <agent>") }
+        let captured = FileHandle.standardInput.readDataToEndOfFile()
+        if args.contains("--detach") {
+            // 곧 에이전트로 바뀔 프로세스의 자식으로 남지 않게, 한 번 더 띄우고 바로 끝난다.
+            try spawnDefaultsKeeper(agent: agent, captured: captured, detach: false)
+        } else {
+            LaunchDefaults.keep(agent: agent, captured: captured, rounds: 400, sleep: { usleep(UInt32($0) * 1000) })
         }
     case "where":
         // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다(ssh 로 시험할 때).

@@ -1,7 +1,6 @@
 /* Japanese. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             確認済みのバージョン";
-"%@ does not support `run`: the model id it takes when opening a session differs from the on-screen name in the preset. Open the session, then switch with the shortcut." = "%@ は、セッションを開くときに受け付けるモデルIDがプリセットの画面上の名前と異なるため、`run` に対応していません。セッションを開いてから、ショートカットで切り替えてください。";
 "%@ is not running, so this cannot be checked now." = "%@ が実行されていないため、今は確認できません。";
 "%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ には対応していません。GhosttyまたはOrcaのターミナルで押してください。";
 "%@ version  installed %@ · running %@" = "%@ のバージョン  インストール済み %@ · 実行中 %@";

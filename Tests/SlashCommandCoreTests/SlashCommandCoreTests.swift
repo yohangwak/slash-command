@@ -856,6 +856,8 @@ final class FakeClaude: TerminalIO {
     var confirmedBy: String?
     /// `/model X`·`/effort Y`·Enter 확정이 기본값을 쓰는 파일.
     var settings: URL?
+    /// 낮은 창: 선택창에 커서 행부터 이만큼만 보이고 그 아래는 `… +N models` 로 접힌다(실측: 90×14 에서 1행).
+    var windowRows: Int?
     private var writes = 0
     private let rule = String(repeating: "─", count: 30)
 
@@ -981,8 +983,13 @@ final class FakeClaude: TerminalIO {
         case .prompt:
             return shown + [rule, "❯", rule, "  ⏵⏵ auto mode on"]
         case .picker:
-            let list = rows.enumerated().map { index, name in
+            var list = rows.enumerated().map { index, name in
                 "   \(index == cursor ? "❯" : " ") \(index + 1).  \(name)\(name == model ? " ✔" : "")             설명"
+            }
+            if let windowRows {
+                let start = min(cursor, max(0, rows.count - windowRows))
+                let end = min(rows.count, start + windowRows)
+                list = Array(list[start..<end]) + (end < rows.count ? ["      … +\(rows.count - end) models"] : [])
             }
             let level = efforts[pickerEffort]
             let effortLine = supportsEffort(rows[cursor])
@@ -1048,6 +1055,29 @@ final class SwitcherApplyTests: KoreanMessagesTestCase {
         XCTAssertEqual(result.summary, "Sonnet 5.5 · medium")
         XCTAssertNil(result.pendingRestore, "기본값을 건드리지 않았으니 되돌릴 것도 없다")
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}")
+    }
+
+    func testFindsARowFoldedAwayInALowWindow() throws {
+        // 2026-10-11 실측(tmux 90×14): 선택창에 커서 행 하나만 보이고 나머지는 `… +9 models` 로 접힌다.
+        // 전에는 그 행이 «없다» 고 보고 명령 방식(`/model X` — 기본값을 바꿨다 되돌린다)으로 갔다.
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.windowRows = 1
+        claude.model = "Haiku 4.5"
+        _ = try switcher(config("opus", "medium"), io: claude, settings: settings).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Opus 5.5", "같은 앞머리의 아래쪽 행(Opus 5)이 아니라, 높은 창에서 고르는 맨 위 행")
+        XCTAssertEqual(claude.effort, "medium")
+        XCTAssertEqual(claude.confirmedBy, "s", "선택창에서 «이 세션만» 으로 확정했다 — 명령 방식이 아니다")
+        // 지금 모델보다 아래에 있는 행, 그리고 맨 아래 행에서 시작하는 경우(위쪽이 접혔다는 표시가 없다).
+        _ = try switcher(config("haiku", "high"), io: claude, settings: settings).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Haiku 4.5")
+        claude.model = "Opus 5"
+        _ = try switcher(config("fable", "high"), io: claude, settings: settings).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Fable 5.1")
+        XCTAssertEqual(claude.confirmedBy, "s")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}", "기본값 파일은 한 번도 쓰이지 않았다")
+        XCTAssertFalse(claude.sent.contains { $0.hasPrefix("/model ") || $0.contains("/model sonnet") })
     }
 
     func testEffortWrapsAroundToReachALowerLevel() throws {
@@ -1587,6 +1617,23 @@ final class ClaudePickerTests: KoreanMessagesTestCase {
         "   Enter to set as default · s to use this session only · Esc to cancel",
     ]
 
+    func testKnowsWhenRowsAreFoldedAway() {
+        XCTAssertTrue(Picker.hasHiddenRows(picker), "`↓ 10.` 과 `… +2 models`")
+        let low = ["   Select model", "   Switch between Claude models. Your pick becomes the default for new sessions.",
+                   "   ❯ 4.  Sonnet 5.5 ✔           Most efficient for simpler tasks", "      … +9 models",
+                   "   ● High effort ←/→ to adjust", "   Enter to set as default · s to use this session only · Esc to cancel"]
+        XCTAssertTrue(Picker.hasHiddenRows(low))
+        // 맨 아래 행: 위쪽이 접혔다는 표시가 따로 없다 — 번호가 1 이 아닌 것으로 안다.
+        var bottom = low
+        bottom[2] = "   ❯ 13. Opus 4.6"
+        bottom.remove(at: 3)
+        XCTAssertTrue(Picker.hasHiddenRows(bottom))
+        let whole = ["   Select model", "   ❯ 1.  Default (recommended)", "     2.  Opus 5.5 ✔", "   ● High effort ←/→ to adjust",
+                     "   Enter to set as default · s to use this session only · Esc to cancel"]
+        XCTAssertFalse(Picker.hasHiddenRows(whole))
+        XCTAssertFalse(Picker.hasHiddenRows(["❯ ", "  … +9 models"]), "선택창이 아니다")
+    }
+
     func testReadsRowsCursorAndCurrentMark() {
         let rows = Picker.rows(picker)
         XCTAssertEqual(rows.map(\.label), ["Default (recommended)", "Opus 5.5", "Fable 5.1", "Sonnet 5.5", "Haiku 4.5", "Sonnet 5", "Opus 5", "Opus 4.7"])
@@ -1655,6 +1702,12 @@ final class AgentVersionTests: KoreanMessagesTestCase {
         XCTAssertEqual(AgentVersions.version(inCommandLine: "/Users/x/.codex/packages/standalone/releases/0.160.0/bin/codex -m x"), "0.160.0")
         XCTAssertEqual(AgentVersions.version(inCommandLine: "/Users/x/.codex/packages/standalone/releases/0.160.1-aarch64-apple-darwin/bin/codex"), "0.160.1")
         XCTAssertNil(AgentVersions.version(inCommandLine: "/Users/x/.codex/packages/standalone/releases/latest/bin/codex"))
+        // Homebrew 로 깐 꼴(2026-10-11 실측: cursor-cli 는 cask, opencode 는 formula).
+        XCTAssertEqual(AgentVersions.version(inCommandLine: "/opt/homebrew/Caskroom/cursor-cli/2026.10.01-e373342/dist-package/node"), "2026.10.01-e373342")
+        XCTAssertEqual(AgentVersions.version(inCommandLine: "/opt/homebrew/Cellar/opencode/2.0.25/bin/opencode"), "2.0.25")
+        XCTAssertNil(AgentVersions.version(inCommandLine: "/opt/homebrew/Cellar/node/26.8.2/bin/node /x/agent.js"), "실행기의 판을 에이전트의 판으로 읽지 않는다")
+        XCTAssertNil(AgentVersions.version(inCommandLine: "/opt/homebrew/Cellar/node@22/22.1.0/bin/node /x/agent.js"))
+        XCTAssertNil(AgentVersions.version(inCommandLine: "/opt/homebrew/bin/cursor-agent --use-system-ca"), "판이 없는 경로")
         XCTAssertEqual(AgentVersions.version(inCommandLine: "/Users/x/.codex/packages/standalone/releases/0.160.0-alpha.6-aarch64-apple-darwin/bin/codex"), "0.160.0-alpha.6")
         let prerelease = AgentVersions.Report(agent: .codex, installed: "0.160.0", running: ["0.160.0-alpha.6"])
         XCTAssertEqual(prerelease.untested, ["0.160.0-alpha.6"], "시험판은 확인한 안정판이 아니다")
@@ -2060,6 +2113,27 @@ final class CursorScreenTests: KoreanMessagesTestCase {
         XCTAssertEqual(CursorScreen.status(after), "Grok 4.7 256K High", "사용량(· 7.1%)은 모델 줄이 아니다")
     }
 
+    /// 2026-10-11 실측(2026.10.01-e373342, `--yolo` 로 연 세션)에서 떼어 온 줄들.
+    func testRunEverythingSessionScreens() {
+        let path = "  ~/orca/workspaces/slash-command/initial-2 · yohangwak/real-device-fixes"
+        let right = String(repeating: " ", count: 60)
+        let idle = ["  Cursor Agent", "  v2026.10.01-e373342", "  → Plan, search, build anything", "  Grok 4.7 256K High Fast" + right + "Run Everything", path]
+        XCTAssertTrue(CursorScreen.idle(idle))
+        XCTAssertEqual(CursorScreen.status(idle), "Grok 4.7 256K High Fast", "오른쪽의 실행 방식 표시는 모델 줄이 아니다")
+        let after = ["  ok", "  → Add a follow-up", "  Grok 4.7 256K Medium Fast · 6.9%" + right + "Run Everything", path]
+        XCTAssertTrue(CursorScreen.idle(after))
+        XCTAssertEqual(CursorScreen.status(after), "Grok 4.7 256K Medium Fast")
+        // 작업 중: 스피너와 입력 줄 사이에 도움말 한 줄이 낀다 — 바로 윗줄만 보면 대기로 보인다.
+        let working = ["  Reply with exactly: ok. Do not use any tools.", " ⠀⠞ Working", "    Tip: Use subagents to parallelize work and preserve context.",
+                       "  → Add a follow-up" + right + "ctrl+c to stop", "  Grok 4.7 256K Medium Fast" + right + "Run Everything", path]
+        XCTAssertFalse(CursorScreen.idle(working), "작업 중에는 /model 을 보내지 않는다")
+        XCTAssertEqual(CursorScreen.draft(working), "", "오른쪽 안내는 쓰던 글이 아니다")
+        // 창이 좁아 오른쪽 안내가 잘려도 스피너로 안다.
+        var narrow = working
+        narrow[3] = "  → Add a follow-up"
+        XCTAssertFalse(CursorScreen.idle(narrow))
+    }
+
     func testListRowsCursorAndFilter() throws {
         let list = try XCTUnwrap(CursorScreen.list(try screen("cursor-list")))
         XCTAssertEqual(list.filter, "")
@@ -2158,6 +2232,11 @@ final class FakeCursor: TerminalIO {
     var typed: [String] = []
     var presses: [Key] = []
     var busyFooter = false
+    /// `--yolo` 로 연 세션: 모델 줄 오른쪽 끝에 `Run Everything` 이 붙는다.
+    var runEverything = false
+    /// 목록이 열린 뒤 이만큼 읽을 때까지는 커서가 맨 윗줄에 있다가 지금 모델로 옮겨 간다(실측).
+    var lateCursor = 0
+    private var late = 0
     let configURL: URL
 
     init(configURL: URL) {
@@ -2193,7 +2272,12 @@ final class FakeCursor: TerminalIO {
         presses.append(key)
         switch (mode, key) {
         case (.idle, .enter):
-            if input == "/model" { mode = .list; filter = ""; cursor = visible.firstIndex(of: current) ?? 0 }
+            if input == "/model" {
+                mode = .list
+                filter = ""
+                late = lateCursor
+                cursor = late > 0 ? 0 : visible.firstIndex(of: current) ?? 0
+            }
             input = ""
         case (.idle, .backspace): if !input.isEmpty { input.removeLast() }
         case (.list, .up): cursor = max(0, cursor - 1)
@@ -2233,9 +2317,14 @@ final class FakeCursor: TerminalIO {
     private var statusLine: String {
         let m = models[current]
         return "  " + [m.name, m.context, m.effort, m.fast ? "Fast" : nil].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+            + (runEverything ? String(repeating: " ", count: 40) + "Run Everything" : "")
     }
 
     func screen() -> [String]? {
+        if mode == .list, late > 0 {
+            late -= 1
+            if late == 0, filter.isEmpty { cursor = visible.firstIndex(of: current) ?? 0 }
+        }
         switch mode {
         case .idle:
             return ["", "  Cursor Agent", "", busyFooter ? "  ⬡ Generating…" : "  → " + (input.isEmpty ? "Plan, search, build anything" : input), "", "", statusLine,
@@ -2334,6 +2423,31 @@ final class CursorDriverTests: KoreanMessagesTestCase {
         busy.busyFooter = true
         XCTAssertThrowsError(try driver(busy).apply(AgentPreset(model: "Grok 4.7", effort: "low")))
         XCTAssertEqual(busy.typed, [])
+    }
+
+    func testRunEverythingLabelIsNotPartOfTheModelLine() throws {
+        // 2026-10-11 실측(`cursor-agent --yolo`): 전환은 됐는데 모델 줄 오른쪽의 `Run Everything` 까지 읽어 «바뀌지 않았다» 고 멈췄다.
+        let io = FakeCursor(configURL: url)
+        io.runEverything = true
+        XCTAssertEqual(try driver(io).apply(AgentPreset(model: "Claude Opus 5.5", effort: "high")).confirmations, ["Using Claude Opus 5.5 300K High"])
+        XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using Claude Opus 5.5 300K Extra High"])
+        XCTAssertEqual(try Data(contentsOf: url), original, "새 세션 기본값은 그대로")
+    }
+
+    func testEffortStepWaitsUntilTheListCursorIsOnTheCurrentModel() throws {
+        // 2026-10-11 실측: 목록이 막 열린 순간 커서가 맨 윗줄(Auto)에 있었고, 거기서 Tab 을 눌러 «Auto 에는 effort 가 없다» 로 멈췄다(8번에 2번).
+        let io = FakeCursor(configURL: url)
+        io.lateCursor = 5
+        XCTAssertEqual(try driver(io).stepEffort(up: true).confirmations, ["Using Grok 4.7 256K Extra High"])
+        XCTAssertEqual(io.current, 1)
+        // 끝내 그 모델로 오지 않으면 아무 행에서도 Tab 을 누르지 않는다.
+        let never = FakeCursor(configURL: url)
+        never.lateCursor = 100_000
+        XCTAssertThrowsError(try driver(never).stepEffort(up: true))
+        XCTAssertFalse(never.presses.contains(.tab))
+        XCTAssertEqual(never.mode, .idle)
+        XCTAssertEqual(never.current, 1)
+        XCTAssertEqual(never.models[1].effort, "High")
     }
 
     func testStepsEffortAndStopsAtTheEnds() throws {
@@ -2616,6 +2730,18 @@ final class AntigravityDriverTests: KoreanMessagesTestCase {
 // MARK: - opencode
 
 final class OpenCodeScreenTests: KoreanMessagesTestCase {
+    func testPlaceholderExampleVariesByVersion() {
+        // 2.0.25 의 대기 화면(2026-10-11 실측): 따옴표 안의 예시가 1.18.35 와 다르다.
+        let two = ["  ┃", "  ┃  Ask anything… \"Fix a TODO in the codebase\"", "  ┃", "  ┃  Build · Exo Free OpenCode Zen",
+                   "  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀", "  …/initial-2:yohangwak/real-device-fixes   shift+tab agents  ctrl+p commands"]
+        XCTAssertTrue(OpenCodeScreen.idle(two))
+        XCTAssertEqual(OpenCodeScreen.draft(two), "")
+        XCTAssertEqual(OpenCodeScreen.status(two)?.model, "Exo Free OpenCode Zen")
+        XCTAssertNil(OpenCodeScreen.status(two)?.variant)
+        XCTAssertTrue(OpenCodeScreen.isPlaceholder("Ask anything… \"Fix broken tests\""))
+        XCTAssertFalse(OpenCodeScreen.isPlaceholder("Ask anything about the tests"), "쓰던 글")
+    }
+
     struct Fixture: Decodable { let tail: [String] }
 
     func screen(_ name: String) throws -> [String] {
@@ -2994,10 +3120,9 @@ final class CursorEffortLabelTests: KoreanMessagesTestCase {
 }
 
 final class LaunchSupportTests: KoreanMessagesTestCase {
-    func testOnlyCursorCannotLaunch() {
-        for agent in [Agent.claude, .codex, .grok, .antigravity, .opencode] { XCTAssertNil(Launch.unsupportedReason(agent: agent), agent.rawValue) }
-        XCTAssertNotNil(Launch.unsupportedReason(agent: .cursor))
+    func testAgentsThatTakeAnIdNeverGetTheOnScreenName() {
         for agent in [Agent.cursor, .antigravity, .opencode] {
+            XCTAssertNotNil(Launch.listing(agent: agent), agent.rawValue)
             let command = Launch.command(agent: agent, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "high"))
             XCTAssertFalse(command.contains("GLM-5.3-Flash OpenCode Go"), "화면 이름을 --model 에 넘기지 않는다")
         }
@@ -3005,6 +3130,115 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
                        ["agy", "--model", "gemini-3.8-flash-high", "-p"])
         XCTAssertEqual(Launch.command(agent: .opencode, preset: AgentPreset(model: "GLM-5.3-Flash OpenCode Go", effort: "Default"), model: "opencode-go/glm-5.3-flash"),
                        ["opencode", "--model", "opencode-go/glm-5.3-flash"])
+    }
+
+    /// 2026-10-11 `cursor-agent models` 의 출력(2026.10.01-e373342)에서 떼어 온 줄들. `Fast` 줄 끝에는 폭 없는 글자가 붙어 있다.
+    static let cursorListing = """
+    Available models
+
+    auto - Auto (default)
+    gpt-5.3-codex-low - Codex 5.3 Low
+    gpt-5.3-codex - Codex 5.3
+    gpt-5.3-codex-high - Codex 5.3 High
+    composer-2.5 - Composer 2.5
+    composer-2.5-fast - Composer 2.5 Fast
+    claude-opus-5-thinking-high - Claude Opus 5 1M Thinking
+    claude-opus-5-low - Claude Opus 5 1M Low
+    claude-opus-5-high - Claude Opus 5 1M
+    claude-opus-5-thinking-xhigh - Claude Opus 5 1M Extra High Thinking
+    claude-fable-5-thinking-high - Claude Fable 5 1M Thinking (NO ZDR)
+    grok-4.7-medium - Grok 4.7  Medium
+    grok-4.7-medium-fast - Grok 4.7  Medium Fast\u{200B}\u{200B}
+    grok-4.7-high - Grok 4.7  High
+    grok-4.7-high-fast - Grok 4.7  High Fast\u{200B}\u{200B}
+    grok-4.7-xhigh - Grok 4.7  Extra High
+    claude-opus-5-5-low - Claude Opus 5.5 1M Low
+    claude-opus-5-5-medium - Claude Opus 5.5 1M
+    claude-opus-5-5-medium-fast - Claude Opus 5.5 1M Fast
+    claude-opus-5-5-high - Claude Opus 5.5 1M High
+    claude-opus-5-5-xhigh - Claude Opus 5.5 1M Extra High
+    gpt-5.5-none - GPT-5.5 1M None
+    gpt-5.5-extra-high - GPT-5.5 1M Extra High
+    claude-haiku-5-5-low - Claude Haiku 5.5 Low No Thinking
+    claude-haiku-5-5-thinking-low - Claude Haiku 5.5 Low
+    gemini-3.1-pro - Gemini 3.1 Pro
+
+    Tip: use --model <id> (or /model <id> in interactive mode) to switch. Parameterized models also accept quoted overrides, e.g. --model 'claude-opus-4-8[context=1m,effort=high,fast=false]'.
+    """
+
+    func testCursorIdComesFromItsModelList() throws {
+        func id(_ model: String, _ effort: String) throws -> String {
+            try Launch.resolve(agent: .cursor, preset: AgentPreset(model: model, effort: effort), listing: Self.cursorListing).model
+        }
+        XCTAssertEqual(try id("Grok 4.7", "high"), "grok-4.7-high", "Fast 줄은 고르지 않는다")
+        XCTAssertEqual(try id("Grok 4.7", "xhigh"), "grok-4.7-xhigh", "Extra High 는 High 가 아니다")
+        XCTAssertEqual(try id("grok 4.7", "medium"), "grok-4.7-medium")
+        // 라벨이 없는 줄은 그 모델의 기본 effort 다 — 모델마다 다르므로 id 의 끝에서 읽는다.
+        XCTAssertEqual(try id("Claude Opus 5.5", "medium"), "claude-opus-5-5-medium")
+        XCTAssertEqual(try id("Claude Opus 5.5", "high"), "claude-opus-5-5-high")
+        XCTAssertEqual(try id("Claude Opus 5", "high"), "claude-opus-5-high", "Thinking 표시가 없는 쪽이 먼저다")
+        XCTAssertEqual(try id("Claude Opus 5", "xhigh"), "claude-opus-5-thinking-xhigh", "그 effort 가 Thinking 쪽에만 있으면 그것을 쓴다")
+        XCTAssertEqual(try id("Claude Haiku 5.5", "low"), "claude-haiku-5-5-thinking-low", "«No Thinking» 도 기본 상태가 아닌 쪽이다")
+        XCTAssertEqual(try id("Claude Fable 5", "high"), "claude-fable-5-thinking-high", "꼬리표 (NO ZDR) 는 이름이 아니다")
+        XCTAssertEqual(try id("GPT-5.5", "xhigh"), "gpt-5.5-extra-high")
+        XCTAssertEqual(try id("GPT-5.5", "none"), "gpt-5.5-none")
+        XCTAssertEqual(try id("Codex 5.3", "high"), "gpt-5.3-codex-high")
+        // effort 가 없는 모델은 모델만 맞춘다.
+        XCTAssertEqual(try id("Auto", "high"), "auto")
+        XCTAssertEqual(try id("Composer 2.5", "high"), "composer-2.5")
+        XCTAssertEqual(try id("Gemini 3.1 Pro", "low"), "gemini-3.1-pro")
+        XCTAssertThrowsError(try id("Grok 4.7", "max")) {
+            XCTAssertEqual(($0 as? SlashCommandError)?.message, loc("Cursor '%@' has no effort '%@' (%@).", "Grok 4.7", "max", "Medium, High, Extra High"))
+        }
+        XCTAssertThrowsError(try id("Codex 5.3", "medium"), "라벨도 id 끝도 없는 줄을 medium 이라고 짐작하지 않는다")
+        XCTAssertThrowsError(try id("Grok 9", "high")) {
+            XCTAssertEqual(($0 as? SlashCommandError)?.message, loc("'%@' is not in the Cursor model list.", "Grok 9"))
+        }
+        XCTAssertEqual(Launch.command(agent: .cursor, preset: AgentPreset(model: "Grok 4.7", effort: "high"), model: "grok-4.7-high", extra: ["--yolo"]),
+                       ["cursor-agent", "--model", "grok-4.7-high", "--yolo"])
+        XCTAssertTrue(Launch.savesLaunchModelAsDefault(agent: .cursor))
+        for agent in [Agent.claude, .codex, .grok, .antigravity, .opencode] { XCTAssertFalse(Launch.savesLaunchModelAsDefault(agent: agent), agent.rawValue) }
+    }
+
+    func testOpenCodeHelpTellsWhetherItTakesAModel() {
+        // 1.18.35 의 도움말.
+        XCTAssertTrue(Launch.openCodeTakesModel(help: "Options:\n  -m, --model         model to use in the format of provider/model   [string]\n      --prompt        prompt to use"))
+        // 2.0.25 의 도움말: 여는 옵션에 --model 이 없다.
+        let two = "FLAGS\n  --standalone            Run with a private server\n  --session, -s string    Session ID to continue\n  --prompt string         Prompt to use\n\nSUBCOMMANDS\n  models             List all available models\n  run                Run OpenCode with a message (--model provider/model#variant)"
+        XCTAssertFalse(Launch.openCodeTakesModel(help: two))
+        XCTAssertFalse(Launch.openCodeTakesModel(help: "FLAGS\n  --models-dir string"), "다른 옵션의 앞머리가 같다고 속지 않는다")
+    }
+
+    func testLaunchDefaultsAreCapturedAndPutBack() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("launch-cursor-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        // 파일이 있던 경우: 에이전트가 모델 키를 쓰면 그 키만 연 전 값으로 되돌린다.
+        try JSONSerialization.data(withJSONObject: ["version": 1, "hints": true], options: [.prettyPrinted, .sortedKeys]).write(to: url)
+        let original = try Data(contentsOf: url)
+        let captured = try LaunchDefaults.capture(agent: .cursor, url: url)
+        XCTAssertEqual(captured.first, UInt8(ascii: "C"))
+        var round = 0
+        let restored = LaunchDefaults.keep(agent: .cursor, captured: captured, url: url, rounds: 6) { _ in
+            round += 1
+            // 에이전트가 두 번 쓴다(실측: 연 직후와 조금 뒤).
+            if round == 2 || round == 4 {
+                try? JSONSerialization.data(withJSONObject: ["version": 1, "hints": true, "model": ["modelId": "claude-opus-5-5"], "selectedModel": ["modelId": "claude-opus-5-5"]],
+                                            options: [.prettyPrinted, .sortedKeys]).write(to: url)
+            }
+        }
+        XCTAssertEqual(restored, 2)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        // 파일이 없던 경우: 에이전트가 만든 파일에서 모델 키만 없앤다(다른 키는 에이전트의 것이다).
+        try FileManager.default.removeItem(at: url)
+        let absent = try LaunchDefaults.capture(agent: .cursor, url: url)
+        XCTAssertEqual(absent, Data("A".utf8))
+        try JSONSerialization.data(withJSONObject: ["version": 1, "model": ["modelId": "grok-4.7"]], options: [.sortedKeys]).write(to: url)
+        XCTAssertEqual(LaunchDefaults.keep(agent: .cursor, captured: absent, url: url, rounds: 2) { _ in }, 1)
+        let left = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        XCTAssertNil(left["model"])
+        XCTAssertEqual(left["version"] as? Int, 1)
+        // cursor 가 아니면 아무것도 하지 않는다.
+        XCTAssertEqual(LaunchDefaults.keep(agent: .antigravity, captured: captured, url: url, rounds: 3) { _ in }, 0)
     }
 
     /// 2026-10-11 `agy models` 의 출력(agy 1.3.3)에서 떼어 온 줄들.

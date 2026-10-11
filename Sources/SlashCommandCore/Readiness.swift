@@ -240,6 +240,18 @@ public enum Picker {
         open(lines) != nil
     }
 
+    /// 선택창에 접혀서 보이지 않는 행이 있는가: `… +9 models` 줄, 더 있음을 알리는 `↓`·`↑` 로 시작하는 행,
+    /// 또는 보이는 첫 행의 번호가 1 이 아닐 때(낮은 창에서 커서가 맨 아래 행이면 위쪽이 접혔다는 표시가 따로 없다 — 2026-10-11 실측).
+    public static func hasHiddenRows(_ lines: [String]) -> Bool {
+        guard let open = open(lines) else { return false }
+        if let first = open.rows.first, first.number > 1 { return true }
+        return lines.contains { line in
+            let text = line.trimmingCharacters(in: .whitespaces)
+            if text.range(of: #"^… \+\d+ "#, options: .regularExpression) != nil { return true }
+            return (text.hasPrefix("↓") || text.hasPrefix("↑")) && row(line) != nil
+        }
+    }
+
     /// 맨 아래 선택창의 번호 행들. 선택창이 아니면 빈 배열.
     public static func rows(_ lines: [String]) -> [Row] {
         open(lines)?.rows ?? []
