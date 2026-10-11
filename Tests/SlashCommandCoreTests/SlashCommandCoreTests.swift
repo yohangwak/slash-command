@@ -1845,6 +1845,60 @@ final class GrokScreenTests: KoreanMessagesTestCase {
         XCTAssertFalse(GrokScreen.idle(after))
     }
 
+    // 1.0.50(2026-10-12 집 맥): 막 연 세션은 안내 줄 자리에 채널 표지만 있고, 권한 모드가 이름표 뒤에 붙는다.
+    func testFirstScreenOfANewSessionIsReady() throws {
+        let lines = try screen("grok-1050-welcome")
+        let box = try XCTUnwrap(GrokScreen.box(lines))
+        XCTAssertEqual(box.footer, "[stable]")
+        XCTAssertEqual(box.label, "Grok 4.7 (high)", "권한 모드(· always-approve)는 모델 이름표가 아니다")
+        XCTAssertTrue(GrokScreen.idle(lines))
+        XCTAssertEqual(GrokScreen.draft(lines), "")
+    }
+
+    func testFirstScreenInALowWindow() throws {
+        let lines = try screen("grok-1050-welcome-low")
+        XCTAssertEqual(GrokScreen.box(lines)?.label, "Grok 4.7 (high)")
+        XCTAssertTrue(GrokScreen.idle(lines))
+    }
+
+    func testLowWindowTellsWorkingByTheStatusRow() throws {
+        // 20줄 이하의 창: 안내 줄이 대기·작업 중 모두 `Ctrl+x:shortcuts` 다.
+        let idle = try screen("grok-1050-low-idle")
+        let working = try screen("grok-1050-low-working")
+        XCTAssertEqual(GrokScreen.box(idle)?.footer, GrokScreen.box(working)?.footer)
+        XCTAssertTrue(GrokScreen.idle(idle))
+        XCTAssertTrue(GrokScreen.working(working))
+        XCTAssertFalse(GrokScreen.idle(working), "작업 중에 /model 을 치면 대기열에 들어가거나 작업과 섞인다")
+        XCTAssertTrue(GrokScreen.working(try screen("grok-working")), "1.0.46 의 작업 중 화면에도 같은 상태 줄이 있다")
+        XCTAssertFalse(GrokScreen.working(try screen("grok-after-work")))
+    }
+
+    func testTallWindowHasABlankRowAboveTheHints() throws {
+        let lines = try screen("grok-1050-welcome-tall")
+        XCTAssertEqual(GrokScreen.box(lines)?.label, "Grok 4.7 (medium)")
+        XCTAssertTrue(GrokScreen.idle(lines))
+        let working = try screen("grok-1050-working")
+        XCTAssertEqual(GrokScreen.box(working)?.label, "Grok 4.7 (medium)", "양성 대조군: 상자는 읽힌다")
+        XCTAssertFalse(GrokScreen.idle(working), "작업 중(Ctrl+c:cancel)")
+    }
+
+    func testPermissionModeIsNotPartOfTheLabel() {
+        for mode in ["plan", "auto-review", "always-approve"] {
+            XCTAssertEqual(GrokScreen.label(inBorder: "╰──────────── Grok 4.7 (medium) · \(mode) ─╯"), "Grok 4.7 (medium)", mode)
+        }
+        XCTAssertEqual(GrokScreen.label(inBorder: "╰──────────── Grok Code · plan ─╯"), "Grok Code")
+        XCTAssertEqual(GrokScreen.label(inBorder: "╰──────────── Grok 4.7 (xhigh) ─╯"), "Grok 4.7 (xhigh)")
+    }
+
+    func testOnlyAChannelTagCountsAsTheFirstScreenHint() {
+        XCTAssertTrue(GrokScreen.isChannelTag("[stable]"))
+        XCTAssertTrue(GrokScreen.isChannelTag("[alpha]"))
+        XCTAssertTrue(GrokScreen.isChannelTag("Grok Build  1.0.50 [stable]"), "낮은 창의 첫 화면")
+        XCTAssertFalse(GrokScreen.isChannelTag("Grok Build is here [stable]"))
+        XCTAssertFalse(GrokScreen.isChannelTag("[Opt out] [Opt in]"))
+        XCTAssertFalse(GrokScreen.isChannelTag("Enter:send"))
+    }
+
     func testClaudeAndCodexScreensAreNotGrok() throws {
         for name in ["claude-idle", "codex-idle", "claude-draft"] {
             XCTAssertFalse(GrokScreen.idle(try screen(name)), name)
@@ -1930,6 +1984,8 @@ final class FakeGrok: TerminalIO {
     let configURL: URL
     var typed: [String] = []
     var ignoreEnter = false
+    /// 이름표 뒤에 붙는 권한 모드(` · always-approve`). 1.0.50.
+    var mode = ""
 
     init(label: String = "Grok 4.7 (high)", configURL: URL,
          known: [String: (name: String, efforts: [String])] = ["grok-4.7": ("Grok 4.7", ["low", "medium", "high", "xhigh"])]) {
@@ -1966,7 +2022,7 @@ final class FakeGrok: TerminalIO {
         let width = 60
         lines.append("  ╭" + String(repeating: "─", count: width) + "╮")
         lines.append("  │ ❯ " + input + String(repeating: " ", count: max(0, width - 3 - input.count)) + "│")
-        lines.append("  ╰" + String(repeating: "─", count: width - label.count - 4) + " \(label) ─╯")
+        lines.append("  ╰" + String(repeating: "─", count: max(1, width - label.count - mode.count - 4)) + " \(label)\(mode) ─╯")
         lines.append(busy ? "  Esc:interrupt  │  Ctrl+x:shortcuts" : (input.isEmpty ? "  Shift+Tab:mode  │  Ctrl+x:shortcuts" : "  Enter:send  │  Shift+Tab:mode  │  Ctrl+x:shortcuts"))
         return lines
     }
@@ -1997,6 +2053,16 @@ final class GrokDriverTests: KoreanMessagesTestCase {
         XCTAssertEqual(outcome.confirmations, ["Using Grok 4.7 (xhigh)"])
         XCTAssertNil(outcome.warning)
         XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), original, "새 세션 기본값은 그대로여야 한다")
+    }
+
+    func testSwitchesInASessionThatShowsItsPermissionMode() throws {
+        let io = FakeGrok(configURL: url)
+        io.mode = " · always-approve"
+        let outcome = try driver(io).apply(AgentPreset(model: "grok-4.7", effort: "xhigh"))
+        XCTAssertEqual(outcome.confirmations, ["Using Grok 4.7 (xhigh)"])
+        let stepped = try driver(io).stepEffort(up: false)
+        XCTAssertEqual(io.typed.last, "/model grok-4.7 high")
+        XCTAssertEqual(stepped.confirmations, ["Using Grok 4.7 (high)"])
     }
 
     func testLeavesTheDefaultSavedWhenKeepDefaultsIsOff() throws {
