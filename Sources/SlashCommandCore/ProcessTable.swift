@@ -10,6 +10,8 @@ enum ProcessTable {
         let pid: Int32
         let parent: Int32
         let hasTerminal: Bool
+        /// 붙어 있는 터미널의 장치 번호(`stat("/dev/ttys004").st_rdev` 와 같은 값).
+        let terminalDevice: UInt32
         let arguments: [String]
         let environment: [String]
         /// 실제로 실행 중인 파일의 경로(링크를 푼 것). 명령줄의 첫 낱말은 `claude` 처럼 이름만일 수 있다.
@@ -27,7 +29,7 @@ enum ProcessTable {
             parents[pid] = Int32(info.pbi_ppid)
             // e_tdev 가 NODEV(-1) 면 터미널 없는 프로세스다 — 에이전트 세션이 아니므로 명령줄을 읽지 않는다.
             guard info.e_tdev != UInt32.max, let (arguments, environment) = commandLine(of: pid) else { continue }
-            entries.append(Entry(pid: pid, parent: Int32(info.pbi_ppid), hasTerminal: true,
+            entries.append(Entry(pid: pid, parent: Int32(info.pbi_ppid), hasTerminal: true, terminalDevice: info.e_tdev,
                                  arguments: arguments, environment: environment,
                                  executable: executablePath(of: pid)))
         }

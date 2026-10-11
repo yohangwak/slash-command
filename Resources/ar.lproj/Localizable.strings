@@ -2,7 +2,7 @@
 
 "             verified version" = "             الإصدار الذي تم التحقق منه";
 "%@ is not running, so this cannot be checked now." = "%@ غير قيد التشغيل، لذا لا يمكن التحقق الآن.";
-"%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ غير مدعوم. اضغطه في طرفية Ghostty أو Orca.";
+"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ غير مدعوم. اضغطه في طرفية Ghostty أو Orca أو WezTerm أو kitty.";
 "%@ version  installed %@ · running %@" = "إصدار %@   مثبّت %@ · قيد التشغيل %@";
 "%@ — no agent found in the front session" = "%@ — لم يُعثر على وكيل في الجلسة الأمامية";
 "%@ — not set for %@" = "%@ — غير مضبوط لـ %@";
@@ -229,6 +229,7 @@
 "The effort in the Claude Code picker did not move." = "لم يتحرك effort في محدِّد Claude Code.";
 "The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder." = "لا يمكن التمييز بين طرفية Ghostty الأمامية (%@): Claude Code وCodex يعملان معًا في المجلد نفسه.";
 "The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "طرفية Ghostty الأمامية (%@) ليست جلسة وكيل مدعومًا (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
+"The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "طرفية %@ الأمامية (%@) ليست جلسة وكيل مدعومًا (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca tab is not a terminal." = "علامة تبويب Orca الأمامية ليست طرفية.";
 "The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "طرفية Orca الأمامية (%@) ليست جلسة وكيل مدعومًا (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca workspace has no open terminal." = "لا توجد طرفية مفتوحة في مساحة عمل Orca الأمامية.";
@@ -265,3 +266,5 @@
 "unknown" = "غير معروف";
 "⚠️           unverified version: %@ (verified: %@) — if the wording on screen has changed, switching stops instead of guessing" = "⚠️           إصدار لم يتم التحقق منه: %@ (المتحقق منه: %@) — إذا تغيّرت صياغة الشاشة، يتوقف التبديل بدلًا من التخمين";
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           تعذّرت قراءة الإصدار لـ: %@ — لا يمكن معرفة ما إذا كان إصدارًا تم التحقق منه";
+"Could not read the frontmost %@ terminal: %@" = "تعذّرت قراءة طرفية %@ الأمامية: %@";
+"kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "التحكم عن بُعد في kitty متوقف. أضف `allow_remote_control socket-only` و`listen_on unix:/tmp/kitty` إلى kitty.conf ثم أعد تشغيل kitty.";

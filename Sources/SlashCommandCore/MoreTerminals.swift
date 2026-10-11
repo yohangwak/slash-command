@@ -1,6 +1,6 @@
 import Foundation
 
-// 시험 단계의 터미널 연결. 셋 다 2026-10-07 맥북에서 재 본 것이다(tmux 3.7c · kitty 0.49.2 · WezTerm 20240203):
+// tmux · kitty · WezTerm 에 쓰고 읽는 연결. 셋 다 2026-10-07 맥북에서 재 본 것이다(tmux 3.7c · kitty 0.49.2 · WezTerm 20240203):
 // 바이트가 그대로 들어가는지(붙여넣기 감싸기 없이), 화면이 얼마나 빨리 읽히는지, 없는 대상에 쓰면 어떻게 되는지.
 
 /// tmux: `send-keys -H` 로 바이트를 16진수로 넣고 `capture-pane -p` 로 화면을 읽는다.
@@ -11,7 +11,7 @@ public struct TmuxIO: TerminalIO {
     public let pane: String
 
     private func run(_ arguments: [String]) -> ProcResult {
-        Proc.run(tmux, (socket.map { ["-L", $0] } ?? []) + arguments, timeout: 5)
+        Proc.run(tmux, TmuxFront.arguments(socket: socket) + arguments, timeout: 5)
     }
 
     private func write(_ bytes: String) throws {

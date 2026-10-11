@@ -2,7 +2,7 @@
 
 "             verified version" = "             versión verificada";
 "%@ is not running, so this cannot be checked now." = "%@ no se está ejecutando, así que no se puede comprobar ahora.";
-"%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ no es compatible. Presiónalo en una terminal de Ghostty u Orca.";
+"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ no es compatible. Presiónalo en una terminal de Ghostty, Orca, WezTerm o kitty.";
 "%@ version  installed %@ · running %@" = "Versión de %@  instalada %@ · en ejecución %@";
 "%@ — no agent found in the front session" = "%@ — no se encontró ningún agente en la sesión frontal";
 "%@ — not set for %@" = "%@ — sin configurar para %@";
@@ -229,6 +229,7 @@
 "The effort in the Claude Code picker did not move." = "El effort en el selector de Claude Code no se movió.";
 "The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder." = "No se puede distinguir la terminal frontal de Ghostty (%@): Claude Code y Codex se ejecutan en la misma carpeta.";
 "The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "La terminal frontal de Ghostty (%@) no es una sesión de un agente compatible (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
+"The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "La terminal frontal de %@ (%@) no es una sesión de un agente compatible (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca tab is not a terminal." = "La pestaña frontal de Orca no es una terminal.";
 "The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "La terminal frontal de Orca (%@) no es una sesión de un agente compatible (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca workspace has no open terminal." = "El espacio de trabajo frontal de Orca no tiene ninguna terminal abierta.";
@@ -265,3 +266,5 @@
 "unknown" = "desconocido";
 "⚠️           unverified version: %@ (verified: %@) — if the wording on screen has changed, switching stops instead of guessing" = "⚠️           versión no verificada: %@ (verificada: %@) — si el texto en pantalla ha cambiado, el cambio se detiene en lugar de adivinar";
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           no se pudo leer la versión de: %@ — no se sabe si es una versión verificada";
+"Could not read the frontmost %@ terminal: %@" = "No se pudo leer la terminal frontal de %@: %@";
+"kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "El control remoto de kitty está desactivado. Añade `allow_remote_control socket-only` y `listen_on unix:/tmp/kitty` a kitty.conf y reinicia kitty.";

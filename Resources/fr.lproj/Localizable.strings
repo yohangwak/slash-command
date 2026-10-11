@@ -2,7 +2,7 @@
 
 "             verified version" = "             version vérifiée";
 "%@ is not running, so this cannot be checked now." = "%@ n’est pas en cours d’exécution ; impossible de vérifier pour l’instant.";
-"%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ n’est pas pris en charge. Appuyez dessus dans un terminal Ghostty ou Orca.";
+"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ n’est pas pris en charge. Appuyez dessus dans un terminal Ghostty, Orca, WezTerm ou kitty.";
 "%@ version  installed %@ · running %@" = "version de %@  installée %@ · en cours %@";
 "%@ — no agent found in the front session" = "%@ — aucun agent trouvé dans la session au premier plan";
 "%@ — not set for %@" = "%1$@ — aucun réglage pour %2$@";
@@ -229,6 +229,7 @@
 "The effort in the Claude Code picker did not move." = "L’effort dans le sélecteur de Claude Code n’a pas bougé.";
 "The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder." = "Le terminal Ghostty au premier plan (%@) ne peut pas être identifié : Claude Code et Codex tournent tous deux dans le même dossier.";
 "The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Le terminal Ghostty au premier plan (%@) n’est pas une session d’agent prise en charge (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
+"The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Le terminal %@ au premier plan (%@) n’est pas une session d’agent prise en charge (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca tab is not a terminal." = "L’onglet Orca au premier plan n’est pas un terminal.";
 "The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode)." = "Le terminal Orca au premier plan (%@) n’est pas une session d’agent prise en charge (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).";
 "The frontmost Orca workspace has no open terminal." = "L’espace de travail Orca au premier plan n’a aucun terminal ouvert.";
@@ -265,3 +266,5 @@
 "unknown" = "inconnu";
 "⚠️           unverified version: %@ (verified: %@) — if the wording on screen has changed, switching stops instead of guessing" = "⚠️           version non vérifiée : %@ (vérifiée : %@) — si le texte à l’écran a changé, le changement s’arrête au lieu de deviner";
 "⚠️           version not readable for: %@ — cannot tell whether it is a verified version" = "⚠️           version illisible pour : %@ — impossible de savoir si c’est une version vérifiée";
+"Could not read the frontmost %@ terminal: %@" = "Impossible de lire le terminal %@ au premier plan : %@";
+"kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "Le contrôle à distance de kitty est désactivé. Ajoutez `allow_remote_control socket-only` et `listen_on unix:/tmp/kitty` à kitty.conf, puis redémarrez kitty.";

@@ -17,8 +17,9 @@ slashcommand — switch the model and effort of the agent in the frontmost termi
 target (default: the frontmost terminal of the frontmost app):
   --orca <handle> [--agent <agent>]
   --ghostty <terminal id> --agent <agent>
-experimental (only when named explicitly; no hotkeys yet):
-  --tmux <pane> [--tmux-socket <name>] --agent <agent>
+  --bundle <bundle id>   as if that app were the frontmost one (the path a hotkey takes)
+also found as the frontmost terminal: WezTerm, kitty (remote control on), and tmux inside either. Or name one:
+  --tmux <pane> [--tmux-socket <name or path>] --agent <agent>
   --kitty <window id> --kitty-socket unix:/path --agent <agent>
   --wezterm <pane id> --agent <agent>
 agents: claude · codex · grok · cursor · antigravity · opencode
@@ -37,6 +38,8 @@ func value(after flag: String, in args: [String]) -> String? {
 }
 
 func explicitTarget(_ args: [String]) throws -> Target? {
+    // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다 — 단축키가 가는 길 그대로(ssh 로 시험할 때).
+    if let bundle = value(after: "--bundle", in: args) { return try Detector.target(bundleID: bundle, appName: bundle) }
     let orca = value(after: "--orca", in: args)
     let ghostty = value(after: "--ghostty", in: args)
     let named = value(after: "--agent", in: args).flatMap(Agent.init(rawValue:))
@@ -197,8 +200,7 @@ do {
             LaunchDefaults.keep(agent: agent, ticket: args[2], rounds: 400, sleep: { usleep(UInt32($0) * 1000) })
         }
     case "where":
-        // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다(ssh 로 시험할 때).
-        let target = try value(after: "--bundle", in: args).map { try Detector.target(bundleID: $0, appName: $0) } ?? Detector.frontmost()
+        let target = try explicitTarget(args) ?? Detector.frontmost()
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         if case .orca = target.host, let payload = try? Detector.orcaTerminals(), let found = try? Detector.orcaActive(payload: payload) {
             print("visible via   \(found.source)")

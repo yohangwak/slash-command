@@ -4,8 +4,7 @@ import Foundation
 public enum TerminalHost: Equatable, Sendable {
     case ghostty(terminalID: String)
     case orca(handle: String)
-    // 아래 셋은 시험 단계다: 대상을 명령줄에서 직접 지정할 때만 쓴다(단축키로 맨 앞 세션을 찾는 것은 아직 없다).
-    /// tmux pane(`%3`, `세션:창.칸`). `socket` 은 `tmux -L` 의 이름.
+    /// tmux pane(`%3`, `세션:창.칸`). `socket` 은 `tmux -L` 의 이름이거나 `-S` 의 경로(`/` 가 들어 있으면 경로).
     case tmux(socket: String?, pane: String)
     /// kitty 창 id 와 원격 제어 소켓(`unix:/path`).
     case kitty(socket: String, window: String)
@@ -39,7 +38,7 @@ public struct Target: Equatable, Sendable {
 public enum Detector {
     public static let ghosttyBundleID = "com.mitchellh.ghostty"
     public static let orcaBundleID = "com.stablyai.orca"
-    public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID]
+    public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID, weztermBundleID, kittyBundleID]
 
     /// 지금 맨 앞 앱의 맨 앞 터미널과 그 안의 에이전트.
     public static func frontmost() throws -> Target {
@@ -54,8 +53,11 @@ public enum Detector {
         switch bundleID {
         case ghosttyBundleID: return try ghostty()
         case orcaBundleID: return try orca()
+        case weztermBundleID: return try wezterm()
+        case kittyBundleID:
+            return try kitty(frontPID: NSRunningApplication.runningApplications(withBundleIdentifier: kittyBundleID).first(where: \.isActive)?.processIdentifier)
         default:
-            throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty or Orca terminal.", appName))
+            throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal.", appName))
         }
     }
 
