@@ -115,7 +115,7 @@
 "No model list for this agent. Type the name it shows on screen." = "此代理没有模型列表。请输入它在屏幕上显示的名称。";
 "No presets yet — add one in Settings" = "还没有预设 — 请在设置中添加";
 "Not asked yet" = "尚未询问";
-"Not chosen: the top row of the OpenCode dialog is not '%@' (%@)." = "未选择：OpenCode 对话框的第一行不是“%1$@”（%2$@）。";
+"Not chosen: the OpenCode dialog has no row '%@' (top row: %@)." = "未选择：OpenCode 对话框中没有“%1$@”这一行（第一行：%2$@）。";
 "Not confirmed: the cursor in the Cursor list is not on the '%@' row." = "未确认：Cursor 列表中的光标不在“%@”行。";
 "Not running" = "未运行";
 "Not switched" = "未切换";

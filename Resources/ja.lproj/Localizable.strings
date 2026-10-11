@@ -115,7 +115,7 @@
 "No model list for this agent. Type the name it shows on screen." = "このエージェントにはモデル一覧がありません。画面に表示される名前をそのまま入力してください。";
 "No presets yet — add one in Settings" = "プリセットがありません — 設定で追加してください";
 "Not asked yet" = "未確認";
-"Not chosen: the top row of the OpenCode dialog is not '%@' (%@)." = "OpenCode のダイアログの先頭の行が '%@' ではないため、選択しませんでした(%@)。";
+"Not chosen: the OpenCode dialog has no row '%@' (top row: %@)." = "OpenCode のダイアログに '%@' の行がないため、選択しませんでした(先頭の行: %@)。";
 "Not confirmed: the cursor in the Cursor list is not on the '%@' row." = "Cursor の一覧のカーソルが '%@' の行にないため、確定しませんでした。";
 "Not running" = "実行されていません";
 "Not switched" = "切り替えませんでした";

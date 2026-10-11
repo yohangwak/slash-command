@@ -115,7 +115,7 @@
 "No model list for this agent. Type the name it shows on screen." = "이 에이전트는 모델 목록이 없습니다. 그 화면에 보이는 이름을 그대로 입력하세요.";
 "No presets yet — add one in Settings" = "프리셋이 없습니다 — 설정에서 추가하세요";
 "Not asked yet" = "아직 묻지 않음";
-"Not chosen: the top row of the OpenCode dialog is not '%@' (%@)." = "opencode 대화상자의 맨 위 행이 '%@' 이(가) 아니라 고르지 않았습니다(%@).";
+"Not chosen: the OpenCode dialog has no row '%@' (top row: %@)." = "opencode 대화상자에 '%@' 행이 없어 고르지 않았습니다(맨 위 행: %@).";
 "Not confirmed: the cursor in the Cursor list is not on the '%@' row." = "cursor 목록의 커서가 '%@' 행에 있지 않아 확정하지 않았습니다.";
 "Not running" = "실행 중 아님";
 "Not switched" = "전환하지 않았습니다";

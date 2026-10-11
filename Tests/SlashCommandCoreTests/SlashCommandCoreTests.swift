@@ -2815,6 +2815,31 @@ final class OpenCodeScreenTests: KoreanMessagesTestCase {
         return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
     }
 
+    // 2.0.25(2026-10-12 집 맥) 의 모델 대화상자.
+    func testFilteredRowsOfVersionTwo() throws {
+        let similar = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc2-similar-names")))
+        XCTAssertEqual(similar.search, "GLM-5.3 OpenCode Go")
+        XCTAssertEqual(similar.rows.map(\.text), ["GLM-5.3-Flash OpenCode Go", "GLM-5.3 OpenCode Go"], "비슷한 이름이 위에 온다 · 맨 아래 안내 줄은 행이 아니다")
+        let same = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc2-same-name")))
+        XCTAssertEqual(same.rows.map(\.text), ["LongCat 2.5 Preview Free OpenCode Zen", "LongCat 2.5 Preview Free OpenCode Go"])
+    }
+
+    func testOneProviderDialogHasNoProviderColumn() throws {
+        let none = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc2-one-provider-none")))
+        XCTAssertEqual(none.search, "Big Pickle OpenCode Zen")
+        XCTAssertEqual(none.rows, [], "`No results found` 는 행이 아니다")
+        let name = try XCTUnwrap(OpenCodeScreen.dialog(try screen("oc2-one-provider-name")))
+        XCTAssertEqual(name.rows, [OpenCodeScreen.Row(text: "Big Pickle", current: true)], "값 표시 칸(Free)과 안내 줄을 뺀 이름")
+        XCTAssertEqual(OpenCodeScreen.status(try screen("oc2-one-provider-name"))?.model, "Big Pickle OpenCode Zen")
+    }
+
+    func testDialogFooters() {
+        XCTAssertTrue(OpenCodeScreen.isDialogFooter("Connect provider ctrl+a"))
+        XCTAssertTrue(OpenCodeScreen.isDialogFooter("Connect an integration ctrl+a  Favorite ctrl+f"))
+        XCTAssertTrue(OpenCodeScreen.isDialogFooter("View all integrations ctrl+a"))
+        XCTAssertFalse(OpenCodeScreen.isDialogFooter("Connect Pro OpenCode Go"))
+    }
+
     func testIdleDraftAndWorking() throws {
         XCTAssertTrue(OpenCodeScreen.idle(try screen("oc-idle")), "처음 화면")
         XCTAssertTrue(OpenCodeScreen.idle(try screen("oc-after-work")), "대화 뒤")
@@ -2884,7 +2909,9 @@ final class FakeOpenCode: TerminalIO {
     struct Model { let name: String; let provider: String; let variants: [String]; var variant: String? }
     var models = [Model(name: "GLM-5.3-Flash", provider: "OpenCode Go", variants: ["Default", "low", "high", "max"], variant: "high"),
                   Model(name: "DeepSeek V4.1 Flash", provider: "OpenCode Go", variants: ["Default", "low", "high"], variant: nil),
-                  Model(name: "Big Pickle", provider: "OpenCode Zen", variants: [], variant: nil)]
+                  Model(name: "Big Pickle", provider: "OpenCode Zen", variants: [], variant: nil),
+                  Model(name: "GLM-5.3", provider: "OpenCode Go", variants: ["Default", "low", "high"], variant: "high"),
+                  Model(name: "Big Pickle", provider: "OpenCode Go", variants: [], variant: nil)]
     var current = 0
     enum Mode: Equatable { case idle, models, variants }
     var mode = Mode.idle
@@ -2897,22 +2924,41 @@ final class FakeOpenCode: TerminalIO {
     /// Default 를 «직접 고른» 모델. 저장해 둔 variant 가 없어 Default 로 도는 모델은 대화상자에 `●` 가 없다(실측).
     var explicitDefault: Set<Int> = []
     let configURL: URL
+    /// 대화상자의 커서(걸러진 행 가운데 몇째). 글자로는 보이지 않는다.
+    var cursor = 0
+    /// ↓ 가 듣지 않는 대화상자 흉내 — 센 칸 수와 다른 행이 골라진다.
+    var ignoresDown = false
+    /// 제공자가 하나뿐인 opencode 2: 그 제공자의 모델만 있고, 이름으로만 걸러지고, 행에 제공자 칸이 없다.
+    var onlyProvider: String?
 
     init(configURL: URL) { self.configURL = configURL }
 
+    /// 실제처럼 글자가 «순서대로 들어 있으면» 걸린다(`GLM-5.3 OpenCode Go` 가 `GLM-5.3-Flash OpenCode Go` 에도 걸린다).
+    private func matches(_ text: String) -> Bool {
+        var rest = Substring(text.lowercased())
+        for character in search.lowercased() where character != " " {
+            guard let at = rest.firstIndex(of: character) else { return false }
+            rest = rest[rest.index(after: at)...]
+        }
+        return true
+    }
+
     private var visibleModels: [Int] {
-        models.indices.filter { search.isEmpty || "\(models[$0].name) \(models[$0].provider)".lowercased().contains(search.lowercased()) }
+        models.indices.filter { index in
+            if let onlyProvider { return models[index].provider == onlyProvider && matches(models[index].name) }
+            return matches("\(models[index].name) \(models[index].provider)")
+        }
     }
 
     private var visibleVariants: [String] {
-        models[current].variants.filter { search.isEmpty || $0.lowercased().contains(search.lowercased()) }
+        models[current].variants.filter { matches($0) }
     }
 
     func type(_ text: String) throws {
         typed.append(text)
         switch mode {
         case .idle: if focused { input += text }
-        case .models, .variants: search += text
+        case .models, .variants: search += text; cursor = 0
         }
     }
 
@@ -2920,20 +2966,24 @@ final class FakeOpenCode: TerminalIO {
         presses.append(key)
         switch (mode, key) {
         case (.idle, .enter):
-            if input == "/models" { mode = .models; search = "" }
-            else if input == "/variants" { mode = .variants; search = "" }
+            if input == "/models" { mode = .models; search = ""; cursor = 0 }
+            else if input == "/variants" { mode = .variants; search = ""; cursor = 0 }
             input = ""
         case (.idle, .backspace): if !input.isEmpty { input.removeLast() }
         case (_, .escape) where mode != .idle: mode = .idle
+        case (_, .backspace): if !search.isEmpty { search.removeLast(); cursor = 0 }
+        case (.models, .down): if !ignoresDown { cursor = min(cursor + 1, max(0, visibleModels.count - 1)) }
+        case (.variants, .down): if !ignoresDown { cursor = min(cursor + 1, max(0, visibleVariants.count - 1)) }
         case (.models, .enter):
-            guard let first = visibleModels.first else { return }
-            current = first
+            guard visibleModels.indices.contains(cursor) else { return }
+            current = visibleModels[cursor]
             mode = .idle
             // 기억해 둔 variant 가 없고 variant 가 있는 모델이면 대화상자가 이어서 뜬다.
-            if models[current].variant == nil, !models[current].variants.isEmpty { mode = .variants; search = "" }
+            if models[current].variant == nil, !models[current].variants.isEmpty { mode = .variants; search = ""; cursor = 0 }
             save()
         case (.variants, .enter):
-            guard let first = visibleVariants.first else { return }
+            guard visibleVariants.indices.contains(cursor) else { return }
+            let first = visibleVariants[cursor]
             models[current].variant = first == "Default" ? nil : first
             if first == "Default" { explicitDefault.insert(current) } else { explicitDefault.remove(current) }
             mode = .idle
@@ -2955,16 +3005,19 @@ final class FakeOpenCode: TerminalIO {
                    "  ╹" + String(repeating: "▀", count: 60),
                    busy ? "   ⬝■■■■■■⬝  esc interrupt            tab agents  ctrl+p commands" : "                              tab agents  ctrl+p commands",
                    "  ~/work/repo:main"]
-        func overlay(_ title: String, _ rows: [String]) -> [String] {
+        func overlay(_ title: String, _ rows: [String], footer: String? = nil) -> [String] {
             var lines = ["    ✓ earlier output", "                      \(title)                       esc", "", "                      \(search.isEmpty ? "Search" : search)", ""]
-            lines += rows.map { "                      " + $0 }
+            lines += (rows.isEmpty && footer != nil ? ["  No results found"] : rows).map { "                      " + $0 }
+            if let footer { lines += ["", "                        " + footer] }
             lines += ["", "    ✓ more output"]
             return lines + box
         }
         switch mode {
         case .idle: return ["    ✓ earlier output"] + box
         case .models:
-            return overlay("Select model", visibleModels.map { (($0 == current ? "● " : "  ") + models[$0].name + "           " + models[$0].provider) })
+            let single = onlyProvider != nil
+            return overlay("Select model", visibleModels.map { (($0 == current ? "● " : "  ") + models[$0].name + (single ? "" : "           " + models[$0].provider)) },
+                           footer: single ? "View all integrations ctrl+a" : "Connect an integration ctrl+a  Favorite ctrl+f")
         case .variants:
             let marked = models[current].variant ?? (explicitDefault.contains(current) ? "Default" : nil)
             return overlay("Select variant", visibleVariants.map { (marked == $0 ? "● " : "  ") + $0 })
@@ -3011,6 +3064,59 @@ final class OpenCodeDriverTests: KoreanMessagesTestCase {
         XCTAssertEqual(io.current, 0)
         XCTAssertEqual(io.input, "")
         XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testPicksTheExactRowBelowASimilarName() throws {
+        // 2.0.25 실측: `GLM-5.3 OpenCode Go` 를 치면 `GLM-5.3-Flash` 가 맨 위, `GLM-5.3` 이 둘째다.
+        let io = FakeOpenCode(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "GLM-5.3 OpenCode Go", effort: "high"))
+        XCTAssertEqual(outcome.confirmations, ["Using GLM-5.3 OpenCode Go · high"])
+        XCTAssertEqual(io.current, 3)
+        XCTAssertEqual(io.presses.filter { $0 == .down }.count, 1)
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testSameNameUnderTwoProviders() throws {
+        let io = FakeOpenCode(configURL: url)
+        _ = try driver(io).apply(AgentPreset(model: "Big Pickle OpenCode Go", effort: ""))
+        XCTAssertEqual(io.current, 4)
+        _ = try driver(io).apply(AgentPreset(model: "Big Pickle OpenCode Zen", effort: ""))
+        XCTAssertEqual(io.current, 2)
+    }
+
+    func testFailsWhenAnotherRowWasChosen() {
+        // 행을 «세어서» 고르므로 결과를 모델 줄로 확인한다 — ↓ 가 듣지 않으면 맨 위 행이 골라진다.
+        let io = FakeOpenCode(configURL: url)
+        io.ignoresDown = true
+        io.models[0].variant = nil     // 고른 뒤 variant 대화상자가 떠서, 모델 줄은 끝에서야 확인된다
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "GLM-5.3 OpenCode Go", effort: "high"))) { error in
+            XCTAssertEqual((error as? SlashCommandError)?.message, loc("The OpenCode model line did not change to '%@'.", "GLM-5.3 OpenCode Go"))
+        }
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testOneProviderIsFilteredByNameOnly() throws {
+        let io = FakeOpenCode(configURL: url)
+        io.onlyProvider = "OpenCode Go"
+        let outcome = try driver(io).apply(AgentPreset(model: "DeepSeek V4.1 Flash OpenCode Go", effort: "low"))
+        XCTAssertEqual(outcome.confirmations, ["Using DeepSeek V4.1 Flash OpenCode Go · low"])
+        _ = try driver(io).apply(AgentPreset(model: "GLM-5.3  OpenCode Go", effort: "high"))
+        XCTAssertEqual(io.current, 3, "낱말 사이가 두 칸이어도 · 비슷한 이름 아래의 행")
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(try? Data(contentsOf: url), original)
+    }
+
+    func testOneProviderRefusesAModelOfAnotherProvider() {
+        // 이름은 같지만 프리셋이 적은 제공자가 그 세션의 하나뿐인 제공자가 아니다.
+        let io = FakeOpenCode(configURL: url)
+        io.onlyProvider = "OpenCode Go"
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "Big Pickle OpenCode Zen", effort: "")))
+        XCTAssertEqual(io.current, 0)
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertFalse(io.presses.dropFirst().contains(.enter), "대화상자를 연 Enter 말고는 확정하지 않는다")
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "GLM OpenCode Go", effort: "")), "이름의 일부만 적은 프리셋")
+        XCTAssertEqual(io.current, 0)
     }
 
     func testUnknownVariantClosesTheDialogAndRestores() {

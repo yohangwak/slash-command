@@ -115,7 +115,7 @@
 "No model list for this agent. Type the name it shows on screen." = "Este agente no tiene lista de modelos. Escribe el nombre que muestra en pantalla.";
 "No presets yet — add one in Settings" = "Aún no hay preajustes — añade uno en Ajustes";
 "Not asked yet" = "Aún no se ha solicitado";
-"Not chosen: the top row of the OpenCode dialog is not '%@' (%@)." = "No se eligió: la primera fila del diálogo de OpenCode no es '%@' (%@).";
+"Not chosen: the OpenCode dialog has no row '%@' (top row: %@)." = "No se eligió: el diálogo de OpenCode no tiene la fila '%@' (primera fila: %@).";
 "Not confirmed: the cursor in the Cursor list is not on the '%@' row." = "No se confirmó: el cursor de la lista de Cursor no está en la fila '%@'.";
 "Not running" = "No se está ejecutando";
 "Not switched" = "No se cambió";
