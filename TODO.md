@@ -84,7 +84,7 @@
 - 시험 전 사본과 다르다고 «내가 바꿨다» 가 아니다: 2026-10-12 집 맥의 `~/.codex/config.toml`(06:26, 다른 폴더의 trust 항목)과 `~/.cursor/cli-config.json`(06:35, 모델 키가 생김)이 달라져 있었는데 그 시각 이 작업은 집 맥 2 에서 돌고 있었고 집 맥에서 codex · cursor 를 띄운 적이 없다 — 다른 세션의 쓰기다. 되돌리지 않았다.
 - 낮은 창을 만들려고 tmux 칸을 나누면(`split-window`) 23줄이 11줄 둘이 된다 — claude 의 선택창은 11줄에서 맨 아래 안내 줄이 잘린다(#25 에서 처리).
 - codex 는 시작할 때 업데이트 창을 띄울 수 있다(`1. Update now` 에 커서). 그 창에서는 `doctor` 가 «input box not visible» 이라 전환하지 않는다. Esc 로 건너뛴다 — Enter 는 업데이트를 돌린다.
-- 화면 표본은 `orca terminal read` 가 아니라 **`slashcommand doctor … --dump 파일.json`** 으로 뜬다(전자는 아래쪽 줄이 빠질 수 있다 — agy 에서 겪음). `doctor` 의 대상은 `--orca`·`--ghostty`(시험 단계는 `--tmux`·`--kitty`·`--wezterm`)로 정한다. `--bundle` 은 `where` 의 것이다 — `doctor` 는 그것을 무시하고 맨 앞 앱을 본다.
+- 화면 표본은 `orca terminal read` 가 아니라 **`slashcommand doctor … --dump 파일.json`** 으로 뜬다(전자는 아래쪽 줄이 빠질 수 있다 — agy 에서 겪음). `doctor` 의 대상은 `--orca`·`--ghostty`·`--tmux`·`--kitty`·`--wezterm` 으로 직접 적거나 `--bundle <번들 id>`(그 앱이 맨 앞인 것처럼)로 정한다 — #25 부터 `where`·`doctor`·`apply`·`effort` 가 모두 같은 대상 옵션을 받는다.
 - 화면을 눈으로 볼 때: `SlashCommand --snapshot 파일.png`(설정 창) · `--menu-text [번들 id]`(메뉴). 화면 녹화 권한이 필요 없다.
 - **번역**: 문장을 바꾸거나 더하면 8개 언어 파일을 다 고쳐야 테스트가 통과한다. 테스트는 «빠진 문장 · 남는 문장 · 자리표 수» 만 본다 — 값이 둘 이상인 문장에서 어순이 영어와 달라지면 `%1$@`·`%2$@` 로 번호를 붙여야 하고, 그건 눈으로 봐야 한다(2026-10-11 아랍어에서 프리셋 번호와 에이전트가 뒤바뀐 것을 리뷰어가 잡았다).
 - 기존 테스트는 한국어 번역표를 켜고 돈다(`KoreanMessagesTestCase`). 새 문장을 보는 테스트를 쓸 때 영어를 기대하면 실패한다 — `loc("…")` 로 비교하거나 영어 상태에서 도는 `L10nTests` 에 넣는다.
