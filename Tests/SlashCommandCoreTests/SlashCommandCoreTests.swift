@@ -2911,7 +2911,8 @@ final class FakeOpenCode: TerminalIO {
                   Model(name: "DeepSeek V4.1 Flash", provider: "OpenCode Go", variants: ["Default", "low", "high"], variant: nil),
                   Model(name: "Big Pickle", provider: "OpenCode Zen", variants: [], variant: nil),
                   Model(name: "GLM-5.3", provider: "OpenCode Go", variants: ["Default", "low", "high"], variant: "high"),
-                  Model(name: "Big Pickle", provider: "OpenCode Go", variants: [], variant: nil)]
+                  Model(name: "Big Pickle", provider: "OpenCode Go", variants: [], variant: nil),
+                  Model(name: "Exo Free", provider: "OpenCode Zen", variants: [], variant: nil)]
     var current = 0
     enum Mode: Equatable { case idle, models, variants }
     var mode = Mode.idle
@@ -2958,7 +2959,12 @@ final class FakeOpenCode: TerminalIO {
         typed.append(text)
         switch mode {
         case .idle: if focused { input += text }
-        case .models, .variants: search += text; cursor = 0
+        case .models, .variants:
+            // 지우기 바이트(0x7F)가 섞여 오면 실제처럼 한 글자씩 지운다.
+            for character in text {
+                if String(character) == Key.backspace.bytes { if !search.isEmpty { search.removeLast() } } else { search.append(character) }
+            }
+            cursor = 0
         }
     }
 
@@ -3117,6 +3123,21 @@ final class OpenCodeDriverTests: KoreanMessagesTestCase {
         XCTAssertFalse(io.presses.dropFirst().contains(.enter), "대화상자를 연 Enter 말고는 확정하지 않는다")
         XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "GLM OpenCode Go", effort: "")), "이름의 일부만 적은 프리셋")
         XCTAssertEqual(io.current, 0)
+    }
+
+    func testOneProviderDoesNotTakeModelNameWordsForTheProvider() {
+        // PR #24 리뷰: 지금 모델이 `Exo Free OpenCode Zen` 일 때 없는 프리셋 `Big Pickle Free OpenCode Zen` 의 뒤 `Free OpenCode Zen` 은
+        // 지금 모델 줄의 끝과 같다. 그것을 제공자로 보면 `Big Pickle` 을 골라 세션 모델을 바꾼 뒤에야 실패한다.
+        let io = FakeOpenCode(configURL: url)
+        io.onlyProvider = "OpenCode Zen"
+        io.current = 5
+        XCTAssertThrowsError(try driver(io).apply(AgentPreset(model: "Big Pickle Free OpenCode Zen", effort: "")))
+        XCTAssertEqual(io.current, 5, "세션의 모델은 그대로여야 한다")
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(io.presses.filter { $0 == .enter }.count, 1, "대화상자를 연 Enter 뿐")
+        // 양성 대조군: 같은 상태에서 있는 모델은 고른다.
+        XCTAssertNoThrow(try driver(io).apply(AgentPreset(model: "Big Pickle OpenCode Zen", effort: "")))
+        XCTAssertEqual(io.current, 2)
     }
 
     func testUnknownVariantClosesTheDialogAndRestores() {
