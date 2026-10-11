@@ -15,7 +15,7 @@ Ghostty·Orca 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
 | 메뉴 | 메뉴 막대 아이콘. 맨 위에 «지금 맨 앞 세션의 에이전트»(`Claude Code · Orca`)가 뜨고, 프리셋 줄은 그 에이전트에 «지금 누르면 되는 값»(`opus · high`)만 보여 준다. 그 에이전트의 설정이 없는 번호는 흐리게 나온다. 권한·단축키에 문제가 있을 때만 그 줄이 생긴다 |
 | 프리셋 편집 | 메뉴 막대 아이콘 → 「설정…」(Settings…). 프리셋은 접혀 있고, 펼치면 에이전트별 모델·effort — 쓰는 에이전트만 「에이전트 추가」로 넣는다. 저장하지 않은 편집은 창을 닫았다 열어도 남는다(파일은 `~/.config/slashcommand/presets.json`) |
-| 새 세션 | `slashcommand run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). cursor·antigravity·opencode 는 `--model` 이 화면 이름이 아니라 id 를 받아서, 그 CLI 의 모델 목록(`cursor-agent models` · `agy models` · `opencode models --verbose`)에서 id 를 찾아 넘긴다(목록을 못 받거나 이름이 없으면 열지 않는다). cursor 는 그렇게 연 모델을 새 세션 기본값으로도 저장하므로 연 뒤 1분 동안 기본값을 연 전 값으로 되돌린다(`keepDefaults`). opencode 는 variant 를 여는 옵션이 없어 모델만 맞추고, 2.x 는 여는 옵션에 `--model` 자체가 없어 열지 않고 알린다 |
+| 새 세션 | `slashcommand run 2 claude` — 그 프리셋으로 새 세션을 연다(`claude --model … --effort …`). cursor·antigravity·opencode 는 `--model` 이 화면 이름이 아니라 id 를 받아서, 그 CLI 의 모델 목록(`cursor-agent models` · `agy models` · `opencode models --verbose`)에서 id 를 찾아 넘긴다(목록을 못 받거나 이름이 없으면 열지 않는다). cursor 는 그렇게 연 모델을 새 세션 기본값으로도 저장하므로, 연 뒤 1분 동안 기본값이 «연 모델» 로 바뀌면 연 전 값으로 되돌린다(`keepDefaults`. 그 사이 다른 세션이 다른 모델로 바꾼 것은 건드리지 않고, 겹쳐 연 세션들은 첫 열기 전의 값을 같이 기준으로 쓴다). opencode 는 variant 를 여는 옵션이 없어 모델만 맞추고, 2.x 는 여는 옵션에 `--model` 자체가 없어 열지 않고 알린다 |
 | 터미널에서 | `slashcommand list` · `where` · `doctor --screen`(대상·에이전트 판·화면 읽기·입력창 점검, 아무것도 보내지 않음) · `apply 2 [--trace]` · `effort up` · `plan 1 codex` |
 | 기록 | `~/Library/Logs/SlashCommand/slashcommand.log` (누른 것, 결과, 단계별 걸린 시간) |
 

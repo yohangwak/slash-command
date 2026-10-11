@@ -60,20 +60,17 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     return Target(host: .ghostty(terminalID: ghostty!), agent: agent, label: ghostty!)
 }
 
-/// `keep-defaults` 를 따로 띄워 «연 전» 기본값을 표준 입력으로 넘긴다(파일로 남기지 않는다 — 인증 정보가 든 설정 파일이다).
+/// `keep-defaults` 를 따로 띄운다 — `LaunchDefaults.begin` 이 준 표로 그 열기를 지켜본다.
 /// `detach` 면 그 프로세스가 진짜 일꾼을 다시 띄우고 끝나기를 기다린다: 일꾼이 우리(곧 에이전트)의 자식으로 남지 않는다.
-func spawnDefaultsKeeper(agent: Agent, captured: Data, detach: Bool) throws {
+func spawnDefaultsKeeper(agent: Agent, ticket: String, detach: Bool) throws {
     guard let executable = Bundle.main.executableURL else { throw SlashCommandError("could not find this program's own path") }
     let process = Process()
     process.executableURL = executable
-    process.arguments = ["keep-defaults", agent.rawValue] + (detach ? ["--detach"] : [])
-    let input = Pipe()
-    process.standardInput = input
+    process.arguments = ["keep-defaults", agent.rawValue, ticket] + (detach ? ["--detach"] : [])
+    process.standardInput = FileHandle.nullDevice
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     try process.run()
-    input.fileHandleForWriting.write(captured)
-    try? input.fileHandleForWriting.close()
     if detach { process.waitUntilExit() }
 }
 
@@ -175,8 +172,14 @@ do {
             print(command.joined(separator: " "))
         } else {
             // cursor 는 `--model` 로 연 모델을 새 세션 기본값으로도 저장한다 — 연 «전» 값을 따로 띄운 프로세스가 되돌린다.
-            if config.keepDefaults, resolved != nil, Launch.savesLaunchModelAsDefault(agent: agent) {
-                try spawnDefaultsKeeper(agent: agent, captured: try LaunchDefaults.capture(agent: agent), detach: true)
+            if config.keepDefaults, let model = resolved?.model, Launch.savesLaunchModelAsDefault(agent: agent) {
+                let ticket = try LaunchDefaults.begin(agent: agent, model: model)
+                do {
+                    try spawnDefaultsKeeper(agent: agent, ticket: ticket, detach: true)
+                } catch {
+                    LaunchDefaults.end(ticket: ticket)
+                    throw error
+                }
             }
             // 이 프로세스를 에이전트로 바꾼다 — 터미널에서 직접 친 것과 같다.
             var argv: [UnsafeMutablePointer<CChar>?] = command.map { strdup($0) }
@@ -185,14 +188,13 @@ do {
             fail("could not run \(command[0]): \(String(cString: strerror(errno)))")
         }
     case "keep-defaults":
-        // 내부용 — `run` 이 부른다. 표준 입력으로 받은 «연 전» 기본값을 1분 동안 지킨다.
-        guard args.count >= 2, let agent = Agent(rawValue: args[1]) else { fail("slashcommand keep-defaults <agent>") }
-        let captured = FileHandle.standardInput.readDataToEndOfFile()
+        // 내부용 — `run` 이 부른다. 그 열기가 쓴 새 세션 기본값을 1분 동안 연 전 값으로 되돌린다.
+        guard args.count >= 3, let agent = Agent(rawValue: args[1]) else { fail("slashcommand keep-defaults <agent> <ticket>") }
         if args.contains("--detach") {
             // 곧 에이전트로 바뀔 프로세스의 자식으로 남지 않게, 한 번 더 띄우고 바로 끝난다.
-            try spawnDefaultsKeeper(agent: agent, captured: captured, detach: false)
+            try spawnDefaultsKeeper(agent: agent, ticket: args[2], detach: false)
         } else {
-            LaunchDefaults.keep(agent: agent, captured: captured, rounds: 400, sleep: { usleep(UInt32($0) * 1000) })
+            LaunchDefaults.keep(agent: agent, ticket: args[2], rounds: 400, sleep: { usleep(UInt32($0) * 1000) })
         }
     case "where":
         // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다(ssh 로 시험할 때).

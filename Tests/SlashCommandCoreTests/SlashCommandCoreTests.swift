@@ -3209,36 +3209,122 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         XCTAssertFalse(Launch.openCodeTakesModel(help: "FLAGS\n  --models-dir string"), "다른 옵션의 앞머리가 같다고 속지 않는다")
     }
 
-    func testLaunchDefaultsAreCapturedAndPutBack() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("launch-cursor-\(UUID().uuidString).json")
-        defer { try? FileManager.default.removeItem(at: url) }
-        // 파일이 있던 경우: 에이전트가 모델 키를 쓰면 그 키만 연 전 값으로 되돌린다.
-        try JSONSerialization.data(withJSONObject: ["version": 1, "hints": true], options: [.prettyPrinted, .sortedKeys]).write(to: url)
-        let original = try Data(contentsOf: url)
-        let captured = try LaunchDefaults.capture(agent: .cursor, url: url)
-        XCTAssertEqual(captured.first, UInt8(ascii: "C"))
-        var round = 0
-        let restored = LaunchDefaults.keep(agent: .cursor, captured: captured, url: url, rounds: 6) { _ in
-            round += 1
-            // 에이전트가 두 번 쓴다(실측: 연 직후와 조금 뒤).
-            if round == 2 || round == 4 {
-                try? JSONSerialization.data(withJSONObject: ["version": 1, "hints": true, "model": ["modelId": "claude-opus-5-5"], "selectedModel": ["modelId": "claude-opus-5-5"]],
-                                            options: [.prettyPrinted, .sortedKeys]).write(to: url)
-            }
+    // MARK: 연 뒤 기본값 되돌리기(cursor)
+
+    private func launchFiles() -> (defaults: URL, record: URL) {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("launch-cursor-\(UUID().uuidString)")
+        let files = (base.appendingPathExtension("json"), base.appendingPathExtension("record.json"))
+        addTeardownBlock {
+            for url in [files.0, files.1, URL(fileURLWithPath: files.1.path + ".lock")] { try? FileManager.default.removeItem(at: url) }
         }
+        return files
+    }
+
+    /// cursor 가 그 id 로 열고 나서 쓰는 꼴(2026-10-11 실측: `grok-4.7-high` → modelId `grok-4.7`).
+    private func cursorWrites(_ modelID: String, to url: URL, aliases: [String] = []) throws {
+        var object = ((try? JSONSerialization.jsonObject(with: Data(contentsOf: url))) as? [String: Any]) ?? ["version": 1]
+        object["model"] = ["modelId": modelID, "displayModelId": aliases.first ?? modelID, "aliases": aliases]
+        object["selectedModel"] = ["modelId": modelID]
+        try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]).write(to: url)
+    }
+
+    private func savedModel(_ url: URL) -> String? {
+        (((try? JSONSerialization.jsonObject(with: Data(contentsOf: url))) as? [String: Any])?["model"] as? [String: Any])?["modelId"] as? String
+    }
+
+    func testLaunchPutsBackOnlyWhatItsOwnLaunchWrote() throws {
+        let (url, record) = launchFiles()
+        try JSONSerialization.data(withJSONObject: ["version": 1, "hints": true], options: [.prettyPrinted, .sortedKeys]).write(to: url)
+        let ticket = try LaunchDefaults.begin(agent: .cursor, model: "claude-opus-5-5-high", defaults: url, record: record)
+        var round = 0
+        let restored = LaunchDefaults.keep(agent: .cursor, ticket: ticket, defaults: url, record: record, rounds: 30, sleep: { _ in
+            round += 1
+            // 에이전트가 연 직후 두 번 쓴다(실측).
+            if round == 2 || round == 4 { try? self.cursorWrites("claude-opus-5-5", to: url) }
+        })
         XCTAssertEqual(restored, 2)
-        XCTAssertEqual(try Data(contentsOf: url), original)
-        // 파일이 없던 경우: 에이전트가 만든 파일에서 모델 키만 없앤다(다른 키는 에이전트의 것이다).
-        try FileManager.default.removeItem(at: url)
-        let absent = try LaunchDefaults.capture(agent: .cursor, url: url)
-        XCTAssertEqual(absent, Data("A".utf8))
-        try JSONSerialization.data(withJSONObject: ["version": 1, "model": ["modelId": "grok-4.7"]], options: [.sortedKeys]).write(to: url)
-        XCTAssertEqual(LaunchDefaults.keep(agent: .cursor, captured: absent, url: url, rounds: 2) { _ in }, 1)
+        XCTAssertNil(savedModel(url), "연 전에는 모델 키가 없었다")
         let left = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
-        XCTAssertNil(left["model"])
-        XCTAssertEqual(left["version"] as? Int, 1)
-        // cursor 가 아니면 아무것도 하지 않는다.
-        XCTAssertEqual(LaunchDefaults.keep(agent: .antigravity, captured: captured, url: url, rounds: 3) { _ in }, 0)
+        XCTAssertEqual(left["hints"] as? Bool, true, "다른 키는 그대로")
+        XCTAssertLessThanOrEqual(round, 4 + 20, "처음 되돌린 뒤에는 3초만 더 본다")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: record.path), "끝나면 기록을 지운다")
+    }
+
+    func testLaunchLeavesAnotherSessionsChangeAlone() throws {
+        // 리뷰(2026-10-11): 지켜보는 1분 동안 다른 세션이 일부러 바꾼 기본값까지 되돌리면 안 된다.
+        let (url, record) = launchFiles()
+        try JSONSerialization.data(withJSONObject: ["version": 1], options: [.sortedKeys]).write(to: url)
+        try cursorWrites("grok-4.7", to: url)
+        let ticket = try LaunchDefaults.begin(agent: .cursor, model: "claude-opus-5-5-high", defaults: url, record: record)
+        var round = 0
+        let restored = LaunchDefaults.keep(agent: .cursor, ticket: ticket, defaults: url, record: record, rounds: 12, sleep: { _ in
+            round += 1
+            if round == 2 { try? self.cursorWrites("gemini-3.7-flash", to: url) }   // 다른 세션이 고른 모델
+            if round == 5 { try? self.cursorWrites("claude-opus-5-5", to: url) }    // 그 뒤에 우리가 연 세션이 쓴다
+        })
+        XCTAssertEqual(restored, 1)
+        XCTAssertEqual(savedModel(url), "gemini-3.7-flash", "다른 세션이 바꾼 값이 새 기준이다 — 연 모델만 되돌린다")
+    }
+
+    func testOverlappingLaunchesShareTheStateFromBeforeTheFirst() throws {
+        // 리뷰(2026-10-11): 앞의 열기가 쓴 값이 되돌려지기 전에 또 열면, 그 잠깐의 값을 «연 전» 으로 잡아 지킴이끼리 다툰다.
+        let (url, record) = launchFiles()
+        try JSONSerialization.data(withJSONObject: ["version": 1], options: [.sortedKeys]).write(to: url)
+        try cursorWrites("grok-4.7", to: url)
+        let first = try LaunchDefaults.begin(agent: .cursor, model: "claude-opus-5-5-high", defaults: url, record: record)
+        try cursorWrites("claude-opus-5-5", to: url)   // 첫 열기가 썼고 아직 되돌려지지 않았다
+        let second = try LaunchDefaults.begin(agent: .cursor, model: "gemini-3.7-flash-high", defaults: url, record: record)
+        // 두 번째 지킴이: 첫 열기가 쓴 값도 «살아 있는 열기의 모델» 이므로 되돌린다.
+        var round = 0
+        XCTAssertEqual(LaunchDefaults.keep(agent: .cursor, ticket: second, defaults: url, record: record, rounds: 6, sleep: { _ in
+            round += 1
+            if round == 3 { try? self.cursorWrites("gemini-3.7-flash", to: url) }
+        }), 2)
+        XCTAssertEqual(savedModel(url), "grok-4.7")
+        // 첫 번째 지킴이가 뒤늦게 돌아도 같은 기준을 본다.
+        try cursorWrites("gemini-3.7-flash", to: url)
+        XCTAssertEqual(LaunchDefaults.keep(agent: .cursor, ticket: first, defaults: url, record: record, rounds: 3, sleep: { _ in }), 0,
+                       "두 번째 열기는 끝났다 — 그 모델은 이제 살아 있는 열기의 것이 아니라 남이 바꾼 값이다")
+        XCTAssertEqual(savedModel(url), "gemini-3.7-flash")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: record.path))
+    }
+
+    func testLaunchWithNoSettingsFileBefore() throws {
+        let (url, record) = launchFiles()
+        let ticket = try LaunchDefaults.begin(agent: .cursor, model: "auto", defaults: url, record: record)
+        var round = 0
+        XCTAssertEqual(LaunchDefaults.keep(agent: .cursor, ticket: ticket, defaults: url, record: record, rounds: 4, sleep: { _ in
+            round += 1
+            if round == 1 { try? self.cursorWrites("default", to: url, aliases: ["auto"]) }
+        }), 1)
+        XCTAssertNil(savedModel(url), "에이전트가 만든 파일에서 모델 키만 없앤다")
+        // 읽지 못하는 파일이면 열기 전에 멈춘다.
+        try Data("not json".utf8).write(to: url)
+        XCTAssertThrowsError(try LaunchDefaults.begin(agent: .cursor, model: "auto", defaults: url, record: record))
+        // 끝난 열기만 남은 기록은 기준으로 쓰지 않는다(지킴이가 죽어 기록이 남은 경우).
+        try JSONSerialization.data(withJSONObject: ["version": 1], options: [.sortedKeys]).write(to: url)
+        try cursorWrites("grok-4.7", to: url)
+        let old = Date(timeIntervalSinceNow: -600)
+        _ = try LaunchDefaults.begin(agent: .cursor, model: "auto", defaults: url, record: record, now: old)
+        try cursorWrites("gemini-3.7-flash", to: url)
+        let fresh = try LaunchDefaults.begin(agent: .cursor, model: "claude-opus-5-5-high", defaults: url, record: record)
+        try cursorWrites("claude-opus-5-5", to: url)
+        XCTAssertEqual(LaunchDefaults.keep(agent: .cursor, ticket: fresh, defaults: url, record: record, rounds: 2, sleep: { _ in }), 1)
+        XCTAssertEqual(savedModel(url), "gemini-3.7-flash", "10분 전 열기의 기준(grok-4.7)이 아니다")
+    }
+
+    func testWhichSavedModelALaunchIdWrites() {
+        // 2026-10-11 실측한 여덟 쌍.
+        let pairs = [("grok-4.7-high", "grok-4.7"), ("claude-opus-5-5-medium", "claude-opus-5-5"), ("composer-2.5", "composer-2.5"),
+                     ("gpt-5.5-extra-high", "gpt-5.5"), ("claude-opus-5-thinking-high", "claude-opus-5"), ("cursor-grok-4.6-high", "grok-4.6"),
+                     ("gemini-3.7-flash-high", "gemini-3.7-flash")]
+        for (launch, saved) in pairs {
+            XCTAssertTrue(LaunchDefaults.wrote(launch: launch, model: ["modelId": saved, "displayModelId": saved, "aliases": [String]()]), launch)
+        }
+        XCTAssertTrue(LaunchDefaults.wrote(launch: "auto", model: ["modelId": "default", "displayModelId": "auto", "aliases": ["auto"]]))
+        XCTAssertFalse(LaunchDefaults.wrote(launch: "grok-4.7-high", model: ["modelId": "grok-4.6"]))
+        XCTAssertFalse(LaunchDefaults.wrote(launch: "claude-opus-5-high", model: ["modelId": "claude-opus-5-5"]), "앞머리만 같은 다른 모델")
+        XCTAssertFalse(LaunchDefaults.wrote(launch: "grok-4.7-high", model: [:]))
     }
 
     /// 2026-10-11 `agy models` 의 출력(agy 1.3.3)에서 떼어 온 줄들.
