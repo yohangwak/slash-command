@@ -40,17 +40,26 @@ public enum CursorScreen {
         var index = lines.count - 2
         while index >= 0, lines[index].isEmpty { index -= 1 }
         guard index >= 1 else { return nil }
-        var status = lines[index]
+        // 오른쪽에 붙는 실행 방식 표시(`Run Everything` — `--yolo` 로 연 세션)는 두 칸 이상 떨어져 있다 — 모델 줄은 그 앞까지만(2026-10-11 실측).
+        var status = (lines[index].components(separatedBy: "  ").first ?? lines[index]).trimmingCharacters(in: .whitespaces)
         if let usage = status.range(of: #" · \d+(\.\d+)?%$"#, options: .regularExpression) { status = String(status[..<usage.lowerBound]) }
         index -= 1
         while index >= 0, lines[index].isEmpty { index -= 1 }
         guard index >= 0, lines[index].hasPrefix("→") else { return nil }
         // 오른쪽에 붙는 힌트(`ctrl+c to stop`)는 두 칸 이상 떨어져 있다 — 입력 글은 그 앞까지만.
         let input = (String(lines[index].dropFirst()).trimmingCharacters(in: .whitespaces).components(separatedBy: "  ").first ?? "").trimmingCharacters(in: .whitespaces)
-        // 입력 줄 바로 위(빈 줄 건너)에 점자 스피너가 돌면(`⠰⠳ Working`) 작업 중이다 — 입력 상자는 그대로 비어 보인다.
+        // 작업 중이면 입력 줄 오른쪽에 `ctrl+c to stop` 이 붙고, 그 위에 점자 스피너가 돈다(`⠰⠳ Working`) — 입력 상자는 그대로 비어 보인다.
+        // 스피너와 입력 줄 사이에 도움말 한 줄(`Tip: …`)이 끼기도 한다(2026-10-11 실측: 바로 윗줄만 봐서 작업 중인데 전환했다) — 몇 줄 위까지 본다.
+        var busy = lines[index].hasSuffix("ctrl+c to stop")
         var above = index - 1
-        while above >= 0, lines[above].isEmpty { above -= 1 }
-        let busy = above >= 0 && (lines[above].unicodeScalars.first.map { (0x2800...0x28FF).contains($0.value) } ?? false)
+        var looked = 0
+        while !busy, above >= 0, looked < 3 {
+            if !lines[above].isEmpty {
+                busy = lines[above].unicodeScalars.first.map { (0x2800...0x28FF).contains($0.value) } ?? false
+                looked += 1
+            }
+            above -= 1
+        }
         return (input, status, path, busy)
     }
 
@@ -309,17 +318,25 @@ public struct CursorDriver {
         return try confirm(name: target.name, effortLabel: expected, before: before, failure: fail)
     }
 
-    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다. 목록의 첫 커서가 지금 모델이다.
+    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다. 목록을 열면 커서가 지금 모델에 놓인다.
     private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         try start()
+        // 지금 모델은 목록을 열기 «전» 모델 줄에서 읽어 둔다 — 목록의 커서와 맞춰 볼 기준이다.
+        let shown = CursorScreen.status(io.freshSnapshot()?.lines ?? []).map { CursorScreen.parse(status: $0).name } ?? ""
         let before = keepDefaults ? defaults.snapshot() : nil
         func fail(_ message: String, leftover: String? = nil) -> SlashCommandError {
             back(toIdleClearing: leftover)
             if let before { sleep(250); _ = defaults.restore(to: before) }
             return SlashCommandError(message)
         }
-        let rows = try openList(filters: [], wanted: nil, failure: fail)
-        guard let current = rows.first(where: \.cursor) else { throw fail(loc("Could not read the cursor position in the Cursor list.")) }
+        _ = try openList(filters: [], wanted: nil, failure: fail)
+        // 목록이 막 열린 순간에는 커서가 맨 윗줄(`Auto`)에 있다가 지금 모델로 옮겨 가기도 한다(2026-10-11 실측: 8번에 2번,
+        // `Auto` 에서 Tab 을 눌러 «effort 가 없다» 로 멈췄다). 커서가 모델 줄의 그 모델에 놓인 것을 보고 나서만 Tab 을 누른다.
+        guard !shown.isEmpty,
+              let settled = try poll(timeoutMs: 2000, { CursorScreen.list($0)?.rows.first(where: \.cursor).map { CursorScreen.key($0.name) } == CursorScreen.key(shown) }),
+              let current = CursorScreen.list(settled)?.rows.first(where: \.cursor) else {
+            throw fail(loc("Could not read the cursor position in the Cursor list."))
+        }
         try io.press(.tab)
         guard let editor = try poll(timeoutMs: 2000, { CursorScreen.editor($0)?.title.lowercased() == current.name.lowercased() }),
               let options = CursorScreen.editor(editor)?.options.filter({ $0.section == "Effort" }), !options.isEmpty else {

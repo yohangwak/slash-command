@@ -1,7 +1,6 @@
 /* Simplified Chinese. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             已验证的版本";
-"%@ does not support `run`: the model id it takes when opening a session differs from the on-screen name in the preset. Open the session, then switch with the shortcut." = "%@ 不支持 `run`：新建会话时它接受的模型 id 与预设中的屏幕名称不同。请先打开会话，再用快捷键切换。";
 "%@ is not running, so this cannot be checked now." = "%@ 未在运行，现在无法检查。";
 "%@ is not supported. Press it in a Ghostty or Orca terminal." = "不支持 %@。请在 Ghostty 或 Orca 终端中按下。";
 "%@ version  installed %@ · running %@" = "%@ 版本  已安装 %@ · 运行中 %@";

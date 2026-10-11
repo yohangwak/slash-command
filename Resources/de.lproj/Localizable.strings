@@ -1,7 +1,6 @@
 /* German. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             geprüfte Version";
-"%@ does not support `run`: the model id it takes when opening a session differs from the on-screen name in the preset. Open the session, then switch with the shortcut." = "%@ unterstützt `run` nicht: Die Modell-ID, die beim Öffnen einer Sitzung erwartet wird, weicht vom Bildschirmnamen im Preset ab. Sitzung öffnen und dann per Tastenkürzel wechseln.";
 "%@ is not running, so this cannot be checked now." = "%@ läuft nicht, daher kann jetzt nichts geprüft werden.";
 "%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ wird nicht unterstützt. Das Kürzel in einem Ghostty- oder Orca-Terminal drücken.";
 "%@ version  installed %@ · running %@" = "%@-Version  installiert %@ · läuft %@";

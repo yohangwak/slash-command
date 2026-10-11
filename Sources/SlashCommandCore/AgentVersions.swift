@@ -14,8 +14,8 @@ public enum AgentVersions {
         .claude: ["2.1.283", "2.1.288", "2.1.289", "2.1.291", "2.1.292", "2.1.296"],
         .codex: ["0.156.0", "0.160.0", "0.160.1", "0.162.0"],
         .grok: ["1.0.46"],
-        .cursor: ["2026.10.01-14929f9"],
-        .antigravity: ["1.3.1"],
+        .cursor: ["2026.10.01-14929f9", "2026.10.01-e373342"],
+        .antigravity: ["1.3.1", "1.3.3"],
         .opencode: ["1.18.35"],
     ]
 
@@ -115,6 +115,14 @@ public enum AgentVersions {
             // codex 의 설치 폴더는 `0.160.1-aarch64-apple-darwin` 처럼 플랫폼이 붙기도 한다.
             // 플랫폼만 떼고, 시험판 표시(`0.160.0-alpha.6`)는 남긴다 — 확인한 안정판으로 오인하면 안 된다.
             guard index + 1 < components.count, let found = release(from: components[index + 1]) else { continue }
+            return found
+        }
+        // Homebrew 로 깐 꼴: `…/Caskroom/cursor-cli/2026.10.01-e373342/…` · `…/Cellar/opencode/2.0.25/…` — 이름 다음 칸이 판이다.
+        // 에이전트를 돌리는 실행기(`…/Cellar/node/26.8.2/bin/node`)의 판은 에이전트의 판이 아니다.
+        for (index, component) in components.enumerated() where component == "Caskroom" || component == "Cellar" {
+            guard index + 2 < components.count, let found = release(from: components[index + 2]) else { continue }
+            let package = components[index + 1].split(separator: "@").first.map(String.init) ?? ""
+            if ["node", "bun", "deno", "python", "ruby"].contains(package) { continue }
             return found
         }
         return nil

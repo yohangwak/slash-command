@@ -786,7 +786,12 @@ public struct Runner {
             return !rows.isEmpty
         }) else { return false }
         let found = Picker.index(of: label, in: rows) != nil
-        guard found || (via.map { Picker.index(of: $0, in: rows) != nil } ?? false) else { return false }
+        guard found || (via.map { Picker.index(of: $0, in: rows) != nil } ?? false) else {
+            // 창이 낮으면 행이 한두 개만 보이고 나머지는 `… +9 models` 로 접힌다(2026-10-11 실측, 90×14 의 claude) —
+            // 커서를 한 칸씩 옮겨 그 행을 찾는다. 못 찾으면 전처럼 실패다(그러면 명령 방식으로 간다).
+            guard via == nil, let lines = io.screen(), Picker.hasHiddenRows(lines), try scroll(to: label, timeoutMs: timeoutMs) else { return false }
+            return try moveCursor(to: label, timeoutMs: timeoutMs)
+        }
         if !found, let via {
             guard try moveCursor(to: via, timeoutMs: timeoutMs) else { return false }
             try io.press(.enter)
@@ -794,6 +799,35 @@ public struct Runner {
             guard entered else { return false }
         }
         return try moveCursor(to: label, timeoutMs: timeoutMs)
+    }
+
+    /// 접혀서 보이지 않는 행을 찾는다: 커서를 맨 위(1번)로 올린 뒤 한 칸씩 내려가며 그 행이 화면에 나타나는지 본다.
+    /// 위에서부터 보는 이유: 이름은 앞머리로 맞추므로("opus" → `Opus 5.5`) 같은 앞머리의 행이 여럿이다 — 높은 창에서 고르는 것은 그중 맨 위다.
+    /// (2026-10-11 실측: 지금 자리에서 아래로만 찾았더니 `Opus 5.5` 대신 그 아래의 `Opus 5` 를 골랐다.)
+    /// 맨 위에 닿지 못하면 찾지 않는다. 고르는 키(Enter·s)는 보내지 않는다.
+    private func scroll(to label: String, timeoutMs: Int) throws -> Bool {
+        func cursor(_ lines: [String]) -> Int? { Picker.rows(lines).first(where: \.selected)?.number }
+        func step(_ key: Key, from number: Int) throws -> Bool {
+            try io.press(key)
+            return try poll(timeoutMs: min(timeoutMs, 700)) { lines in cursor(lines).map { $0 != number } ?? false }
+        }
+        func read() throws -> [String] {
+            guard let lines = io.screen() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
+            return lines
+        }
+        for _ in 0..<40 {
+            guard let at = cursor(try read()), at > 1 else { break }
+            guard try step(.up, from: at) else { break }
+        }
+        guard cursor(try read()) == 1 else { return false }
+        var seen: Set<Int> = []
+        for _ in 0..<40 {
+            let lines = try read()
+            if Picker.index(of: label, in: Picker.rows(lines)) != nil { return true }
+            guard let at = cursor(lines), seen.insert(at).inserted else { return false }
+            guard try step(.down, from: at) else { return false }
+        }
+        return false
     }
 
     /// 커서가 `label` 행에 올 때까지: 화면에서 커서 행을 읽고, 차이만큼 위·아래를 보내고, 커서가 «도착함»을 본다.

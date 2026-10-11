@@ -75,24 +75,28 @@ public enum Step: Equatable, Sendable {
 }
 
 public enum Launch {
-    /// 그 프리셋으로 새 세션을 열 수 없는 에이전트면 그 사유.
-    /// cursor-agent 는 `--model` 이 받는 id 가 화면 이름과 다른데(`grok-4.7` 대 `Grok 4.7`), 그 대응을 알려 주는 출력을 확인하지 못했다.
-    public static func unsupportedReason(agent: Agent) -> String? {
-        switch agent {
-        case .claude, .codex, .grok, .antigravity, .opencode: return nil
-        case .cursor:
-            return loc("%@ does not support `run`: the model id it takes when opening a session differs from the on-screen name in the preset. Open the session, then switch with the shortcut.", agent.displayName)
-        }
-    }
-
     /// `--model` 이 화면 이름이 아니라 id 를 받는 에이전트가 «이름 → id» 를 알아내려고 부르는 명령. 그 출력을 `resolve` 에 넘긴다.
-    /// (2026-10-11 실측: `agy models` 는 `id<빈칸>이름 (Effort)` 줄들, `opencode models --verbose` 는 `제공자/id` 줄과 그 모델의 JSON.)
+    /// (2026-10-11 실측: `agy models` 는 `id<빈칸>이름 (Effort)` 줄들, `opencode models --verbose` 는 `제공자/id` 줄과 그 모델의 JSON,
+    /// `cursor-agent models` 는 `id - 이름 [컨텍스트] [Effort] [Fast]` 줄들.)
     public static func listing(agent: Agent) -> [String]? {
         switch agent {
         case .antigravity: return ["agy", "models"]
         case .opencode: return ["opencode", "models", "--verbose"]
-        case .claude, .codex, .grok, .cursor: return nil
+        case .cursor: return ["cursor-agent", "models"]
+        case .claude, .codex, .grok: return nil
         }
+    }
+
+    /// 여는 옵션으로 준 모델을 «새 세션 기본값» 으로도 저장하는 에이전트 — 열고 나서 기본값을 되돌려야 한다.
+    /// (2026-10-11 실측, cursor-agent 2026.10.01: `--model grok-4.7-high` 로 열면 `cli-config.json` 의 기본 모델이 그 모델이 된다.
+    /// agy 는 `--model` 로 열어도 기본값 파일이 그대로였다.)
+    public static func savesLaunchModelAsDefault(agent: Agent) -> Bool { agent == .cursor }
+
+    /// opencode 의 도움말에 여는 옵션 `--model` 이 있는가. 2.0.25 에는 없다(`run` 하위 명령에만 있다) — 1.18.35 에는 있었다.
+    public static func openCodeTakesModel(help: String) -> Bool {
+        // 하위 명령 목록보다 앞의 «옵션» 부분에서만 찾는다: 하위 명령의 설명에 같은 글자가 나와도 여는 옵션은 아니다.
+        let options = help.components(separatedBy: "SUBCOMMANDS").first ?? help
+        return options.range(of: #"(^|\s)--model\b"#, options: .regularExpression) != nil
     }
 
     public struct Resolved: Equatable, Sendable {
@@ -192,13 +196,79 @@ public enum Launch {
             // 프리셋이 Default 여도 마찬가지라(앞서 high 로 썼으면 high 로 열린다) 늘 알린다.
             let note = loc("OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'.", preset.effort)
             return Resolved(model: row.id, note: note)
-        case .claude, .codex, .grok, .cursor:
+        case .cursor:
+            let rows = cursorRows(listing: output)
+            let named = rows.filter { key($0.name) == key(preset.model) }
+            guard !named.isEmpty else { throw SlashCommandError(loc("'%@' is not in the Cursor model list.", preset.model)) }
+            // 같은 이름·effort 에 Thinking 을 켠 것과 끈 것이 따로 있다 — 표시가 없는 쪽(그 모델의 기본 상태)을 먼저 고른다.
+            func pick(_ candidates: [CursorRow]) -> CursorRow? { candidates.first { !$0.marked } ?? candidates.first }
+            if let row = pick(named.filter { row in row.effort.map { CursorScreen.effortMatches(preset.effort, label: $0) } ?? false }) {
+                return Resolved(model: row.id, note: nil)
+            }
+            // effort 가 아예 없는 모델(`Auto` · `Composer 2.5`)은 모델만 맞춘다.
+            if named.allSatisfy({ $0.effort == nil }), let row = pick(named) { return Resolved(model: row.id, note: nil) }
+            var available: [String] = []
+            for effort in named.compactMap(\.effort) where !available.contains(effort) { available.append(effort) }
+            throw SlashCommandError(loc("Cursor '%@' has no effort '%@' (%@).", preset.model, preset.effort, available.joined(separator: ", ")))
+        case .claude, .codex, .grok:
             return Resolved(model: preset.model, note: nil)
         }
     }
 
+    struct CursorRow: Equatable {
+        let id: String
+        let name: String
+        /// 화면 라벨(`Extra High`)이거나, 라벨이 없는 줄이면 id 의 끝에서 읽은 값(`xhigh`).
+        let effort: String?
+        /// 이름 뒤에 `Thinking` · `No Thinking` 이 붙은 줄 — 그 모델의 기본 상태가 아닌 쪽이다.
+        let marked: Bool
+    }
+
+    /// `cursor-agent models` 의 줄들: `grok-4.7-high - Grok 4.7  High` · `claude-opus-5-5-medium - Claude Opus 5.5 1M` · `auto - Auto (default)`.
+    /// 이름 뒤에 컨텍스트(`1M`) · effort · `Thinking`/`No Thinking` · `Fast` · 꼬리표(`(NO ZDR)`)가 붙는다.
+    /// effort 라벨이 없는 줄은 그 모델의 «기본» effort 인데 모델마다 다르다(`claude-opus-5-5-medium` 은 Medium, `claude-opus-5-high` 는 High) —
+    /// 그래서 라벨이 없으면 id 의 끝에서 읽는다. `Fast` 줄은 버린다: 프리셋에는 그 스위치가 없다.
+    static func cursorRows(listing output: String) -> [CursorRow] {
+        let labels: [[String]] = [["Extra", "High"], ["High"], ["Medium"], ["Low"], ["Max"], ["None"], ["Minimal"]]
+        var rows: [CursorRow] = []
+        for line in output.split(separator: "\n") {
+            guard let cut = line.range(of: " - ") else { continue }
+            let id = line[..<cut.lowerBound].trimmingCharacters(in: .whitespaces)
+            guard !id.isEmpty, !id.contains(" ") else { continue }
+            // 줄 끝에 폭 없는 글자가 붙기도 하고(`Fast` 뒤) 낱말 사이가 두 칸이기도 하다.
+            var text = String(String.UnicodeScalarView(line[cut.upperBound...].unicodeScalars.filter { !(0x200B...0x200D).contains($0.value) && $0.value != 0xFEFF }))
+            while let tag = text.range(of: #"\s*\([^)]*\)\s*$"#, options: .regularExpression) { text.removeSubrange(tag) }
+            var words = text.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+            if words.last == "Fast" { continue }
+            var marked = false
+            if words.last == "Thinking" {
+                marked = true
+                words.removeLast()
+                if words.last == "No" { words.removeLast() }
+            }
+            var effort: String?
+            for label in labels where words.count > label.count && Array(words.suffix(label.count)) == label {
+                effort = label.joined(separator: " ")
+                words.removeLast(label.count)
+                break
+            }
+            if let last = words.last, words.count > 1, last.range(of: #"^\d+[KkMm]$"#, options: .regularExpression) != nil { words.removeLast() }
+            guard !words.isEmpty else { continue }
+            rows.append(CursorRow(id: id, name: words.joined(separator: " "), effort: effort ?? cursorEffort(inID: id), marked: marked))
+        }
+        return rows
+    }
+
+    /// id 끝의 effort: `claude-opus-5-thinking-high` → `high`, `gpt-5.5-extra-high` → `xhigh`, `gpt-5.3-codex` → 없음.
+    static func cursorEffort(inID id: String) -> String? {
+        let parts = id.lowercased().split(separator: "-").map(String.init).filter { $0 != "fast" && $0 != "thinking" }
+        guard let last = parts.last, parts.count > 1 else { return nil }
+        if last == "high", parts.count > 2, parts[parts.count - 2] == "extra" { return "xhigh" }
+        return ["low", "medium", "high", "xhigh", "max", "none", "minimal"].contains(last) ? last : nil
+    }
+
     /// 그 프리셋으로 «새 세션»을 여는 명령줄. 둘 다 이 세션에만 적용되는 옵션이라 기본값은 바뀌지 않는다.
-    /// `model` 은 `resolve` 가 푼 id(antigravity · opencode).
+    /// `model` 은 `resolve` 가 푼 id(antigravity · opencode · cursor). cursor 는 `--model` 로 연 모델을 기본값으로도 저장한다 — `savesLaunchModelAsDefault`.
     public static func command(agent: Agent, preset: AgentPreset, model: String? = nil, extra: [String] = []) -> [String] {
         switch agent {
         case .claude:
@@ -207,12 +277,9 @@ public enum Launch {
             return ["codex", "-m", preset.model, "-c", "model_reasoning_effort=\"\(preset.effort)\""] + extra
         case .grok:
             return ["grok", "-m", preset.model, "--reasoning-effort", preset.effort] + extra
-        case .antigravity, .opencode:
+        case .antigravity, .opencode, .cursor:
             // `--model` 이 화면 이름이 아니라 id 를 받는다 — `resolve` 로 푼 id 가 있을 때만 넘긴다(화면 이름을 그대로 넘기면 틀린 값이다).
             return [agent.executable] + (model.map { ["--model", $0] } ?? []) + extra
-        case .cursor:
-            // `unsupportedReason` 이 먼저 막는다; 여기서는 모델 없이 띄운다.
-            return [agent.executable] + extra
         }
     }
 }

@@ -1,7 +1,6 @@
 /* 한국어. 왼쪽은 코드에 있는 영어 문장(키), 오른쪽이 번역이다. 자리표 %@ 는 값이 들어갈 자리 — 순서를 바꾸려면 %1$@ · %2$@ 로 쓴다. */
 
 "             verified version" = "             확인한 판입니다";
-"%@ does not support `run`: the model id it takes when opening a session differs from the on-screen name in the preset. Open the session, then switch with the shortcut." = "%@ 는 새 세션을 열 때 받는 모델 id 가 프리셋의 화면 이름과 달라 `run` 을 지원하지 않습니다. 세션을 연 뒤 단축키로 바꿔 주세요.";
 "%@ is not running, so this cannot be checked now." = "%@ 가 실행 중이 아니라 지금은 확인할 수 없습니다.";
 "%@ is not supported. Press it in a Ghostty or Orca terminal." = "%@ 는 지원하지 않습니다. Ghostty 나 Orca 터미널에서 눌러 주세요.";
 "%@ version  installed %@ · running %@" = "%@ 판     설치 %@ · 실행 중 %@";
