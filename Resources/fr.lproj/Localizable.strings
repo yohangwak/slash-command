@@ -276,3 +276,5 @@
 "Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "Non envoyé : Slash Command a besoin de l’autorisation Accessibilité pour vérifier que la diffusion de la saisie (Broadcast Input) d’iTerm2 est désactivée. Activez-la dans Réglages Système → Confidentialité et sécurité → Accessibilité, puis appuyez à nouveau.";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "Non envoyé : impossible de confirmer dans le menu Shell ▸ Broadcast Input d’iTerm2 que la diffusion de la saisie est désactivée.";
 "Could not type into iTerm2: %@" = "Impossible de saisir dans iTerm2 : %@";
+"This OpenCode model has no effort levels (it has no variants)." = "Ce modèle OpenCode n’a pas de niveaux d’effort (il n’a pas de variantes).";
+"This OpenCode model has no variants, so the effort (%@) was not set." = "Ce modèle OpenCode n’a pas de variantes, l’effort (%@) n’a donc pas été défini.";

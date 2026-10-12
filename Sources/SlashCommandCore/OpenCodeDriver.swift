@@ -68,6 +68,15 @@ public enum OpenCodeScreen {
         return (title, line.distance(from: line.startIndex, to: start.lowerBound))
     }
 
+    /// «No variants available» 알림(variant 가 없는 모델에서 `/variants` 를 치면 대화상자 대신 뜬다 — 2.0.25).
+    /// 대화 내용의 같은 글과 구분하려고 알림 상자의 테두리(`┃ … ┃`)까지 본다.
+    static func noVariants(_ screen: [String]) -> Bool {
+        screen.contains { line in
+            let text = line.trimmingCharacters(in: .whitespaces)
+            return text.hasPrefix("┃") && text.hasSuffix("┃") && text.contains("No variants available")
+        }
+    }
+
     /// 모델 대화상자·변형 대화상자·명령 팔레트가 떠 있는가.
     static func dialogTitle(_ screen: [String]) -> String? {
         screen.lazy.compactMap { dialogHeader($0)?.title }.first
@@ -315,12 +324,18 @@ public struct OpenCodeDriver {
             try pickModel(model, current: currentModel, failure: fail)
         }
         let variant = preset.effort.trimmingCharacters(in: .whitespaces)
+        var note: String?
         if !variant.isEmpty {
-            try pickVariant(variant, failure: fail)
+            // variant 가 없는 모델(Big Pickle 등)은 모델만 맞춘다 — 전에는 모델을 바꾸고도 «대화상자가 열리지 않았다» 며 실패로 알렸다.
+            if try !pickVariant(variant, failure: fail) {
+                note = loc("This OpenCode model has no variants, so the effort (%@) was not set.", variant)
+            }
         } else if OpenCodeScreen.dialogTitle(io.freshSnapshot()?.lines ?? []) == "Select variant" {
             back()   // variant 를 정하지 않는 프리셋 — 자동으로 뜬 대화상자는 그대로 닫는다
         }
-        return try finish(before: before, model: model, failure: fail)
+        let outcome = try finish(before: before, model: model, failure: fail)
+        let warnings = [note, outcome.warning].compactMap { $0 }
+        return Outcome(confirmations: outcome.confirmations, warning: warnings.isEmpty ? nil : warnings.joined(separator: " "))
     }
 
     /// 모델은 그대로 두고 variant 만 한 단계 올리거나 내린다. 단계는 `/variants` 대화상자의 순서(Default · low · high · max…)다.
@@ -335,7 +350,12 @@ public struct OpenCodeDriver {
         // 지금 값: 대화상자의 `●` 가 있으면 그것. 저장해 둔 variant 가 없는 모델은 Default 로 돌면서도 아무 행에도 `●` 가 없다
         // (2026-10-08 실측: DeepSeek V4 Pro) — 그때는 입력 상자의 모델 줄이 근거다(variant 가 적혀 있으면 그 행, 없으면 Default 행).
         let shown = OpenCodeScreen.status(io.freshSnapshot()?.lines ?? [])?.variant
-        try openDialog(command: "/variants", title: "Select variant", failure: fail)
+        guard try openVariants(failure: fail) else {
+            if let before { sleep(250); _ = defaults.restore(to: before) }
+            var error = SlashCommandError(loc("This OpenCode model has no effort levels (it has no variants)."))
+            error.nothingToDo = true
+            throw error
+        }
         guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []),
               let at = dialog.rows.firstIndex(where: \.current)
                 ?? dialog.rows.firstIndex(where: { OpenCodeScreen.key($0.text) == OpenCodeScreen.key(shown ?? "Default") }) else {
@@ -372,6 +392,25 @@ public struct OpenCodeDriver {
         guard (try poll(timeoutMs: 3000) { OpenCodeScreen.dialog($0)?.title == title }) != nil else {
             throw failure(loc("The OpenCode '%@' dialog did not open.", title), command)
         }
+    }
+
+    /// `/variants` 로 «Select variant» 를 연다. 그 모델에 variant 가 없으면 opencode 는 대화상자 대신 알림(«No variants available»)을 띄우고
+    /// 입력창으로 돌아온다(2.0.25, 2026-10-12 실측) — 그때는 false.
+    private func openVariants(failure: (String, String?) -> SlashCommandError) throws -> Bool {
+        let command = "/variants"
+        try io.type(command)
+        guard (try poll(timeoutMs: 1500) { OpenCodeScreen.draft($0) == command }) != nil else {
+            throw failure(loc("Nothing was sent: the command did not appear in the OpenCode input box."), command)
+        }
+        // 알림은 몇 초 남는다 — Enter 전부터 떠 있었다면(앞서 다른 모델에서 뜬 것) 이번 명령의 답이 아니다. 그때는 대화상자만 기다린다.
+        let stale = OpenCodeScreen.noVariants(io.freshSnapshot()?.lines ?? [])
+        try io.press(.enter)
+        func opened(_ lines: [String]) -> Bool { OpenCodeScreen.dialog(lines)?.title == "Select variant" }
+        if stale { return try poll(timeoutMs: 1500, opened) != nil }
+        guard let lines = try poll(timeoutMs: 3000, { opened($0) || OpenCodeScreen.noVariants($0) }) else {
+            throw failure(loc("The OpenCode '%@' dialog did not open.", "Select variant"), command)
+        }
+        return opened(lines)
     }
 
     typealias Dialog = (title: String, search: String, rows: [OpenCodeScreen.Row])
@@ -480,19 +519,21 @@ public struct OpenCodeDriver {
         }
     }
 
-    private func pickVariant(_ variant: String, failure: (String, String?) -> SlashCommandError) throws {
+    /// 그 모델에 variant 가 없어 아무것도 고르지 못했으면 false.
+    private func pickVariant(_ variant: String, failure: (String, String?) -> SlashCommandError) throws -> Bool {
         let screen = io.freshSnapshot()?.lines ?? []
         // 모델을 고른 뒤 variant 대화상자가 자동으로 떠 있으면 그것을 쓰고, 아니면 이미 그 값인지 보고 필요할 때만 연다.
         if OpenCodeScreen.dialogTitle(screen) != "Select variant" {
-            if OpenCodeScreen.status(screen)?.variant.map({ OpenCodeScreen.key($0) }) == OpenCodeScreen.key(variant) { return }
-            try openDialog(command: "/variants", title: "Select variant", failure: failure)
+            if OpenCodeScreen.status(screen)?.variant.map({ OpenCodeScreen.key($0) }) == OpenCodeScreen.key(variant) { return true }
+            guard try openVariants(failure: failure) else { return false }
         }
         guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []) else { throw failure(loc("Could not read the OpenCode variant dialog."), nil) }
         guard let wanted = dialog.rows.first(where: { OpenCodeScreen.key($0.text) == OpenCodeScreen.key(variant) }) else {
             throw failure(loc("This OpenCode model has no variant '%@' (%@).", variant, dialog.rows.map(\.text).joined(separator: ", ")), nil)
         }
-        if wanted.current { try io.press(.escape); return }
+        if wanted.current { try io.press(.escape); return true }
         try chooseInOpenDialog(text: wanted.text, failure: failure)
+        return true
     }
 
     /// `model` 을 주면 입력 상자의 모델 줄이 그 모델일 때만 성공이다 — 대화상자에서 행을 «세어서» 골랐으므로 결과를 글자로 확인한다.

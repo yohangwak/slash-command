@@ -2949,6 +2949,8 @@ final class FakeOpenCode: TerminalIO {
     var ignoresDown = false
     /// 제공자가 하나뿐인 opencode 2: 그 제공자의 모델만 있고, 이름으로만 걸러지고, 행에 제공자 칸이 없다.
     var onlyProvider: String?
+    /// «No variants available» 알림이 떠 있다(몇 초 남는다 — 흉내기에서는 끌 때까지).
+    var toast = false
 
     init(configURL: URL) { self.configURL = configURL }
 
@@ -2991,7 +2993,10 @@ final class FakeOpenCode: TerminalIO {
         switch (mode, key) {
         case (.idle, .enter):
             if input == "/models" { mode = .models; search = ""; cursor = 0 }
-            else if input == "/variants" { mode = .variants; search = ""; cursor = 0 }
+            else if input == "/variants" {
+                // variant 가 없는 모델: 대화상자 대신 알림이 뜨고 입력창으로 돌아온다(2.0.25 실측).
+                if models[current].variants.isEmpty { toast = true } else { mode = .variants; search = ""; cursor = 0 }
+            }
             input = ""
         case (.idle, .backspace): if !input.isEmpty { input.removeLast() }
         case (_, .escape) where mode != .idle: mode = .idle
@@ -3036,15 +3041,17 @@ final class FakeOpenCode: TerminalIO {
             lines += ["", "    ✓ more output"]
             return lines + box
         }
+        let notice = toast ? ["                  ┃  No variants available                          x  ┃",
+                              "                  ┃  The current model does not support any variants.  ┃"] : []
         switch mode {
-        case .idle: return ["    ✓ earlier output"] + box
+        case .idle: return notice + ["    ✓ earlier output"] + box
         case .models:
             let single = onlyProvider != nil
             return overlay("Select model", visibleModels.map { (($0 == current ? "● " : "  ") + models[$0].name + (single ? "" : "           " + models[$0].provider)) },
                            footer: single ? "View all integrations ctrl+a" : "Connect an integration ctrl+a  Favorite ctrl+f")
         case .variants:
             let marked = models[current].variant ?? (explicitDefault.contains(current) ? "Default" : nil)
-            return overlay("Select variant", visibleVariants.map { (marked == $0 ? "● " : "  ") + $0 })
+            return notice + overlay("Select variant", visibleVariants.map { (marked == $0 ? "● " : "  ") + $0 })
         }
     }
 }
@@ -3064,6 +3071,49 @@ final class OpenCodeDriverTests: KoreanMessagesTestCase {
 
     private func driver(_ io: FakeOpenCode, keepDefaults: Bool = true) -> OpenCodeDriver {
         OpenCodeDriver(io: io, sleep: { _ in }, defaults: OpenCodeDefaults(url: url), keepDefaults: keepDefaults)
+    }
+
+    func testAModelWithoutVariantsIsSwitchedAndTheEffortIsReportedAsNotSet() throws {
+        // 2026-10-12 실측(Big Pickle): 전에는 모델을 바꾸고도 «Select variant 대화상자가 열리지 않았다» 며 실패로 알렸다.
+        let io = FakeOpenCode(configURL: url)
+        let outcome = try driver(io).apply(AgentPreset(model: "Big Pickle OpenCode Zen", effort: "high"))
+        XCTAssertEqual(io.models[io.current].name, "Big Pickle")
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(outcome.confirmations, ["Using Big Pickle OpenCode Zen"])
+        XCTAssertEqual(outcome.warning, loc("This OpenCode model has no variants, so the effort (%@) was not set.", "high"))
+        XCTAssertEqual(try Data(contentsOf: url), original, "기본값 파일은 그대로")
+    }
+
+    func testEffortOnAModelWithoutVariantsSaysSoAndChangesNothing() throws {
+        let io = FakeOpenCode(configURL: url)
+        io.current = 2   // Big Pickle
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { error in
+            XCTAssertTrue((error as? SlashCommandError)?.nothingToDo == true)
+            XCTAssertEqual("\(error)", loc("This OpenCode model has no effort levels (it has no variants)."))
+        }
+        XCTAssertEqual(io.mode, .idle)
+        XCTAssertEqual(io.input, "", "입력창에 남긴 글이 없다")
+    }
+
+    func testAnOldNoVariantsNoticeDoesNotHideARealVariantDialog() throws {
+        // 알림은 몇 초 남는다. 그 사이 variant 가 있는 모델에서 effort 를 누르면 알림이 아니라 대화상자를 본다.
+        let io = FakeOpenCode(configURL: url)
+        io.toast = true
+        _ = try driver(io).stepEffort(up: false)
+        XCTAssertEqual(io.models[0].variant, "low")
+        XCTAssertEqual(io.mode, .idle)
+        // 알림이 남아 있는 채로 variant 없는 모델에서 누르면: 대화상자가 끝내 안 뜬다 → 없다고 알린다.
+        io.current = 2
+        XCTAssertThrowsError(try driver(io).stepEffort(up: true)) { XCTAssertTrue(($0 as? SlashCommandError)?.nothingToDo == true) }
+    }
+
+    func testNoVariantsNoticeOnARealScreen() throws {
+        struct Fixture: Decodable { let tail: [String] }
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "oc2-no-variants", withExtension: "json", subdirectory: "Fixtures"))
+        let real = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
+        XCTAssertTrue(OpenCodeScreen.noVariants(real))
+        XCTAssertTrue(OpenCodeScreen.idle(real), "알림이 떠 있어도 입력창은 비어 있다")
+        XCTAssertFalse(OpenCodeScreen.noVariants(["  some reply says No variants available here", "  ┃  Ask anything"]), "대화 내용의 같은 글")
     }
 
     func testSwitchesModelThenVariantAndRestoresTheDefault() throws {

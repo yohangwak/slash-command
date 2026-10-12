@@ -55,7 +55,7 @@ Ghostty·Orca·iTerm2·WezTerm·kitty 터미널(Orca·iTerm2·WezTerm·kitty 안
 | grok | `/model <모델> <effort>` 한 줄 | `~/.grok/config.toml` 의 `[models]` 두 키를 저장함 → 끝나고 되돌림 | 약 0.35초 |
 | cursor-agent | `/model` 목록에서 글자를 한 글자씩 쳐 걸러 고르고, Tab 으로 매개변수(Effort)를 맞춰 확정 | `cli-config.json` 의 모델 관련 네 키를 저장함 → 되돌림 | 약 0.7~1.3초 |
 | antigravity(agy) | `/model` 선택창의 커서와 Effort 슬라이더(←/→) | `settings.json` 의 `model` 을 저장함 → 되돌림 | 약 0.5초 |
-| opencode | `/models` 대화상자에서 «이름 + 제공자» 로 걸러 그 행을 고르고 `/variants` 로 variant 를 맞춤 | `model.json` 의 `recent`·`variant` 를 저장함 → 되돌림 | 약 0.4~0.7초(2.x: 1.1~1.7초, 제공자가 하나면 2.4초) |
+| opencode | `/models` 대화상자에서 «이름 + 제공자» 로 걸러 그 행을 고르고 `/variants` 로 variant 를 맞춤. variant 가 없는 모델(Big Pickle 등)은 opencode 가 대화상자 대신 «No variants available» 알림을 띄운다 — 프리셋은 모델만 맞추고 그렇게 알리고, effort 올림·내림은 «이 모델에는 단계가 없다» 고 알린다(2.0.25, 2026-10-12 실측) | `model.json` 의 `recent`·`variant` 를 저장함 → 되돌림 | 약 0.4~0.7초(2.x: 1.1~1.7초, 제공자가 하나면 2.4초) |
 
 - claude·codex 외의 네 에이전트에는 「이 세션만」 확정이 없어서 새 세션 기본값까지 저장된다(2026-10-07 실측). 그래서 «전환 뒤 그 키들만 전환 전 값으로 되돌린다» — 다른 키나 다른 세션이 쓴 값은 건드리지 않고, 되돌려도 돌고 있는 세션은 모델을 유지한다(cursor 로 확인). `keepDefaults` 를 끄면 되돌리지 않는다.
 - 전환 전에 기본값 파일이 «없었으면»(그 에이전트를 처음 쓰는 경우) 전환 뒤 그 키들을 다시 없앤다. 파일이 있는데 «읽지 못하면» 되돌릴 값을 모르므로 아무것도 보내지 않고 멈춘다. opencode 의 파일 위치는 Slash Command 가 아니라 «그 세션의» `XDG_STATE_HOME` 을 따른다(세션마다 다르고 어느 쪽인지 좁힐 수 없으면 멈춘다).
