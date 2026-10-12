@@ -33,16 +33,16 @@ public enum AutomationConsent: Equatable, Sendable {
         return AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, ask)
     }
 
-    /// 묻지 않고 읽은 결과와, 그렇게 판단한 근거(기록용 — 실행 중인 앱을 못 찾았는지, 시스템이 준 번호가 무엇인지).
+    /// 묻지 않고 읽은 결과와 시스템이 준 번호(기록용).
     struct Reading: Sendable {
         let consent: AutomationConsent
         let detail: String
     }
 
+    /// 시스템에 바로 묻는다 — «실행 중인가» 를 `NSRunningApplication` 으로 먼저 거르지 않는다. 우리 앱이 켜진 «뒤» 에 뜬 앱을
+    /// 그 목록이 다른 스레드에서 못 볼 때가 있어, 맨 앞에 있는 터미널을 «실행 중이 아니다» 로 읽었다(2026-10-13 집 맥 2 의 Ghostty,
+    /// 2번에 2번 — 기록 `first check: no running app with that id`). 정말 실행 중이 아니면 시스템이 -600 을 준다.
     static func read(bundleID: String) -> Reading {
-        guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first != nil else {
-            return Reading(consent: .notRunning, detail: "no running app with that id")
-        }
         let raw = rawStatus(bundleID: bundleID)
         return Reading(consent: classify(raw), detail: "status \(raw)")
     }
