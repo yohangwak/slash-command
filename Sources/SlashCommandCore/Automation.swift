@@ -61,6 +61,10 @@ public enum AutomationConsent: Equatable, Sendable {
     }
 
     /// 허용 창이 떠 있음을 한 번만 알린다. 닫은 뒤에는 알리지 않는다.
+    ///
+    /// 알림은 잠근 채로 부른다 — 이미 시작된 알림이 있으면 `close()` 가 그것이 끝날 때까지 기다린다. 그러지 않으면 답이 바로
+    /// 그 순간에 왔을 때 부른 쪽의 결과 알림이 먼저 줄을 서고 뒤늦은 «허용해 주세요» 가 그것을 덮는다(#35 리뷰).
+    /// 그래서 알림(`willAsk`)은 금방 끝나야 하고 `ensure` 를 다시 불러서는 안 된다.
     private final class Notice: @unchecked Sendable {
         private let lock = NSLock()
         private var action: (() -> Void)?
@@ -70,18 +74,18 @@ public enum AutomationConsent: Equatable, Sendable {
 
         func fire() {
             lock.lock()
-            let run = action
+            defer { lock.unlock() }
+            guard let run = action else { return }
             action = nil
-            if run != nil { fired = true }
-            lock.unlock()
-            run?()
+            fired = true
+            run()
         }
 
         func fire(after seconds: TimeInterval) {
             DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + seconds) { self.fire() }
         }
 
-        /// 더는 알리지 않는다. 알렸으면 참.
+        /// 더는 알리지 않는다(시작된 알림은 끝난 뒤에 돌아온다). 알렸으면 참.
         func close() -> Bool {
             lock.lock()
             defer { lock.unlock() }
@@ -96,7 +100,8 @@ public enum AutomationConsent: Equatable, Sendable {
     /// 그 안에 누르지 못하면 창이 사라지고 답도 남지 않는다 — 누를 때마다 5초짜리 창이 떴다 사라진다(2026-10-12 집 맥 2 의 iTerm2 실측).
     /// 허용 창을 띄워 허락받았으면 참을 돌려준다(그동안 맨 앞 앱이 바뀌었을 수 있다 — 부른 쪽이 다시 확인한다).
     /// 이미 꺼져 있으면 `needsAutomation` 을 세운 오류를, 방금 창에서 거절했으면 그 표시 없는 오류를 던진다.
-    /// `willAsk` 는 허용 창이 뜰 때(또는 떠 있음을 알게 됐을 때) 한 번 불린다 — 다른 스레드에서 불릴 수 있다.
+    /// `willAsk` 는 허용 창이 뜰 때(또는 떠 있음을 알게 됐을 때) 한 번 불린다 — 다른 스레드에서 불릴 수 있고, 금방 끝나야 한다
+    /// (끝날 때까지 답을 돌려주지 않는다).
     /// `note` 는 허락이 «확인되지 않았을» 때 무엇을 보았는지 한 줄로 받는다(기록용 — 첫 확인의 근거와 물은 뒤의 번호가 붙는다).
     @discardableResult
     public static func ensure(bundleID: String, appName: String, willAsk: @escaping () -> Void = {}, note: (String) -> Void = { _ in }) throws -> Bool {

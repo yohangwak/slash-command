@@ -10,10 +10,13 @@ final class AutomationConsentTests: XCTestCase {
         var asked: [Bool] = []
         /// 물었을 때 답이 오기까지 걸리는 시간 — 허용 창이 떠 있는 동안을 흉내 낸다.
         var answerDelay: TimeInterval = 0
+        /// 물은 답을 돌려주기 직전에 불린다.
+        var beforeAnswer: () -> Void = {}
         init(_ answers: [AutomationConsent?]) { self.answers = answers }
         func status(_ bundleID: String, _ ask: Bool) -> AutomationConsent? {
             asked.append(ask)
             if ask, answerDelay > 0 { Thread.sleep(forTimeInterval: answerDelay) }
+            if ask { beforeAnswer() }
             return answers.removeFirst()
         }
     }
@@ -24,6 +27,14 @@ final class AutomationConsentTests: XCTestCase {
         private var count = 0
         func raise() { lock.lock(); count += 1; lock.unlock() }
         var raised: Int { lock.lock(); defer { lock.unlock() }; return count }
+    }
+
+    /// 여러 스레드에서 일어난 일의 순서.
+    private final class Order: @unchecked Sendable {
+        private let lock = NSLock()
+        private var list: [String] = []
+        func add(_ item: String) { lock.lock(); list.append(item); lock.unlock() }
+        var items: [String] { lock.lock(); defer { lock.unlock() }; return list }
     }
 
     func testClassifiesTheSystemAnswers() {
@@ -116,6 +127,31 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertTrue(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", willAsk: told.raise, lateAfter: 0.05, status: fake.status))
         Thread.sleep(forTimeInterval: 0.1)
         XCTAssertEqual(told.raised, 1)
+    }
+
+    /// 늦은 안내가 이미 시작됐으면, 그것이 끝난 뒤에야 답을 돌려준다 — 부른 쪽이 그다음에 띄우는 결과 알림을
+    /// 뒤늦은 «허용해 주세요» 가 덮지 않게(#35 리뷰: 답이 바로 그 순간에 오면 안내가 결과 뒤에 줄을 섰다).
+    func testAnswerWaitsForANoticeAlreadyUnderWay() {
+        let fake = Fake([.notRunning, .denied])
+        let started = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0), finished = DispatchSemaphore(value: 0)
+        let order = Order()
+        // 물은 답은 안내가 시작된 «뒤» 에 온다.
+        fake.beforeAnswer = { started.wait() }
+        let iterm = self.iterm
+        DispatchQueue.global().async {
+            _ = try? AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", willAsk: {
+                started.signal()
+                release.wait()
+                order.add("notice")
+            }, lateAfter: 0.01, status: fake.status)
+            order.add("answered")
+            finished.signal()
+        }
+        // 답은 왔지만 안내가 아직 끝나지 않았다 — 돌아오면 안 된다.
+        XCTAssertEqual(finished.wait(timeout: .now() + 0.4), .timedOut)
+        release.signal()
+        XCTAssertEqual(finished.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(order.items, ["notice", "answered"])
     }
 
     /// 허용 창이 닫히면 터미널이 곧 다시 맨 앞에 온다 — 그때까지 잠깐 기다린다.
