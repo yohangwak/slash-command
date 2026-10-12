@@ -96,18 +96,45 @@ public enum OrcaView {
         let element = AXUIElementCreateApplication(app.processIdentifier)
         // Chromium 은 접근성 요청이 있어야 웹 화면(DOM)을 트리에 내놓는다.
         AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
-        var tabs: [Strip.Tab] = []
-        for window in (attribute(element, "AXWindows") as? [AXUIElement]) ?? [] { collect(window, into: &tabs) }
-        return tabs.isEmpty ? nil : Strip(tabs: tabs)
+        let windows = ((attribute(element, "AXWindows") as? [AXUIElement]) ?? []).map(Node.init)
+        // 앱 요소는 «이미 본 것» 으로 넣어 둔다 — 창 아래에서 앱 요소가 다시 자식으로 나오는 때가 있다(아래 `tabs(from:…)`).
+        let tabs = tabs(from: windows, seen: [Node(element)],
+                        label: { (attribute($0.element, "AXTitle") as? String) ?? (attribute($0.element, "AXDescription") as? String) ?? "" },
+                        classes: { (attribute($0.element, "AXDOMClassList") as? [String]) ?? [] },
+                        children: { ((attribute($0.element, "AXChildren") as? [AXUIElement]) ?? []).map(Node.init) })
+        return tabs.flatMap { $0.isEmpty ? nil : Strip(tabs: $0) }
     }
 
-    private static func collect(_ element: AXUIElement, into tabs: inout [Strip.Tab]) {
-        let label = (attribute(element, "AXTitle") as? String) ?? (attribute(element, "AXDescription") as? String) ?? ""
-        if let tab = tab(fromLabel: label, classes: (attribute(element, "AXDOMClassList") as? [String]) ?? []) {
-            tabs.append(tab)
-            return
+    /// 접근성 요소 하나. 같은 요소인지는 `CFEqual` 로 본다(같은 요소를 다시 받아도 객체는 다르다).
+    struct Node: Hashable {
+        let element: AXUIElement
+        init(_ element: AXUIElement) { self.element = element }
+        static func == (a: Node, b: Node) -> Bool { CFEqual(a.element, b.element) }
+        func hash(into hasher: inout Hasher) { hasher.combine(CFHash(element)) }
+    }
+
+    /// 나무를 위에서 아래로, 형제는 차례대로 돌며 탭 버튼을 모은다. 탭 버튼의 안쪽은 보지 않는다.
+    ///
+    /// 🔴 이 나무는 «나무가 아닐» 때가 있다: Orca 의 창 아래에서 앱 요소가 다시 자식으로 나와 끝없이 이어진다
+    /// (2026-10-12 집 맥 실측: `AXApplication > AXApplication > …`, 깊이 6만 5천에서 스택이 넘쳐 프로그램이 죽었다).
+    /// 그래서 이미 본 요소로는 다시 들어가지 않고, 깊이와 요소 수에도 상한을 둔다.
+    /// 상한에 걸리면 못 본 탭이 있을 수 있으므로 «모른다»(nil)다 — 일부만 읽은 탭 줄로 탭을 짚지 않는다.
+    static func tabs<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
+                                  label: (N) -> String, classes: (N) -> [String], children: (N) -> [N]) -> [Strip.Tab]? {
+        var seen = seen
+        var tabs: [Strip.Tab] = []
+        var cut = false
+        func visit(_ node: N, depth: Int) {
+            guard !cut, seen.insert(node).inserted else { return }
+            guard depth <= maxDepth, seen.count <= maxNodes else { cut = true; return }
+            if let tab = tab(fromLabel: label(node), classes: classes(node)) {
+                tabs.append(tab)
+                return
+            }
+            for child in children(node) { visit(child, depth: depth + 1) }
         }
-        for child in (attribute(element, "AXChildren") as? [AXUIElement]) ?? [] { collect(child, into: &tabs) }
+        for root in roots { visit(root, depth: 0) }
+        return cut ? nil : tabs
     }
 
     /// `"<상태> <제목> Close tab <제목>"` 꼴의 탭 버튼. 제목은 «Close tab » 뒤의 것을 쓴다.
