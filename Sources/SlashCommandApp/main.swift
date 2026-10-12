@@ -23,6 +23,15 @@ if let flag = arguments.firstIndex(of: "--login-item") {
     exit(0)
 }
 
+// `SlashCommand --automation-status <번들 id>` — 개발용. 이 앱이 그 앱을 AppleScript 로 다뤄도 되는지 시스템의 답을 번호 그대로 찍는다(묻는 창은 띄우지 않는다).
+// 권한은 그 프로세스를 «띄운 앱» 을 따른다 — 터미널에서 바로 부르면 터미널의 답이 나온다. 앱 자신의 답은
+// `open -n -W -a "Slash Command" --stdout <파일> --args --automation-status <번들 id>` 로 본다.
+if let flag = arguments.firstIndex(of: "--automation-status"), arguments.count > flag + 1 {
+    let bundleID = arguments[flag + 1]
+    print("\(bundleID): \(AutomationConsent.rawStatus(bundleID: bundleID)) (\(AutomationConsent.status(bundleID: bundleID)))")
+    exit(0)
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 

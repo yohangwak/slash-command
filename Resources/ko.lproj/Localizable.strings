@@ -278,3 +278,8 @@
 "Could not type into iTerm2: %@" = "iTerm2 에 입력하지 못했습니다: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "이 OpenCode 모델에는 effort 단계가 없습니다(variant 가 없는 모델입니다).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "이 OpenCode 모델에는 variant 가 없어 effort(%@)는 정하지 않았습니다.";
+"Not sent: Automation for %@ is turned off. Turn it on in System Settings → Privacy & Security → Automation, then press again." = "보내지 않았습니다: %@ 자동화가 꺼져 있습니다. 시스템 설정 → 개인정보 보호 및 보안 → 자동화에서 켠 뒤 다시 눌러 주세요.";
+"Automation permission needed" = "자동화 권한이 필요합니다";
+"Allow Slash Command to control %@" = "Slash Command 가 %@ 를 제어하도록 허용해 주세요";
+"macOS is asking for permission. Click Allow and the switch continues." = "macOS 가 권한을 묻고 있습니다. 허용을 누르면 전환이 이어집니다.";
+"%@ is allowed now. Try again." = "%@ 제어가 허용됐습니다. 다시 해 주세요.";

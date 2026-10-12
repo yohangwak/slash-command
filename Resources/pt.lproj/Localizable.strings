@@ -278,3 +278,8 @@
 "Could not type into iTerm2: %@" = "Não foi possível digitar no iTerm2: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "Este modelo do OpenCode não tem níveis de effort (não tem variantes).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "Este modelo do OpenCode não tem variantes, então o effort (%@) não foi definido.";
+"Not sent: Automation for %@ is turned off. Turn it on in System Settings → Privacy & Security → Automation, then press again." = "Não enviado: a automação para %@ está desativada. Ative-a em Ajustes do Sistema → Privacidade e Segurança → Automação e pressione de novo.";
+"Automation permission needed" = "Permissão de Automação necessária";
+"Allow Slash Command to control %@" = "Permita que o Slash Command controle %@";
+"macOS is asking for permission. Click Allow and the switch continues." = "O macOS está pedindo permissão. Clique em Permitir e a troca continua.";
+"%@ is allowed now. Try again." = "%@ agora está permitido. Tente de novo.";

@@ -385,6 +385,8 @@ public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
     public var nothingToDo = false
     /// 손쉬운 사용 권한이 없어 보내지 않았다 — 앱은 그 권한을 켜는 설정 화면을 열어 준다.
     public var needsAccessibility = false
+    /// 자동화 권한이 꺼져 있어 보내지 않았다 — 앱은 그 권한을 켜는 설정 화면을 열어 준다.
+    public var needsAutomation = false
 
     public init(_ message: String) {
         self.message = message

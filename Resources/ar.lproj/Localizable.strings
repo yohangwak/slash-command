@@ -278,3 +278,8 @@
 "Could not type into iTerm2: %@" = "تعذّر الإدخال في iTerm2: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "ليس لهذا النموذج في OpenCode مستويات effort (لا توجد له variants).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "ليس لهذا النموذج في OpenCode أي variants، لذلك لم يُضبط effort (%@).";
+"Not sent: Automation for %@ is turned off. Turn it on in System Settings → Privacy & Security → Automation, then press again." = "لم يُرسل: أتمتة %@ متوقفة. فعّلها في إعدادات النظام ← الخصوصية والأمان ← الأتمتة ثم اضغط مرة أخرى.";
+"Automation permission needed" = "إذن الأتمتة مطلوب";
+"Allow Slash Command to control %@" = "اسمح لـ Slash Command بالتحكم في %@";
+"macOS is asking for permission. Click Allow and the switch continues." = "يطلب macOS الإذن. انقر على «السماح» وسيستمر التبديل.";
+"%@ is allowed now. Try again." = "أصبح التحكم في %@ مسموحًا. حاول مرة أخرى.";

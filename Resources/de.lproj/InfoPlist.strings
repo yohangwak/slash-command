@@ -1,1 +1,1 @@
-"NSAppleEventsUsageDescription" = "Slash Command gibt die Befehle für Modell und effort in das vorderste Ghostty-Terminal ein.";
+"NSAppleEventsUsageDescription" = "Slash Command gibt die Befehle für Modell und effort in das Terminal ein, das du gerade verwendest.";

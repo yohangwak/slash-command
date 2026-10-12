@@ -1,2 +1,2 @@
 /* 시스템이 자동화 권한을 물을 때 보여 주는 설명. */
-"NSAppleEventsUsageDescription" = "Slash Command 가 맨 앞 Ghostty 터미널에 모델·effort 전환 명령을 입력합니다.";
+"NSAppleEventsUsageDescription" = "Slash Command 가 지금 쓰는 터미널에 모델·effort 전환 명령을 입력합니다.";

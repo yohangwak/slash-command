@@ -167,6 +167,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Ghostty · iTerm2 를 다뤄도 되는지 확인한다. 아직 묻지 않았으면 여기서 묻고 답을 기다린다(작업 스레드에서 부른다).
+    /// 허용 창이 떠 있는 동안에는 그 창이 맨 앞이다 — 허락받은 뒤 터미널이 다시 맨 앞에 오지 않으면(그사이 다른 앱으로 갔다) 보내지 않는다.
+    private func confirmAutomation(bundleID: String, appName: String, action: Action) throws {
+        let asked = try AutomationConsent.ensure(bundleID: bundleID, appName: appName, willAsk: {
+            DispatchQueue.main.async {
+                self.hud.show(loc("Allow Slash Command to control %@", appName),
+                              detail: loc("macOS is asking for permission. Click Allow and the switch continues."), seconds: nil)
+            }
+        }, note: { Log.write("\(action.label): \($0)") })
+        guard asked else { return }
+        Log.write("\(action.label): automation \(appName): allowed")
+        try AutomationConsent.requireFront(bundleID: bundleID, appName: appName)
+    }
+
     private func perform(_ action: Action) {
         guard !busy else {
             hud.show(loc("Still switching"), detail: loc("Press again when it is done."))
@@ -201,6 +215,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     }
                 }
                 switcher = made
+                try self.confirmAutomation(bundleID: bundleID, appName: appName, action: action)
+                trace.mark("automation")
                 let target = try Detector.target(bundleID: bundleID, appName: appName)
                 trace.mark("find target")
                 switch action {
@@ -235,6 +251,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     Log.write("failed \(action.label): no Accessibility permission — opened System Settings")
                     Permissions.openAccessibility()
                     self.hud.show(loc("Accessibility permission needed"), detail: "\(error)", seconds: 6)
+                case .failure(let error as SlashCommandError) where error.needsAutomation:
+                    // 자동화가 꺼져 있다 — 시스템은 다시 묻지 않으므로 그 설정 화면을 바로 열어 준다(아무것도 보내지 않았다).
+                    Log.write("failed \(action.label): Automation is off for \(appName) — opened System Settings")
+                    Permissions.openAutomation()
+                    self.hud.show(loc("Automation permission needed"), detail: "\(error)", seconds: 6)
                 case .failure(let error):
                     Log.write("failed \(action.label): \(error)")
                     self.hud.show(loc("Not switched"), detail: "\(error)", seconds: 5)
