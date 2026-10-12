@@ -229,26 +229,10 @@ public struct ITermIO: TerminalIO {
         return kept.reversed()
     }
 
-    /// 터미널 칸 수로 센 폭: 한글·한자·가나·전각 글자·이모지는 2칸, 결합 문자와 폭 없는 글자는 0칸, ASCII 는 1칸.
-    /// 그 밖의 글자(상자 선 `─` · `›` · `·` · `❯` 같은 «모호한 폭» 글자가 여기 든다)는 프로필 설정에 따라 1칸 또는 2칸이다.
+    /// 터미널 칸 수로 센 폭(`CharacterWidth` 의 표): 넓은 글자 2칸, 결합 문자 0칸, «모호한 폭» 글자(`─` · `·` · `●` …)는 프로필 설정에 따라 1칸 또는 2칸,
+    /// 나머지는 1칸 — `›` · `❯` 는 모호한 폭이 아니라서 그 설정을 켜도 1칸이다(PR #27 세 번째 리뷰: 전부 2칸으로 세면 꼭 맞는 커서 행이 2행이 된다).
     static func displayWidth(_ text: String, ambiguousIsDoubleWidth: Bool) -> Int {
-        text.unicodeScalars.reduce(0) { $0 + width(of: $1, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth) }
-    }
-
-    static func width(of scalar: Unicode.Scalar, ambiguousIsDoubleWidth: Bool) -> Int {
-        let value = scalar.value
-        if value < 0x80 { return 1 }
-        switch value {
-        case 0x0300...0x036F, 0x200B...0x200F, 0x2060...0x2064, 0xFE00...0xFE0F, 0xFEFF, 0xE0100...0xE01EF:
-            return 0
-        case 0x1100...0x115F, 0x2E80...0x303E, 0x3041...0x33FF, 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xA000...0xA4CF, 0xA960...0xA97F,
-             0xAC00...0xD7A3, 0xF900...0xFAFF, 0xFE30...0xFE4F, 0xFF00...0xFF60, 0xFFE0...0xFFE6,
-             0x1F300...0x1F64F, 0x1F680...0x1F6FF, 0x1F900...0x1FAFF, 0x20000...0x3FFFD:
-            return 2
-        default:
-            // 어느 글자가 «모호한 폭» 인지 표를 두지 않는다 — 2칸 프로필에서는 ASCII 가 아닌 나머지를 전부 2칸으로 센다(많이 세는 쪽).
-            return ambiguousIsDoubleWidth ? 2 : 1
-        }
+        text.unicodeScalars.reduce(0) { $0 + CharacterWidth.cells($1, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth) }
     }
 }
 
@@ -271,14 +255,20 @@ enum ITermProfile {
         // 설정 파일의 보통 프로필은 그 키가 없으면 꺼진 것이다. 동적 프로필은 적지 않은 값을 부모에게서 물려받는다.
         guard profile["__dynamic"] as? Bool == true else { return false }
         guard depth < 4 else { return nil }
-        let parent: [String: Any]?
-        if let parentName = profile["Dynamic Profile Parent Name"] as? String {
-            let parents = store.profiles.filter { $0["Name"] as? String == parentName }
-            parent = parents.count == 1 ? parents.first : nil
-        } else if let parentGUID = (profile["Dynamic Profile Parent GUID"] as? String) ?? store.defaultGUID {
-            parent = store.profiles.first { $0["Guid"] as? String == parentGUID }
-        } else {
-            parent = nil
+        // iTerm2 는 부모를 GUID 로 먼저 찾고, 못 찾으면 이름으로 찾는다(v3.7.3 `prototypeForDynamicProfile` — PR #27 세 번째 리뷰).
+        // 둘 다 적지 않았으면 기본 프로필이다. 부모를 적었는데 못 찾으면 모른다고 답한다(iTerm2 는 기본 프로필로 가지만, 틀릴 수 있는 답보다 2칸 쪽).
+        let parentGUID = profile["Dynamic Profile Parent GUID"] as? String
+        let parentName = profile["Dynamic Profile Parent Name"] as? String
+        var parent: [String: Any]?
+        if let parentGUID { parent = store.profiles.first { $0["Guid"] as? String == parentGUID } }
+        if parent == nil, let parentName {
+            let named = store.profiles.filter { $0["Name"] as? String == parentName }
+            let values = Set(named.map { value(of: $0, in: store, depth: depth + 1) })
+            // 같은 이름의 부모가 여럿이면 값이 같을 때만 쓴다.
+            return !named.isEmpty && values.count == 1 ? values.first! : nil
+        }
+        if parent == nil, parentGUID == nil, parentName == nil, let defaultGUID = store.defaultGUID {
+            parent = store.profiles.first { $0["Guid"] as? String == defaultGUID }
         }
         return parent.flatMap { value(of: $0, in: store, depth: depth + 1) }
     }

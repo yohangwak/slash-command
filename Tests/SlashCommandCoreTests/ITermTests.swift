@@ -113,7 +113,12 @@ final class ITermScreenTests: XCTestCase {
         // 2칸 프로필에서는 같은 줄이 2행씩이다: 4행 화면 = 구분선(2) + 입력 줄(1) — 그 위의 구분선(2)은 다 들어오지 않는다.
         XCTAssertEqual(visible(output(rows: 4, columns: 80, contents), wide: true), ["❯ ", separator])
         XCTAssertEqual(ITermIO.displayWidth("› 1. GPT · x", ambiguousIsDoubleWidth: false), 12)
-        XCTAssertEqual(ITermIO.displayWidth("› 1. GPT · x", ambiguousIsDoubleWidth: true), 14)
+        // `·`(U+00B7)는 모호한 폭이라 2칸이 되지만 `›`(U+203A) · `❯`(U+276F)는 아니다 — 그 설정을 켜도 1칸.
+        XCTAssertEqual(ITermIO.displayWidth("› 1. GPT · x", ambiguousIsDoubleWidth: true), 13)
+        XCTAssertEqual(ITermIO.displayWidth("❯ ›", ambiguousIsDoubleWidth: true), 3)
+        XCTAssertEqual(ITermIO.displayWidth("─●…", ambiguousIsDoubleWidth: true), 6)
+        XCTAssertEqual(ITermIO.displayWidth("─●…", ambiguousIsDoubleWidth: false), 3)
+        XCTAssertEqual(ITermIO.displayWidth("🙂", ambiguousIsDoubleWidth: false), 2)
         XCTAssertEqual(ITermIO.displayWidth("한글 ok", ambiguousIsDoubleWidth: false), 7)
         XCTAssertEqual(ITermIO.displayWidth("e\u{301}", ambiguousIsDoubleWidth: true), 1, "결합 문자는 칸을 차지하지 않는다")
         XCTAssertEqual(ITermIO.displayWidth("全角ａ", ambiguousIsDoubleWidth: false), 6)
@@ -134,6 +139,19 @@ final class ITermScreenTests: XCTestCase {
         let open = try XCTUnwrap(Picker.open(screen))
         XCTAssertTrue(open.header.hasPrefix("Select Model and Effort"))
         XCTAssertEqual(open.rows.count, 7)
+    }
+
+    /// PR #27 세 번째 리뷰: 2칸 프로필(프로필을 모를 때도 이렇게 센다)에서도 화면에 다 보이는 선택창의 머리말을 잃지 않는다.
+    /// 커서 행의 `›` 는 모호한 폭이 아니라 38칸 한 행이고, 안내 줄의 `·` 만 2칸이 되어 2행이다 — 선택창은 13행에 꼭 맞는다.
+    func testAPickerKeepsItsHeaderInADoubleWidthProfileToo() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "codex-38-models", withExtension: "json", subdirectory: "Fixtures"))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let picker = Array(try XCTUnwrap(object["tail"] as? [String]).suffix(12))
+        let screen = try XCTUnwrap(visible(output(rows: 13, columns: 38, ["• old output", "› old prompt"] + picker), wide: true))
+        XCTAssertEqual(screen, picker)
+        XCTAssertTrue(try XCTUnwrap(Picker.open(screen)).header.hasPrefix("Select Model and Effort"))
+        // 한 행 모자라면(12행) 맨 윗줄은 정말 화면 밖이다.
+        XCTAssertEqual(visible(output(rows: 12, columns: 38, picker), wide: true)?.count, 11)
     }
 
     /// PR #27 재리뷰: 「Ambiguous characters are double-width」 프로필에서 화면 밖의 입력창을 화면으로 읽지 않는다.
@@ -191,6 +209,22 @@ final class ITermProfileTests: XCTestCase {
         XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "Dyn default", in: all), false, "부모를 적지 않으면 기본 프로필")
         XCTAssertNil(ITermProfile.ambiguousIsDoubleWidth(named: "Dyn orphan", in: all), "부모를 못 찾으면 모른다")
         XCTAssertTrue(ITermProfile.dynamicProfiles(in: Data("not a profile file".utf8)).isEmpty)
+    }
+
+    /// PR #27 세 번째 리뷰: 부모는 GUID 로 먼저 찾는다(iTerm2 와 같은 순서). 이름의 부모(1칸)와 GUID 의 부모(2칸)가 다르면 GUID 쪽이다.
+    func testDynamicParentIsFoundByGUIDBeforeName() {
+        let base: [[String: Any]] = [["Name": "Narrow", "Guid": "G-narrow", "Ambiguous Double Width": false],
+                                     ["Name": "Wide", "Guid": "G-wide", "Ambiguous Double Width": true]]
+        let json = #"{"Profiles":[{"Name":"Child","Guid":"D1","Dynamic Profile Parent Name":"Narrow","Dynamic Profile Parent GUID":"G-wide"},{"Name":"Stale guid","Guid":"D2","Dynamic Profile Parent Name":"Wide","Dynamic Profile Parent GUID":"G-gone"}]}"#
+        let all = store(base + ITermProfile.dynamicProfiles(in: Data(json.utf8)))
+        let wide = ITermProfile.ambiguousIsDoubleWidth(named: "Child", in: all)
+        XCTAssertEqual(wide, true)
+        XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "Stale guid", in: all), true, "GUID 로 못 찾으면 이름으로")
+        // 그 답으로 화면을 자르면 화면 밖의 입력창은 들어오지 않는다.
+        let rule = String(repeating: "─", count: 80)
+        let screen = ITermIO.visibleLines(from: "4\n80\n" + [rule, "❯ ", rule, rule].joined(separator: "\n") + "\n", ambiguousIsDoubleWidth: wide ?? true)
+        XCTAssertEqual(screen, [rule, rule])
+        XCTAssertFalse(Readiness.claudePromptVisible(screen ?? []))
     }
 }
 
