@@ -96,15 +96,6 @@ func spawnDetached(_ arguments: [String], wait: Bool = true) throws {
     if wait { process.waitUntilExit() }
 }
 
-/// `run` 이 세션을 여는 «이 터미널». 환경변수로 알고, Ghostty 는 지금 포커스된 터미널이 이 폴더일 때 그것으로 본다
-/// (명령을 친 터미널이 포커스돼 있다 — 쓰기는 그 터미널이 계속 맨 앞에 있을 때만 된다).
-func launchTerminal() throws -> TerminalHost? {
-    let environment = ProcessInfo.processInfo.environment
-    if let host = Launch.currentTerminal(environment: environment) { return host }
-    guard environment["TERM_PROGRAM"] == "ghostty" else { return nil }
-    return Detector.ghosttyFocusedTerminal(inDirectory: FileManager.default.currentDirectoryPath).map { .ghostty(terminalID: $0) }
-}
-
 func describe(_ step: Step) -> String {
     switch step {
     case .text(let text): return "type    \(text.debugDescription)"
@@ -178,10 +169,12 @@ do {
             let help = Proc.run("/usr/bin/env", ["opencode", "--help"], timeout: 20)
             if help.ok, !Launch.openCodeTakesModel(help: help.out + help.err) {
                 let extra = Array(args.dropFirst(dryRun ? 4 : 3))
-                guard let host = try launchTerminal() else {
-                    fail("this OpenCode version has no option to choose the model when it opens (`opencode --help` lists no --model), and this terminal cannot be addressed to switch after it opens (Ghostty · Orca · iTerm2 · WezTerm · kitty with remote control · tmux can). Open the session, then switch with the shortcut.")
+                // 이 터미널이 무엇인지는 환경변수로만 안다(포커스나 폴더로 짐작하지 않는다 — 같은 폴더의 다른 터미널일 수 있다. PR #29 리뷰).
+                guard let host = Launch.currentTerminal(environment: ProcessInfo.processInfo.environment), let launched = Follow.Launched.current() else {
+                    fail("this OpenCode version has no option to choose the model when it opens (`opencode --help` lists no --model), and this terminal cannot be addressed to switch after it opens (Orca · iTerm2 · WezTerm · kitty with remote control · tmux can; Ghostty gives a session no way to know its own terminal). Open the session, then switch with the shortcut.")
                 }
-                let follow = ["follow", String(slot)] + Launch.targetArguments(host: host, agent: agent)
+                // 일꾼은 «이 프로세스»(곧 opencode 가 된다)가 살아 있는 동안만 따른다.
+                let follow = ["follow", String(slot), "--launched", launched.argument] + Launch.targetArguments(host: host, agent: agent)
                 let command = [agent.executable] + extra
                 if dryRun {
                     print(command.joined(separator: " "))
@@ -240,8 +233,10 @@ do {
         if args.contains("--detach") {
             try spawnDetached(args.filter { $0 != "--detach" }, wait: false)
         } else {
-            guard let target = try explicitTarget(args) else { fail("slashcommand follow needs a target") }
-            let outcome = Follow.run(slot: slot, target: target, config: try store.load())
+            guard let target = try explicitTarget(args), let launched = value(after: "--launched", in: args).flatMap(Follow.Launched.init(argument:)) else {
+                fail("slashcommand follow needs a target and --launched <pid:start>")
+            }
+            let outcome = Follow.run(slot: slot, target: target, launched: launched, config: try store.load())
             Follow.log("run \(slot) \(target.agent.rawValue)@\(target.host.appName): \(outcome)")
         }
     case "keep-defaults":

@@ -414,6 +414,46 @@ final class FollowTests: XCTestCase {
         XCTAssertEqual(applied, 0)
     }
 
+    /// PR #29 리뷰: 연 세션이 끝났으면(실패 · 사용자가 끔) 일꾼은 그만둔다 — 같은 터미널에 다른 세션이 떠서 입력창이 보여도 쓰지 않는다.
+    func testStopsWhenTheLaunchedSessionIsGone() {
+        var alive = [true, true, false]
+        var applied = 0
+        let outcome = Follow.run(timeoutMs: 5000, pollMs: 100, sleep: { _ in },
+                                 alive: { alive.isEmpty ? false : alive.removeFirst() }, ready: { false }, apply: { applied += 1; return "" })
+        XCTAssertTrue(outcome.hasPrefix("not applied — the session this was opened for is no longer running"), outcome)
+        XCTAssertEqual(applied, 0)
+        // 입력창이 두 번 보인 뒤, 적용 직전에 끝난 경우도 같다.
+        var checks = 0
+        let late = Follow.run(timeoutMs: 5000, pollMs: 100, sleep: { _ in }, alive: { checks += 1; return checks <= 2 }, ready: { true },
+                              apply: { applied += 1; return "" })
+        XCTAssertTrue(late.hasPrefix("not applied — the session this was opened for"), late)
+        XCTAssertEqual(applied, 0)
+        // 한 번도 그 에이전트가 된 적이 없으면(여는 데 실패) 5초 뒤에 그만둔다 — 그동안 다른 세션의 입력창이 보여도 쓰지 않는다.
+        var slept = 0
+        let never = Follow.run(timeoutMs: 30_000, pollMs: 250, sleep: { slept += $0 }, alive: { false }, ready: { true }, apply: { applied += 1; return "" })
+        XCTAssertTrue(never.hasPrefix("not applied — the session this was opened for"), never)
+        XCTAssertEqual(slept, 5000)
+        XCTAssertEqual(applied, 0)
+    }
+
+    func testTheLaunchedProcessIsKnownByPIDAndStartTime() {
+        let launched = Follow.Launched(pid: 4242, started: 1_791_000_000_123_456)
+        XCTAssertEqual(Follow.Launched(argument: launched.argument), launched)
+        XCTAssertNil(Follow.Launched(argument: "4242"))
+        XCTAssertNil(Follow.Launched(argument: "x:y"))
+        func entry(_ pid: Int32, foreground: Bool = true, _ arguments: String...) -> ProcessTable.Entry {
+            ProcessTable.Entry(pid: pid, parent: 1, hasTerminal: true, terminalDevice: 1, processGroup: pid, foregroundGroup: foreground ? pid : 1,
+                               arguments: arguments, environment: [], executable: "")
+        }
+        let same: (Int32) -> UInt64? = { $0 == 4242 ? 1_791_000_000_123_456 : nil }
+        XCTAssertTrue(launched.isRunning(.opencode, entries: [entry(4242, "opencode")], startTime: same))
+        XCTAssertFalse(launched.isRunning(.opencode, entries: [entry(4242, "slashcommand", "run", "2", "opencode")], startTime: same), "아직 exec 전")
+        XCTAssertFalse(launched.isRunning(.opencode, entries: [entry(4242, "opencode")], startTime: { _ in 7 }), "같은 pid 의 다른 프로세스")
+        XCTAssertFalse(launched.isRunning(.opencode, entries: [entry(4242, foreground: false, "opencode")], startTime: same), "Ctrl-Z 로 멈춰 둔 세션")
+        XCTAssertFalse(launched.isRunning(.opencode, entries: [entry(9, "opencode")], startTime: same), "다른 opencode 는 그 세션이 아니다")
+        XCTAssertFalse(launched.isRunning(.opencode, entries: [], startTime: { _ in nil }), "끝났다")
+    }
+
     func testReportsWhyTheSwitchFailed() {
         let outcome = Follow.run(timeoutMs: 1000, pollMs: 250, sleep: { _ in }, ready: { true },
                                  apply: { throw SlashCommandError("no such row") })

@@ -109,22 +109,6 @@ public enum Detector {
         return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
     }
 
-    /// Ghostty 에서 지금 포커스된 터미널의 id — 그 터미널의 작업 폴더가 `directory` 일 때만(명령을 친 터미널인지의 대조).
-    public static func ghosttyFocusedTerminal(inDirectory directory: String) -> String? {
-        let script = """
-        tell application "Ghostty"
-            if (count of windows) is 0 then return ""
-            set t to focused terminal of selected tab of front window
-            return (id of t) & linefeed & (working directory of t)
-        end tell
-        """
-        let result = GhosttyIO.osascript(script)
-        let parts = result.out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        guard result.ok, parts.count == 2, !parts[0].isEmpty,
-              URL(fileURLWithPath: parts[1]).standardizedFileURL.path == URL(fileURLWithPath: directory).standardizedFileURL.path else { return nil }
-        return parts[0]
-    }
-
     /// 화면에 입력창이 «보이는» 에이전트. 하나로 정해지지 않으면(둘 다 보이거나 하나도 안 보이면) nil.
     static func agent(onScreen lines: [String]) -> Agent? {
         let visible = Agent.allCases.filter { Readiness.inputVisible(agent: $0, screen: lines) }

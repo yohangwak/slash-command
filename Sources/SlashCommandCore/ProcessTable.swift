@@ -42,6 +42,14 @@ enum ProcessTable {
         return (entries, parents)
     }
 
+    /// 그 프로세스가 시작한 시각(초 · 마이크로초를 한 수로). `exec` 로 다른 프로그램이 돼도 그대로다 — pid 가 다시 쓰였는지 가릴 때 쓴다.
+    static func startTime(of pid: Int32) -> UInt64? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return info.pbi_start_tvsec * 1_000_000 + info.pbi_start_tvusec
+    }
+
     static func executablePath(of pid: Int32) -> String {
         var buffer = [CChar](repeating: 0, count: 4096)
         let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
