@@ -278,3 +278,8 @@
 "Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";
 "This OpenCode model has no effort levels (it has no variants)." = "此 OpenCode 模型没有 effort 档位（该模型没有 variant）。";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "此 OpenCode 模型没有 variant，因此未设置 effort（%@）。";
+"Not sent: Automation for %@ is turned off. Turn it on in System Settings → Privacy & Security → Automation, then press again." = "未发送：%@ 的自动化已关闭。请在“系统设置”→“隐私与安全性”→“自动化”中打开后再按一次。";
+"Automation permission needed" = "需要自动化权限";
+"Allow Slash Command to control %@" = "请允许 Slash Command 控制 %@";
+"macOS is asking for permission. Click Allow and the switch continues." = "macOS 正在请求权限。点按“允许”后将继续切换。";
+"%@ is allowed now. Press the shortcut again." = "已允许控制 %@。请再按一次快捷键。";

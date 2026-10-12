@@ -278,3 +278,8 @@
 "Could not type into iTerm2: %@" = "iTerm2 に入力できませんでした: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "この OpenCode モデルには effort の段階がありません(variant のないモデルです)。";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "この OpenCode モデルには variant がないため、effort(%@)は設定しませんでした。";
+"Not sent: Automation for %@ is turned off. Turn it on in System Settings → Privacy & Security → Automation, then press again." = "送信しませんでした: %@ のオートメーションがオフです。システム設定 → プライバシーとセキュリティ → オートメーションでオンにしてから、もう一度押してください。";
+"Automation permission needed" = "オートメーションの許可が必要です";
+"Allow Slash Command to control %@" = "Slash Command による %@ の制御を許可してください";
+"macOS is asking for permission. Click Allow and the switch continues." = "macOS が許可を求めています。「許可」をクリックすると切り替えが続行されます。";
+"%@ is allowed now. Press the shortcut again." = "%@ の制御が許可されました。もう一度ショートカットを押してください。";

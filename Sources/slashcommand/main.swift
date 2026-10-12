@@ -39,9 +39,17 @@ func value(after flag: String, in args: [String]) -> String? {
     return args[index + 1]
 }
 
+/// 자동화 허용 창이 뜨기 직전에 알린다 — 답할 때까지 기다리므로 멈춘 것처럼 보이지 않게.
+func noteAutomationPrompt() {
+    FileHandle.standardError.write(Data("macOS is asking whether this terminal may control that app — answer the prompt…\n".utf8))
+}
+
 func explicitTarget(_ args: [String]) throws -> Target? {
     // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다 — 단축키가 가는 길 그대로(ssh 로 시험할 때).
-    if let bundle = value(after: "--bundle", in: args) { return try Detector.target(bundleID: bundle, appName: bundle) }
+    if let bundle = value(after: "--bundle", in: args) {
+        try AutomationConsent.ensure(bundleID: bundle, appName: bundle, willAsk: noteAutomationPrompt)
+        return try Detector.target(bundleID: bundle, appName: bundle)
+    }
     let orca = value(after: "--orca", in: args)
     let ghostty = value(after: "--ghostty", in: args)
     let named = value(after: "--agent", in: args).flatMap(Agent.init(rawValue:))
@@ -132,7 +140,7 @@ do {
         switcher.onAwaitingUser = { model in
             FileHandle.standardError.write(Data("claude is asking whether to switch to \(model) — choose Enter (switch) or 2 (cancel) in that terminal…\n".utf8))
         }
-        let target = try explicitTarget(args) ?? Detector.frontmost()
+        let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
         trace?.mark("find target")
         defer { if let trace { print("timing: " + trace.report) } }
         let result = try switcher.apply(slot: slot, to: target)
@@ -146,7 +154,7 @@ do {
         var switcher = Switcher(config: try store.load())
         let trace = args.contains("--trace") ? Trace() : nil
         switcher.trace = trace
-        let target = try explicitTarget(args) ?? Detector.frontmost()
+        let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
         trace?.mark("find target")
         defer { if let trace { print("timing: " + trace.report) } }
         switcher.onAwaitingUser = { value in
@@ -249,13 +257,13 @@ do {
             LaunchDefaults.keep(agent: agent, ticket: args[2], rounds: 400, sleep: { usleep(UInt32($0) * 1000) })
         }
     case "where":
-        let target = try explicitTarget(args) ?? Detector.frontmost()
+        let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         if case .orca = target.host, let payload = try? Detector.orcaTerminals(), let found = try? Detector.orcaActive(payload: payload) {
             print("visible via   \(found.source)")
         }
     case "doctor":
-        let target = try explicitTarget(args) ?? Detector.frontmost()
+        let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
         print("target        \(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         if case .ghostty = target.host { print("accessibility \(GhosttyScreen.trusted() ? "allowed" : "not allowed")") }
         if case .iterm = target.host {

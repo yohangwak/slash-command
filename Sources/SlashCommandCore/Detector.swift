@@ -43,13 +43,16 @@ public enum Detector {
     public static let orcaBundleID = "com.stablyai.orca"
     public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID, itermBundleID, weztermBundleID, kittyBundleID]
 
-    /// 지금 맨 앞 앱의 맨 앞 터미널과 그 안의 에이전트.
-    public static func frontmost() throws -> Target {
+    /// 지금 맨 앞 앱의 맨 앞 터미널과 그 안의 에이전트. AppleScript 로 다루는 터미널이면 자동화 허락부터 확인한다
+    /// (아직 묻지 않았으면 `willAskAutomation` 을 부른 뒤 허용 창의 답을 기다린다 — `AutomationConsent.ensure`).
+    public static func frontmost(willAskAutomation: () -> Void = {}) throws -> Target {
         guard let app = NSWorkspace.shared.frontmostApplication,
               let bundleID = app.bundleIdentifier else {
             throw SlashCommandError(loc("Cannot tell which app is in front."))
         }
-        return try target(bundleID: bundleID, appName: app.localizedName ?? bundleID)
+        let appName = app.localizedName ?? bundleID
+        try AutomationConsent.ensure(bundleID: bundleID, appName: appName, willAsk: willAskAutomation)
+        return try target(bundleID: bundleID, appName: appName)
     }
 
     public static func target(bundleID: String, appName: String) throws -> Target {

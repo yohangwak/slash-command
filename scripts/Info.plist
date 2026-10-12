@@ -27,6 +27,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Slash Command types the model and effort commands into the frontmost Ghostty terminal.</string>
+    <string>Slash Command types the model and effort commands into the terminal you are using.</string>
 </dict>
 </plist>

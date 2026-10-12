@@ -26,27 +26,11 @@ enum Permissions {
         NSWorkspace.shared.open(automationPane)
     }
 
-    enum Automation: Equatable {
-        case allowed
-        case denied
-        /// 아직 물은 적이 없다 — 처음 쓸 때 시스템이 묻는다.
-        case notAsked
-        case notRunning
-    }
+    typealias Automation = AutomationConsent
 
     /// Slash Command 가 그 앱을 AppleScript 로 다뤄도 되는가. 묻는 창은 띄우지 않는다.
     /// 대상 앱이 응답하지 않으면 오래 걸릴 수 있으므로 주 스레드 밖에서 부른다.
-    static func automation(bundleID: String) -> Automation {
-        guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first != nil else { return .notRunning }
-        let target = NSAppleEventDescriptor(bundleIdentifier: bundleID)
-        let status = AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, false)
-        switch status {
-        case noErr: return .allowed
-        case OSStatus(errAEEventNotPermitted): return .denied
-        case OSStatus(procNotFound): return .notRunning
-        default: return .notAsked     // errAEEventWouldRequireUserConsent(-1744) 등
-        }
-    }
+    static func automation(bundleID: String) -> Automation { AutomationConsent.status(bundleID: bundleID) }
 
     /// AppleScript 로 다루는 터미널들(이름, 번들 id).
     static let automatedTerminals: [(name: String, bundleID: String)] = [("Ghostty", Detector.ghosttyBundleID), ("iTerm2", Detector.itermBundleID)]
