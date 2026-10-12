@@ -197,9 +197,22 @@ public struct ITermIO: TerminalIO {
         guard result.ok, result.out != ITermIO.missing else { return nil }
         let head = result.out.replacingOccurrences(of: "\r", with: "\n").split(separator: "\n", maxSplits: 3, omittingEmptySubsequences: false)
         guard head.count == 4 else { return nil }
-        // 그 프로필이 «모호한 폭» 글자를 몇 칸으로 그리는지 모르면 2칸으로 센다 — 화면 밖의 줄을 화면으로 읽지 않는 쪽.
-        let wide = ITermProfile.ambiguousIsDoubleWidth(named: String(head[2]), in: ITermProfile.all()) ?? true
-        return ITermIO.visibleLines(from: "\(head[0])\n\(head[1])\n\(head[3])", ambiguousIsDoubleWidth: wide)
+        let profile = ITermProfile.ambiguousIsDoubleWidth(named: String(head[2]), in: ITermProfile.all())
+        return ITermIO.screenLines(from: "\(head[0])\n\(head[1])\n\(head[3])", profileIsDoubleWidth: profile)
+    }
+
+    /// 지금 화면의 줄들. `profileIsDoubleWidth` 는 그 세션 프로필의 «모호한 폭 글자 2칸» 설정(모르면 nil).
+    ///
+    /// - 2칸이거나 모르면: 2칸으로 센 화면(보이는 줄만 들어 있다 — 화면 밖의 줄을 화면으로 읽지 않는 쪽).
+    /// - 1칸이면: 1칸으로 센 화면. 단, 그 화면에서는 입력창이 보이는데 2칸으로 센 화면에서는 안 보이면 2칸 쪽을 돌려준다.
+    ///   프로필은 1칸이어도 그 세션만 따로 2칸으로 바꿨을 수 있고(Edit Session… — 프로필 이름으로는 알 수 없다), 그때 1칸으로 센 화면에는
+    ///   화면 밖의 입력창이 들어 있을 수 있다. 2칸으로 센 화면의 줄은 어느 설정에서든 «정말 보이는» 줄이므로, 입력을 허락하는 판정(입력창이 보인다)은
+    ///   거기서도 성립할 때만 통과한다(PR #27 리뷰). 선택창처럼 입력창이 없는 화면은 1칸 쪽 그대로다 — 꼭 맞게 들어찬 선택창의 머리말을 잃지 않는다.
+    static func screenLines(from output: String, profileIsDoubleWidth: Bool?) -> [String]? {
+        guard let safe = visibleLines(from: output, ambiguousIsDoubleWidth: true) else { return nil }
+        guard profileIsDoubleWidth == false, let generous = visibleLines(from: output, ambiguousIsDoubleWidth: false), generous != safe else { return safe }
+        let onlyInGenerous = Agent.allCases.contains { Readiness.inputVisible(agent: $0, screen: generous) && !Readiness.inputVisible(agent: $0, screen: safe) }
+        return onlyInGenerous ? safe : generous
     }
 
     /// `"<rows>\n<columns>\n<contents>"` 에서 지금 화면의 줄들. 줄·칸 수를 못 읽으면 nil(스크롤백이 섞인 글을 현재 화면으로 쓰지 않는다).

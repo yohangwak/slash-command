@@ -188,6 +188,34 @@ final class ITermScreenTests: XCTestCase {
         XCTAssertTrue(Readiness.claudePromptVisible(visible(contents, wide: false) ?? []))
     }
 
+    /// PR #27 리뷰(미해결로 남았던 것): 프로필은 1칸인데 그 세션만 2칸으로 바꾼 경우(Edit Session…)는 프로필 이름으로 알 수 없다.
+    /// 입력창이 1칸으로 센 화면에만 있으면(2칸으로 세면 화면 밖) 입력을 허락하지 않는다.
+    func testAPromptSeenOnlyUnderTheNarrowReadingDoesNotAuthorizeInput() throws {
+        let rule = String(repeating: "─", count: 80)
+        let stale = output(rows: 4, columns: 80, [rule, "❯ ", rule, rule])
+        let screen = try XCTUnwrap(ITermIO.screenLines(from: stale, profileIsDoubleWidth: false))
+        XCTAssertEqual(screen, [rule, rule], "프로필이 1칸이라고 해도 2칸으로 센 화면을 돌려준다")
+        XCTAssertFalse(Readiness.claudePromptVisible(screen))
+        // 양성 대조군: 2칸으로 세어도 보이는 입력창(7행이면 구분선 2+2 · 입력 1 · 상태 2 가 들어간다)은 그대로 허락한다 — 1칸 쪽 화면으로.
+        let live = output(rows: 9, columns: 80, ["old", rule, "❯ ", rule, "  status | Opus 5.5 · high", "  ⏵⏵ auto mode on (shift+tab to cycle)"])
+        let ready = try XCTUnwrap(ITermIO.screenLines(from: live, profileIsDoubleWidth: false))
+        XCTAssertTrue(Readiness.claudePromptVisible(ready))
+        XCTAssertEqual(ready.first, "old", "1칸으로 센 화면(윗줄까지)")
+    }
+
+    func testPickerScreensStayOnTheNarrowReadingAndUnknownProfilesOnTheWideOne() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "codex-38-models", withExtension: "json", subdirectory: "Fixtures"))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let picker = Array(try XCTUnwrap(object["tail"] as? [String]).suffix(12))
+        let contents = output(rows: 12, columns: 38, ["• old output"] + picker)
+        // 1칸 프로필: 입력창이 없는 화면(선택창)은 1칸으로 센 것 그대로 — 머리말이 남는다.
+        XCTAssertEqual(ITermIO.screenLines(from: contents, profileIsDoubleWidth: false), picker)
+        // 2칸 프로필이거나 모르는 프로필: 2칸으로 센 화면(12행에는 한 줄 모자라다).
+        XCTAssertEqual(ITermIO.screenLines(from: contents, profileIsDoubleWidth: true)?.count, 11)
+        XCTAssertEqual(ITermIO.screenLines(from: contents, profileIsDoubleWidth: nil)?.count, 11)
+        XCTAssertNil(ITermIO.screenLines(from: "x\n80\nhello", profileIsDoubleWidth: false))
+    }
+
     func testRefusesWhenRowsOrColumnsAreUnknown() {
         XCTAssertNil(visible("x\n80\nhello"))
         XCTAssertNil(visible("0\n80\nhello"))
