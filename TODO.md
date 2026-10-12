@@ -1,17 +1,27 @@
 # Slash Command — 할 일 · 이어받기
 
-마지막 갱신: 2026-10-12 23:40 KST (10-11: 화면 개편 #16 · 9개 언어 #17 · `run` 확대 #18 · 확인한 판 #19 · 실기로 찾은 결함과 cursor `run` · 낮은 창 #21. 10-12 새벽: grok 1.0.50 #23 · opencode 2 #24 · WezTerm · kitty · tmux 단축키 #25. 10-12 오전: iTerm2 #27 · 모르는 키 보존 #28 · Orca 안 tmux · opencode 2 `run` · variant 없는 모델 #29. 10-12 밤: 자식 프로세스 기다리기 · 자동화 허용 창 #31 · 권한 화면 이름 #32 · Orca 화면 나무 #33). 이 파일은 main 에 있다.
+마지막 갱신: 2026-10-13 06:45 KST (10-11: 화면 개편 #16 · 9개 언어 #17 · `run` 확대 #18 · 확인한 판 #19 · 실기로 찾은 결함과 cursor `run` · 낮은 창 #21. 10-12 새벽: grok 1.0.50 #23 · opencode 2 #24 · WezTerm · kitty · tmux 단축키 #25. 10-12 오전: iTerm2 #27 · 모르는 키 보존 #28 · Orca 안 tmux · opencode 2 `run` · variant 없는 모델 #29. 10-12 밤: 자식 프로세스 기다리기 · 자동화 허용 창 #31 · 권한 화면 이름 #32 · Orca 화면 나무 #33. 10-13 아침: 권한이 켜진 뒤의 실기 · 허용 창의 안내와 첫 확인 #35). 이 파일은 main 에 있다.
 
 ## 새 대화에서 이렇게 말하면 이어진다
 
 > slash-command repo 의 `TODO.md` 를 끝까지 읽고 이어서 진행해줘.
 
-(비서 기록은 `ai-assistant` 의 `log/2026-10-10-*slashcommand*` · `log/2026-10-11-*slashcommand*` · `log/2026-10-12-*slashcommand*`.)
+(비서 기록은 `ai-assistant` 의 `log/2026-10-10-*slashcommand*` · `log/2026-10-11-*slashcommand*` · `log/2026-10-12-*slashcommand*` · `log/2026-10-13-*slashcommand*`.)
 
 ## 지금 상태
 
-- **main = `29e7e32`(PR #33, 2026-10-12 밤).** 테스트 329개(Xcode 가 있는 맥에서 — 집 맥 2).
-- **네 맥 모두 `29e7e32` 빌드다**(2026-10-12 23:21 설치, 실행 파일 sha256 `95e692b2…`, 로그인 항목 켬). 오전에 미뤄 둔 «iTerm2 가 깔린 두 맥» 도 입력 방송을 실제로 켠 상태의 거절을 실기로 본 뒤 깔았다.
+- **main = `e4ae724`(PR #35, 2026-10-13 아침).** 테스트 333개(Xcode 가 있는 맥에서 — 집 맥 2).
+- **네 맥 모두 `e4ae724` 빌드다**(2026-10-13 06:36 설치, 실행 파일 sha256 `fc2a464b…`, 로그인 항목 켬).
+- **요한님 결정(2026-10-13)**: «우선 출시 전까지 모든 작업은 집 맥 2 에서 해 보자. 맥북은 지금 안 쓰고» — 실기 · 빌드 · 시험은 집 맥 2 에서 하고, 맥북 · 사 맥의 권한을 켜 달라고 하지 않는다(앱은 네 맥에 같은 판을 깔아 둔다). 집 맥 2 의 «기기 제어 및 데이터 접근» 은 요한님이 암호를 넣어 켰다(06:06 에 스위치 값 1 로 확인). 원격 화면 앱의 2단계 인증을 확인해 두자는 내 권고에는 «어차피 집에서 나만 쓰니 괜찮아».
+- **2026-10-13 아침에 들어간 것** — 권한이 켜진 뒤 집 맥 2 의 설치본에 실제 키를 넣어 본 것:
+  - **iTerm2 의 보통 탭**(권한이 켜진 뒤 처음): 실제 키 6번 — 전환 5번(1.33~1.43초), 프리셋 3 은 «Preset 3 has no Codex entry» 안내(61ms). 화면에 «Model changed to … for this session only».
+  - **Ghostty 의 첫 허용 창**: 떠서 8초 뒤에도 떠 있었고, 허용 → 3초 뒤 전환. 거절 → «Not sent: Automation for Ghostty is turned off …» 알림만. 거절된 채 다시 누름 → 자동화 설정 화면(13ms). Ghostty 의 전환 하나는 2.9~3.7초 걸린다(codex, 06:36 — 허락 확인은 그중 10~14ms).
+  - **허용 창은 떴는데 앱의 안내가 없던 것(#35)**: 첫 시도의 기록이 `automation Ghostty: not confirmed — asking` 이었고 창이 떠 있는 동안 «Allow Slash Command to control Ghostty» 안내가 없었다 — 안내는 첫 확인이 «아직 묻지 않았다» 일 때만 띄웠다. 첫 확인은 `NSRunningApplication.runningApplications(withBundleIdentifier:)` 로 «실행 중인가» 를 먼저 걸렀는데, 맨 앞에 있는 Ghostty 가 그 목록에 없었다(진단 문구를 넣은 빌드의 기록 `first check: no running app with that id` — 2번에 2번, 조건은 «앱이 켜진 뒤에 뜬 Ghostty» + «허락 기록이 아직 없음»). 고친 것: 물은 뒤 1초가 지나도 답이 없으면 그때 알린다 · 첫 확인은 시스템에 바로 묻는다(정말 실행 중이 아니면 시스템이 -600 을 준다) · 기록에 본 것을 남긴다(`… — asking [first check: status -1744]`). 고친 뒤 같은 조건에서 안내는 4번에 4번 0.5초 안에 떴고, 허용한 3번은 모두 전환됐다(나머지 1번은 거절 시험).
+  - **리뷰 지적 1건(#35, 테스트로 재현한 뒤 고침)**: 늦은 안내가 막 시작된 순간에 답이 오면, 결과 알림이 먼저 줄을 서고 뒤늦은 «허용해 주세요» 가 그것을 덮은 채 남을 수 있었다 → 안내는 잠근 채로 부르고, 시작된 안내가 끝난 뒤에야 답을 돌려준다.
+  - **설명하지 못한 것**: 왜 그 목록에 Ghostty 가 없었는가. 같은 맥의 작은 탐침(주 런루프가 도는 보조 앱, 다른 스레드에서 조회)은 자기보다 늦게 뜬 앱 · 껐다 다시 띄운 앱을 7번에 7번 봤고, 설치본도 허락이 이미 있을 때는 다시 뜬 Ghostty 를 봤다(1번에 1번). 같은 API 를 쓰는 다른 자리(`GhosttyScreen` · `ITerm` · `OrcaView` · `Detector` 의 화면 읽기, 설정 창의 자동화 상태 표시 `AutomationConsent.status`)가 그 때문에 실패하는 것은 보지 못했다 — «터미널을 방금 띄웠을 때 첫 누름만 실패» 가 보이면 여기부터 본다.
+  - **10-12 밤의 «설명하지 못한 것 1건» 의 후보**: 그때의 첫 수정 빌드(`2787e36`)도 같은 목록으로 걸렀고, «실행 중이 아니다» 면 묻지 않고 넘어갔다(코드로 확인). 기록의 `automation 2ms` 뒤 예전처럼 5초 창이 뜬 것과 맞는다 — 그날 그 값이 실제로 그랬는지는 남은 기록으로 확인할 수 없다.
+  - **요한님이 누른 허용 1회**: 06:14:56 의 시험에서 허용 창이 06:15:01 에 «허용» 으로 닫혔는데 내 스크립트는 누르지 않았다. 그 시각에 입력이 있었고 맨 앞 앱이 `com.apple.universalcontrol` 이었다(요한님이 Universal Control 로 누른 것으로 보인다). 앱은 «Ghostty is allowed now. Try again.» 으로 멈췄다 — 허용 뒤 그 터미널이 맨 앞이 아니면 보내지 않는 설계대로다.
+  - 기본값 파일(`~/.claude/settings.json` · `~/.codex/config.toml`)은 시험 전 사본과 같다.
 - **2026-10-12 밤에 들어간 것** — 요한님이 집 맥 2 의 화면 잠금을 끄고(«집에 두는 컴퓨터라 그냥 잠금 안 되게 … AI 에이전트가 컴퓨터 사용 필요할 때 쓸 컴퓨터») «필요한 거 · 해야 하는 거 · 하면 좋은 거 모두 진행» 을 맡겼다. 설치본에 «실제 키 입력»(System Events 의 ⇧⌥번호)을 넣어 가며 찾은 것:
   - **입력 방송의 거절(오전의 미확인 → 확인)**: iTerm2 에서 방송을 메뉴로(현재 탭 · 모든 탭) · 단축키 ⌥⌘I 로 켜면 전환은 «Not sent: iTerm2 Broadcast Input is on …» 으로 거절되고 옆 칸에는 아무것도 들어가지 않았다. 메뉴를 열지 않고 단축키로 켜도 체크 표시는 바로 읽혔다. 「Toggle Broadcast Input to Current Session」 은 «모른다» 로 읽혀 역시 거절한다. 양성 대조: 방송이 켜진 채 AppleScript 로 쓰면 옆 칸에도 들어간다(그래서 이 확인이 필요하다). iTerm2 는 방송을 켤 때 확인 시트(«Keyboard input will be sent to 2 panes …»)를 띄운다 — OK 를 누르기 전에는 아직 꺼져 있다.
   - **가끔 7초 멈췄다 실패(#31)**: 자식 프로세스(`wezterm cli` · `tmux` · `kitty @` 등)가 끝난 것을 `waitUntilExit()` 가 놓칠 때가 있었다 — 5초 제한까지 기다리다 «읽지 못했다» 로 끝나고 선택창이 열린 채 남았다(WezTerm 실제 키 5번에 3번. 표본: 자식 없이 `waitUntilExit` 에 멈춘 스레드. 고치기 전 코드에서는 새 테스트가 `/usr/bin/true` 200번 중 2번을 놓친다). 끝남은 이제 `terminationHandler` 로 안다. 덤으로 호출 하나가 약 65ms → 자식이 쓴 시간이 됐다: WezTerm 전환 1.3초 → 0.27초, iTerm2 안의 tmux 1.4~1.6초 → 0.22~0.39초, kitty 0.65초.
@@ -48,7 +58,7 @@
   - **언어(#16·#17)**: 영어가 기준(`loc("영어 문장", 값…)`), 번역은 `Resources/<언어>.lproj`, 시스템 언어 순서로 자동 선택. **9개**: 영어 · 한국어 · 일본어 · 중국어(간체) · 스페인어 · 프랑스어 · 독일어 · 포르투갈어 · 아랍어. 한국어 말고는 기계 번역(원어민 검수 없음). 명령줄 도구의 자체 출력·기록 표지는 영어 고정.
   - **`run`(#18)**: antigravity · opencode 도 프리셋으로 새 세션을 연다(각 CLI 의 모델 목록에서 id 를 찾는다). cursor 는 저녁의 #21 에서.
   - **확인한 판(#19)**: claude 2.1.296 · codex 0.162.0 — 따로 연 시험 세션에서 실제로 전환해 확인(아래 「실기 확인」).
-- **깔린 앱**: 네 맥(집 맥 · 집 맥 2 · 사 맥 · 맥북) = main `29e7e32` 빌드(2026-10-12 23:21, 실행 파일 sha256 `95e692b2…`, `Apple Development` 서명, 로그인 항목 켬). 그 tar 는 집 맥 2 의 `/tmp/SlashCommand-29e7e32.tar` 에 뒀다(재시작하면 사라진다 — 없으면 다시 빌드). 설치본 확인: 집 맥 2 에서 iTerm2 안의 tmux 에 실제 키 4번(0.27~0.37초), 집 맥에서 `where --bundle com.stablyai.orca`(종료 코드 0).
+- **깔린 앱**: 네 맥(집 맥 · 집 맥 2 · 사 맥 · 맥북) = main `e4ae724` 빌드(2026-10-13 06:36, 실행 파일 sha256 `fc2a464b…`, `Apple Development` 서명, 로그인 항목 켬). 그 tar 는 집 맥 2 의 `/tmp/SlashCommand-e4ae724.tar` 에 뒀다(재시작하면 사라진다 — 없으면 다시 빌드). 설치본 확인: 집 맥 2 에서 Ghostty 의 codex 에 실제 키 3번(프리셋 · effort — 2.9~3.7초). 그 앞의 판은 `29e7e32`(2026-10-12 23:21 — 되돌리려면 그 커밋을 다시 빌드).
 - **집 맥에 깔린 에이전트·도구(2026-10-12 조회)**: claude 2.1.296 · codex 0.162.0 · cursor-agent 2026.10.01-e373342(로그인됨) · agy 1.3.3(로그인됨) · opencode 2.0.25(Homebrew, **OpenCode Go 로그인됨** — 제공자가 Go · Zen 둘) · grok 1.0.50(**로그인됨**) · tmux 3.8. opencode 2 는 처음 띄울 때 뒤에서 도는 서버(`opencode serve --service`)를 스스로 띄워 둔다(10-11 21:54 부터 떠 있다 — opencode 자신의 것이라 그대로 뒀다).
 - **집 맥 2 의 터미널**: WezTerm · kitty · iTerm2(Homebrew cask) · tmux 3.7c. 요한님이 2026-10-12 05:46 에 그 화면에서 세 앱을 열어 줘서 그 뒤로 ssh 에서 다룰 수 있었다. 집 맥 2 의 에이전트: claude 2.1.295/2.1.296 · codex 0.162.0 · opencode 1.18.35(`~/.opencode/bin`) 등.
 - **화면 언어**: 네 맥 모두 시스템 언어 1순위가 영어(`en-KR`)라 앱이 영어로 뜬다(맥북도 2026-10-11 22:59 에 확인). 한국어로 보려면 시스템 설정 → 일반 → 언어 및 지역 → 응용 프로그램에서 Slash Command 를 한국어로.
@@ -58,15 +68,15 @@
 
 ## 요한님 손이 필요한 것
 
-1. **집 맥 2 화면에 떠 있는 암호 창에 암호 넣기** — 시스템 설정 → 기기 제어 및 데이터 접근(옛 «손쉬운 사용») 목록에서 Slash Command 스위치를 내가 눌러 «Privacy & Security is trying to modify your system settings» 암호 창까지 띄워 뒀다(2026-10-12 23:26). 암호는 사람만 넣을 수 있다. 창이 사라졌으면 앱 메뉴의 「… 켜기…」 줄이나 그 맥의 iTerm2 · Ghostty 에서 단축키를 누르면 그 화면이 다시 열린다. 켜지면 내가 할 것: 설치본으로 iTerm2 의 보통 탭에서 실제 키(방송 확인을 거치는 길) · Ghostty 에서 허용 창 → 전환.
-2. **맥북의 같은 권한**: 꺼져 있다(2026-10-11 23:00 관측). 사 맥은 확인하지 못했다. 집 맥은 켜져 있다. 설정 창 맨 위 「Permissions」 의 「Open Settings…」 — Ghostty 화면 읽기 · Orca 탭 줄 · iTerm2 의 입력 방송 확인에 쓴다(iTerm2 안의 tmux · WezTerm · kitty 에는 필요 없다).
+1. (끝남 — 2026-10-13) 집 맥 2 의 «기기 제어 및 데이터 접근» 은 요한님이 암호를 넣어 켰다.
+2. **맥북 · 사 맥의 같은 권한**: 지금은 켜 달라고 하지 않는다 — 출시 전까지 작업은 집 맥 2 에서 한다(2026-10-13 요한님). 맥북은 꺼져 있고(2026-10-11 23:00 관측) 사 맥은 확인하지 못했다. 집 맥 · 집 맥 2 는 켜져 있다. 켤 때는 설정 창 맨 위 「Permissions」 의 「Open Settings…」 — Ghostty 화면 읽기 · Orca 탭 줄 · iTerm2 의 입력 방송 확인에 쓴다(iTerm2 안의 tmux · WezTerm · kitty 에는 필요 없다).
 3. **새 화면을 눈으로 한 번 봐 주기.** 메뉴와 설정 창은 그림으로 뽑아 확인했을 뿐 실제 화면에서 눌러 보지 못했다: 설정 창의 글 상자에서 ⌘V 가 되는지 · 프리셋 줄을 눌러 펼쳐지는지 · 저장 뒤 단축키가 그대로인지 · 알림이 뜨는 자리.
 4. 결정이 필요한 것: 라이선스 · Developer ID 서명/공증(공개 배포를 할지) · 번역을 원어민에게 보일지.
 5. 시스템 설정의 손쉬운 사용 목록에 남은 옛 ModelSwitch 항목은 − 로 지워도 된다.
 
 ## 다음 할 일 (순서대로)
 
-1. **권한이 켜진 뒤의 실기 확인(집 맥 2)**: 설치본으로 iTerm2 의 보통 탭에서 실제 키 → 전환 · Ghostty 에서 처음 누를 때의 허용 창(«Slash Command 가 Ghostty 를 제어» — 집 맥 2 에서는 아직 물은 적이 없다) → 전환. **집 맥의 화면이 켜져 있을 때 Orca 탭 줄 읽기는 확인했다**(2026-10-13 05:54, 설치본 `29e7e32`, Orca 가 맨 앞): `slashcommand-cli where --bundle com.stablyai.orca` → `visible via Accessibility (same as the DB)`, 종료코드 0 — 보통 상태에서 탭 줄 읽기가 #33 뒤에도 된다. 다음에 `state DB (could not read the tab strip …)` 가 나오면 «탭 줄 확인 실패» 일 뿐 원인은 아직 모른다 — 그 문구는 권한 없음 · 접근성 읽기 실패 · 탭 버튼을 못 찾음 · 상한에 걸림 모두에서 나온다(화면이 꺼진 동안에도 나온다). 상한 탓이라고 하려면 그 나무의 요소 수 · 깊이가 3만 · 150 을 넘는 것을 재서 보인 뒤에만 올린다(재지 않고 상한을 풀지 않는다).
+1. (끝남 — 2026-10-13 아침) 권한이 켜진 뒤의 실기 확인: iTerm2 의 보통 탭 · Ghostty 의 첫 허용 창 → 전환(위 「지금 상태」). **집 맥의 화면이 켜져 있을 때 Orca 탭 줄 읽기는 확인했다**(2026-10-13 05:54, 설치본 `29e7e32`, Orca 가 맨 앞): `slashcommand-cli where --bundle com.stablyai.orca` → `visible via Accessibility (same as the DB)`, 종료코드 0 — 보통 상태에서 탭 줄 읽기가 #33 뒤에도 된다. 다음에 `state DB (could not read the tab strip …)` 가 나오면 «탭 줄 확인 실패» 일 뿐 원인은 아직 모른다 — 그 문구는 권한 없음 · 접근성 읽기 실패 · 탭 버튼을 못 찾음 · 상한에 걸림 모두에서 나온다(화면이 꺼진 동안에도 나온다). 상한 탓이라고 하려면 그 나무의 요소 수 · 깊이가 3만 · 150 을 넘는 것을 재서 보인 뒤에만 올린다(재지 않고 상한을 풀지 않는다).
 2. **Ghostty 안의 tmux**: 아직 단축키로 안 된다. Ghostty 1.3.1 의 스크립팅 사전에는 터미널의 tty · pid 가 없다(`id` · `name` · `working directory` 뿐 — 2026-10-12 사전 파일로 확인). tmux 의 포커스 표시(`client_flags` 의 `focused`)는 `focus-events on` 을 켜기 전에 붙은 클라이언트에서 낡는다(실측). 남은 길: Ghostty 가 읽어 주는 화면 글과 `tmux capture-pane` 을 대조해 «지금 보이는 것이 그 칸» 임을 확인(후보가 하나일 때만) — 어림이라 조심해서. Terminal.app 은 AppleScript 가 탭의 tty 를 주므로 tmux 가 도는 탭만이라면 #25 의 길로 된다(자동화 허용 필요, 아직 안 함).
 3. **범용 목표의 나머지**(요한님: «누구나 유용하게 쓸 수 있게»): 화면을 못 읽는 터미널(Terminal.app · VS Code 등) · 서명/공증(Developer ID) · 라이선스 · 자동 업데이트 · CI(맥 러너를 쓰지 않는 조건에서 무엇을 돌릴지) · 번역 검수. 순서와 근거는 `docs/PLAN-generalization.md`.
 4. **확인하지 못하고 남은 것**: 알림(HUD)이 여러 모니터에서 터미널이 있는 화면에 뜨는지(`NSScreen.main` — 집 맥 2 는 모니터가 하나다) · iTerm2 의 tmux 통합 모드(`tmux -CC`) · `run` 의 «이 터미널» 가운데 iTerm2 · WezTerm · kitty 쪽(환경변수 풀기는 단위 테스트뿐, 실기는 Orca 만) · 동적 프로필의 부모를 GUID 와 이름으로 같이 적은 경우(문서의 순서대로 고쳤고 실기로는 재지 않았다).
@@ -81,6 +91,7 @@
 - **시험 세션**: 2026-10-11·12 에 연 시험 터미널(Orca 의 `SC-TEST…`, 집 맥의 tmux `-L sctest`·`sctest2`, 집 맥 2 의 tmux `-L scfront`·`scit` · 따로 띄운 kitty · WezTerm 의 탭 · iTerm2 의 시험 창 · 시험용 동적 프로필 `sc-test.json`)은 모두 닫고 지웠다. codex · agy 는 시험 세션을 열 때 기본값 파일에 그 폴더의 trust 항목을 넣는다 — 시험 전 사본으로 되돌렸다. cursor 의 `cli-config.json` 도 시험 전 사본으로(모델 키가 없는 상태). opencode 의 `model.json` 은 시험 전에 없던 파일이라 지웠다. grok 의 `config.toml` 은 «처음 띄운 뒤의 상태»(grok 이 스스로 쓴 `[marketplace]` · `[ui]`, `[models]` 없음)로 뒀다.
 - **집 맥 2 에서 내가 허용한 권한(2026-10-12 10:29)**: «Ghostty 가 iTerm 을 제어» (자동화). 요한님의 «필요한 거 모두 집 맥 2 에서 해 봐» 에 따라, 떠 있는 허용 창의 글을 읽어 그 창일 때만 Allow 를 눌렀다. 시험에만 쓴 것이라 필요 없으면 시스템 설정 → 개인정보 보호 및 보안 → 자동화 → Ghostty 에서 iTerm 을 끈다. 그 밖에 바꾼 권한은 없다(설치본 Slash Command 의 iTerm 허용 · 손쉬운 사용은 아직이다).
 - **2026-10-12 밤의 권한 · 설정(집 맥 2)**: 화면 잠금은 요한님이 직접 껐다(22:10, `screenLock is off` — `ai-assistant/infra/macs.md`). 내가 누른 것: 설치본의 «Slash Command 가 iTerm 을 제어» 허용(22:37:59 — 그 앞에 시험으로 한 번 거절하고 `tccutil reset AppleEvents com.yohangwak.slashcommand` 로 되돌린 뒤 허용). 명령줄 경로 시험으로 «WezTerm 이 iTerm 을 제어» 를 두 번 허용했다가 `tccutil reset AppleEvents com.github.wez.wezterm` 로 지웠다(남은 것 없음). 손쉬운 사용 스위치는 눌렀지만 암호 창에서 멈췄다(켜지지 않았다).
+- **2026-10-13 아침의 권한(집 맥 2)**: «Slash Command 가 Ghostty 를 제어» 를 허용했다(처음 06:09:17). 그 뒤 시험으로 `tccutil reset AppleEvents com.yohangwak.slashcommand` 를 7번 돌렸고(그때마다 iTerm 허락도 같이 지워진다), 내가 누른 것은 Ghostty 허용 6번(처음 것 포함) · 거절 1번(06:32:13, 시험) · iTerm 허용 2번(06:22:44 · 06:32:50)이다 — 끝 상태는 Ghostty · iTerm 둘 다 허용(앱 자신의 답 0, 06:32:50). 06:15:01 의 허용 1번은 내가 누르지 않았다. 시스템 설정 창은 «Automation» 화면에 두었다(거절된 채 누르는 시험이 그 화면을 연다). 탐침 시험으로 계산기를 10번 띄웠다 닫았다. 화면은 찍지 않았다. **실수 1건**: 정리하면서 ssh 에서 `osascript` 로 iTerm2 에 말을 걸어 허용 창이 66초 떠 있었다(06:37:02~06:38:08, 그 `osascript` 를 죽여 닫았다 — 아래 「알아 둘 함정」 에 이미 적혀 있던 것).
 - **집 맥에 깐 것**: grok 1.0.50(`~/.grok`, `~/.local/bin/grok` 링크 — 설치 스크립트가 `.zshrc` 를 고치지 않게 `SHELL=/bin/sh` 로 돌렸고, 같이 생긴 `~/.local/bin/agent` 링크는 지웠다) · tmux(`brew uninstall tmux` 로 지운다). 집 맥 2: `brew uninstall --cask wezterm kitty iterm2` · `brew uninstall tmux`. 세 앱의 격리 표시(`com.apple.quarantine`)는 공증을 확인한 뒤 지웠다. 집 맥 2 의 kitty 설정은 건드리지 않았다(원격 제어는 시험할 때만 `--listen-on` 인자로 따로 띄웠다).
 - 맥북: Homebrew 로 깐 tmux·kitty·WezTerm·iTerm2 는 요한님 뜻대로 남겨 뒀다(2026-10-07). iTerm2 에 방송(Broadcast Input)을 켠 두 칸 창이 열려 있을 수 있다.
 
@@ -94,6 +105,8 @@ ssh 에서 띄운 프로세스는 화면 권한(자동화 · 손쉬운 사용 ·
 - **실제 키 넣기**: `osascript -e 'tell application "System Events" to key code 19 using {option down, shift down}'`(1=18 · 2=19 · 3=20 · «=»=24 · «-»=27). 누르기 전에 맨 앞 앱이 기대한 터미널인지 확인한다(다른 앱이 앞이면 그 앱에 글자가 들어간다). 결과는 `~/Library/Logs/SlashCommand/slashcommand.log` 의 `applied …` · `failed …` · `timing …` 줄로 본다. 알림(HUD)의 글은 `tell process "SlashCommand" to value of every static text of window …` 로 읽힌다.
 - **앱 «자신» 의 권한 상태**: 터미널에서 앱 실행 파일을 바로 부르면 그 터미널의 권한으로 답한다. `open -n -W -a "Slash Command" --stdout <파일> --args --automation-status <번들 id>` 로 띄워야 앱의 답이 나온다(0 허용 · -1743 거절 · -1744 아직 묻지 않음). 처음 상태로 되돌리기는 `tccutil reset AppleEvents <앱의 번들 id>`.
 - **시스템 설정 화면 읽기**: `tell process "System Settings"` 에서 `set frontmost to true` → `delay 1` 뒤에 `entire contents of window 1` 을 읽어야 요소가 나온다(바로 읽으면 0개일 때가 있다 — 몇 번 되풀이한다). 암호 창(시트)의 안쪽은 읽히지 않는다. AppleScript 에서 `before` · `after` 는 변수 이름으로 못 쓴다.
+- **요한님이 같은 화면을 쓰고 있을 수 있다**: 집 맥에서 Universal Control 로 집 맥 2 를 다루면 맨 앞 앱이 `com.apple.universalcontrol` 이 되고(앱 기록의 `hotkeys off (com.apple.universalcontrol)`), 떠 있는 허용 창을 요한님이 먼저 누를 수 있다(2026-10-13 06:15). 누르기 전의 «맨 앞 앱 확인» 을 빼지 않는다 — 내가 누르지 않은 답은 입력 없는 시간(`ioreg -c IOHIDSystem` 의 `HIDIdleTime`)과 맨 앞 앱으로 가린다.
+- **실행기 Ghostty 를 껐다 켜기**: 실행기의 pid(`runner.pid`)에서 부모를 따라가 그 Ghostty 가 조상임을 확인하고 그것만 끈다. 다시 띄우면 지난 창들이 되살아나 쌓인다(시험 창은 셸로 되살아난다). Ghostty 의 새 창은 `perform action "new_window" on (focused terminal of selected tab of front window)` → 맨 앞 창의 터미널에 `perform action "text:cd ~/Repos && codex\\n"`.
 - 🔴 화면을 통째로 찍지 않는다 — 그 화면에는 다른 앱(암호 관리 앱 등)이 떠 있다. `screencapture -R x,y,w,h` 로 필요한 창만.
 - 🔴 실행기 안에서 «처음 말을 거는 앱» 에 AppleScript 를 보내면 허용 창이 뜬다(Finder 에 보냈다가 잠긴 화면 뒤에서 2분을 기다렸다 — 그 `osascript` 를 죽이면 창도 사라진다). 허용 창은 글을 읽어(`System Events` 의 `UserNotificationCenter` 창) 기대한 것일 때만 누른다.
 - 시험용 iTerm2 창: `create window with default profile` → `write text "cd ~/Repos && codex"`. 폭 설정이 다른 창은 동적 프로필 파일(`~/Library/Application Support/iTerm2/DynamicProfiles/*.json` — `"Ambiguous Double Width"` · `"Rows"` · `"Columns"`)을 두면 iTerm2 가 바로 읽는다(`create window with profile "…"`). 창을 닫은 뒤에는 `tell window id N to select` 로 현재 창을 다시 정해야 `current window` 가 읽힌다.
@@ -112,6 +125,8 @@ ssh 에서 띄운 프로세스는 화면 권한(자동화 · 손쉬운 사용 ·
 - **명령줄 프로그램은 맨 앞 앱이 바뀐 것을 모른다**: 런루프가 돌지 않으면 `NSWorkspace.shared.frontmostApplication` 이 처음 읽은 그대로다(6초 동안 그대로 — 실측). 다시 읽기 전에 런루프를 잠깐 돌린다(`AutomationConsent.frontBundleID`).
 - **접근성 나무는 나무가 아닐 수 있다**(#33): 돌 때는 이미 본 요소(`CFEqual`) · 깊이 · 개수를 같이 막는다. 명령이 아무것도 찍지 않고 끝나면 종료 코드를 본다(139 = 죽었다) — `| head` 를 붙이면 코드가 가려진다. 충돌 기록은 `~/Library/Logs/DiagnosticReports/slashcommand*.ips`.
 - `gh pr checks <번호> --watch` 는 PR 을 만든 직후에는 «no checks reported» 로 바로 끝난다 — 체크가 생길 때까지 기다린 뒤에 건다(`until gh pr checks N | grep -q pullfrog-approval; do sleep 20; done`).
+- 이 저장소의 리뷰 실행은 `gh run list --branch <브랜치>` 에 나오지 않는다(빈 목록 — 그것으로 끝나기를 기다리면 영영 기다린다). 리뷰 본문이 없는 통과도 있다. 끝났는지는 그 커밋의 체크로 본다: `gh api repos/yohangwak/slash-command/commits/<sha>/check-runs` 에서 `pullfrog-approval` 이 `completed`.
+- **오래 떠 있는 앱에서만 다른 답이 나오는 것은 설치본의 기록으로 가린다**: `--automation-status` 같은 확인은 새 프로세스라 그 순간의 앱과 답이 다를 수 있다(#35: 새 프로세스는 «아직 묻지 않았다», 떠 있던 앱은 «실행 중이 아니다»). 추측으로 고치기 전에 «무엇을 보았는지» 를 기록에 넣은 빌드를 깔아 같은 상황을 다시 만든다.
 - `run` 의 일꾼처럼 «나중에 다른 프로세스가 입력하는» 코드는 대상(터미널)만이 아니라 «그 세션» 의 신원(pid + 시작 시각)을 들고 간다 — 터미널 주소는 다른 세션이 다시 쓴다(#29 리뷰).
 - ssh 에서 AppleScript 로 Ghostty · iTerm2 를 건드리면 «권한 없음»(-1743)으로 실패하면서 **그 앱을 띄워 버린다**(집 맥 2 에서 Ghostty 가 떴다 — 시작 시각을 확인하고 껐다).
 - 시험용 에이전트를 `~/Downloads` · `~/Documents` · `~/Desktop` 에서 띄우지 않는다 — 그 터미널 앱이 처음이면 폴더 접근 허용 창이 그 맥의 화면에 뜨고 에이전트는 아무것도 그리지 않은 채 멈춘다. claude 의 «이 폴더를 믿습니까» 도 새 폴더(`/tmp/…`)에서 뜬다 — 이미 믿는 폴더(`~/Repos` 등)를 쓴다.
