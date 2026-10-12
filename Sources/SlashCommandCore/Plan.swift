@@ -99,6 +99,37 @@ public enum Launch {
         return options.range(of: #"(^|\s)--model\b"#, options: .regularExpression) != nil
     }
 
+    /// 이 프로세스가 도는 터미널(환경변수로 안다) — 세션을 연 뒤 «그 터미널에서» 전환을 이어서 돌릴 때 쓴다.
+    /// 안쪽부터 본다: tmux 칸 안이면 바깥 터미널이 무엇이든 그 칸이다. Ghostty 는 터미널을 가리키는 환경변수가 없어 여기서는 nil.
+    public static func currentTerminal(environment: [String: String]) -> TerminalHost? {
+        func value(_ name: String) -> String? { environment[name].flatMap { $0.isEmpty ? nil : $0 } }
+        // TMUX = `<소켓 경로>,<서버 pid>,<세션>`.
+        if let tmux = value("TMUX"), let pane = value("TMUX_PANE"), let socket = tmux.split(separator: ",").first, socket.hasPrefix("/") {
+            return .tmux(socket: String(socket), pane: pane)
+        }
+        if let handle = value("ORCA_TERMINAL_HANDLE") { return .orca(handle: handle) }
+        // ITERM_SESSION_ID = `w0t1p0:<세션 unique id>`.
+        if let session = value("ITERM_SESSION_ID"), let id = session.split(separator: ":").last, session.contains(":"), !id.isEmpty {
+            return .iterm(sessionID: String(id))
+        }
+        if let pane = value("WEZTERM_PANE") { return .wezterm(socket: value("WEZTERM_UNIX_SOCKET"), pane: pane) }
+        if let window = value("KITTY_WINDOW_ID"), let socket = value("KITTY_LISTEN_ON") { return .kitty(socket: socket, window: window) }
+        return nil
+    }
+
+    /// 그 터미널을 명령줄의 대상 인자로(`explicitTarget` 이 읽는 꼴).
+    public static func targetArguments(host: TerminalHost, agent: Agent) -> [String] {
+        let named = ["--agent", agent.rawValue]
+        switch host {
+        case .ghostty(let id): return ["--ghostty", id] + named
+        case .orca(let handle): return ["--orca", handle] + named
+        case .tmux(let socket, let pane): return ["--tmux", pane] + (socket.map { ["--tmux-socket", $0] } ?? []) + named
+        case .kitty(let socket, let window): return ["--kitty", window, "--kitty-socket", socket] + named
+        case .wezterm(let socket, let pane): return ["--wezterm", pane] + (socket.map { ["--wezterm-socket", $0] } ?? []) + named
+        case .iterm(let id): return ["--iterm", id] + named
+        }
+    }
+
     public struct Resolved: Equatable, Sendable {
         /// `--model` 에 넘길 값.
         public let model: String

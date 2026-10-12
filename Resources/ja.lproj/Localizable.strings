@@ -276,3 +276,5 @@
 "Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "送信しませんでした: iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するには、Slash Command にアクセシビリティの権限が必要です。システム設定 → プライバシーとセキュリティ → アクセシビリティでオンにしてから、もう一度押してください。";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "送信しませんでした: iTerm2 の Shell ▸ Broadcast Input メニューで、入力ブロードキャストがオフであることを確認できませんでした。";
 "Could not type into iTerm2: %@" = "iTerm2 に入力できませんでした: %@";
+"This OpenCode model has no effort levels (it has no variants)." = "この OpenCode モデルには effort の段階がありません(variant のないモデルです)。";
+"This OpenCode model has no variants, so the effort (%@) was not set." = "この OpenCode モデルには variant がないため、effort(%@)は設定しませんでした。";

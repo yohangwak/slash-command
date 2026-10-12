@@ -276,3 +276,5 @@
 "Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "未发送：要确认 iTerm2 的广播输入（Broadcast Input）已关闭，Slash Command 需要辅助功能权限。请在“系统设置”→“隐私与安全性”→“辅助功能”中打开后再按一次。";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "未发送：无法从 iTerm2 的 Shell ▸ Broadcast Input 菜单确认广播输入已关闭。";
 "Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";
+"This OpenCode model has no effort levels (it has no variants)." = "此 OpenCode 模型没有 effort 档位（该模型没有 variant）。";
+"This OpenCode model has no variants, so the effort (%@) was not set." = "此 OpenCode 模型没有 variant，因此未设置 effort（%@）。";

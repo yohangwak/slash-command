@@ -7,6 +7,7 @@ slashcommand — switch the model and effort of the agent in the frontmost termi
   slashcommand apply <number> [target] [--trace]   apply a preset (--trace: time per step)
   slashcommand effort <up|down> [target] [--trace]   keep the model, move the effort one level
   slashcommand run <number> <claude|codex|grok|cursor|antigravity|opencode> [--dry-run] [args…]   open a new session in this terminal with that preset
+                                       (OpenCode 2 cannot be told the model when it opens: it is opened, then switched in this terminal)
   slashcommand where                   the frontmost terminal and its agent
   slashcommand probe-orca [--seconds N]  record when Orca's "visible terminal" signals change, on one clock (for testing; sends nothing)
   slashcommand doctor [target] [--screen [--lines N]] [--dump file.json]  check the target, screen reading and input box (sends nothing)
@@ -21,7 +22,7 @@ target (default: the frontmost terminal of the frontmost app):
 also found as the frontmost terminal: iTerm2, WezTerm, kitty (remote control on), and tmux inside any of them. Or name one:
   --tmux <pane> [--tmux-socket <name or path>] --agent <agent>
   --kitty <window id> --kitty-socket unix:/path --agent <agent>
-  --wezterm <pane id> --agent <agent>
+  --wezterm <pane id> [--wezterm-socket <path>] --agent <agent>
   --iterm <session unique id> --agent <agent>
 agents: claude · codex · grok · cursor · antigravity · opencode
 
@@ -48,7 +49,7 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     let more: [(String, (String) -> TerminalHost?)] = [
         ("--tmux", { .tmux(socket: value(after: "--tmux-socket", in: args), pane: $0) }),
         ("--kitty", { id in value(after: "--kitty-socket", in: args).map { .kitty(socket: $0, window: id) } }),
-        ("--wezterm", { .wezterm(socket: nil, pane: $0) }),
+        ("--wezterm", { .wezterm(socket: value(after: "--wezterm-socket", in: args), pane: $0) }),
         ("--iterm", { .iterm(sessionID: $0) }),
     ]
     for (flag, make) in more {
@@ -58,6 +59,8 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         return Target(host: host, agent: named, label: id)
     }
     guard orca != nil || ghostty != nil else { return nil }
+    // 그 Orca 터미널에서 tmux 가 앞 작업이면 단축키와 같이 그 tmux 칸으로 간다.
+    if let orca, let inside = try Detector.orcaTmux(handle: orca) { return inside }
     guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
         throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
     }
@@ -77,6 +80,20 @@ func spawnDefaultsKeeper(agent: Agent, ticket: String, detach: Bool) throws {
     process.standardError = FileHandle.nullDevice
     try process.run()
     if detach { process.waitUntilExit() }
+}
+
+/// 이 프로그램을 그 인자로 따로 띄운다. `wait` 면 `--detach` 를 붙여 띄우고 끝나기를 기다린다 — 그 프로세스가 진짜 일꾼을 다시 띄우고
+/// 바로 끝나므로, 일꾼이 우리(곧 에이전트로 바뀔 프로세스)의 자식으로 남지 않는다.
+func spawnDetached(_ arguments: [String], wait: Bool = true) throws {
+    guard let executable = Bundle.main.executableURL else { throw SlashCommandError("could not find this program's own path") }
+    let process = Process()
+    process.executableURL = executable
+    process.arguments = arguments + (wait ? ["--detach"] : [])
+    process.standardInput = FileHandle.nullDevice
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    if wait { process.waitUntilExit() }
 }
 
 func describe(_ step: Step) -> String {
@@ -148,9 +165,27 @@ do {
         let dryRun = args.count > 3 && args[3] == "--dry-run"
         if agent == .opencode {
             // opencode 2 는 여는 옵션에 `--model` 이 없다(2.0.25 실측). 없는 옵션을 넘기면 opencode 가 오류로 끝난다.
+            // 그래서 그냥 열고, 따로 띄운 일꾼(`follow`)이 «이 터미널» 에 입력창이 뜨기를 기다렸다가 단축키와 같은 전환을 돌린다.
             let help = Proc.run("/usr/bin/env", ["opencode", "--help"], timeout: 20)
             if help.ok, !Launch.openCodeTakesModel(help: help.out + help.err) {
-                fail("this OpenCode version has no option to choose the model when it opens (`opencode --help` lists no --model). Open the session, then switch with the shortcut.")
+                let extra = Array(args.dropFirst(dryRun ? 4 : 3))
+                // 이 터미널이 무엇인지는 환경변수로만 안다(포커스나 폴더로 짐작하지 않는다 — 같은 폴더의 다른 터미널일 수 있다. PR #29 리뷰).
+                guard let host = Launch.currentTerminal(environment: ProcessInfo.processInfo.environment), let launched = Follow.Launched.current() else {
+                    fail("this OpenCode version has no option to choose the model when it opens (`opencode --help` lists no --model), and this terminal cannot be addressed to switch after it opens (Orca · iTerm2 · WezTerm · kitty with remote control · tmux can; Ghostty gives a session no way to know its own terminal). Open the session, then switch with the shortcut.")
+                }
+                // 일꾼은 «이 프로세스»(곧 opencode 가 된다)가 살아 있는 동안만 따른다.
+                let follow = ["follow", String(slot), "--launched", launched.argument] + Launch.targetArguments(host: host, agent: agent)
+                let command = [agent.executable] + extra
+                if dryRun {
+                    print(command.joined(separator: " "))
+                    print("then, in this terminal: slashcommand \(follow.joined(separator: " "))")
+                    exit(0)
+                }
+                try spawnDetached(follow)
+                var argv: [UnsafeMutablePointer<CChar>?] = command.map { strdup($0) }
+                argv.append(nil)
+                execvp(command[0], argv)
+                fail("could not run \(command[0]): \(String(cString: strerror(errno)))")
             }
         }
         // 화면 이름이 아니라 id 를 받는 에이전트는 그 CLI 의 모델 목록에서 id 를 찾는다.
@@ -191,6 +226,18 @@ do {
             argv.append(nil)
             execvp(command[0], argv)
             fail("could not run \(command[0]): \(String(cString: strerror(errno)))")
+        }
+    case "follow":
+        // 내부용 — `run` 이 부른다. 방금 연 세션의 입력창이 그 터미널에 뜨기를 기다렸다가 프리셋을 적용한다.
+        guard args.count >= 2, let slot = Int(args[1]) else { fail("slashcommand follow <number> <target>") }
+        if args.contains("--detach") {
+            try spawnDetached(args.filter { $0 != "--detach" }, wait: false)
+        } else {
+            guard let target = try explicitTarget(args), let launched = value(after: "--launched", in: args).flatMap(Follow.Launched.init(argument:)) else {
+                fail("slashcommand follow needs a target and --launched <pid:start>")
+            }
+            let outcome = Follow.run(slot: slot, target: target, launched: launched, config: try store.load())
+            Follow.log("run \(slot) \(target.agent.rawValue)@\(target.host.appName): \(outcome)")
         }
     case "keep-defaults":
         // 내부용 — `run` 이 부른다. 그 열기가 쓴 새 세션 기본값을 1분 동안 연 전 값으로 되돌린다.

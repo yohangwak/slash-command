@@ -133,7 +133,20 @@ public enum Detector {
     public static func orca() throws -> Target {
         let payload = try orcaTerminals()
         let active = try orcaActive(payload: payload).active
+        // 그 터미널에서 tmux 가 «앞 작업» 으로 돌고 있으면 그 클라이언트가 보고 있는 tmux 칸으로 들어간다(쓰기·읽기도 tmux 로).
+        // Orca 로 그대로 쓰면 화면 맨 아래가 tmux 의 상태 줄이고, 칸이 나뉘어 있으면 여러 칸의 글이 한 화면에 섞인다.
+        if let handle = try? OrcaState.pane(in: payload, active: active).handle, let inside = try orcaTmux(handle: handle) {
+            return inside
+        }
         return try OrcaState.target(in: payload, active: active, processAgent: AgentProcesses.agent(orcaHandle:))
+    }
+
+    /// 그 Orca 터미널에서 tmux 클라이언트가 앞 작업이면, 그 클라이언트가 보고 있는 tmux 칸. 아니면 nil.
+    public static func orcaTmux(handle: String) throws -> Target? {
+        let table = ProcessTable.snapshot()
+        let client = AgentProcesses.tmuxClient(orcaHandle: handle, entries: table.entries, parents: table.parents,
+                                               isTmux: { TTYProcesses.isTmux(executable: ProcessTable.executablePath(of: $0)) })
+        return try client.map { try TmuxFront.target(client: $0, table: table, outer: "Orca") }
     }
 
     /// 화면에 떠 있는 워크스페이스·탭과 «어디서 알았는가».
@@ -232,6 +245,15 @@ public enum OrcaState {
     /// 그래서 그 터미널에서 실제로 도는 프로세스(`processAgent`)를 먼저 보고, 못 찾을 때만 `agentIdentity` 를 쓴다.
     static func target(in payload: [String: Any], active: Active,
                        processAgent: (String) -> Agent? = { _ in nil }) throws -> Target {
+        let pane = try pane(in: payload, active: active)
+        guard let agent = processAgent(pane.handle) ?? pane.listedAgent else {
+            throw SlashCommandError(loc("The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", pane.label))
+        }
+        return Target(host: .orca(handle: pane.handle), agent: agent, label: pane.label)
+    }
+
+    /// 화면에 보이는 탭의 활성 터미널: 핸들 · 사람이 읽는 이름 · 목록이 적어 둔 에이전트(없을 수 있다).
+    static func pane(in payload: [String: Any], active: Active) throws -> (handle: String, label: String, listedAgent: Agent?) {
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
         guard let layout = layouts.first(where: { $0["worktreeId"] as? String == active.worktreeID }) else {
             throw SlashCommandError(loc("The frontmost Orca workspace has no open terminal."))
@@ -250,10 +272,7 @@ public enum OrcaState {
         let title = (listed?["title"] as? String) ?? (pane["title"] as? String) ?? handle
         let folder = (layout["worktreePath"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent }
         let label = [title, folder].compactMap { $0 }.joined(separator: " · ")
-        guard let agent = processAgent(handle) ?? (listed?["agentIdentity"] as? String).flatMap(Agent.init(rawValue:)) else {
-            throw SlashCommandError(loc("The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", label))
-        }
-        return Target(host: .orca(handle: handle), agent: agent, label: label)
+        return (handle, label, (listed?["agentIdentity"] as? String).flatMap(Agent.init(rawValue:)))
     }
 
     /// 탭 묶음이 좌우로 나뉘어 있어도 찾도록 트리 전체에서 탭을 모은다.
@@ -310,19 +329,50 @@ enum AgentProcesses {
     static func agent(orcaHandle handle: String) -> Agent? {
         let table = ProcessTable.snapshot()
         if !table.entries.isEmpty {
-            let marker = "ORCA_TERMINAL_HANDLE=\(handle)"
-            let candidates = table.entries.compactMap { entry -> (pid: String, agent: Agent)? in
-                guard entry.environment.contains(marker),
-                      let agent = agent(forCommandLine: entry.arguments.joined(separator: " ")) else { return nil }
-                return (String(entry.pid), agent)
-            }
-            let parents = Dictionary(uniqueKeysWithValues: table.parents.map { (String($0.key), String($0.value)) })
-            return outermostAgent(candidates, parents: parents)
+            return agent(orcaHandle: handle, entries: table.entries, parents: table.parents,
+                         isTmux: { TTYProcesses.isTmux(executable: ProcessTable.executablePath(of: $0)) })
         }
         // 프로세스 안에서 못 읽으면 `ps` 로 같은 정보를 읽는다.
         let ps = Proc.run("/bin/ps", ["-axEww", "-o", "pid=,ppid=,tty=,command="], timeout: 5)
         guard ps.ok else { return nil }
         return agent(orcaHandle: handle, psOutput: ps.out)
+    }
+
+    static func agent(orcaHandle handle: String, entries: [ProcessTable.Entry], parents: [Int32: Int32], isTmux: (Int32) -> Bool) -> Agent? {
+        let marker = "ORCA_TERMINAL_HANDLE=\(handle)"
+        let candidates = entries.compactMap { entry -> (pid: String, agent: Agent)? in
+            // tmux 칸 안의 프로세스는 서버가 물려준 같은 핸들을 갖지만 이 터미널의 화면에 있는 것이 아니다(클라이언트를 떼면 셸만 보인다).
+            guard entry.environment.contains(marker), !hasAncestor(of: entry.pid, parents: parents, where: isTmux),
+                  let agent = agent(forCommandLine: entry.arguments.joined(separator: " ")) else { return nil }
+            return (String(entry.pid), agent)
+        }
+        let table = Dictionary(uniqueKeysWithValues: parents.map { (String($0.key), String($0.value)) })
+        return outermostAgent(candidates, parents: table)
+    }
+
+    /// Orca 터미널 `handle` 에서 «앞 작업» 으로 도는 tmux 클라이언트. 하나로 정해지지 않으면 nil.
+    ///
+    /// tmux 서버를 그 터미널에서 처음 띄웠으면 서버가 그 환경변수를 물려받아, 모든 칸의 프로세스가 같은 `ORCA_TERMINAL_HANDLE` 을 갖는다.
+    /// 그래서 칸 안에서 다시 띄운 tmux 클라이언트(조상에 tmux 가 있다)는 그 터미널의 것이 아니다 — 조상에 tmux 가 없는 것만 센다.
+    static func tmuxClient(orcaHandle handle: String, entries: [ProcessTable.Entry], parents: [Int32: Int32],
+                           isTmux: (Int32) -> Bool) -> ProcessTable.Entry? {
+        let marker = "ORCA_TERMINAL_HANDLE=\(handle)"
+        let found = entries.filter { entry in
+            entry.environment.contains(marker) && TTYProcesses.isTmuxClient(entry) && entry.isForeground
+                && !hasAncestor(of: entry.pid, parents: parents, where: isTmux)
+        }
+        return found.count == 1 ? found.first : nil
+    }
+
+    static func hasAncestor(of pid: Int32, parents: [Int32: Int32], where matches: (Int32) -> Bool) -> Bool {
+        var current = parents[pid]
+        var hops = 0
+        while let ancestor = current, ancestor > 1, hops < 64 {
+            if matches(ancestor) { return true }
+            current = parents[ancestor]
+            hops += 1
+        }
+        return false
     }
 
     static func agent(orcaHandle handle: String, psOutput: String) -> Agent? {

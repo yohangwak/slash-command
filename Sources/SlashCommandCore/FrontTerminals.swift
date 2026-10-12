@@ -30,6 +30,11 @@ enum TTYProcesses {
         return (first.split(separator: "/").last.map(String.init) ?? "") == "tmux"
     }
 
+    /// 실행 파일 경로가 tmux 인가(서버는 터미널이 없어 `ProcessTable` 의 목록에 없다 — 경로로 본다).
+    static func isTmux(executable path: String) -> Bool {
+        (path.split(separator: "/").last.map(String.init) ?? "") == "tmux"
+    }
+
     /// 그 터미널의 에이전트(에이전트가 띄운 다른 에이전트는 세지 않는다). 한 종류로 모이지 않으면 nil.
     static func agent(in entries: [ProcessTable.Entry], parents: [Int32: Int32]) -> Agent? {
         let candidates = entries.compactMap { entry -> (pid: String, agent: Agent)? in

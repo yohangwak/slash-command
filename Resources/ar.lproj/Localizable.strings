@@ -276,3 +276,5 @@
 "Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "لم يُرسل: يحتاج Slash Command إلى إذن تسهيلات الاستخدام للتأكد من أن بثّ الإدخال (Broadcast Input) في iTerm2 متوقف. فعّله في إعدادات النظام ← الخصوصية والأمان ← تسهيلات الاستخدام ثم اضغط مرة أخرى.";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "لم يُرسل: تعذّر التأكد من قائمة Shell ▸ Broadcast Input في iTerm2 أن بثّ الإدخال متوقف.";
 "Could not type into iTerm2: %@" = "تعذّر الإدخال في iTerm2: %@";
+"This OpenCode model has no effort levels (it has no variants)." = "ليس لهذا النموذج في OpenCode مستويات effort (لا توجد له variants).";
+"This OpenCode model has no variants, so the effort (%@) was not set." = "ليس لهذا النموذج في OpenCode أي variants، لذلك لم يُضبط effort (%@).";
