@@ -90,23 +90,39 @@ final class ITermScreenTests: XCTestCase {
         XCTAssertEqual(split?.count, 3)
     }
 
-    func testWideCharactersAreCountedGenerously() {
-        // 한글 50자 = 100칸 → 80칸 화면에서 2행. 넉넉히 세므로 위쪽 줄을 덜 가져오는 쪽으로만 틀린다.
+    func testWideCharactersTakeTwoCells() {
+        // 한글 50자 = 100칸 → 80칸 화면에서 2행.
         let korean = String(repeating: "한", count: 50)
         let screen = ITermIO.visibleLines(from: output(rows: 3, columns: 80, ["위", "중간", korean, "끝"]))
         XCTAssertEqual(screen, [korean, "끝"])
     }
 
-    func testAmbiguousWidthCharactersAreCountedAsWide() {
-        // 상자 선 50자: 폭이 1칸이면 1행, 2칸이면 100칸=2행. 2칸일 수 있으니 2행으로 센다 — 위쪽 줄을 덜 가져오는 쪽이 안전하다.
-        let box = String(repeating: "─", count: 50)
-        let screen = ITermIO.visibleLines(from: output(rows: 3, columns: 80, ["위", "중간", box, "끝"]))
-        XCTAssertEqual(screen, [box, "끝"])
-        // 입력창 판정에 필요한 맨 아래 5줄(구분선 2 + 입력 + 상태 2)은 25행 화면에서 그대로 남는다.
+    func testAmbiguousWidthCharactersTakeOneCell() {
+        // 상자 선 80자는 80칸 화면에서 한 행이다(iTerm2 기본 설정). 전에는 2칸씩 세어 2행으로 보고 위쪽 줄을 버렸다.
         let separator = String(repeating: "─", count: 80)
-        let claude = ["old", separator, "❯ ", separator, "  (이름 없음) | slash-command | Opus 5.5 · high", "  ⏵⏵ auto mode on (shift+tab to cycle)"]
-        let live = ITermIO.visibleLines(from: output(rows: 25, columns: 80, claude))
-        XCTAssertTrue(Readiness.claudePromptVisible(live ?? []))
+        let screen = ITermIO.visibleLines(from: output(rows: 4, columns: 80, ["scrollback", "위", separator, "❯ ", separator]))
+        XCTAssertEqual(screen, ["위", separator, "❯ ", separator])
+        XCTAssertEqual(ITermIO.displayWidth("› 1. GPT · x"), 12)
+        XCTAssertEqual(ITermIO.displayWidth("한글 ok"), 7)
+        XCTAssertEqual(ITermIO.displayWidth("e\u{301}"), 1, "결합 문자는 칸을 차지하지 않는다")
+        XCTAssertEqual(ITermIO.displayWidth("全角ａ"), 6)
+    }
+
+    /// PR #27 리뷰 · 2026-10-12 집 맥 2 실측: 선택창이 칸에 «꼭 맞게» 들어찬 화면에서 머리말을 잃지 않는다.
+    /// (칸 수에 꼭 맞게 채워진 행 `› 1. …` 과 안내 줄 `enter select · esc back` 을 2행으로 세어 맨 윗줄을 버렸다 → 선택창을 못 알아보고 열어 둔 채 끝났다.)
+    func testAPickerThatExactlyFillsThePaneKeepsItsHeader() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "codex-38-models", withExtension: "json", subdirectory: "Fixtures"))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let all = try XCTUnwrap(object["tail"] as? [String])
+        let picker = Array(all.suffix(12))
+        XCTAssertTrue(picker[0].contains("Select Model and Effort"))
+        XCTAssertEqual(picker.filter { $0.count == 38 }.count, 2, "칸 수에 꼭 맞는 줄이 둘(커서 행 · 안내 줄)")
+        // 위에 스크롤백이 있어도 12행 화면은 그 12줄이다.
+        let screen = try XCTUnwrap(ITermIO.visibleLines(from: output(rows: 12, columns: 38, ["• old output", "› old prompt"] + picker)))
+        XCTAssertEqual(screen, picker)
+        let open = try XCTUnwrap(Picker.open(screen))
+        XCTAssertTrue(open.header.hasPrefix("Select Model and Effort"))
+        XCTAssertEqual(open.rows.count, 7)
     }
 
     func testRefusesWhenRowsOrColumnsAreUnknown() {

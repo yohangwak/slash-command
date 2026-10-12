@@ -202,7 +202,11 @@ public struct ITermIO: TerminalIO {
     ///
     /// `rows` 는 «물리적인» 행 수인데 `contents` 는 글줄 단위라, 긴 줄이 접혀 여러 행을 차지할 수 있다(합쳐서 줄 수가 적다).
     /// 그래서 맨 아래에서부터 줄마다 «차지하는 행 수»(폭 ÷ 칸 수, 올림)를 더해 `rows` 를 채울 때까지만 가져온다.
-    /// 행 수를 넉넉히(폭이 넓은 글자는 2칸) 세므로 틀리면 위쪽 줄을 덜 가져오는 쪽이다 — 맨 아래 입력창 판정에는 안전한 방향이다.
+    ///
+    /// 폭은 iTerm2 의 기본 설정대로 센다(`displayWidth`). 🔴 전에는 ASCII 가 아닌 글자를 전부 2칸으로 «넉넉히» 셌는데, 그러면 칸 수에 꼭 맞는
+    /// 줄(`› 1. …` · `enter select · esc back` 처럼 끝까지 채워진 행, claude 의 구분선)이 2행으로 세어져 «보이는» 윗줄을 버린다 — 11줄짜리 칸에서
+    /// codex 선택창의 머리말이 잘려 선택창을 못 알아보고 열어 둔 채 끝났다(2026-10-12 집 맥 2 실측 · PR #27 리뷰). 폭을 적게 세는 쪽은 위쪽에
+    /// 스크롤백 몇 줄이 더 딸려올 뿐이다: 입력창·선택창 판정은 맨 아래에서부터 읽으므로 아래쪽 줄은 어느 쪽으로 틀려도 같다.
     static func visibleLines(from output: String) -> [String]? {
         let text = output.replacingOccurrences(of: "\r", with: "\n")
         let head = text.split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false)
@@ -220,12 +224,25 @@ public struct ITermIO: TerminalIO {
         return kept.reversed()
     }
 
-    /// 터미널 칸 수로 센 폭(넉넉히): ASCII 가 아닌 글자는 전부 2칸으로 센다.
-    /// 한글·한자·이모지는 실제로 2칸이고, 상자 선(`─`)·`❯` 같은 «모호한 폭» 글자는 설정에 따라 1칸 또는 2칸이다(iTerm2 의
-    /// Ambiguous characters are double-width). 폭을 적게 세면 접힌 줄이 차지하는 행을 덜 세어 위쪽 스크롤백을 화면으로 오인하므로
-    /// 많이 세는 쪽이 안전하다 — 입력창 판정은 맨 아래 몇 줄만 쓰니 위쪽 줄을 덜 가져와도 잃는 것이 없다.
+    /// 터미널 칸 수로 센 폭 — iTerm2 의 기본 설정(«모호한 폭» 글자는 1칸)대로: 한글·한자·가나·전각 글자·이모지는 2칸, 결합 문자와 폭 없는 글자는 0칸,
+    /// 나머지(상자 선 `─` · `›` · `·` · `❯` 포함)는 1칸. 「Ambiguous characters are double-width」 를 켠 프로필에서는 실제보다 적게 센다(위 설명대로 안전한 쪽).
     static func displayWidth(_ text: String) -> Int {
-        text.unicodeScalars.reduce(0) { $0 + ($1.isASCII ? 1 : 2) }
+        text.unicodeScalars.reduce(0) { $0 + width(of: $1) }
+    }
+
+    static func width(of scalar: Unicode.Scalar) -> Int {
+        let value = scalar.value
+        if value < 0x300 { return 1 }
+        switch value {
+        case 0x0300...0x036F, 0x200B...0x200F, 0x2060...0x2064, 0xFE00...0xFE0F, 0xFEFF, 0xE0100...0xE01EF:
+            return 0
+        case 0x1100...0x115F, 0x2E80...0x303E, 0x3041...0x33FF, 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xA000...0xA4CF, 0xA960...0xA97F,
+             0xAC00...0xD7A3, 0xF900...0xFAFF, 0xFE30...0xFE4F, 0xFF00...0xFF60, 0xFFE0...0xFFE6,
+             0x1F300...0x1F64F, 0x1F680...0x1F6FF, 0x1F900...0x1FAFF, 0x20000...0x3FFFD:
+            return 2
+        default:
+            return 1
+        }
     }
 }
 
