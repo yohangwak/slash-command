@@ -50,17 +50,23 @@ struct EditableSlot: Identifiable {
     let id = UUID()
     var name: String
     var presets: [Agent: AgentPreset]
+    /// 편집 화면이 모르는 키 — 저장할 때 그대로 돌려준다.
+    private let extra: [String: JSONValue]
 
     init(_ slot: Slot) {
         name = slot.name
         presets = slot.presets
+        extra = slot.extra
     }
 
     /// 저장할 모양: 이름과 모델의 앞뒤 빈칸을 뗀다.
     var slot: Slot {
         var made = Slot(name: name.trimmingCharacters(in: .whitespaces))
+        made.extra = extra
         for (agent, preset) in presets {
-            made.presets[agent] = AgentPreset(model: preset.model.trimmingCharacters(in: .whitespaces), effort: preset.effort)
+            var trimmed = preset
+            trimmed.model = preset.model.trimmingCharacters(in: .whitespaces)
+            made.presets[agent] = trimmed
         }
         return made
     }
@@ -97,14 +103,16 @@ final class SettingsModel: ObservableObject {
         SlashCommandConfig(modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains), slots: []).modifierSymbols
     }
 
-    /// 화면의 내용으로 만든 설정. 편집 화면이 모르는 값(`version`)은 읽은 것을 그대로 둔다.
+    /// 화면의 내용으로 만든 설정. 편집 화면이 모르는 값(`version` 과 이 판이 모르는 키)은 읽은 것을 그대로 둔다.
     var draft: SlashCommandConfig {
-        SlashCommandConfig(version: saved?.version ?? 1,
-                           keepDefaults: keepDefaults,
-                           acceptSwitchPrompt: acceptSwitchPrompt,
-                           effortKeys: effortKeys,
-                           modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains),
-                           slots: slots.map(\.slot))
+        var made = SlashCommandConfig(version: saved?.version ?? 1,
+                                      keepDefaults: keepDefaults,
+                                      acceptSwitchPrompt: acceptSwitchPrompt,
+                                      effortKeys: effortKeys,
+                                      modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains),
+                                      slots: slots.map(\.slot))
+        made.extra = saved?.extra ?? [:]
+        return made
     }
 
     var isDirty: Bool {

@@ -33,13 +33,91 @@ public enum Agent: String, Codable, CaseIterable, Sendable {
     public var usesDriver: Bool { self != .claude && self != .codex }
 }
 
+/// 이 판이 모르는 JSON 값. 나중 판이 프리셋 파일에 쓴 키를 읽었다가, 저장할 때 그대로 돌려주려고 든다
+/// (전에는 설정 창에서 저장하면 모르는 키가 사라졌다).
+public enum JSONValue: Codable, Equatable, Sendable {
+    case null
+    case bool(Bool)
+    case integer(Int64)
+    case number(Double)
+    case string(String)
+    case array([JSONValue])
+    case object([String: JSONValue])
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { self = .null }
+        else if let value = try? c.decode(Bool.self) { self = .bool(value) }
+        else if let value = try? c.decode(Int64.self) { self = .integer(value) }
+        else if let value = try? c.decode(Double.self) { self = .number(value) }
+        else if let value = try? c.decode(String.self) { self = .string(value) }
+        else if let value = try? c.decode([JSONValue].self) { self = .array(value) }
+        else { self = .object(try c.decode([String: JSONValue].self)) }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .null: try c.encodeNil()
+        case .bool(let value): try c.encode(value)
+        case .integer(let value): try c.encode(value)
+        case .number(let value): try c.encode(value)
+        case .string(let value): try c.encode(value)
+        case .array(let value): try c.encode(value)
+        case .object(let value): try c.encode(value)
+        }
+    }
+}
+
+/// 이름을 실행 중에 정하는 JSON 키.
+struct DynamicKey: CodingKey {
+    let stringValue: String
+    var intValue: Int? { nil }
+    init(stringValue: String) { self.stringValue = stringValue }
+    init(_ name: String) { self.stringValue = name }
+    init?(intValue: Int) { nil }
+
+    /// 그 자리의 키 가운데 `known` 에 없는 것들의 값.
+    static func unknown(in decoder: Decoder, known: Set<String>) throws -> [String: JSONValue] {
+        let c = try decoder.container(keyedBy: DynamicKey.self)
+        var extra: [String: JSONValue] = [:]
+        for key in c.allKeys where !known.contains(key.stringValue) {
+            extra[key.stringValue] = try c.decode(JSONValue.self, forKey: key)
+        }
+        return extra
+    }
+
+    static func write(_ extra: [String: JSONValue], to encoder: Encoder, known: Set<String>) throws {
+        var c = encoder.container(keyedBy: DynamicKey.self)
+        for (name, value) in extra where !known.contains(name) { try c.encode(value, forKey: DynamicKey(name)) }
+    }
+}
+
 public struct AgentPreset: Codable, Equatable, Sendable {
     public var model: String
     public var effort: String
+    /// 이 판이 모르는 키(읽은 그대로 다시 쓴다).
+    public var extra: [String: JSONValue] = [:]
 
     public init(model: String, effort: String) {
         self.model = model
         self.effort = effort
+    }
+
+    private static let known: Set<String> = ["model", "effort"]
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: DynamicKey.self)
+        model = try c.decode(String.self, forKey: DynamicKey("model"))
+        effort = try c.decode(String.self, forKey: DynamicKey("effort"))
+        extra = try DynamicKey.unknown(in: decoder, known: AgentPreset.known)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: DynamicKey.self)
+        try c.encode(model, forKey: DynamicKey("model"))
+        try c.encode(effort, forKey: DynamicKey("effort"))
+        try DynamicKey.write(extra, to: encoder, known: AgentPreset.known)
     }
 }
 
@@ -48,6 +126,8 @@ public struct Slot: Codable, Equatable, Sendable {
     public var name: String
     /// 에이전트마다의 설정. 없는 에이전트는 그 번호에서 아무것도 하지 않는다.
     public var presets: [Agent: AgentPreset]
+    /// 이 판이 모르는 키(나중 판의 에이전트 등 — 읽은 그대로 다시 쓴다).
+    public var extra: [String: JSONValue] = [:]
 
     public var claude: AgentPreset? {
         get { presets[.claude] }
@@ -85,31 +165,29 @@ public struct Slot: Codable, Equatable, Sendable {
         self.opencode = opencode
     }
 
-    /// 파일의 키는 `name` 과 에이전트 이름(`claude`·`codex`·`grok`…)이다. 모르는 키는 무시한다(나중 판이 쓴 파일을 읽을 수 있게).
-    struct Key: CodingKey {
-        let stringValue: String
-        var intValue: Int? { nil }
-        init(stringValue: String) { self.stringValue = stringValue }
-        init?(intValue: Int) { nil }
-    }
+    /// 파일의 키는 `name` 과 에이전트 이름(`claude`·`codex`·`grok`…)이다. 모르는 키는 쓰지는 않지만 들고 있다가 그대로 다시 쓴다
+    /// (나중 판이 쓴 파일을 읽고, 저장해도 그 판의 값이 남게).
+    private static let known = Set(["name"] + Agent.allCases.map(\.rawValue))
 
     public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: Key.self)
-        name = try c.decodeIfPresent(String.self, forKey: Key(stringValue: "name")) ?? ""
+        let c = try decoder.container(keyedBy: DynamicKey.self)
+        name = try c.decodeIfPresent(String.self, forKey: DynamicKey("name")) ?? ""
         presets = [:]
         for agent in Agent.allCases {
-            if let preset = try c.decodeIfPresent(AgentPreset.self, forKey: Key(stringValue: agent.rawValue)) {
+            if let preset = try c.decodeIfPresent(AgentPreset.self, forKey: DynamicKey(agent.rawValue)) {
                 presets[agent] = preset
             }
         }
+        extra = try DynamicKey.unknown(in: decoder, known: Slot.known)
     }
 
     public func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: Key.self)
-        if !name.isEmpty { try c.encode(name, forKey: Key(stringValue: "name")) }
+        var c = encoder.container(keyedBy: DynamicKey.self)
+        if !name.isEmpty { try c.encode(name, forKey: DynamicKey("name")) }
         for agent in Agent.allCases {
-            try c.encodeIfPresent(presets[agent], forKey: Key(stringValue: agent.rawValue))
+            try c.encodeIfPresent(presets[agent], forKey: DynamicKey(agent.rawValue))
         }
+        try DynamicKey.write(extra, to: encoder, known: Slot.known)
     }
 
     public func preset(for agent: Agent) -> AgentPreset? { presets[agent] }
@@ -155,6 +233,8 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
     /// 번호 키와 함께 누를 조합 키. `shift`·`option`·`control`·`command` 중에서.
     public var modifiers: [String]
     public var slots: [Slot]
+    /// 이 판이 모르는 키(읽은 그대로 다시 쓴다).
+    public var extra: [String: JSONValue] = [:]
 
     public static let defaultModifiers = ["option", "shift"]
     public static let knownModifiers = ["control", "option", "shift", "command"]
@@ -186,6 +266,24 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         // 조합 키 없이 숫자만 잡으면 터미널에 숫자를 칠 수 없게 된다. Shift 뿐이어도 같다(`!`·`@`·`#` 을 칠 수 없다).
         if !SlashCommandConfig.modifiersAreUsable(modifiers) { modifiers = SlashCommandConfig.defaultModifiers }
         slots = try c.decode([Slot].self, forKey: .slots)
+        extra = try DynamicKey.unknown(in: decoder, known: SlashCommandConfig.known)
+    }
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case version, keepDefaults, acceptSwitchPrompt, effortKeys, modifiers, slots
+    }
+
+    private static let known = Set(CodingKeys.allCases.map(\.rawValue))
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(version, forKey: .version)
+        try c.encode(keepDefaults, forKey: .keepDefaults)
+        try c.encode(acceptSwitchPrompt, forKey: .acceptSwitchPrompt)
+        try c.encode(effortKeys, forKey: .effortKeys)
+        try c.encode(modifiers, forKey: .modifiers)
+        try c.encode(slots, forKey: .slots)
+        try DynamicKey.write(extra, to: encoder, known: SlashCommandConfig.known)
     }
 
     public static let maxSlots = 9
