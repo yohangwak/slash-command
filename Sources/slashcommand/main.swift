@@ -58,6 +58,8 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         return Target(host: host, agent: named, label: id)
     }
     guard orca != nil || ghostty != nil else { return nil }
+    // 그 Orca 터미널에서 tmux 가 앞 작업이면 단축키와 같이 그 tmux 칸으로 간다.
+    if let orca, let inside = try Detector.orcaTmux(handle: orca) { return inside }
     guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
         throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
     }

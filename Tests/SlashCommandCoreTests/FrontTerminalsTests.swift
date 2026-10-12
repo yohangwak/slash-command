@@ -194,6 +194,52 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertNil(TTYProcesses.device(ofTTY: "/tmp"), "장치가 아니다")
     }
 
+    // MARK: Orca 안의 tmux
+
+    private func orcaEntry(_ pid: Int32, parent: Int32, handle: String = "term_A", device: UInt32, foreground: Bool = true, _ arguments: String...) -> ProcessTable.Entry {
+        ProcessTable.Entry(pid: pid, parent: parent, hasTerminal: true, terminalDevice: device,
+                           processGroup: pid, foregroundGroup: foreground ? pid : pid + 1000,
+                           arguments: arguments, environment: ["HOME=/Users/x", "ORCA_TERMINAL_HANDLE=\(handle)"], executable: "")
+    }
+
+    /// 터미널 A(tty 1): 셸 100 → tmux 클라이언트 110. tmux 서버 200(터미널 없음 — 목록에 없다) → 칸의 셸 210(tty 2) → claude 220,
+    /// 그리고 칸 안에서 다시 띄운 클라이언트 230. 서버를 A 에서 띄워 칸의 프로세스도 같은 핸들을 갖는다.
+    private var orcaTmux: (entries: [ProcessTable.Entry], parents: [Int32: Int32], isTmux: (Int32) -> Bool) {
+        let entries = [
+            orcaEntry(100, parent: 50, device: 1, foreground: false, "-zsh"),
+            orcaEntry(110, parent: 100, device: 1, "tmux", "-L", "work", "attach"),
+            orcaEntry(210, parent: 200, device: 2, foreground: false, "-zsh"),
+            orcaEntry(220, parent: 210, device: 2, "claude"),
+            orcaEntry(230, parent: 210, device: 2, "tmux", "attach"),
+        ]
+        return (entries, [100: 50, 110: 100, 200: 1, 210: 200, 220: 210, 230: 210, 50: 1], { $0 == 200 })
+    }
+
+    func testOrcaTerminalRunningTmuxLeadsToItsClient() {
+        let t = orcaTmux
+        XCTAssertEqual(AgentProcesses.tmuxClient(orcaHandle: "term_A", entries: t.entries, parents: t.parents, isTmux: t.isTmux)?.pid, 110,
+                       "칸 안에서 다시 띄운 클라이언트(230)가 아니라 그 터미널의 클라이언트")
+        XCTAssertNil(AgentProcesses.tmuxClient(orcaHandle: "term_B", entries: t.entries, parents: t.parents, isTmux: t.isTmux), "다른 터미널")
+    }
+
+    func testSuspendedOrDetachedTmuxIsNotFollowedInOrca() {
+        var t = orcaTmux
+        // Ctrl-Z 로 멈춰 둔 클라이언트: 앞 작업이 아니다.
+        t.entries[1] = orcaEntry(110, parent: 100, device: 1, foreground: false, "tmux", "-L", "work", "attach")
+        XCTAssertNil(AgentProcesses.tmuxClient(orcaHandle: "term_A", entries: t.entries, parents: t.parents, isTmux: t.isTmux))
+        // 그때 칸 안의 claude(같은 핸들을 물려받았다)를 이 터미널의 에이전트로 세지 않는다 — 화면에는 셸이 보인다.
+        XCTAssertNil(AgentProcesses.agent(orcaHandle: "term_A", entries: t.entries, parents: t.parents, isTmux: t.isTmux))
+        // 양성 대조군: tmux 밖에서 바로 도는 에이전트는 센다.
+        let plain = [orcaEntry(100, parent: 50, device: 1, foreground: false, "-zsh"), orcaEntry(120, parent: 100, device: 1, "codex")]
+        XCTAssertEqual(AgentProcesses.agent(orcaHandle: "term_A", entries: plain, parents: [100: 50, 120: 100], isTmux: { _ in false }), .codex)
+    }
+
+    func testTmuxExecutable() {
+        XCTAssertTrue(TTYProcesses.isTmux(executable: "/opt/homebrew/Cellar/tmux/3.8/bin/tmux"))
+        XCTAssertFalse(TTYProcesses.isTmux(executable: "/bin/zsh"))
+        XCTAssertFalse(TTYProcesses.isTmux(executable: ""))
+    }
+
     func testNewTerminalsAreHandled() {
         XCTAssertTrue(Detector.supportedBundleIDs.contains(Detector.weztermBundleID))
         XCTAssertTrue(Detector.supportedBundleIDs.contains(Detector.kittyBundleID))
