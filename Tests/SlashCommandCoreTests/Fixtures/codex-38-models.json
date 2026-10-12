@@ -1,0 +1,25 @@
+{
+  "draft" : null,
+  "tail" : [
+    "  ",
+    "• Model changed to gpt-6.1-sol medium ",
+    "for this session only ",
+    "  ",
+    "• Model changed to gpt-6.1-sol high ",
+    "for this session only ",
+    "  ",
+    "  ",
+    "  Select Model and Effort ",
+    "  ",
+    "  ",
+    "› 1. GPT-6.1-Sol (current)            ",
+    "  2. GPT-6-Astra ",
+    "  3. GPT-6-Sol ",
+    "  4. GPT-6-Luna ",
+    "  5. GPT-5.6-Sol ",
+    "  6. GPT-5.6-Terra ",
+    "  7. GPT-5.6-Luna ",
+    "  ",
+    "  enter select · esc back             "
+  ]
+}

@@ -18,10 +18,11 @@ target (default: the frontmost terminal of the frontmost app):
   --orca <handle> [--agent <agent>]
   --ghostty <terminal id> --agent <agent>
   --bundle <bundle id>   as if that app were the frontmost one (the path a hotkey takes)
-also found as the frontmost terminal: WezTerm, kitty (remote control on), and tmux inside either. Or name one:
+also found as the frontmost terminal: iTerm2, WezTerm, kitty (remote control on), and tmux inside any of them. Or name one:
   --tmux <pane> [--tmux-socket <name or path>] --agent <agent>
   --kitty <window id> --kitty-socket unix:/path --agent <agent>
   --wezterm <pane id> --agent <agent>
+  --iterm <session unique id> --agent <agent>
 agents: claude · codex · grok · cursor · antigravity · opencode
 
 Output of this tool is in English; the sentences an agent switch reports follow the system language.
@@ -48,6 +49,7 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         ("--tmux", { .tmux(socket: value(after: "--tmux-socket", in: args), pane: $0) }),
         ("--kitty", { id in value(after: "--kitty-socket", in: args).map { .kitty(socket: $0, window: id) } }),
         ("--wezterm", { .wezterm(socket: nil, pane: $0) }),
+        ("--iterm", { .iterm(sessionID: $0) }),
     ]
     for (flag, make) in more {
         guard let id = value(after: flag, in: args) else { continue }
@@ -209,6 +211,10 @@ do {
         let target = try explicitTarget(args) ?? Detector.frontmost()
         print("target        \(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         if case .ghostty = target.host { print("accessibility \(GhosttyScreen.trusted() ? "allowed" : "not allowed")") }
+        if case .iterm = target.host {
+            print("accessibility \(GhosttyScreen.trusted() ? "allowed" : "not allowed")")
+            ITermBroadcast.report().forEach { print($0) }
+        }
         AgentVersions.report(for: target.agent).lines.forEach { print($0) }
         let io = try Switcher.terminalIO(for: target)
         if let screen = io.screen() {

@@ -10,6 +10,8 @@ public enum TerminalHost: Equatable, Sendable {
     case kitty(socket: String, window: String)
     /// WezTerm pane id. `socket` 은 그 GUI 의 mux 소켓 경로(없으면 `wezterm cli` 가 고르는 GUI).
     case wezterm(socket: String?, pane: String)
+    /// iTerm2 세션의 `unique id`.
+    case iterm(sessionID: String)
 
     public var appName: String {
         switch self {
@@ -18,6 +20,7 @@ public enum TerminalHost: Equatable, Sendable {
         case .tmux: return "tmux"
         case .kitty: return "kitty"
         case .wezterm: return "WezTerm"
+        case .iterm: return "iTerm2"
         }
     }
 }
@@ -38,7 +41,7 @@ public struct Target: Equatable, Sendable {
 public enum Detector {
     public static let ghosttyBundleID = "com.mitchellh.ghostty"
     public static let orcaBundleID = "com.stablyai.orca"
-    public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID, weztermBundleID, kittyBundleID]
+    public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID, itermBundleID, weztermBundleID, kittyBundleID]
 
     /// 지금 맨 앞 앱의 맨 앞 터미널과 그 안의 에이전트.
     public static func frontmost() throws -> Target {
@@ -53,11 +56,12 @@ public enum Detector {
         switch bundleID {
         case ghosttyBundleID: return try ghostty()
         case orcaBundleID: return try orca()
+        case itermBundleID: return try iterm()
         // 같은 앱을 둘 이상 띄웠을 수 있다 — 그 가운데 «맨 앞» 인 프로세스를 짚어 준다.
         case weztermBundleID: return try wezterm(frontPID: activeProcess(bundleID: weztermBundleID))
         case kittyBundleID: return try kitty(frontPID: activeProcess(bundleID: kittyBundleID))
         default:
-            throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal.", appName))
+            throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal.", appName))
         }
     }
 

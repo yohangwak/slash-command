@@ -383,6 +383,8 @@ public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
     public var awaitingUser = false
     /// 실패가 아니라 바꿀 것이 없었다(이미 가장 높은 단계 등).
     public var nothingToDo = false
+    /// 손쉬운 사용 권한이 없어 보내지 않았다 — 앱은 그 권한을 켜는 설정 화면을 열어 준다.
+    public var needsAccessibility = false
 
     public init(_ message: String) {
         self.message = message

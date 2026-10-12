@@ -2,7 +2,7 @@
 
 "             verified version" = "             확인한 판입니다";
 "%@ is not running, so this cannot be checked now." = "%@ 가 실행 중이 아니라 지금은 확인할 수 없습니다.";
-"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ 는 지원하지 않습니다. Ghostty · Orca · WezTerm · kitty 터미널에서 눌러 주세요.";
+"%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@ 는 지원하지 않습니다. Ghostty · Orca · iTerm2 · WezTerm · kitty 터미널에서 눌러 주세요.";
 "%@ version  installed %@ · running %@" = "%@ 판     설치 %@ · 실행 중 %@";
 "%@ — no agent found in the front session" = "%@ — 맨 앞 세션에서 에이전트를 찾지 못했습니다";
 "%@ — not set for %@" = "%1$@ — %2$@ 설정 없음";
@@ -19,7 +19,7 @@
 "Accessibility" = "손쉬운 사용";
 "Add Agent" = "에이전트 추가";
 "Add Preset" = "프리셋 추가";
-"Allow Automation for Ghostty…" = "Ghostty 자동화 허용하기…";
+"Allow Automation for %@…" = "%@ 자동화 허용하기…";
 "Already at the highest level (%@)." = "이미 가장 높은 단계(%@)입니다.";
 "Already at the lowest level (%@)." = "이미 가장 낮은 단계(%@)입니다.";
 "Another app is using these shortcut keys: %@" = "다른 앱이 쓰고 있어 잡지 못한 단축키: %@";
@@ -110,7 +110,7 @@
 "Model" = "모델";
 "Modifier keys" = "조합 키";
 "Name (optional)" = "이름(선택)";
-"Needed to read the Ghostty screen; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Ghostty 화면 읽기에 꼭 필요하고, Orca 에서는 방금 옮긴 탭을 바로 알게 해 줍니다. 열리는 목록에서 Slash Command 를 켜 주세요(목록에 없으면 + 로 추가).";
+"Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Ghostty 화면 읽기와 iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하는 데 꼭 필요하고, Orca 에서는 방금 옮긴 탭을 바로 알게 해 줍니다. 열리는 목록에서 Slash Command 를 켜 주세요(목록에 없으면 + 로 추가).";
 "No agents set" = "설정한 에이전트 없음";
 "No model list for this agent. Type the name it shows on screen." = "이 에이전트는 모델 목록이 없습니다. 그 화면에 보이는 이름을 그대로 입력하세요.";
 "No presets yet — add one in Settings" = "프리셋이 없습니다 — 설정에서 추가하세요";
@@ -251,7 +251,7 @@
 "Turn On Accessibility…" = "손쉬운 사용 켜기…";
 "Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "메뉴 막대 아이콘에서 손쉬운 사용을 켜 두면 탭을 옮긴 직후에도 정확합니다.";
 "Unsaved changes" = "저장하지 않은 변경이 있습니다";
-"Used to read the Ghostty screen and to follow tab changes in Orca." = "Ghostty 화면을 읽고 Orca 의 탭 전환을 따라가는 데 씁니다.";
+"Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Ghostty 화면을 읽고, Orca 의 탭 전환을 따라가고, iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하는 데 씁니다.";
 "Used to type the switch commands into %@." = "%@ 에 전환 명령을 입력하는 데 씁니다.";
 "Works in Ghostty and Orca" = "Ghostty 와 Orca 에서 동작합니다";
 "installed %@" = "설치된 %@";
@@ -270,3 +270,9 @@
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "kitty 의 원격 제어가 꺼져 있습니다. kitty.conf 에 `allow_remote_control socket-only` 와 `listen_on unix:/tmp/kitty` 를 넣고 kitty 를 다시 시작하세요.";
 "Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "보내지 않았습니다: 이 tmux 창의 `synchronize-panes` 가 켜져 있어 다른 칸에도 같은 입력이 들어갑니다. 끄고 다시 눌러 주세요.";
 "Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "바꾸지 않았습니다: 창이 낮아 모델 선택창이 다 보이지 않습니다. 창을 높이고 다시 눌러 주세요.";
+"iTerm2 has no open window." = "iTerm2 에 열린 창이 없습니다.";
+"Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "보내지 않았습니다: 그 세션이 iTerm2 의 맨 앞 창에 있지 않아 입력 방송(Broadcast Input)이 꺼져 있는지 확인할 수 없습니다.";
+"Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "보내지 않았습니다: iTerm2 의 입력 방송(Broadcast Input)이 켜져 있어(%@) 다른 칸에도 같은 입력이 들어갑니다. Shell ▸ Broadcast Input ▸ Send Input to Current Session Only 를 고른 뒤 다시 눌러 주세요.";
+"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "보내지 않았습니다: iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하려면 Slash Command 에 손쉬운 사용 권한이 필요합니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 켠 뒤 다시 눌러 주세요.";
+"Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "보내지 않았습니다: iTerm2 의 Shell ▸ Broadcast Input 메뉴에서 입력 방송이 꺼져 있음을 확인하지 못했습니다.";
+"Could not type into iTerm2: %@" = "iTerm2 에 입력하지 못했습니다: %@";

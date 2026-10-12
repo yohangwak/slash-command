@@ -49,7 +49,7 @@ enum Permissions {
     }
 
     /// AppleScript 로 다루는 터미널들(이름, 번들 id).
-    static let automatedTerminals: [(name: String, bundleID: String)] = [("Ghostty", Detector.ghosttyBundleID)]
+    static let automatedTerminals: [(name: String, bundleID: String)] = [("Ghostty", Detector.ghosttyBundleID), ("iTerm2", Detector.itermBundleID)]
 
     /// 그 가운데 이 맥에 깔려 있는 것 — 쓰지 않는 터미널의 권한은 보여 주지 않는다.
     static var installedAutomatedTerminals: [(name: String, bundleID: String)] {
@@ -105,8 +105,8 @@ struct PermissionsSection: View {
                 state: model.accessibility ? .ok : .problem,
                 status: model.accessibility ? loc("On") : loc("Off"),
                 detail: model.accessibility
-                    ? loc("Used to read the Ghostty screen and to follow tab changes in Orca.")
-                    : loc("Needed to read the Ghostty screen; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)."),
+                    ? loc("Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off.")
+                    : loc("Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)."),
                 action: Permissions.openAccessibility)
             ForEach(Permissions.installedAutomatedTerminals, id: \.bundleID) { terminal in
                 let state = model.automation[terminal.bundleID] ?? .notAsked

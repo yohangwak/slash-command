@@ -2,7 +2,7 @@
 
 "             verified version" = "             確認済みのバージョン";
 "%@ is not running, so this cannot be checked now." = "%@ が実行されていないため、今は確認できません。";
-"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ には対応していません。Ghostty・Orca・WezTerm・kitty のターミナルで押してください。";
+"%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@ には対応していません。Ghostty・Orca・iTerm2・WezTerm・kitty のターミナルで押してください。";
 "%@ version  installed %@ · running %@" = "%@ のバージョン  インストール済み %@ · 実行中 %@";
 "%@ — no agent found in the front session" = "%@ — 最前面のセッションでエージェントが見つかりません";
 "%@ — not set for %@" = "%1$@ — %2$@ の設定がありません";
@@ -19,7 +19,7 @@
 "Accessibility" = "アクセシビリティ";
 "Add Agent" = "エージェントを追加";
 "Add Preset" = "プリセットを追加";
-"Allow Automation for Ghostty…" = "Ghostty のオートメーションを許可…";
+"Allow Automation for %@…" = "%@ のオートメーションを許可…";
 "Already at the highest level (%@)." = "すでに最高の段階(%@)です。";
 "Already at the lowest level (%@)." = "すでに最低の段階(%@)です。";
 "Another app is using these shortcut keys: %@" = "ほかのアプリが使用中のため取得できなかったショートカット: %@";
@@ -110,7 +110,7 @@
 "Model" = "モデル";
 "Modifier keys" = "修飾キー";
 "Name (optional)" = "名前(任意)";
-"Needed to read the Ghostty screen; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Ghostty の画面を読み取るために必要で、Orca では切り替えたばかりのタブにすぐ追従できます。開いたリストで Slash Command をオンにしてください(リストにない場合は + で追加)。";
+"Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Ghostty の画面の読み取りと、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることの確認に必要で、Orca では切り替えたばかりのタブにすぐ追従できます。開いたリストで Slash Command をオンにしてください(リストにない場合は + で追加)。";
 "No agents set" = "エージェントの設定なし";
 "No model list for this agent. Type the name it shows on screen." = "このエージェントにはモデル一覧がありません。画面に表示される名前をそのまま入力してください。";
 "No presets yet — add one in Settings" = "プリセットがありません — 設定で追加してください";
@@ -251,7 +251,7 @@
 "Turn On Accessibility…" = "アクセシビリティをオンにする…";
 "Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "メニューバーのアイコンからアクセシビリティをオンにしておくと、タブを切り替えた直後でも正確に動作します。";
 "Unsaved changes" = "未保存の変更があります";
-"Used to read the Ghostty screen and to follow tab changes in Orca." = "Ghostty の画面を読み取り、Orca のタブの切り替えに追従するために使います。";
+"Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Ghostty の画面を読み取り、Orca のタブの切り替えに追従し、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するために使います。";
 "Used to type the switch commands into %@." = "%@ に切り替えコマンドを入力するために使います。";
 "Works in Ghostty and Orca" = "GhosttyとOrcaで動作します";
 "installed %@" = "インストール済み %@";
@@ -270,3 +270,9 @@
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "kitty のリモートコントロールがオフです。kitty.conf に `allow_remote_control socket-only` と `listen_on unix:/tmp/kitty` を追加して、kitty を再起動してください。";
 "Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "送信しませんでした: この tmux ウィンドウで `synchronize-panes` がオンのため、ほかのペインにも同じ入力が届きます。オフにしてからもう一度押してください。";
 "Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "変更していません: ウィンドウが低く、モデルの選択画面が全部表示されません。ウィンドウを高くしてからもう一度押してください。";
+"iTerm2 has no open window." = "iTerm2 に開いているウインドウがありません。";
+"Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "送信しませんでした: そのセッションが iTerm2 の最前面のウインドウにないため、入力ブロードキャスト(Broadcast Input)がオフかどうかを確認できません。";
+"Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "送信しませんでした: iTerm2 の入力ブロードキャスト(Broadcast Input)がオン(%@)のため、ほかのペインにも同じ入力が届きます。Shell ▸ Broadcast Input ▸ Send Input to Current Session Only を選んでから、もう一度押してください。";
+"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "送信しませんでした: iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するには、Slash Command にアクセシビリティの権限が必要です。システム設定 → プライバシーとセキュリティ → アクセシビリティでオンにしてから、もう一度押してください。";
+"Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "送信しませんでした: iTerm2 の Shell ▸ Broadcast Input メニューで、入力ブロードキャストがオフであることを確認できませんでした。";
+"Could not type into iTerm2: %@" = "iTerm2 に入力できませんでした: %@";

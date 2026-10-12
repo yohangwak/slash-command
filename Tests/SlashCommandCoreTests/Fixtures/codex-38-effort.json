@@ -1,0 +1,25 @@
+{
+  "draft" : null,
+  "tail" : [
+    "for this session only ",
+    "  ",
+    "• Model changed to gpt-6.1-sol medium ",
+    "for this session only ",
+    "  ",
+    "• Model changed to gpt-6.1-sol high ",
+    "for this session only ",
+    "  ",
+    "  ",
+    "  Select Reasoning Level for ",
+    "  GPT-6-Astra ",
+    "  ",
+    "  ",
+    "  1. Low ",
+    "› 2. Medium (default)                 ",
+    "  3. High ",
+    "  4. Extra high ",
+    "  5. More reasoning… ",
+    "  ",
+    "  enter default · s session · esc back"
+  ]
+}

@@ -2,7 +2,7 @@
 
 "             verified version" = "             version vérifiée";
 "%@ is not running, so this cannot be checked now." = "%@ n’est pas en cours d’exécution ; impossible de vérifier pour l’instant.";
-"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "%@ n’est pas pris en charge. Appuyez dessus dans un terminal Ghostty, Orca, WezTerm ou kitty.";
+"%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@ n’est pas pris en charge. Appuyez dessus dans un terminal Ghostty, Orca, iTerm2, WezTerm ou kitty.";
 "%@ version  installed %@ · running %@" = "version de %@  installée %@ · en cours %@";
 "%@ — no agent found in the front session" = "%@ — aucun agent trouvé dans la session au premier plan";
 "%@ — not set for %@" = "%1$@ — aucun réglage pour %2$@";
@@ -19,7 +19,7 @@
 "Accessibility" = "Accessibilité";
 "Add Agent" = "Ajouter un agent";
 "Add Preset" = "Ajouter un préréglage";
-"Allow Automation for Ghostty…" = "Autoriser l’automatisation pour Ghostty…";
+"Allow Automation for %@…" = "Autoriser l’automatisation pour %@…";
 "Already at the highest level (%@)." = "Déjà au niveau le plus élevé (%@).";
 "Already at the lowest level (%@)." = "Déjà au niveau le plus bas (%@).";
 "Another app is using these shortcut keys: %@" = "Une autre app utilise ces raccourcis clavier : %@";
@@ -110,7 +110,7 @@
 "Model" = "Modèle";
 "Modifier keys" = "Touches de modification";
 "Name (optional)" = "Nom (facultatif)";
-"Needed to read the Ghostty screen; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Nécessaire pour lire l’écran de Ghostty ; dans Orca, permet de suivre l’onglet que vous venez d’ouvrir. Activez Slash Command dans la liste qui s’ouvre (utilisez + s’il n’y figure pas).";
+"Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Nécessaire pour lire l’écran de Ghostty et pour vérifier que la diffusion de la saisie (Broadcast Input) d’iTerm2 est désactivée ; dans Orca, permet de suivre l’onglet que vous venez d’ouvrir. Activez Slash Command dans la liste qui s’ouvre (utilisez + s’il n’y figure pas).";
 "No agents set" = "Aucun agent défini";
 "No model list for this agent. Type the name it shows on screen." = "Aucune liste de modèles pour cet agent. Saisissez le nom affiché à l’écran.";
 "No presets yet — add one in Settings" = "Aucun préréglage — ajoutez-en un dans les Réglages";
@@ -251,7 +251,7 @@
 "Turn On Accessibility…" = "Activer l’accessibilité…";
 "Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "Activez l’accessibilité depuis l’icône de la barre des menus pour rester précis juste après un changement d’onglet.";
 "Unsaved changes" = "Modifications non enregistrées";
-"Used to read the Ghostty screen and to follow tab changes in Orca." = "Sert à lire l’écran de Ghostty et à suivre les changements d’onglet dans Orca.";
+"Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Sert à lire l’écran de Ghostty, à suivre les changements d’onglet dans Orca et à vérifier que la diffusion de la saisie (Broadcast Input) d’iTerm2 est désactivée.";
 "Used to type the switch commands into %@." = "Sert à saisir les commandes de changement dans %@.";
 "Works in Ghostty and Orca" = "Fonctionne dans Ghostty et Orca";
 "installed %@" = "installé %@";
@@ -270,3 +270,9 @@
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "Le contrôle à distance de kitty est désactivé. Ajoutez `allow_remote_control socket-only` et `listen_on unix:/tmp/kitty` à kitty.conf, puis redémarrez kitty.";
 "Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "Non envoyé : `synchronize-panes` de tmux est activé dans cette fenêtre, les touches iraient donc aussi dans ses autres panneaux. Désactivez-le, puis appuyez à nouveau.";
 "Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "Rien n’a été modifié : la fenêtre est trop basse pour afficher tout le sélecteur de modèle. Agrandissez-la, puis appuyez à nouveau.";
+"iTerm2 has no open window." = "iTerm2 n’a aucune fenêtre ouverte.";
+"Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "Non envoyé : la session n’est pas dans la fenêtre au premier plan d’iTerm2, il est donc impossible de vérifier si la diffusion de la saisie (Broadcast Input) est désactivée.";
+"Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "Non envoyé : la diffusion de la saisie (Broadcast Input) d’iTerm2 est activée (%@), les touches iraient donc aussi dans d’autres panneaux. Choisissez Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, puis appuyez à nouveau.";
+"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "Non envoyé : Slash Command a besoin de l’autorisation Accessibilité pour vérifier que la diffusion de la saisie (Broadcast Input) d’iTerm2 est désactivée. Activez-la dans Réglages Système → Confidentialité et sécurité → Accessibilité, puis appuyez à nouveau.";
+"Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "Non envoyé : impossible de confirmer dans le menu Shell ▸ Broadcast Input d’iTerm2 que la diffusion de la saisie est désactivée.";
+"Could not type into iTerm2: %@" = "Impossible de saisir dans iTerm2 : %@";

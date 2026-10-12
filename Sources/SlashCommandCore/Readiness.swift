@@ -197,6 +197,7 @@ public enum Picker {
 
     /// 화면 «맨 아래»에 떠 있는 선택창.
     public struct Open: Equatable, Sendable {
+        /// 머리말 줄에서 행 위까지의 글(설명 문장 포함). 좁은 칸에서는 머리말이 접히므로 이어 붙인다 — 앞머리로 대조한다.
         public let header: String
         public let rows: [Row]
         /// 맨 아랫줄 안내(좁은 창에서 두 줄로 접히면 이어 붙인다).
@@ -230,10 +231,15 @@ public enum Picker {
         }
         guard !rows.isEmpty else { return nil }
         // 머리말과 행 사이: 설명 문장(좁으면 여러 줄) · codex 의 경고 줄.
+        let above = index
         skipped = 0
         while index >= 0, skipped < 6 {
             let text = shown[index].trimmingCharacters(in: .whitespaces)
-            if headers.contains(where: { text.hasPrefix($0) }) { return Open(header: text, rows: rows, footer: footer) }
+            if headers.contains(where: { text.hasPrefix($0) }) {
+                // 38칸의 codex 는 머리말이 둘로 접힌다(`Select Reasoning Level for` / `GPT-6-Astra` — 2026-10-12 iTerm2 의 나뉜 칸에서 실측).
+                let whole = shown[index...above].map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: " ")
+                return Open(header: whole, rows: rows, footer: footer)
+            }
             index -= 1
             skipped += 1
         }

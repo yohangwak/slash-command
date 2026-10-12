@@ -1,6 +1,6 @@
 # Slash Command
 
-Ghostty·Orca·WezTerm·kitty 터미널(WezTerm·kitty 안의 tmux 포함)에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 어느 에이전트인지에 맞춰
+Ghostty·Orca·iTerm2·WezTerm·kitty 터미널(iTerm2·WezTerm·kitty 안의 tmux 포함)에서 **⇧⌥1 … ⇧⌥9** 를 누르면, 맨 앞 세션이 어느 에이전트인지에 맞춰
 그 번호 프리셋의 **모델 + effort** 로 바꾸는 맥 메뉴 막대 앱. 지원하는 에이전트: **claude · codex · grok · cursor-agent · antigravity(agy) · opencode**. **⇧⌥=** · **⇧⌥-** 는 모델은 그대로 두고 effort 만 한 단계 올리고 내린다.
 
 `/model`·`/effort` 를 매번 치는 대신 단축키 한 번. 대화 도중에도 되고, 쓰던 글은 그대로 남고, 새 세션 기본값은 바뀌지 않는다.
@@ -11,7 +11,7 @@ Ghostty·Orca·WezTerm·kitty 터미널(WezTerm·kitty 안의 tmux 포함)에서
 
 | 무엇 | 어떻게 |
 |---|---|
-| 전환 | Ghostty·Orca·WezTerm·kitty 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
+| 전환 | Ghostty·Orca·iTerm2·WezTerm·kitty 가 맨 앞일 때 `⇧⌥번호`(조합 키는 편집 화면에서 바꾼다). 화면 아래에 «에이전트가 알려 준» 결과가 잠깐 뜬다(`Opus 5.5 · high`) |
 | effort 만 | `⇧⌥=` 올림 · `⇧⌥-` 내림. 끝 단계에서는 바꾸지 않고 그렇게 알린다 |
 | 메뉴 | 메뉴 막대 아이콘. 맨 위에 «지금 맨 앞 세션의 에이전트»(`Claude Code · Orca`)가 뜨고, 프리셋 줄은 그 에이전트에 «지금 누르면 되는 값»(`opus · high`)만 보여 준다. 그 에이전트의 설정이 없는 번호는 흐리게 나온다. 권한·단축키에 문제가 있을 때만 그 줄이 생긴다 |
 | 프리셋 편집 | 메뉴 막대 아이콘 → 「설정…」(Settings…). 프리셋은 접혀 있고, 펼치면 에이전트별 모델·effort — 쓰는 에이전트만 「에이전트 추가」로 넣는다. 저장하지 않은 편집은 창을 닫았다 열어도 남는다(파일은 `~/.config/slashcommand/presets.json`) |
@@ -75,8 +75,8 @@ ModelSwitch 로 깔려 있던 맥에서는 `--install` 이 옛 앱(`~/Applicatio
 
 처음 한 번 허용할 것 — **앱이 그 설정 화면을 바로 열어 준다**(설정 창 맨 위 「권한」 칸의 「설정 열기…」 버튼. 권한이 꺼져 있으면 메뉴에도 「손쉬운 사용 켜기…」 줄이 생기고, 권한이 필요한 터미널에서 단축키를 눌러도 열린다):
 
-- **손쉬운 사용 / Accessibility**(Slash Command): Ghostty 화면 읽기에 꼭 필요하다. Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
-- **자동화 / Automation**(Slash Command → Ghostty): 터미널에 글자를 넣는 데 쓴다. 처음 단축키를 누를 때 시스템이 묻는다.
+- **손쉬운 사용 / Accessibility**(Slash Command): Ghostty 화면 읽기와 iTerm2 의 입력 방송(Broadcast Input) 확인에 꼭 필요하다(iTerm2 안의 tmux 로 갈 때는 필요 없다). Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
+- **자동화 / Automation**(Slash Command → Ghostty, Slash Command → iTerm2): 터미널에 글자를 넣고 맨 앞 세션을 아는 데 쓴다. 처음 단축키를 누를 때 시스템이 묻는다.
 
 시스템 설정에는 «Accessibility» 가 두 곳이다 — 사이드바의 것은 장애 접근성 기능 화면이고, 필요한 것은 Privacy & Security 안의 앱 권한 목록이다. 그래서 말로 안내하지 않고 버튼으로 연다. 「권한」 칸은 상태(켜짐/꺼짐)를 1초마다 다시 읽어, 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다. `open -a "Slash Command" --args --settings` 로 그 창을 띄운 채 시작할 수 있다.
 
@@ -143,7 +143,7 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - **읽는 터미널과 쓰는 터미널이 같아야 한다.** Ghostty 는 읽기·쓰기 모두 대상이 지금도 포커스 터미널일 때만 한다.
 - **Esc 는 우리가 연 선택창이 보이는 동안에만 누른다.** 작업 중인 에이전트에 Esc 는 작업 중단이다.
 - **선택창·입력창은 화면 «맨 아래»에 있는 것만 인정한다.** 선택창은 맨 아랫줄이 선택창의 안내(`s to use this session only`, `esc back`)일 때만, 거기서 위로 올라가며 행과 머리말(`Select model`, `Select Reasoning Level` …)을 찾는다. 대화 내용에 선택창처럼 보이는 글이 있어도 읽지 않는다(2026-10-06: 실제 화면에서 그 글의 행을 읽는 것을 확인하고 고쳤다). 승인 창도 번호 행을 쓰지만 안내 문구가 다르다.
-- 좁은 창에서 행의 설명이 다음 줄로 접혀도 읽는다(62칸·58칸에서 확인).
+- 좁은 창에서 행의 설명이 다음 줄로 접혀도 읽는다(62칸·58칸에서 확인). codex 는 38칸(iTerm2 의 나뉜 칸)에서도 된다 — 그 폭에서는 `/model` 의 설명 줄과 effort 목록의 머리말(`Select Reasoning Level for` / `GPT-6-Astra`)이 둘로 접히는데, 이웃한 줄을 이어서 읽는다(2026-10-12 실측: 전에는 «여러 줄 초안이 있다» · «effort 목록이 열리지 않았다» 며 물러났다).
 - **성공의 증거는 화면에 보이는 «우리 명령의 답»이다.** claude 의 기본값 파일은 다른 세션도 쓰므로, 그 파일이 바뀐 것만으로는 성공으로 치지 않는다.
 - effort 한 단계는 끝 단계에서 누르지 않는다(claude 선택창은 끝에서 반대쪽 끝으로 돈다). claude 는 커서가 「지금 쓰는 모델」(`✔`) 행에 있을 때만 확정한다.
 - 알림에 쓰는 결과 문구는 마지막으로 친 명령 바로 아래의 답(작업 중이면 입력창 위의 알림 줄)에서 읽는다. 예전 전환의 줄이 화면에 남아 있어도 읽지 않는다.
@@ -158,12 +158,13 @@ claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 `Swit
 - Orca 앱 소켓도 공개 인터페이스가 아니다(`orca` 명령이 쓰는 통로). 못 쓰면 `orca` 명령으로 되돌아간다(회당 0.2초).
 - Ghostty 의 codex 는 3~4.6초 걸린다. Ghostty 가 화면 글자를 0.5초씩 보관하는 한 줄일 방법을 찾지 못했다(다른 접근성 속성도 같은 보관본을 준다).
 - 명령 방식에서 claude 는 effort 가 없는 모델(Haiku)에도 「Set effort level to high」라고 답한다 — 알림은 claude 가 한 말을 그대로 옮긴다.
-- 단축키로 되는 터미널은 Ghostty · Orca · WezTerm · kitty 다(2026-10-12 집 맥 2 에서 WezTerm · kitty 와 그 안의 tmux 로 claude · codex 의 프리셋 · effort 전환을 확인, 1.1~1.8초).
+- 단축키로 되는 터미널은 Ghostty · Orca · iTerm2 · WezTerm · kitty 다(2026-10-12 집 맥 2 에서 iTerm2 · WezTerm · kitty 와 그 안의 tmux 로 claude · codex 의 프리셋 · effort 전환을 확인, 1.1~2.1초).
   - **WezTerm**: 설정할 것이 없다(`wezterm cli` 로 포커스된 pane 과 그 tty 를 안다). WezTerm 을 둘 이상 띄웠으면 맨 앞 것의 소켓(`gui-sock-<pid>`)에 묻고 쓴다.
   - **kitty**: 원격 제어를 켜야 한다 — `kitty.conf` 에 `allow_remote_control socket-only` 와 `listen_on unix:/tmp/kitty`(또는 `kitty --listen-on unix:/경로` 로 띄운다). 소켓에 닿을 수 있는 프로그램은 kitty 의 창에 글자를 넣고 화면을 읽을 수 있게 된다는 뜻이다 — 그것이 싫으면 켜지 않는다(꺼져 있으면 그렇게 알리고 멈춘다). 소켓 주소는 설정 파일을 읽어 추측하지 않고 맨 앞 kitty 프로세스가 실제로 열어 둔 소켓에서 안다 — `--config` 나 `include` 로 둔 설정, `~` · 환경변수가 든 주소도 그대로 된다.
-  - **tmux**: WezTerm · kitty 의 맨 앞 칸에서 tmux 가 돌고 있으면 그 클라이언트가 보고 있는 tmux 칸의 에이전트로 간다(쓰기·읽기도 tmux 로). `suspend-client` 나 Ctrl-Z 로 멈춰 둔 클라이언트는 따라가지 않는다(화면에는 셸이 보인다). 그 창의 `synchronize-panes` 가 켜져 있으면 다른 칸에도 같은 글이 들어가므로 보내지 않고 그렇게 알린다(확인과 쓰기가 tmux 의 한 명령이다). Ghostty · Orca 안의 tmux 와 그 밖의 터미널 앱(Terminal.app · iTerm2 등) 안의 tmux 는 아직 단축키로 안 된다 — 그 탭의 tty 를 알 수 없고, tmux 의 포커스 표시는 `focus-events on` 을 켜기 전에 붙은 클라이언트에서 뒤로 가도 «앞» 으로 남는다(실측). 대상을 직접 적으면 된다: `slashcommand apply 2 --tmux <pane> [--tmux-socket <이름이나 경로>] --agent claude`.
-  - 대상을 직접 적는 길: `--kitty <창 id> --kitty-socket unix:/경로 --agent …`, `--wezterm <pane id> --agent …`, `--bundle <번들 id>`(그 앱이 맨 앞인 것처럼 — 단축키가 가는 길 그대로).
-  - iTerm2 는 맥북에서 전환까지 확인했지만(약 1초) 입력 방송(Broadcast Input)이 켜져 있으면 다른 칸에도 입력이 들어가는 문제를 구조적으로 막지 못해 아직 넣지 않았다(별도 작업). Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
+  - **iTerm2**(3.7.3 에서 확인): AppleScript 로 맨 앞 창의 세션(`unique id` · `tty`)을 알고 `write text … newline NO` 로 쓰고 `contents` 로 읽는다. 처음 한 번 macOS 가 «Slash Command 가 iTerm 을 제어» 를 묻는다. 🔴 iTerm2 의 **입력 방송(Shell ▸ Broadcast Input)** 이 켜져 있으면 AppleScript 로 쓴 글도 다른 칸에 같이 들어간다(2026-10-07 실측) — 그래서 쓸 때마다 그 메뉴의 체크 표시를 손쉬운 사용 권한으로 읽고, 「Send Input to Current Session Only」 가 체크돼 있을 때만 보낸다(켜져 있거나, 권한이 없어 못 읽거나, 모르는 상태면 보내지 않고 그렇게 알린다). 그 메뉴는 맨 앞 창의 상태라, 쓰는 세션이 맨 앞 창에 있을 때만 쓴다(확인 → 메뉴 읽기 → «맨 앞 창에 있을 때만 쓰는» 한 스크립트). 확인과 쓰기 사이에는 수십 ms 의 틈이 남는다 — 그 사이에 방송을 켜면 막지 못한다. 세션은 id 들을 한 번에 받아 찾는다(세션이 많아도 호출 수가 같다). `contents` 는 스크롤백까지 주므로 지금 화면의 줄만 남기는데, 줄이 몇 행을 차지하는지는 그 세션 프로필의 「Ambiguous characters are double-width」 설정대로 센다(설정 파일과 DynamicProfiles 에서 읽고, 못 찾으면 2칸으로 — 화면 밖의 줄을 화면으로 읽지 않는 쪽. 세션에서만 따로 바꾼 설정(Edit Session…)은 프로필 이름으로 알 수 없으므로, 프로필이 1칸이어도 «입력창이 보인다» 는 판정은 2칸으로 센 화면에서도 성립할 때만 통과시킨다 — 그 화면의 줄은 어느 설정에서든 정말 보이는 줄이다). 글자 폭은 유니코드 표에서 뽑은 것(`CharacterWidth`)으로 세되, 확실히 아는 글자만 정확히 세고 모르는 것(표보다 새 글자 · 이모지 표시 선택자가 붙은 글자)은 넓게 센다. tmux 통합 모드(`tmux -CC`)의 창은 확인하지 못했다.
+  - **tmux**: iTerm2 · WezTerm · kitty 의 맨 앞 칸에서 tmux 가 돌고 있으면 그 클라이언트가 보고 있는 tmux 칸의 에이전트로 간다(쓰기·읽기도 tmux 로). `suspend-client` 나 Ctrl-Z 로 멈춰 둔 클라이언트는 따라가지 않는다(화면에는 셸이 보인다). 그 창의 `synchronize-panes` 가 켜져 있으면 다른 칸에도 같은 글이 들어가므로 보내지 않고 그렇게 알린다(확인과 쓰기가 tmux 의 한 명령이다). Ghostty · Orca 안의 tmux 와 그 밖의 터미널 앱(Terminal.app · iTerm2 등) 안의 tmux 는 아직 단축키로 안 된다 — 그 탭의 tty 를 알 수 없고, tmux 의 포커스 표시는 `focus-events on` 을 켜기 전에 붙은 클라이언트에서 뒤로 가도 «앞» 으로 남는다(실측). 대상을 직접 적으면 된다: `slashcommand apply 2 --tmux <pane> [--tmux-socket <이름이나 경로>] --agent claude`.
+  - 대상을 직접 적는 길: `--kitty <창 id> --kitty-socket unix:/경로 --agent …`, `--wezterm <pane id> --agent …`, `--iterm <세션 unique id> --agent …`, `--bundle <번들 id>`(그 앱이 맨 앞인 것처럼 — 단축키가 가는 길 그대로).
+  - Terminal.app · Orca 플로팅 터미널은 지원하지 않는다.
 - 새 에이전트들의 한계: cursor 의 매개변수 편집에서 Effort 말고 Context·Fast 는 건드리지 않는다 · cursor 는 목록이 10줄씩 보이므로 이름을 걸러서 찾는다(이름이 둘 이상 겹치면 정확히 같은 이름만 고른다) · agy 는 긴 출력 뒤에 입력창이 다시 그려지지 않을 때가 있어(Ctrl+L 로 풀린다) 그때는 «입력창이 보이지 않는다» 로 멈춘다 · opencode 의 목록 커서는 글자로 보이지 않는다. 걸러낸 행 가운데 «프리셋과 같은 행» 까지 ↓ 로 세어 내려가 고르고(`GLM-5.3` 을 찾으면 `GLM-5.3-Flash` 가 맨 위에 온다 — 2026-10-12 실측: 둘째·셋째 행을 매번 그 행으로), 끝나고 입력 상자의 모델 줄이 프리셋과 같지 않으면 실패로 알린다.
 - 화면 문구(영어)에 기대므로 claude·codex 가 선택창의 글을 바꾸면 멈춘다 — 멈출 뿐 엉뚱한 키를 보내지는 않는다. 확인한 판(claude 2.1.283·2.1.288·2.1.289·2.1.291·2.1.292·2.1.296, codex 0.156.0·0.160.0·0.160.1·0.162.0)과 다른 판이면 `doctor` 가 «확인 못 한 판» 이라고 알려 준다. 계약 전문: `docs/CONTRACT.md`.
 
