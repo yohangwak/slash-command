@@ -8,11 +8,22 @@ final class AutomationConsentTests: XCTestCase {
     private final class Fake {
         var answers: [AutomationConsent?]
         var asked: [Bool] = []
+        /// 물었을 때 답이 오기까지 걸리는 시간 — 허용 창이 떠 있는 동안을 흉내 낸다.
+        var answerDelay: TimeInterval = 0
         init(_ answers: [AutomationConsent?]) { self.answers = answers }
         func status(_ bundleID: String, _ ask: Bool) -> AutomationConsent? {
             asked.append(ask)
+            if ask, answerDelay > 0 { Thread.sleep(forTimeInterval: answerDelay) }
             return answers.removeFirst()
         }
+    }
+
+    /// 다른 스레드에서 불려도 되는 표시.
+    private final class Flag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        func raise() { lock.lock(); count += 1; lock.unlock() }
+        var raised: Int { lock.lock(); defer { lock.unlock() }; return count }
     }
 
     func testClassifiesTheSystemAnswers() {
@@ -75,6 +86,36 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertFalse(notified)
         XCTAssertEqual(notes, ["automation iTerm2: not confirmed — asking"])
         XCTAssertThrowsError(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", status: Fake([.notRunning, .denied]).status))
+    }
+
+    /// 첫 확인이 «확인 안 됨» 이어도 물은 뒤 답이 늦으면 허용 창이 떠 있는 것이다 — 그때 알리고, 창을 띄운 것으로 친다
+    /// (2026-10-13 집 맥 2 의 Ghostty: 창은 떴는데 안내가 없었다).
+    func testUnconfirmedTellsOnceTheAnswerIsLate() throws {
+        let fake = Fake([.notRunning, .allowed])
+        fake.answerDelay = 0.3
+        let told = Flag()
+        XCTAssertTrue(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", willAsk: told.raise, lateAfter: 0.05, status: fake.status))
+        XCTAssertEqual(fake.asked, [false, true])
+        XCTAssertEqual(told.raised, 1)
+    }
+
+    /// 답이 바로 왔으면(창이 뜨지 않았다) 나중에도 알리지 않는다.
+    func testUnconfirmedStaysQuietWhenTheAnswerIsQuick() throws {
+        let fake = Fake([.notRunning, .allowed])
+        let told = Flag()
+        XCTAssertFalse(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", willAsk: told.raise, lateAfter: 0.05, status: fake.status))
+        Thread.sleep(forTimeInterval: 0.2)
+        XCTAssertEqual(told.raised, 0)
+    }
+
+    /// «아직 묻지 않았다» 면 묻기 전에 한 번만 알린다 — 답이 늦어도 다시 알리지 않는다.
+    func testNotAskedTellsExactlyOnce() throws {
+        let fake = Fake([.notAsked, .allowed])
+        fake.answerDelay = 0.2
+        let told = Flag()
+        XCTAssertTrue(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", willAsk: told.raise, lateAfter: 0.05, status: fake.status))
+        Thread.sleep(forTimeInterval: 0.1)
+        XCTAssertEqual(told.raised, 1)
     }
 
     /// 허용 창이 닫히면 터미널이 곧 다시 맨 앞에 온다 — 그때까지 잠깐 기다린다.
