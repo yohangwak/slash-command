@@ -33,17 +33,65 @@ public enum AutomationConsent: Equatable, Sendable {
         return AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, ask)
     }
 
+    /// 묻지 않고 읽은 결과와 시스템이 준 번호(기록용).
+    struct Reading: Sendable {
+        let consent: AutomationConsent
+        let detail: String
+    }
+
+    /// 시스템에 바로 묻는다 — «실행 중인가» 를 `NSRunningApplication` 으로 먼저 거르지 않는다. 우리 앱이 켜진 «뒤» 에 뜬 앱을
+    /// 그 목록이 다른 스레드에서 못 볼 때가 있어, 맨 앞에 있는 터미널을 «실행 중이 아니다» 로 읽었다(2026-10-13 집 맥 2 의 Ghostty,
+    /// 2번에 2번 — 기록 `first check: no running app with that id`). 정말 실행 중이 아니면 시스템이 -600 을 준다.
+    static func read(bundleID: String) -> Reading {
+        let raw = rawStatus(bundleID: bundleID)
+        return Reading(consent: classify(raw), detail: "status \(raw)")
+    }
+
     /// 묻지 않고 읽되 `seconds` 까지만 기다린다(평소의 답은 몇 ms 다). 대상 앱이 응답하지 않으면 이 확인도 답이 없을 수 있다 —
     /// 그때는 nil(모른다)이고, 부른 쪽은 막지 않고 스크립트의 응답 제한에 맡긴다.
-    static func bounded(bundleID: String, seconds: TimeInterval = 2) -> AutomationConsent? {
-        final class Answer: @unchecked Sendable { var value: AutomationConsent? }
+    static func bounded(bundleID: String, seconds: TimeInterval = 2) -> Reading? {
+        final class Answer: @unchecked Sendable { var value: Reading? }
         let answer = Answer()
         let done = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .userInitiated).async {
-            answer.value = status(bundleID: bundleID)
+            answer.value = read(bundleID: bundleID)
             done.signal()
         }
         return done.wait(timeout: .now() + seconds) == .success ? answer.value : nil
+    }
+
+    /// 허용 창이 떠 있음을 한 번만 알린다. 닫은 뒤에는 알리지 않는다.
+    ///
+    /// 알림은 잠근 채로 부른다 — 이미 시작된 알림이 있으면 `close()` 가 그것이 끝날 때까지 기다린다. 그러지 않으면 답이 바로
+    /// 그 순간에 왔을 때 부른 쪽의 결과 알림이 먼저 줄을 서고 뒤늦은 «허용해 주세요» 가 그것을 덮는다(#35 리뷰).
+    /// 그래서 알림(`willAsk`)은 금방 끝나야 하고 `ensure` 를 다시 불러서는 안 된다.
+    private final class Notice: @unchecked Sendable {
+        private let lock = NSLock()
+        private var action: (() -> Void)?
+        private var fired = false
+
+        init(_ action: @escaping () -> Void) { self.action = action }
+
+        func fire() {
+            lock.lock()
+            defer { lock.unlock() }
+            guard let run = action else { return }
+            action = nil
+            fired = true
+            run()
+        }
+
+        func fire(after seconds: TimeInterval) {
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + seconds) { self.fire() }
+        }
+
+        /// 더는 알리지 않는다(시작된 알림은 끝난 뒤에 돌아온다). 알렸으면 참.
+        func close() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            action = nil
+            return fired
+        }
     }
 
     /// 그 터미널을 다루기 전에 허락을 확인하고, 아직 묻지 않았으면 «여기서» 묻고 답을 기다린다.
@@ -52,16 +100,30 @@ public enum AutomationConsent: Equatable, Sendable {
     /// 그 안에 누르지 못하면 창이 사라지고 답도 남지 않는다 — 누를 때마다 5초짜리 창이 떴다 사라진다(2026-10-12 집 맥 2 의 iTerm2 실측).
     /// 허용 창을 띄워 허락받았으면 참을 돌려준다(그동안 맨 앞 앱이 바뀌었을 수 있다 — 부른 쪽이 다시 확인한다).
     /// 이미 꺼져 있으면 `needsAutomation` 을 세운 오류를, 방금 창에서 거절했으면 그 표시 없는 오류를 던진다.
-    /// `note` 는 허락이 «확인되지 않았을» 때 무엇을 보았는지 한 줄로 받는다(기록용).
+    /// `willAsk` 는 허용 창이 뜰 때(또는 떠 있음을 알게 됐을 때) 한 번 불린다 — 다른 스레드에서 불릴 수 있고, 금방 끝나야 한다
+    /// (끝날 때까지 답을 돌려주지 않는다).
+    /// `note` 는 허락이 «확인되지 않았을» 때 무엇을 보았는지 한 줄로 받는다(기록용 — 첫 확인의 근거와 물은 뒤의 번호가 붙는다).
     @discardableResult
-    public static func ensure(bundleID: String, appName: String, willAsk: () -> Void = {}, note: (String) -> Void = { _ in }) throws -> Bool {
-        // 물을 때는 «실행 중인가» 를 따로 보지 않는다 — 맨 앞에 있는 터미널이고, 이미 허락돼 있으면 바로 돌아온다.
-        try ensure(bundleID: bundleID, appName: appName, willAsk: willAsk, note: note,
-                   status: { $1 ? classify(rawStatus(bundleID: $0, ask: true)) : bounded(bundleID: $0) })
+    public static func ensure(bundleID: String, appName: String, willAsk: @escaping () -> Void = {}, note: (String) -> Void = { _ in }) throws -> Bool {
+        var seen: [String] = []
+        return try ensure(bundleID: bundleID, appName: appName, willAsk: willAsk,
+                          note: { note(seen.isEmpty ? $0 : "\($0) [\(seen.joined(separator: " · "))]") },
+                          status: { id, ask in
+            // 물을 때는 «실행 중인가» 를 따로 보지 않는다 — 맨 앞에 있는 터미널이고, 이미 허락돼 있으면 바로 돌아온다.
+            if ask {
+                let raw = rawStatus(bundleID: id, ask: true)
+                seen.append("asked: status \(raw)")
+                return classify(raw)
+            }
+            let reading = bounded(bundleID: id)
+            seen.append("first check: \(reading?.detail ?? "no answer")")
+            return reading?.consent
+        })
     }
 
-    /// `status(번들 id, 물을지)` 는 답이 없으면 nil 이다.
-    static func ensure(bundleID: String, appName: String, willAsk: () -> Void = {}, note: (String) -> Void = { _ in },
+    /// `status(번들 id, 물을지)` 는 답이 없으면 nil 이다. 물은 뒤 `lateAfter` 초가 지나도 답이 없으면 허용 창이 떠 있는 것으로 본다.
+    static func ensure(bundleID: String, appName: String, willAsk: @escaping () -> Void = {}, note: (String) -> Void = { _ in },
+                       lateAfter: TimeInterval = 1,
                        status: (_ bundleID: String, _ ask: Bool) -> AutomationConsent?) throws -> Bool {
         guard scriptedBundleIDs.contains(bundleID) else { return false }
         let off = loc("Not sent: Automation for %@ is turned off. Turn it on in System Settings → Privacy & Security → Automation, then press again.", appName)
@@ -83,11 +145,13 @@ public enum AutomationConsent: Equatable, Sendable {
         }
         // 허락이 확인되지 않았다. 물어서 확인한다 — 창이 뜨면 답할 때까지 기다린다.
         note("automation \(appName): \(first == .notAsked ? "not asked yet" : "not confirmed") — asking")
-        if first == .notAsked { willAsk() }
-        let began = Date()
+        // «아직 묻지 않았다» 면 창이 뜰 것을 안다 — 바로 알린다. 그 밖의 답에서는 물어 봐야 안다: 답이 늦으면 창이 떠 있는 것이므로
+        // 그때 알린다(2026-10-13 집 맥 2 의 Ghostty: 맨 앞에 있는데 첫 확인이 «확인 안 됨» 이었고, 허용 창은 떴지만 안내가 없었다).
+        let notice = Notice(willAsk)
+        if first == .notAsked { notice.fire() } else { notice.fire(after: lateAfter) }
         let answer = status(bundleID, true)
-        // 창이 떴는지는 «아직 묻지 않았다» 였거나 답이 늦게 온 것으로 안다.
-        let prompted = first == .notAsked || Date().timeIntervalSince(began) > 1
+        // 창이 떴는지는 «아직 묻지 않았다» 였거나 답이 늦게 온 것으로 안다 — 알린 것과 같다.
+        let prompted = notice.close()
         switch answer {
         case .allowed: return prompted
         case .denied: throw SlashCommandError(off)
