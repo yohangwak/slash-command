@@ -15,7 +15,7 @@
 "+ number" = "+ numéro";
 "A default (%@) that was not there before the switch appeared, so it could not be put back automatically" = "Une valeur par défaut (%@) absente avant le changement est apparue ; elle n’a pas pu être rétablie automatiquement";
 "Accept Claude Code's confirmation automatically" = "Accepter automatiquement la confirmation de Claude Code";
-"Accessibility permission needed" = "Autorisation d’accessibilité requise";
+"%@ permission needed" = "Autorisation « %@ » requise";
 "Accessibility" = "Accessibilité";
 "Add Agent" = "Ajouter un agent";
 "Add Preset" = "Ajouter un préréglage";
@@ -123,7 +123,7 @@
 "Not switched: could not read the %@ screen. Check that the target is still there." = "Changement non effectué : impossible de lire l’écran de %@. Vérifiez que la cible existe toujours.";
 "Not switched: could not read the Antigravity terminal screen." = "Changement non effectué : impossible de lire l’écran du terminal d’Antigravity.";
 "Not switched: could not read the Cursor terminal screen." = "Changement non effectué : impossible de lire l’écran du terminal de Cursor.";
-"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → Accessibility." = "Changement non effectué : impossible de lire l’écran de Ghostty. Autorisez Slash Command dans Réglages Système → Confidentialité et sécurité → Accessibilité.";
+"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → %@." = "Changement non effectué : impossible de lire l’écran de Ghostty. Autorisez Slash Command dans Réglages Système → Confidentialité et sécurité → %@.";
 "Not switched: could not read the Grok terminal screen." = "Changement non effectué : impossible de lire l’écran du terminal de Grok.";
 "Not switched: could not read the OpenCode terminal screen." = "Changement non effectué : impossible de lire l’écran du terminal d’OpenCode.";
 "Not switched: could not read the Orca terminal screen." = "Changement non effectué : impossible de lire l’écran du terminal Orca.";
@@ -248,8 +248,8 @@
 "The wezterm command was not found." = "La commande wezterm est introuvable.";
 "There is no preset %@ (there are %@)." = "Il n’y a pas de préréglage %@ (il y en a %@).";
 "This OpenCode model has no variant '%@' (%@)." = "Ce modèle OpenCode n’a pas de variant « %@ » (%@).";
-"Turn On Accessibility…" = "Activer l’accessibilité…";
-"Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "Activez l’accessibilité depuis l’icône de la barre des menus pour rester précis juste après un changement d’onglet.";
+"Turn On %@…" = "Activer « %@ »…";
+"Turn on %@ from the menu bar icon to stay accurate right after switching tabs." = "Activez « %@ » depuis l’icône de la barre des menus pour rester précis juste après un changement d’onglet.";
 "Unsaved changes" = "Modifications non enregistrées";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Sert à lire l’écran de Ghostty, à suivre les changements d’onglet dans Orca et à vérifier que la diffusion de la saisie (Broadcast Input) d’iTerm2 est désactivée.";
 "Used to type the switch commands into %@." = "Sert à saisir les commandes de changement dans %@.";
@@ -273,7 +273,7 @@
 "iTerm2 has no open window." = "iTerm2 n’a aucune fenêtre ouverte.";
 "Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "Non envoyé : la session n’est pas dans la fenêtre au premier plan d’iTerm2, il est donc impossible de vérifier si la diffusion de la saisie (Broadcast Input) est désactivée.";
 "Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "Non envoyé : la diffusion de la saisie (Broadcast Input) d’iTerm2 est activée (%@), les touches iraient donc aussi dans d’autres panneaux. Choisissez Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, puis appuyez à nouveau.";
-"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "Non envoyé : Slash Command a besoin de l’autorisation Accessibilité pour vérifier que la diffusion de la saisie (Broadcast Input) d’iTerm2 est désactivée. Activez-la dans Réglages Système → Confidentialité et sécurité → Accessibilité, puis appuyez à nouveau.";
+"Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again." = "Non envoyé : Slash Command a besoin de l’autorisation « %@ » pour vérifier que la diffusion de la saisie (Broadcast Input) d’iTerm2 est désactivée. Activez-la dans Réglages Système → Confidentialité et sécurité, puis appuyez de nouveau.";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "Non envoyé : impossible de confirmer dans le menu Shell ▸ Broadcast Input d’iTerm2 que la diffusion de la saisie est désactivée.";
 "Could not type into iTerm2: %@" = "Impossible de saisir dans iTerm2 : %@";
 "This OpenCode model has no effort levels (it has no variants)." = "Ce modèle OpenCode n’a pas de niveaux d’effort (il n’a pas de variantes).";

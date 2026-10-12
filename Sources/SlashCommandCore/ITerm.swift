@@ -172,7 +172,7 @@ public struct ITermIO: TerminalIO {
         case .on(let mode):
             throw SlashCommandError(loc("Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again.", mode))
         case .notTrusted:
-            var error = SlashCommandError(loc("Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again."))
+            var error = SlashCommandError(loc("Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again.", SettingsNames.accessibility))
             error.needsAccessibility = true
             throw error
         case .unknown:

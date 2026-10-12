@@ -193,7 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if bundleID == Detector.ghosttyBundleID, !Permissions.accessibility {
             Log.write("failed \(action.label): no Accessibility permission — opened System Settings")
             Permissions.openAccessibility()
-            hud.show(loc("Accessibility permission needed"),
+            hud.show(loc("%@ permission needed", SettingsNames.accessibility),
                      detail: loc("Slash Command reads the Ghostty screen to check the input box. Turn on Slash Command in the list that just opened, then press again."),
                      seconds: 6)
             return
@@ -236,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     // Orca 는 권한 없이도 되지만, 없으면 탭을 옮긴 직후 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다 — 한 번 알려 준다.
                     if bundleID == Detector.orcaBundleID, !Permissions.accessibility, !self.nudgedOrcaAccessibility {
                         self.nudgedOrcaAccessibility = true
-                        lines.append(loc("Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs."))
+                        lines.append(loc("Turn on %@ from the menu bar icon to stay accurate right after switching tabs.", SettingsNames.accessibility))
                     }
                     self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 ? 4 : 1.6)
                 case .failure(let error as SlashCommandError) where error.awaitingUser:
@@ -250,7 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     // iTerm2 는 쓰기 직전에 입력 방송이 꺼져 있는지 접근성으로 본다 — 권한이 없으면 그 설정 화면을 바로 열어 준다(아무것도 보내지 않았다).
                     Log.write("failed \(action.label): no Accessibility permission — opened System Settings")
                     Permissions.openAccessibility()
-                    self.hud.show(loc("Accessibility permission needed"), detail: "\(error)", seconds: 6)
+                    self.hud.show(loc("%@ permission needed", SettingsNames.accessibility), detail: "\(error)", seconds: 6)
                 case .failure(let error as SlashCommandError) where error.needsAutomation:
                     // 자동화가 꺼져 있다 — 시스템은 다시 묻지 않으므로 그 설정 화면을 바로 열어 준다(아무것도 보내지 않았다).
                     Log.write("failed \(action.label): Automation is off for \(appName) — opened System Settings")
@@ -413,7 +413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             problems.append(warning(loc("Another app is using these shortcut keys: %@", keys), nil))
         }
         if !Permissions.accessibility {
-            problems.append(warning(loc("Turn On Accessibility…"), #selector(openAccessibilitySettings)))
+            problems.append(warning(loc("Turn On %@…", SettingsNames.accessibility), #selector(openAccessibilitySettings)))
         }
         let denied = Permissions.automatedTerminals.filter { automation[$0.bundleID] == .denied }.map(\.name)
         if !denied.isEmpty {

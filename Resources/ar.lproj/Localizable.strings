@@ -15,7 +15,7 @@
 "+ number" = "+ رقم";
 "A default (%@) that was not there before the switch appeared, so it could not be put back automatically" = "ظهر عنصر افتراضي (%@) لم يكن موجودًا قبل التبديل، لذا تعذّرت إعادته تلقائيًا";
 "Accept Claude Code's confirmation automatically" = "قبول تأكيد Claude Code تلقائيًا";
-"Accessibility permission needed" = "إذن تسهيلات الاستخدام مطلوب";
+"%@ permission needed" = "إذن «%@» مطلوب";
 "Accessibility" = "تسهيلات الاستخدام";
 "Add Agent" = "إضافة وكيل";
 "Add Preset" = "إضافة إعداد مسبق";
@@ -123,7 +123,7 @@
 "Not switched: could not read the %@ screen. Check that the target is still there." = "لم يتم التبديل: تعذّرت قراءة شاشة %@. تأكد من أن الهدف لا يزال موجودًا.";
 "Not switched: could not read the Antigravity terminal screen." = "لم يتم التبديل: تعذّرت قراءة شاشة طرفية Antigravity.";
 "Not switched: could not read the Cursor terminal screen." = "لم يتم التبديل: تعذّرت قراءة شاشة طرفية Cursor.";
-"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → Accessibility." = "لم يتم التبديل: تعذّرت قراءة شاشة Ghostty. اسمح لـ Slash Command في إعدادات النظام ← الخصوصية والأمان ← تسهيلات الاستخدام.";
+"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → %@." = "لم يتم التبديل: تعذّرت قراءة شاشة Ghostty. اسمح لـ Slash Command في إعدادات النظام ← الخصوصية والأمان ← %@.";
 "Not switched: could not read the Grok terminal screen." = "لم يتم التبديل: تعذّرت قراءة شاشة طرفية Grok.";
 "Not switched: could not read the OpenCode terminal screen." = "لم يتم التبديل: تعذّرت قراءة شاشة طرفية OpenCode.";
 "Not switched: could not read the Orca terminal screen." = "لم يتم التبديل: تعذّرت قراءة شاشة طرفية Orca.";
@@ -248,8 +248,8 @@
 "The wezterm command was not found." = "لم يُعثر على الأمر wezterm.";
 "There is no preset %@ (there are %@)." = "لا يوجد إعداد مسبق %@ (لديك %@).";
 "This OpenCode model has no variant '%@' (%@)." = "لا يحتوي هذا النموذج في OpenCode على variant '%@' (%@).";
-"Turn On Accessibility…" = "تشغيل تسهيلات الاستخدام…";
-"Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "فعّل تسهيلات الاستخدام من أيقونة شريط القوائم لتبقى الدقة عالية فور تبديل علامات التبويب.";
+"Turn On %@…" = "تشغيل «%@»…";
+"Turn on %@ from the menu bar icon to stay accurate right after switching tabs." = "فعّل «%@» من أيقونة شريط القوائم لتبقى الدقة عالية فور تبديل علامات التبويب.";
 "Unsaved changes" = "تغييرات غير محفوظة";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "تُستخدم لقراءة شاشة Ghostty، ومتابعة تغيّر علامات التبويب في Orca، والتأكد من أن بثّ الإدخال (Broadcast Input) في iTerm2 متوقف.";
 "Used to type the switch commands into %@." = "يُستخدم لإدخال أوامر التبديل في %@.";
@@ -273,7 +273,7 @@
 "iTerm2 has no open window." = "لا توجد نافذة مفتوحة في iTerm2.";
 "Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "لم يُرسل: الجلسة ليست في النافذة الأمامية في iTerm2، فلا يمكن التأكد من أن بثّ الإدخال (Broadcast Input) متوقف.";
 "Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "لم يُرسل: بثّ الإدخال (Broadcast Input) في iTerm2 مفعّل (%@)، فستصل المفاتيح إلى أجزاء أخرى أيضًا. اختر Shell ▸ Broadcast Input ▸ Send Input to Current Session Only ثم اضغط مرة أخرى.";
-"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "لم يُرسل: يحتاج Slash Command إلى إذن تسهيلات الاستخدام للتأكد من أن بثّ الإدخال (Broadcast Input) في iTerm2 متوقف. فعّله في إعدادات النظام ← الخصوصية والأمان ← تسهيلات الاستخدام ثم اضغط مرة أخرى.";
+"Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again." = "لم يُرسل: يحتاج Slash Command إلى إذن «%@» للتأكد من أن بثّ الإدخال (Broadcast Input) في iTerm2 متوقف. فعّله في إعدادات النظام ← الخصوصية والأمان ثم اضغط مرة أخرى.";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "لم يُرسل: تعذّر التأكد من قائمة Shell ▸ Broadcast Input في iTerm2 أن بثّ الإدخال متوقف.";
 "Could not type into iTerm2: %@" = "تعذّر الإدخال في iTerm2: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "ليس لهذا النموذج في OpenCode مستويات effort (لا توجد له variants).";

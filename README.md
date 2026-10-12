@@ -75,7 +75,7 @@ ModelSwitch 로 깔려 있던 맥에서는 `--install` 이 옛 앱(`~/Applicatio
 
 처음 한 번 허용할 것 — **앱이 그 설정 화면을 바로 열어 준다**(설정 창 맨 위 「권한」 칸의 「설정 열기…」 버튼. 권한이 꺼져 있으면 메뉴에도 「손쉬운 사용 켜기…」 줄이 생기고, 권한이 필요한 터미널에서 단축키를 눌러도 열린다):
 
-- **손쉬운 사용 / Accessibility**(Slash Command): Ghostty 화면 읽기와 iTerm2 의 입력 방송(Broadcast Input) 확인에 꼭 필요하다(iTerm2 안의 tmux 로 갈 때는 필요 없다). Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
+- **손쉬운 사용 / Accessibility**(Slash Command — macOS 27 은 이 목록을 «기기 제어 및 데이터 접근 / Device Control and Data Access» 라고 부른다. 앱은 그 macOS 가 쓰는 이름으로 안내한다): Ghostty 화면 읽기와 iTerm2 의 입력 방송(Broadcast Input) 확인에 꼭 필요하다(iTerm2 안의 tmux 로 갈 때는 필요 없다). Orca 는 없어도 되지만 켜 두면 탭을 옮긴 직후에도 지금 보이는 탭을 정확히 안다(없으면 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다).
 - **자동화 / Automation**(Slash Command → Ghostty, Slash Command → iTerm2): 터미널에 글자를 넣고 맨 앞 세션을 아는 데 쓴다. 처음 단축키를 누를 때 시스템이 묻고, 앱은 답할 때까지 기다렸다가 허용하면 그 전환을 이어서 한다(그사이 다른 앱으로 갔으면 다시 누르라고 알린다). 거절해 두었으면 단축키를 누를 때 그 설정 화면을 연다.
 
 시스템 설정에는 «Accessibility» 가 두 곳이다 — 사이드바의 것은 장애 접근성 기능 화면이고, 필요한 것은 Privacy & Security 안의 앱 권한 목록이다. 그래서 말로 안내하지 않고 버튼으로 연다. 「권한」 칸은 상태(켜짐/꺼짐)를 1초마다 다시 읽어, 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다. `open -a "Slash Command" --args --settings` 로 그 창을 띄운 채 시작할 수 있다.
