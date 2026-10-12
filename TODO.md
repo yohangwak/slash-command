@@ -114,6 +114,7 @@ ssh 에서 띄운 프로세스는 화면 권한(자동화 · 손쉬운 사용 ·
 ## 알아 둘 함정 (다시 밟지 않게)
 
 - 시험은 반드시 따로 연 시험 세션에서. 시험 전에 각 에이전트의 기본값 파일을 «사본» 으로 남기고(해시만 남기면 달라졌을 때 대조할 수 없다) 끝나면 대조한다: claude `~/.claude/settings.json` · codex `~/.codex/config.toml` · grok `~/.grok/config.toml` · cursor `~/.cursor/cli-config.json`(인증 정보가 들어 있다 — 내용을 출력하지 않는다) · agy `~/.gemini/antigravity-cli/settings.json` · opencode `~/.local/state/opencode/model.json`.
+- 🔴 **사본과 다르다고 `~/.claude/settings.json` 을 사본으로 «통째로» 덮지 않는다 — 고칠 때는 그 키 하나만.** 2026-10-13 08:19 부터 그 파일의 허용 목록 키(`remoteControlAtStartup` · `crossSessionInbound` · 화면 · 알림 토글 등 13개)는 어느 맥에서 바뀌든 5분 안에 dotfiles 로 올라가 네 맥에 퍼진다(`chezmoi-auto-update` 의 `settings_sync`, dotfiles `aec35bb` — 설명은 `ai-assistant/infra/agent-tooling.md`). 통째로 덮으면 사본에 든 옛 값이 «이 맥의 변경» 으로 네 맥에 간다. 그리고 다른 값이 요한님이 바꾼 것일 수 있다 — 2026-10-13 06:05 에 기록만 보고 `remoteControlAtStartup` 을 `true` 로 되돌렸는데, 요한님이 일부러 끈 것이었다(«이건 내가 끈거야 false 로 두자»). 다르면 어느 키인지만 보고하고, 내 시험이 바꾼 것이 확인된 키만 되돌린다.
 - 🔴 **대상(`--orca <핸들> --agent …`)은 명령에 글자 그대로 쓴다.** zsh 에서 `$T` 처럼 변수에 묶어 넘기면 한 덩이 인자가 되어 대상 지정이 통째로 빠지고, 그러면 명령은 «맨 앞 세션»(요한님이 쓰고 있는 세션)을 대상으로 삼는다. 2026-10-11 에 그렇게 넘겼다 — 그때는 `apply 2` 도 한 덩이라 사용법만 찍히고 아무것도 보내지 않았다.
 - 🔴 **cursor 는 모델 목록을 «여는 것만으로» 기본값 파일을 쓴다**(2026-10-11 실측: 목록이 열린 0.2초 뒤 그 세션의 지금 모델이 파일에 적혔다). 시험 세션에서 손으로 `/model` 을 열었다 닫으면(앱을 거치지 않으면) 그 값이 기본값으로 남는다 — 그렇게 남겼다가 사본으로 되돌렸다. 손으로 연 뒤에는 사본과 대조한다.
 - 시험 세션을 Orca 로 열면 cursor 는 `--yolo`, agy 는 `--dangerously-skip-permissions` 가 붙는다(Orca 가 붙인다) — 화면이 보통 세션과 다르다(cursor 의 `Run Everything`).
