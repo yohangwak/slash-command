@@ -154,6 +154,27 @@ final class ITermScreenTests: XCTestCase {
         XCTAssertEqual(visible(output(rows: 12, columns: 38, picker), wide: true)?.count, 11)
     }
 
+    /// PR #27 네 번째 리뷰: 이 표의 판(유니코드 16)이 모르는 글자는 넓게 센다 — iTerm2 3.7.3 은 U+1FAEA(유니코드 17 의 이모지)를 2칸으로 그린다.
+    /// 4행 × 80칸: 아래 두 줄이 81칸씩이라 2행씩 차지한다. 그 위의 codex 입력 줄은 화면 밖이다.
+    func testCharactersNewerThanTheTableCountAsWide() throws {
+        let newer = String(try XCTUnwrap(Unicode.Scalar(0x1FAEA as UInt32)))
+        let long = " " + String(repeating: "x", count: 78) + newer
+        for wide in [false, true] {
+            XCTAssertEqual(ITermIO.displayWidth(long, ambiguousIsDoubleWidth: wide), 81)
+            let screen = visible(output(rows: 4, columns: 80, ["› old prompt", long, long]), wide: wide)
+            XCTAssertEqual(screen, [long, long])
+            XCTAssertFalse(Readiness.codexComposerVisible(screen ?? []), "화면 밖의 입력 줄로 입력을 허락하지 않는다")
+        }
+        // 양성 대조군: 그 두 줄이 80칸씩이면 세 줄이 다 화면이고 입력 줄이 보인다.
+        let short = " " + String(repeating: "x", count: 79)
+        XCTAssertTrue(Readiness.codexComposerVisible(visible(output(rows: 4, columns: 80, ["› old prompt", short, short])) ?? []))
+        // 이모지 표시 선택자가 붙은 글자도 넓게 센다(❤ U+2764 는 혼자면 1칸).
+        XCTAssertEqual(ITermIO.displayWidth("\u{2764}", ambiguousIsDoubleWidth: false), 1)
+        XCTAssertEqual(ITermIO.displayWidth("\u{2764}\u{FE0F}", ambiguousIsDoubleWidth: false), 2)
+        XCTAssertEqual(ITermIO.displayWidth("\u{E0A0}", ambiguousIsDoubleWidth: false), 1, "사용자 영역 글자(아이콘 글꼴)는 모호한 폭")
+        XCTAssertEqual(ITermIO.displayWidth("\u{E0A0}", ambiguousIsDoubleWidth: true), 2)
+    }
+
     /// PR #27 재리뷰: 「Ambiguous characters are double-width」 프로필에서 화면 밖의 입력창을 화면으로 읽지 않는다.
     /// 4행 × 80칸 화면에 구분선 둘(2칸 프로필에서는 각각 2행)만 보인다 — 그 위의 `❯` 는 스크롤백이다.
     func testAnOffScreenPromptIsNotReadyInADoubleWidthProfile() {

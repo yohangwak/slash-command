@@ -232,7 +232,7 @@ public struct ITermIO: TerminalIO {
     /// 터미널 칸 수로 센 폭(`CharacterWidth` 의 표): 넓은 글자 2칸, 결합 문자 0칸, «모호한 폭» 글자(`─` · `·` · `●` …)는 프로필 설정에 따라 1칸 또는 2칸,
     /// 나머지는 1칸 — `›` · `❯` 는 모호한 폭이 아니라서 그 설정을 켜도 1칸이다(PR #27 세 번째 리뷰: 전부 2칸으로 세면 꼭 맞는 커서 행이 2행이 된다).
     static func displayWidth(_ text: String, ambiguousIsDoubleWidth: Bool) -> Int {
-        text.unicodeScalars.reduce(0) { $0 + CharacterWidth.cells($1, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth) }
+        CharacterWidth.cells(text, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth)
     }
 }
 
