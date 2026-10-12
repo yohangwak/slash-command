@@ -2,7 +2,7 @@ import Foundation
 
 // cursor-agent(2026.10.01)로 모델·effort 를 바꾼다.
 //
-// 2026-10-07 집 맥 실측(요한님의 시험 터미널):
+// 2026-10-07 실측(따로 연 시험 터미널):
 // - `/model` 이 «Available models» 목록을 연다(`→` 가 커서, 맨 처음 커서는 지금 모델). 글자를 «한 글자씩» 치면 «Filter:» 로
 //   걸러진다 — 여러 글자를 한 덩이로 보내면 붙여넣기로 보고 무시한다.
 // - Tab 은 그 행의 «Edit Parameters»(Context · Effort · Fast 라디오)를 열고, Enter 는 그 줄을 고르며(✓), Esc 는 목록으로 돌아간다.

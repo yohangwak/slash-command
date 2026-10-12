@@ -2,7 +2,7 @@ import Foundation
 
 // opencode(1.18.35 · 2.0.25)로 모델·variant(effort)를 바꾼다.
 //
-// 2026-10-07 집 맥 실측(요한님의 시험 터미널):
+// 2026-10-07 실측(따로 연 시험 터미널):
 // - `/models` 가 «Select model» 대화상자를 연다. 글자를 치면 «이름 + 제공자» 로 걸러지고(`GLM-5.3-Flash OpenCode Go` 한 줄이면 한 행),
 //   걸러진 뒤 맨 위 행이 선택 상태다(커서는 색으로만 보인다 — 글자로는 «맨 위 행» 이 근거). `●` 는 지금 모델. Enter 가 고른다.
 // - `/variants` 가 «Select variant» 를 연다(Default · low · high · max 등 모델마다). 고르면 입력 상자 안의 `Build · <모델> <제공자> · <variant>` 줄이 바뀐다.

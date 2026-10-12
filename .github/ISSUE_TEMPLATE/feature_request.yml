@@ -1,0 +1,18 @@
+name: Feature request
+description: A terminal, an agent, or a behaviour you would like
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help?
+  - type: textarea
+    id: context
+    attributes:
+      label: Terminal, agent and versions involved

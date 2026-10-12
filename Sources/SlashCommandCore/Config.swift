@@ -230,7 +230,7 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
     public var keepDefaults: Bool
     /// claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 확인 창을 띄운다(「Switch model?」·「Change effort level?」
     /// — 대화 기록을 다시 읽는다는 안내). 참(기본)이면 그 창이 «우리가 고른 그 값»을 묻고 커서가 Yes 에 있을 때만
-    /// Enter 로 받아들인다 — 단축키를 누른 것이 이미 그 답이다(2026-10-06 요한님 결정). 거짓이면 창을 그대로 두고 사용자가 고르게 한다.
+    /// Enter 로 받아들인다 — 단축키를 누른 것이 이미 그 답이다(2026-10-06 결정). 거짓이면 창을 그대로 두고 사용자가 고르게 한다.
     public var acceptSwitchPrompt: Bool
     /// 조합 키 + `=`(올림) · `-`(내림) 으로 모델은 그대로 두고 effort 만 한 단계 바꾼다.
     public var effortKeys: Bool

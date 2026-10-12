@@ -2,7 +2,7 @@ import Foundation
 
 // grok(xAI 의 Grok Build CLI, 1.0.46 · 1.0.50)로 모델·effort 를 바꾼다.
 //
-// 2026-10-07 집 맥 실측(요한님의 시험 터미널):
+// 2026-10-07 실측(따로 연 시험 터미널):
 // - `/model <모델> [창] [effort]` 한 줄이 이 세션의 모델과 effort 를 바꾸고, 입력 상자 아래 테두리의 이름표가
 //   `Grok 4.7 (xhigh)` 로 바뀐다. 없는 모델이면 «Unknown model: …» 한 줄이 뜬다.
 // - 🔴 `/model` 명령도 선택창(`/model` 만 쳐서 여는 3단계: 모델 → 창 크기 → effort)도 «새 세션 기본값»을
