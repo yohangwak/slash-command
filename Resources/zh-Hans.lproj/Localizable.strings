@@ -282,4 +282,4 @@
 "Automation permission needed" = "需要自动化权限";
 "Allow Slash Command to control %@" = "请允许 Slash Command 控制 %@";
 "macOS is asking for permission. Click Allow and the switch continues." = "macOS 正在请求权限。点按“允许”后将继续切换。";
-"%@ is allowed now. Press the shortcut again." = "已允许控制 %@。请再按一次快捷键。";
+"%@ is allowed now. Try again." = "已允许控制 %@。请再试一次。";

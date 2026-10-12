@@ -77,6 +77,27 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertThrowsError(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", status: Fake([.notRunning, .denied]).status))
     }
 
+    /// 허용 창이 닫히면 터미널이 곧 다시 맨 앞에 온다 — 그때까지 잠깐 기다린다.
+    func testGoesOnWhenTheTerminalIsInFrontAgain() throws {
+        var answers: [String?] = ["com.apple.UserNotificationCenter", nil, iterm]
+        var pauses = 0
+        try AutomationConsent.requireFront(bundleID: iterm, appName: "iTerm2", frontmost: { answers.removeFirst() }, pause: { pauses += 1 })
+        XCTAssertEqual(pauses, 2)
+        XCTAssertTrue(answers.isEmpty)
+    }
+
+    /// 답하는 사이 다른 앱으로 갔으면 보내지 않는다(뒤에 있는 터미널을 바꾸지도, 지금 맨 앞 앱으로 대상을 바꾸지도 않는다).
+    func testStopsWhenAnotherAppStaysInFront() {
+        var asked = 0
+        XCTAssertThrowsError(try AutomationConsent.requireFront(bundleID: iterm, appName: "iTerm2", tries: 5,
+                                                                frontmost: { asked += 1; return Detector.weztermBundleID }, pause: {})) { error in
+            let error = error as? SlashCommandError
+            XCTAssertEqual(error?.nothingToDo, true)
+            XCTAssertTrue(error?.message.contains("iTerm2") == true)
+        }
+        XCTAssertEqual(asked, 5)
+    }
+
     /// AppleScript 로 다루지 않는 터미널은 묻지도 읽지도 않는다.
     func testOtherTerminalsAreNotChecked() throws {
         let fake = Fake([])

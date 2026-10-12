@@ -282,4 +282,4 @@
 "Automation permission needed" = "إذن الأتمتة مطلوب";
 "Allow Slash Command to control %@" = "اسمح لـ Slash Command بالتحكم في %@";
 "macOS is asking for permission. Click Allow and the switch continues." = "يطلب macOS الإذن. انقر على «السماح» وسيستمر التبديل.";
-"%@ is allowed now. Press the shortcut again." = "أصبح التحكم في %@ مسموحًا. اضغط الاختصار مرة أخرى.";
+"%@ is allowed now. Try again." = "أصبح التحكم في %@ مسموحًا. حاول مرة أخرى.";

@@ -97,4 +97,29 @@ public enum AutomationConsent: Equatable, Sendable {
             return false
         }
     }
+
+    /// 지금 맨 앞 앱의 번들 id — 허용 창을 기다린 «뒤» 에 다시 읽을 때 쓴다.
+    /// 런루프가 돌지 않는 프로세스(명령줄 도구)에서는 `NSWorkspace` 의 값이 처음 읽은 그대로다(2026-10-12 실측: 앞 앱을 바꿔도
+    /// 6초 동안 그대로, 런루프를 잠깐 돌리면 따라온다). 그래서 주 스레드에서는 런루프를 잠깐 돌린 뒤 읽고, 다른 스레드에서는 주 스레드에 묻는다.
+    public static func frontBundleID() -> String? {
+        if Thread.isMainThread {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+            return NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        }
+        return DispatchQueue.main.sync { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
+    }
+
+    /// 허용 창이 떠 있는 동안에는 그 창이 맨 앞이고, 그사이 사용자가 다른 앱으로 갔을 수도 있다.
+    /// 그 터미널이 다시 맨 앞에 올 때까지 잠깐(기본 2초) 기다리고, 오지 않으면 보내지 않는다 — 지금 맨 앞인 다른 앱으로 대상을 바꾸지도 않는다.
+    public static func requireFront(bundleID: String, appName: String, tries: Int = 20,
+                                    frontmost: () -> String? = AutomationConsent.frontBundleID,
+                                    pause: () -> Void = { usleep(100_000) }) throws {
+        for _ in 0..<tries {
+            if frontmost() == bundleID { return }
+            pause()
+        }
+        var error = SlashCommandError(loc("%@ is allowed now. Try again.", appName))
+        error.nothingToDo = true
+        throw error
+    }
 }

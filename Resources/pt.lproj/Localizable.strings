@@ -282,4 +282,4 @@
 "Automation permission needed" = "Permissão de Automação necessária";
 "Allow Slash Command to control %@" = "Permita que o Slash Command controle %@";
 "macOS is asking for permission. Click Allow and the switch continues." = "O macOS está pedindo permissão. Clique em Permitir e a troca continua.";
-"%@ is allowed now. Press the shortcut again." = "%@ agora está permitido. Pressione o atalho de novo.";
+"%@ is allowed now. Try again." = "%@ agora está permitido. Tente de novo.";

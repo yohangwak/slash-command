@@ -178,13 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }, note: { Log.write("\(action.label): \($0)") })
         guard asked else { return }
         Log.write("\(action.label): automation \(appName): allowed")
-        for _ in 0..<20 {
-            if DispatchQueue.main.sync(execute: { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }) == bundleID { return }
-            usleep(100_000)
-        }
-        var error = SlashCommandError(loc("%@ is allowed now. Press the shortcut again.", appName))
-        error.nothingToDo = true
-        throw error
+        try AutomationConsent.requireFront(bundleID: bundleID, appName: appName)
     }
 
     private func perform(_ action: Action) {

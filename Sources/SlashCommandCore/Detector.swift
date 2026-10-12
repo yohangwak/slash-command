@@ -45,13 +45,17 @@ public enum Detector {
 
     /// 지금 맨 앞 앱의 맨 앞 터미널과 그 안의 에이전트. AppleScript 로 다루는 터미널이면 자동화 허락부터 확인한다
     /// (아직 묻지 않았으면 `willAskAutomation` 을 부른 뒤 허용 창의 답을 기다린다 — `AutomationConsent.ensure`).
+    /// 창을 띄워 허락받았으면 그 앱이 다시 맨 앞에 왔을 때만 이어 간다.
     public static func frontmost(willAskAutomation: () -> Void = {}) throws -> Target {
         guard let app = NSWorkspace.shared.frontmostApplication,
               let bundleID = app.bundleIdentifier else {
             throw SlashCommandError(loc("Cannot tell which app is in front."))
         }
         let appName = app.localizedName ?? bundleID
-        try AutomationConsent.ensure(bundleID: bundleID, appName: appName, willAsk: willAskAutomation)
+        // 허용 창에 답하는 사이 다른 앱으로 갔다면 뒤에 있는 터미널을 바꾸지 않는다.
+        if try AutomationConsent.ensure(bundleID: bundleID, appName: appName, willAsk: willAskAutomation) {
+            try AutomationConsent.requireFront(bundleID: bundleID, appName: appName)
+        }
         return try target(bundleID: bundleID, appName: appName)
     }
 
