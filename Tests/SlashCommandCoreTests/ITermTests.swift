@@ -61,19 +61,26 @@ final class ITermScreenTests: XCTestCase {
         "\(rows)\n\(columns)\n" + lines.joined(separator: "\n") + "\n"
     }
 
+    /// iTerm2 의 기본 프로필(모호한 폭 글자 1칸)로 읽은 화면.
+    private func visible(_ output: String, wide: Bool = false) -> [String]? {
+        ITermIO.visibleLines(from: output, ambiguousIsDoubleWidth: wide)
+    }
+
     func testKeepsOnlyTheVisibleRows() {
         let history = (1...5).map { "old \($0)" }
-        XCTAssertEqual(ITermIO.visibleLines(from: output(rows: 3, history + ["a", "b", "c"])), ["a", "b", "c"])
+        XCTAssertEqual(visible(output(rows: 3, history + ["a", "b", "c"])), ["a", "b", "c"])
     }
 
     func testOldPromptInScrollbackIsNotTheCurrentScreen() {
         // 지워진 화면(빈 줄 3개) 위 스크롤백에 예전 claude 입력창이 남아 있다 — 지금 화면에는 없다.
         let scrollback = ["────────", "❯ ", "────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"]
-        let screen = ITermIO.visibleLines(from: output(rows: 3, scrollback + ["", "", ""]))
-        XCTAssertEqual(screen, ["", "", ""])
-        XCTAssertFalse(Readiness.claudePromptVisible(screen ?? []), "화면이 비었으면 입력창이 보이지 않는다")
+        for wide in [false, true] {
+            let screen = visible(output(rows: 3, scrollback + ["", "", ""]), wide: wide)
+            XCTAssertEqual(screen, ["", "", ""])
+            XCTAssertFalse(Readiness.claudePromptVisible(screen ?? []), "화면이 비었으면 입력창이 보이지 않는다")
+        }
         // 양성 대조군: 같은 글이 정말 화면 아래에 있으면 보인다.
-        let live = ITermIO.visibleLines(from: output(rows: 4, scrollback))
+        let live = visible(output(rows: 4, scrollback))
         XCTAssertTrue(Readiness.claudePromptVisible(live ?? []))
     }
 
@@ -81,31 +88,35 @@ final class ITermScreenTests: XCTestCase {
         // 한 줄이 칸 수의 두 배라 2행을 차지한다: 화면 3행 = (긴 줄 2행) + 1행. 그 위의 예전 입력창은 화면 밖이다.
         let old = ["────────", "❯ ", "────────", "  ⏵⏵ auto mode on (shift+tab to cycle)"]
         let wrapped = String(repeating: "x", count: 160)
-        let screen = ITermIO.visibleLines(from: output(rows: 3, columns: 80, old + [wrapped, "END"]))
+        let screen = visible(output(rows: 3, columns: 80, old + [wrapped, "END"]))
         XCTAssertEqual(screen, [wrapped, "END"])
         XCTAssertFalse(Readiness.claudePromptVisible(screen ?? []))
         // 소프트 랩을 줄바꿈으로 내보내는 경우(물리 행마다 한 줄)에도 같은 답이다.
-        let split = ITermIO.visibleLines(from: output(rows: 3, columns: 80, old + [String(repeating: "x", count: 80), String(repeating: "x", count: 80), "END"]))
+        let split = visible(output(rows: 3, columns: 80, old + [String(repeating: "x", count: 80), String(repeating: "x", count: 80), "END"]))
         XCTAssertEqual(split?.last, "END")
         XCTAssertEqual(split?.count, 3)
     }
 
     func testWideCharactersTakeTwoCells() {
-        // 한글 50자 = 100칸 → 80칸 화면에서 2행.
+        // 한글 50자 = 100칸 → 80칸 화면에서 2행(프로필 설정과 무관하다).
         let korean = String(repeating: "한", count: 50)
-        let screen = ITermIO.visibleLines(from: output(rows: 3, columns: 80, ["위", "중간", korean, "끝"]))
-        XCTAssertEqual(screen, [korean, "끝"])
+        for wide in [false, true] {
+            XCTAssertEqual(visible(output(rows: 3, columns: 80, ["위", "중간", korean, "끝"]), wide: wide), [korean, "끝"])
+        }
     }
 
-    func testAmbiguousWidthCharactersTakeOneCell() {
-        // 상자 선 80자는 80칸 화면에서 한 행이다(iTerm2 기본 설정). 전에는 2칸씩 세어 2행으로 보고 위쪽 줄을 버렸다.
+    func testAmbiguousWidthCharactersFollowTheProfile() {
+        // 상자 선 80자: 기본 프로필(1칸)에서는 80칸 화면의 한 행이다. 전에는 늘 2칸으로 세어 2행으로 보고 위쪽 줄을 버렸다.
         let separator = String(repeating: "─", count: 80)
-        let screen = ITermIO.visibleLines(from: output(rows: 4, columns: 80, ["scrollback", "위", separator, "❯ ", separator]))
-        XCTAssertEqual(screen, ["위", separator, "❯ ", separator])
-        XCTAssertEqual(ITermIO.displayWidth("› 1. GPT · x"), 12)
-        XCTAssertEqual(ITermIO.displayWidth("한글 ok"), 7)
-        XCTAssertEqual(ITermIO.displayWidth("e\u{301}"), 1, "결합 문자는 칸을 차지하지 않는다")
-        XCTAssertEqual(ITermIO.displayWidth("全角ａ"), 6)
+        let contents = ["scrollback", "위", separator, "❯ ", separator]
+        XCTAssertEqual(visible(output(rows: 4, columns: 80, contents)), ["위", separator, "❯ ", separator])
+        // 2칸 프로필에서는 같은 줄이 2행씩이다: 4행 화면 = 구분선(2) + 입력 줄(1) — 그 위의 구분선(2)은 다 들어오지 않는다.
+        XCTAssertEqual(visible(output(rows: 4, columns: 80, contents), wide: true), ["❯ ", separator])
+        XCTAssertEqual(ITermIO.displayWidth("› 1. GPT · x", ambiguousIsDoubleWidth: false), 12)
+        XCTAssertEqual(ITermIO.displayWidth("› 1. GPT · x", ambiguousIsDoubleWidth: true), 14)
+        XCTAssertEqual(ITermIO.displayWidth("한글 ok", ambiguousIsDoubleWidth: false), 7)
+        XCTAssertEqual(ITermIO.displayWidth("e\u{301}", ambiguousIsDoubleWidth: true), 1, "결합 문자는 칸을 차지하지 않는다")
+        XCTAssertEqual(ITermIO.displayWidth("全角ａ", ambiguousIsDoubleWidth: false), 6)
     }
 
     /// PR #27 리뷰 · 2026-10-12 집 맥 2 실측: 선택창이 칸에 «꼭 맞게» 들어찬 화면에서 머리말을 잃지 않는다.
@@ -118,18 +129,68 @@ final class ITermScreenTests: XCTestCase {
         XCTAssertTrue(picker[0].contains("Select Model and Effort"))
         XCTAssertEqual(picker.filter { $0.count == 38 }.count, 2, "칸 수에 꼭 맞는 줄이 둘(커서 행 · 안내 줄)")
         // 위에 스크롤백이 있어도 12행 화면은 그 12줄이다.
-        let screen = try XCTUnwrap(ITermIO.visibleLines(from: output(rows: 12, columns: 38, ["• old output", "› old prompt"] + picker)))
+        let screen = try XCTUnwrap(visible(output(rows: 12, columns: 38, ["• old output", "› old prompt"] + picker)))
         XCTAssertEqual(screen, picker)
         let open = try XCTUnwrap(Picker.open(screen))
         XCTAssertTrue(open.header.hasPrefix("Select Model and Effort"))
         XCTAssertEqual(open.rows.count, 7)
     }
 
+    /// PR #27 재리뷰: 「Ambiguous characters are double-width」 프로필에서 화면 밖의 입력창을 화면으로 읽지 않는다.
+    /// 4행 × 80칸 화면에 구분선 둘(2칸 프로필에서는 각각 2행)만 보인다 — 그 위의 `❯` 는 스크롤백이다.
+    func testAnOffScreenPromptIsNotReadyInADoubleWidthProfile() {
+        let rule = String(repeating: "─", count: 80)
+        let contents = output(rows: 4, columns: 80, [rule, "❯ ", rule, rule])
+        let screen = visible(contents, wide: true)
+        XCTAssertEqual(screen, [rule, rule])
+        XCTAssertFalse(Readiness.claudePromptVisible(screen ?? []), "보이지 않는 입력창으로 입력을 허락하지 않는다")
+        // 프로필을 모를 때도 2칸으로 센다 — `screen()` 이 그렇게 부른다(`?? true`).
+        // 양성 대조군: 1칸 프로필에서는 그 네 줄이 정말 화면이고 입력창이 보인다.
+        XCTAssertTrue(Readiness.claudePromptVisible(visible(contents, wide: false) ?? []))
+    }
+
     func testRefusesWhenRowsOrColumnsAreUnknown() {
-        XCTAssertNil(ITermIO.visibleLines(from: "x\n80\nhello"))
-        XCTAssertNil(ITermIO.visibleLines(from: "0\n80\nhello"))
-        XCTAssertNil(ITermIO.visibleLines(from: "25\nhello"))
-        XCTAssertNil(ITermIO.visibleLines(from: ""))
+        XCTAssertNil(visible("x\n80\nhello"))
+        XCTAssertNil(visible("0\n80\nhello"))
+        XCTAssertNil(visible("25\nhello"))
+        XCTAssertNil(visible(""))
+    }
+}
+
+final class ITermProfileTests: XCTestCase {
+    private func store(_ profiles: [[String: Any]], defaultGUID: String? = "G-default") -> ITermProfile.Store {
+        ITermProfile.Store(profiles: profiles, defaultGUID: defaultGUID)
+    }
+
+    func testReadsTheProfileSetting() {
+        let profiles: [[String: Any]] = [["Name": "Default", "Guid": "G-default", "Ambiguous Double Width": false],
+                                         ["Name": "CJK", "Guid": "G-cjk", "Ambiguous Double Width": true],
+                                         ["Name": "Plain", "Guid": "G-plain"]]
+        XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "Default", in: store(profiles)), false)
+        XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "CJK", in: store(profiles)), true)
+        XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "Plain", in: store(profiles)), false, "설정 파일의 프로필은 키가 없으면 꺼진 것")
+        XCTAssertNil(ITermProfile.ambiguousIsDoubleWidth(named: "Gone", in: store(profiles)), "모르는 프로필은 모른다(부르는 쪽이 2칸으로 센다)")
+        XCTAssertNil(ITermProfile.ambiguousIsDoubleWidth(named: "Default", in: store([])))
+    }
+
+    func testProfilesWithTheSameNameMustAgree() {
+        let same: [[String: Any]] = [["Name": "Work", "Ambiguous Double Width": true], ["Name": "Work", "Ambiguous Double Width": true]]
+        XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "Work", in: store(same)), true)
+        let differ: [[String: Any]] = [["Name": "Work", "Ambiguous Double Width": true], ["Name": "Work", "Ambiguous Double Width": false]]
+        XCTAssertNil(ITermProfile.ambiguousIsDoubleWidth(named: "Work", in: store(differ)))
+    }
+
+    func testDynamicProfilesInheritFromTheirParent() throws {
+        let json = #"{"Profiles":[{"Name":"Dyn wide","Guid":"D1","Ambiguous Double Width":true},{"Name":"Dyn child","Guid":"D2","Dynamic Profile Parent Name":"CJK"},{"Name":"Dyn default","Guid":"D3"},{"Name":"Dyn orphan","Guid":"D4","Dynamic Profile Parent Name":"Nope"}]}"#
+        let dynamic = ITermProfile.dynamicProfiles(in: Data(json.utf8))
+        XCTAssertEqual(dynamic.count, 4)
+        let base: [[String: Any]] = [["Name": "Default", "Guid": "G-default"], ["Name": "CJK", "Guid": "G-cjk", "Ambiguous Double Width": true]]
+        let all = store(base + dynamic)
+        XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "Dyn wide", in: all), true)
+        XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "Dyn child", in: all), true, "적지 않은 값은 부모 프로필의 것")
+        XCTAssertEqual(ITermProfile.ambiguousIsDoubleWidth(named: "Dyn default", in: all), false, "부모를 적지 않으면 기본 프로필")
+        XCTAssertNil(ITermProfile.ambiguousIsDoubleWidth(named: "Dyn orphan", in: all), "부모를 못 찾으면 모른다")
+        XCTAssertTrue(ITermProfile.dynamicProfiles(in: Data("not a profile file".utf8)).isEmpty)
     }
 }
 

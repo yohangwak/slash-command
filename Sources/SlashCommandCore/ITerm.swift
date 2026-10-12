@@ -191,11 +191,15 @@ public struct ITermIO: TerminalIO {
 
     public func screen() -> [String]? {
         // `contents` 는 스크롤백까지 준다(2026-10-07 실측: 화면 25줄에 88줄) — 화면 «맨 아래» 판정에 쓰려면 지금 화면의 줄만 남겨야 한다.
-        // 줄 수·칸 수(`rows`·`columns`)는 같은 호출에서 읽어 글과 어긋나지 않게 한다.
-        let body = "return ((rows as text) & linefeed & (columns as text) & linefeed & contents)"
+        // 줄 수·칸 수(`rows`·`columns`)와 프로필 이름은 같은 호출에서 읽어 글과 어긋나지 않게 한다.
+        let body = "return ((rows as text) & linefeed & (columns as text) & linefeed & (profile name) & linefeed & contents)"
         let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, frontWindowOnly: false, body: body))
-        guard result.ok else { return nil }
-        return ITermIO.visibleLines(from: result.out)
+        guard result.ok, result.out != ITermIO.missing else { return nil }
+        let head = result.out.replacingOccurrences(of: "\r", with: "\n").split(separator: "\n", maxSplits: 3, omittingEmptySubsequences: false)
+        guard head.count == 4 else { return nil }
+        // 그 프로필이 «모호한 폭» 글자를 몇 칸으로 그리는지 모르면 2칸으로 센다 — 화면 밖의 줄을 화면으로 읽지 않는 쪽.
+        let wide = ITermProfile.ambiguousIsDoubleWidth(named: String(head[2]), in: ITermProfile.all()) ?? true
+        return ITermIO.visibleLines(from: "\(head[0])\n\(head[1])\n\(head[3])", ambiguousIsDoubleWidth: wide)
     }
 
     /// `"<rows>\n<columns>\n<contents>"` 에서 지금 화면의 줄들. 줄·칸 수를 못 읽으면 nil(스크롤백이 섞인 글을 현재 화면으로 쓰지 않는다).
@@ -203,11 +207,12 @@ public struct ITermIO: TerminalIO {
     /// `rows` 는 «물리적인» 행 수인데 `contents` 는 글줄 단위라, 긴 줄이 접혀 여러 행을 차지할 수 있다(합쳐서 줄 수가 적다).
     /// 그래서 맨 아래에서부터 줄마다 «차지하는 행 수»(폭 ÷ 칸 수, 올림)를 더해 `rows` 를 채울 때까지만 가져온다.
     ///
-    /// 폭은 iTerm2 의 기본 설정대로 센다(`displayWidth`). 🔴 전에는 ASCII 가 아닌 글자를 전부 2칸으로 «넉넉히» 셌는데, 그러면 칸 수에 꼭 맞는
-    /// 줄(`› 1. …` · `enter select · esc back` 처럼 끝까지 채워진 행, claude 의 구분선)이 2행으로 세어져 «보이는» 윗줄을 버린다 — 11줄짜리 칸에서
-    /// codex 선택창의 머리말이 잘려 선택창을 못 알아보고 열어 둔 채 끝났다(2026-10-12 집 맥 2 실측 · PR #27 리뷰). 폭을 적게 세는 쪽은 위쪽에
-    /// 스크롤백 몇 줄이 더 딸려올 뿐이다: 입력창·선택창 판정은 맨 아래에서부터 읽으므로 아래쪽 줄은 어느 쪽으로 틀려도 같다.
-    static func visibleLines(from output: String) -> [String]? {
+    /// 폭은 그 세션의 프로필대로 세야 한다 — 어느 쪽으로 틀려도 탈이 난다(둘 다 PR #27 리뷰):
+    /// - 많이 세면: 칸 수에 꼭 맞는 줄(`› 1. …` · 안내 줄 · claude 의 구분선)이 2행으로 세어져 «보이는» 윗줄을 버린다. 11줄짜리 칸에서 codex 선택창의
+    ///   머리말이 잘려 선택창을 못 알아보고 열어 둔 채 끝났다(2026-10-12 집 맥 2 실측).
+    /// - 적게 세면: 「Ambiguous characters are double-width」 를 켠 프로필에서 화면 밖(스크롤백)의 입력창이 화면으로 읽혀 입력을 허락한다.
+    /// 그래서 `ambiguousIsDoubleWidth` 를 프로필에서 읽어 오고(`ITermProfile`), 모르면 2칸으로 센다(보이지 않는 줄을 화면으로 읽지 않는 쪽).
+    static func visibleLines(from output: String, ambiguousIsDoubleWidth: Bool) -> [String]? {
         let text = output.replacingOccurrences(of: "\r", with: "\n")
         let head = text.split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false)
         guard head.count == 3, let rows = Int(head[0]), rows > 0, let columns = Int(head[1]), columns > 0 else { return nil }
@@ -217,22 +222,22 @@ public struct ITermIO: TerminalIO {
         var used = 0
         var kept: [String] = []
         for line in lines.reversed() {
-            used += max(1, (displayWidth(line) + columns - 1) / columns)
+            used += max(1, (displayWidth(line, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth) + columns - 1) / columns)
             if used > rows { break }
             kept.append(line)
         }
         return kept.reversed()
     }
 
-    /// 터미널 칸 수로 센 폭 — iTerm2 의 기본 설정(«모호한 폭» 글자는 1칸)대로: 한글·한자·가나·전각 글자·이모지는 2칸, 결합 문자와 폭 없는 글자는 0칸,
-    /// 나머지(상자 선 `─` · `›` · `·` · `❯` 포함)는 1칸. 「Ambiguous characters are double-width」 를 켠 프로필에서는 실제보다 적게 센다(위 설명대로 안전한 쪽).
-    static func displayWidth(_ text: String) -> Int {
-        text.unicodeScalars.reduce(0) { $0 + width(of: $1) }
+    /// 터미널 칸 수로 센 폭: 한글·한자·가나·전각 글자·이모지는 2칸, 결합 문자와 폭 없는 글자는 0칸, ASCII 는 1칸.
+    /// 그 밖의 글자(상자 선 `─` · `›` · `·` · `❯` 같은 «모호한 폭» 글자가 여기 든다)는 프로필 설정에 따라 1칸 또는 2칸이다.
+    static func displayWidth(_ text: String, ambiguousIsDoubleWidth: Bool) -> Int {
+        text.unicodeScalars.reduce(0) { $0 + width(of: $1, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth) }
     }
 
-    static func width(of scalar: Unicode.Scalar) -> Int {
+    static func width(of scalar: Unicode.Scalar, ambiguousIsDoubleWidth: Bool) -> Int {
         let value = scalar.value
-        if value < 0x300 { return 1 }
+        if value < 0x80 { return 1 }
         switch value {
         case 0x0300...0x036F, 0x200B...0x200F, 0x2060...0x2064, 0xFE00...0xFE0F, 0xFEFF, 0xE0100...0xE01EF:
             return 0
@@ -241,8 +246,67 @@ public struct ITermIO: TerminalIO {
              0x1F300...0x1F64F, 0x1F680...0x1F6FF, 0x1F900...0x1FAFF, 0x20000...0x3FFFD:
             return 2
         default:
-            return 1
+            // 어느 글자가 «모호한 폭» 인지 표를 두지 않는다 — 2칸 프로필에서는 ASCII 가 아닌 나머지를 전부 2칸으로 센다(많이 세는 쪽).
+            return ambiguousIsDoubleWidth ? 2 : 1
         }
+    }
+}
+
+/// iTerm2 프로필의 「Ambiguous characters are double-width」(Profiles ▸ Text). iTerm2 의 설정 파일과 DynamicProfiles 폴더에서 읽는다.
+enum ITermProfile {
+    static let key = "Ambiguous Double Width"
+
+    /// 그 이름의 프로필이 모호한 폭 글자를 2칸으로 그리는가. 프로필을 못 찾거나 같은 이름의 프로필들이 서로 다르면 nil.
+    /// 동적 프로필이 그 값을 적지 않았으면 부모 프로필(`Dynamic Profile Parent Name`, 없으면 기본 프로필)의 값을 따른다.
+    static func ambiguousIsDoubleWidth(named name: String, in store: Store) -> Bool? {
+        let found = store.profiles.filter { $0["Name"] as? String == name }
+        let values = Set(found.map { value(of: $0, in: store, depth: 0) })
+        guard !found.isEmpty, values.count == 1, let only = values.first else { return nil }
+        return only
+    }
+
+    private static func value(of profile: [String: Any], in store: Store, depth: Int) -> Bool? {
+        if let own = profile[key] as? Bool { return own }
+        if let own = profile[key] as? NSNumber { return own.boolValue }
+        // 설정 파일의 보통 프로필은 그 키가 없으면 꺼진 것이다. 동적 프로필은 적지 않은 값을 부모에게서 물려받는다.
+        guard profile["__dynamic"] as? Bool == true else { return false }
+        guard depth < 4 else { return nil }
+        let parent: [String: Any]?
+        if let parentName = profile["Dynamic Profile Parent Name"] as? String {
+            let parents = store.profiles.filter { $0["Name"] as? String == parentName }
+            parent = parents.count == 1 ? parents.first : nil
+        } else if let parentGUID = (profile["Dynamic Profile Parent GUID"] as? String) ?? store.defaultGUID {
+            parent = store.profiles.first { $0["Guid"] as? String == parentGUID }
+        } else {
+            parent = nil
+        }
+        return parent.flatMap { value(of: $0, in: store, depth: depth + 1) }
+    }
+
+    struct Store {
+        var profiles: [[String: Any]]
+        var defaultGUID: String?
+    }
+
+    /// 설정 파일의 프로필들과 DynamicProfiles 폴더의 프로필들(뒤의 것에는 `__dynamic` 표지를 붙인다).
+    static func all() -> Store {
+        let domain = Detector.itermBundleID as CFString
+        CFPreferencesAppSynchronize(domain)
+        var store = Store(profiles: (CFPreferencesCopyAppValue("New Bookmarks" as CFString, domain) as? [[String: Any]]) ?? [],
+                          defaultGUID: CFPreferencesCopyAppValue("Default Bookmark Guid" as CFString, domain) as? String)
+        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/iTerm2/DynamicProfiles")
+        for file in (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [] {
+            guard let data = try? Data(contentsOf: file) else { continue }
+            store.profiles += dynamicProfiles(in: data)
+        }
+        return store
+    }
+
+    /// 동적 프로필 파일(JSON 또는 plist)의 `Profiles`.
+    static func dynamicProfiles(in data: Data) -> [[String: Any]] {
+        let object = (try? JSONSerialization.jsonObject(with: data)) ?? (try? PropertyListSerialization.propertyList(from: data, format: nil))
+        let profiles = (object as? [String: Any])?["Profiles"] as? [[String: Any]] ?? []
+        return profiles.map { $0.merging(["__dynamic": true]) { _, new in new } }
     }
 }
 
