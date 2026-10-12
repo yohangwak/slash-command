@@ -15,7 +15,7 @@
 "+ number" = "+ 번호";
 "A default (%@) that was not there before the switch appeared, so it could not be put back automatically" = "전환 전에 없던 기본값 항목(%@)이 생겨 자동으로 되돌리지 못했습니다";
 "Accept Claude Code's confirmation automatically" = "Claude Code 의 확인 창을 자동으로 받아들이기";
-"Accessibility permission needed" = "손쉬운 사용 권한이 필요합니다";
+"%@ permission needed" = "%@ 권한이 필요합니다";
 "Accessibility" = "손쉬운 사용";
 "Add Agent" = "에이전트 추가";
 "Add Preset" = "프리셋 추가";
@@ -123,7 +123,7 @@
 "Not switched: could not read the %@ screen. Check that the target is still there." = "%@ 화면을 읽지 못해 전환하지 않았습니다. 대상이 아직 있는지 확인해 주세요.";
 "Not switched: could not read the Antigravity terminal screen." = "antigravity 터미널 화면을 읽지 못해 전환하지 않았습니다.";
 "Not switched: could not read the Cursor terminal screen." = "cursor 터미널 화면을 읽지 못해 전환하지 않았습니다.";
-"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → Accessibility." = "Ghostty 화면을 읽지 못해 전환하지 않았습니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 Slash Command 를 허용해 주세요.";
+"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → %@." = "Ghostty 화면을 읽지 못해 전환하지 않았습니다. 시스템 설정 → 개인정보 보호 및 보안 → %@ 에서 Slash Command 를 허용해 주세요.";
 "Not switched: could not read the Grok terminal screen." = "grok 터미널 화면을 읽지 못해 전환하지 않았습니다.";
 "Not switched: could not read the OpenCode terminal screen." = "opencode 터미널 화면을 읽지 못해 전환하지 않았습니다.";
 "Not switched: could not read the Orca terminal screen." = "Orca 터미널 화면을 읽지 못해 전환하지 않았습니다.";
@@ -248,8 +248,8 @@
 "The wezterm command was not found." = "wezterm 명령을 찾지 못했습니다.";
 "There is no preset %@ (there are %@)." = "%@번 프리셋이 없습니다(지금 %@개).";
 "This OpenCode model has no variant '%@' (%@)." = "opencode 이 모델에는 variant '%@' 가 없습니다(%@).";
-"Turn On Accessibility…" = "손쉬운 사용 켜기…";
-"Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "메뉴 막대 아이콘에서 손쉬운 사용을 켜 두면 탭을 옮긴 직후에도 정확합니다.";
+"Turn On %@…" = "%@ 켜기…";
+"Turn on %@ from the menu bar icon to stay accurate right after switching tabs." = "메뉴 막대 아이콘에서 %@ 권한을 켜 두면 탭을 옮긴 직후에도 정확합니다.";
 "Unsaved changes" = "저장하지 않은 변경이 있습니다";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Ghostty 화면을 읽고, Orca 의 탭 전환을 따라가고, iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하는 데 씁니다.";
 "Used to type the switch commands into %@." = "%@ 에 전환 명령을 입력하는 데 씁니다.";
@@ -273,7 +273,7 @@
 "iTerm2 has no open window." = "iTerm2 에 열린 창이 없습니다.";
 "Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "보내지 않았습니다: 그 세션이 iTerm2 의 맨 앞 창에 있지 않아 입력 방송(Broadcast Input)이 꺼져 있는지 확인할 수 없습니다.";
 "Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "보내지 않았습니다: iTerm2 의 입력 방송(Broadcast Input)이 켜져 있어(%@) 다른 칸에도 같은 입력이 들어갑니다. Shell ▸ Broadcast Input ▸ Send Input to Current Session Only 를 고른 뒤 다시 눌러 주세요.";
-"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "보내지 않았습니다: iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하려면 Slash Command 에 손쉬운 사용 권한이 필요합니다. 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 켠 뒤 다시 눌러 주세요.";
+"Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again." = "보내지 않았습니다: iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하려면 Slash Command 에 %@ 권한이 필요합니다. 시스템 설정 → 개인정보 보호 및 보안에서 켠 뒤 다시 눌러 주세요.";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "보내지 않았습니다: iTerm2 의 Shell ▸ Broadcast Input 메뉴에서 입력 방송이 꺼져 있음을 확인하지 못했습니다.";
 "Could not type into iTerm2: %@" = "iTerm2 에 입력하지 못했습니다: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "이 OpenCode 모델에는 effort 단계가 없습니다(variant 가 없는 모델입니다).";

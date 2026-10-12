@@ -15,7 +15,7 @@
 "+ number" = "+ 番号";
 "A default (%@) that was not there before the switch appeared, so it could not be put back automatically" = "切り替え前になかったデフォルト(%@)が現れたため、自動では元に戻せませんでした";
 "Accept Claude Code's confirmation automatically" = "Claude Code の確認を自動で承諾する";
-"Accessibility permission needed" = "アクセシビリティの許可が必要です";
+"%@ permission needed" = "「%@」の許可が必要です";
 "Accessibility" = "アクセシビリティ";
 "Add Agent" = "エージェントを追加";
 "Add Preset" = "プリセットを追加";
@@ -123,7 +123,7 @@
 "Not switched: could not read the %@ screen. Check that the target is still there." = "%@ の画面を読み取れなかったため、切り替えませんでした。対象がまだあるか確認してください。";
 "Not switched: could not read the Antigravity terminal screen." = "Antigravity のターミナル画面を読み取れなかったため、切り替えませんでした。";
 "Not switched: could not read the Cursor terminal screen." = "Cursor のターミナル画面を読み取れなかったため、切り替えませんでした。";
-"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → Accessibility." = "Ghostty の画面を読み取れなかったため、切り替えませんでした。システム設定 → プライバシーとセキュリティ → アクセシビリティで Slash Command を許可してください。";
+"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → %@." = "Ghostty の画面を読み取れなかったため、切り替えませんでした。システム設定 → プライバシーとセキュリティ → 「%@」で Slash Command を許可してください。";
 "Not switched: could not read the Grok terminal screen." = "Grok のターミナル画面を読み取れなかったため、切り替えませんでした。";
 "Not switched: could not read the OpenCode terminal screen." = "OpenCode のターミナル画面を読み取れなかったため、切り替えませんでした。";
 "Not switched: could not read the Orca terminal screen." = "Orca のターミナル画面を読み取れなかったため、切り替えませんでした。";
@@ -248,8 +248,8 @@
 "The wezterm command was not found." = "wezterm コマンドが見つかりませんでした。";
 "There is no preset %@ (there are %@)." = "プリセット %1$@ はありません(現在 %2$@ 件)。";
 "This OpenCode model has no variant '%@' (%@)." = "この OpenCode のモデルには variant '%@' がありません(%@)。";
-"Turn On Accessibility…" = "アクセシビリティをオンにする…";
-"Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "メニューバーのアイコンからアクセシビリティをオンにしておくと、タブを切り替えた直後でも正確に動作します。";
+"Turn On %@…" = "「%@」をオンにする…";
+"Turn on %@ from the menu bar icon to stay accurate right after switching tabs." = "メニューバーのアイコンから「%@」をオンにしておくと、タブを切り替えた直後でも正確に動作します。";
 "Unsaved changes" = "未保存の変更があります";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Ghostty の画面を読み取り、Orca のタブの切り替えに追従し、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するために使います。";
 "Used to type the switch commands into %@." = "%@ に切り替えコマンドを入力するために使います。";
@@ -273,7 +273,7 @@
 "iTerm2 has no open window." = "iTerm2 に開いているウインドウがありません。";
 "Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "送信しませんでした: そのセッションが iTerm2 の最前面のウインドウにないため、入力ブロードキャスト(Broadcast Input)がオフかどうかを確認できません。";
 "Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "送信しませんでした: iTerm2 の入力ブロードキャスト(Broadcast Input)がオン(%@)のため、ほかのペインにも同じ入力が届きます。Shell ▸ Broadcast Input ▸ Send Input to Current Session Only を選んでから、もう一度押してください。";
-"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "送信しませんでした: iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するには、Slash Command にアクセシビリティの権限が必要です。システム設定 → プライバシーとセキュリティ → アクセシビリティでオンにしてから、もう一度押してください。";
+"Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again." = "送信しませんでした: iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するには、Slash Command に「%@」の権限が必要です。システム設定 → プライバシーとセキュリティでオンにしてから、もう一度押してください。";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "送信しませんでした: iTerm2 の Shell ▸ Broadcast Input メニューで、入力ブロードキャストがオフであることを確認できませんでした。";
 "Could not type into iTerm2: %@" = "iTerm2 に入力できませんでした: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "この OpenCode モデルには effort の段階がありません(variant のないモデルです)。";

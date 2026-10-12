@@ -194,7 +194,7 @@ public struct Switcher {
     static func unreadable(_ host: TerminalHost) -> String {
         switch host {
         case .ghostty:
-            return loc("Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → Accessibility.")
+            return loc("Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → %@.", SettingsNames.accessibility)
         case .orca:
             return loc("Not switched: could not read the Orca terminal screen.")
         case .tmux, .kitty, .wezterm, .iterm:

@@ -15,7 +15,7 @@
 "+ number" = "+ 数字";
 "A default (%@) that was not there before the switch appeared, so it could not be put back automatically" = "切换前没有的默认值（%@）出现了，因此无法自动还原";
 "Accept Claude Code's confirmation automatically" = "自动接受 Claude Code 的确认";
-"Accessibility permission needed" = "需要辅助功能权限";
+"%@ permission needed" = "需要“%@”权限";
 "Accessibility" = "辅助功能";
 "Add Agent" = "添加代理";
 "Add Preset" = "添加预设";
@@ -123,7 +123,7 @@
 "Not switched: could not read the %@ screen. Check that the target is still there." = "未切换：无法读取 %@ 屏幕。请确认目标仍然存在。";
 "Not switched: could not read the Antigravity terminal screen." = "未切换：无法读取 Antigravity 终端屏幕。";
 "Not switched: could not read the Cursor terminal screen." = "未切换：无法读取 Cursor 终端屏幕。";
-"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → Accessibility." = "未切换：无法读取 Ghostty 屏幕。请在“系统设置”→“隐私与安全性”→“辅助功能”中允许 Slash Command。";
+"Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → %@." = "未切换：无法读取 Ghostty 屏幕。请在“系统设置”→“隐私与安全性”→“%@”中允许 Slash Command。";
 "Not switched: could not read the Grok terminal screen." = "未切换：无法读取 Grok 终端屏幕。";
 "Not switched: could not read the OpenCode terminal screen." = "未切换：无法读取 OpenCode 终端屏幕。";
 "Not switched: could not read the Orca terminal screen." = "未切换：无法读取 Orca 终端屏幕。";
@@ -248,8 +248,8 @@
 "The wezterm command was not found." = "未找到 wezterm 命令。";
 "There is no preset %@ (there are %@)." = "没有预设 %1$@（现有 %2$@ 个）。";
 "This OpenCode model has no variant '%@' (%@)." = "此 OpenCode 模型没有 variant“%1$@”（%2$@）。";
-"Turn On Accessibility…" = "打开辅助功能…";
-"Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "从菜单栏图标打开辅助功能，可在切换标签页后立即保持准确。";
+"Turn On %@…" = "打开“%@”…";
+"Turn on %@ from the menu bar icon to stay accurate right after switching tabs." = "从菜单栏图标打开“%@”，可在切换标签页后立即保持准确。";
 "Unsaved changes" = "有未存储的更改";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "用于读取 Ghostty 屏幕、跟随 Orca 中的标签页切换，并确认 iTerm2 的广播输入（Broadcast Input）已关闭。";
 "Used to type the switch commands into %@." = "用于向 %@ 输入切换命令。";
@@ -273,7 +273,7 @@
 "iTerm2 has no open window." = "iTerm2 没有打开的窗口。";
 "Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "未发送：该会话不在 iTerm2 的最前面窗口中，无法确认广播输入（Broadcast Input）是否已关闭。";
 "Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "未发送：iTerm2 的广播输入（Broadcast Input）已开启（%@），按键也会进入其他窗格。请选择 Shell ▸ Broadcast Input ▸ Send Input to Current Session Only 后再按一次。";
-"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "未发送：要确认 iTerm2 的广播输入（Broadcast Input）已关闭，Slash Command 需要辅助功能权限。请在“系统设置”→“隐私与安全性”→“辅助功能”中打开后再按一次。";
+"Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again." = "未发送：要确认 iTerm2 的广播输入（Broadcast Input）已关闭，Slash Command 需要“%@”权限。请在“系统设置”→“隐私与安全性”中打开后再按一次。";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "未发送：无法从 iTerm2 的 Shell ▸ Broadcast Input 菜单确认广播输入已关闭。";
 "Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";
 "This OpenCode model has no effort levels (it has no variants)." = "此 OpenCode 模型没有 effort 档位（该模型没有 variant）。";

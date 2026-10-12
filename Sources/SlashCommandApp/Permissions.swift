@@ -85,7 +85,7 @@ struct PermissionsSection: View {
 
     var body: some View {
         Section {
-            row(title: loc("Accessibility"),
+            row(title: SettingsNames.accessibility,
                 state: model.accessibility ? .ok : .problem,
                 status: model.accessibility ? loc("On") : loc("Off"),
                 detail: model.accessibility
