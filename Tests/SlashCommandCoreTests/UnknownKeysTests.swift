@@ -68,6 +68,19 @@ final class UnknownKeysTests: XCTestCase {
         XCTAssertEqual(try store.load(), config, "다시 읽어도 같다")
     }
 
+    /// PR #28 리뷰: `Int64` 를 넘는 부호 없는 정수를 실수로 받아 다른 값으로 쓰지 않는다.
+    func testUnsignedIntegersBeyondInt64AreKeptExactly() throws {
+        struct Future: Decodable { let futureID: UInt64; let negative: Int64; let ratio: Double }
+        let json = #"{"slots":[],"futureID":18446744073709551615,"negative":-9223372036854775808,"ratio":0.1}"#
+        var config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(json.utf8))
+        XCTAssertEqual(config.extra["futureID"], .unsigned(UInt64.max))
+        config.keepDefaults = false   // 상관없는 설정을 바꾸고 저장한다
+        let saved = try JSONDecoder().decode(Future.self, from: JSONEncoder().encode(config))
+        XCTAssertEqual(saved.futureID, UInt64.max)
+        XCTAssertEqual(saved.negative, Int64.min)
+        XCTAssertEqual(saved.ratio, 0.1)
+    }
+
     func testAFileWithoutUnknownKeysIsWrittenAsBefore() throws {
         let config = SlashCommandConfig.starter
         let written = try object(JSONEncoder().encode(config))

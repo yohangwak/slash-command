@@ -39,6 +39,8 @@ public enum JSONValue: Codable, Equatable, Sendable {
     case null
     case bool(Bool)
     case integer(Int64)
+    /// `Int64` 에 안 들어가는 부호 없는 정수(`UInt64` 값) — 실수로 받으면 값이 달라진다(PR #28 리뷰).
+    case unsigned(UInt64)
     case number(Double)
     case string(String)
     case array([JSONValue])
@@ -49,6 +51,7 @@ public enum JSONValue: Codable, Equatable, Sendable {
         if c.decodeNil() { self = .null }
         else if let value = try? c.decode(Bool.self) { self = .bool(value) }
         else if let value = try? c.decode(Int64.self) { self = .integer(value) }
+        else if let value = try? c.decode(UInt64.self) { self = .unsigned(value) }
         else if let value = try? c.decode(Double.self) { self = .number(value) }
         else if let value = try? c.decode(String.self) { self = .string(value) }
         else if let value = try? c.decode([JSONValue].self) { self = .array(value) }
@@ -61,6 +64,7 @@ public enum JSONValue: Codable, Equatable, Sendable {
         case .null: try c.encodeNil()
         case .bool(let value): try c.encode(value)
         case .integer(let value): try c.encode(value)
+        case .unsigned(let value): try c.encode(value)
         case .number(let value): try c.encode(value)
         case .string(let value): try c.encode(value)
         case .array(let value): try c.encode(value)
