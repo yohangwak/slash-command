@@ -230,6 +230,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     // 바꿀 것이 없었다(이미 가장 높은 단계 등) — 실패가 아니라 안내다.
                     Log.write("unchanged \(action.label): \(error)")
                     self.hud.show("\(error)", seconds: 2.5)
+                case .failure(let error as SlashCommandError) where error.needsAccessibility:
+                    // iTerm2 는 쓰기 직전에 입력 방송이 꺼져 있는지 접근성으로 본다 — 권한이 없으면 그 설정 화면을 바로 열어 준다(아무것도 보내지 않았다).
+                    Log.write("failed \(action.label): no Accessibility permission — opened System Settings")
+                    Permissions.openAccessibility()
+                    self.hud.show(loc("Accessibility permission needed"), detail: "\(error)", seconds: 6)
                 case .failure(let error):
                     Log.write("failed \(action.label): \(error)")
                     self.hud.show(loc("Not switched"), detail: "\(error)", seconds: 5)
@@ -304,13 +309,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard Detector.supportedBundleIDs.contains(bundleID) else { return .unsupported }
         // 전환 중에는 그 터미널을 건드리지 않는다.
         guard !busy else { return .checking(appName: appName) }
-        if bundleID == Detector.ghosttyBundleID {
-            // Ghostty 는 AppleScript 로 읽고, AppleScript 는 주 스레드에서 돈다 — 여기서 바로 읽는다(보통 수십 ms, 스크립트에 시간 제한이 있다).
+        if Permissions.automatedTerminals.contains(where: { $0.bundleID == bundleID }) {
+            // Ghostty · iTerm2 는 AppleScript 로 읽고, AppleScript 는 주 스레드에서 돈다 — 여기서 바로 읽는다(보통 수십 ms, 스크립트에 시간 제한이 있다).
             // 자동화가 허용된 것을 «알고 있을» 때만 읽는다: 메뉴를 여는 것만으로 권한 창이 뜨면 안 되고,
             // 권한 확인 자체도 여기(주 스레드)서 하지 않는다 — 미리 알아 둔 값을 본다.
             // 허용이 아니거나 아직 모르면 «못 찾았다» 가 아니라 «모른다» 다 — 머리말에 앱 이름만 적는다.
             guard automation[bundleID] == .allowed else { return .checking(appName: appName) }
-            return (try? Detector.ghostty()).map(Front.agent) ?? .none(appName: appName)
+            return (try? Detector.target(bundleID: bundleID, appName: appName)).map(Front.agent) ?? .none(appName: appName)
         }
         // Orca 는 주 스레드 밖에서 읽는다(0.1초 안팎). 0.25초 안에 오면 그대로 그리고, 늦으면 온 뒤에 메뉴를 고친다.
         let answer = Answer()
@@ -389,8 +394,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !Permissions.accessibility {
             problems.append(warning(loc("Turn On Accessibility…"), #selector(openAccessibilitySettings)))
         }
-        if automation.values.contains(.denied) {
-            problems.append(warning(loc("Allow Automation for Ghostty…"), #selector(openAutomationSettings)))
+        let denied = Permissions.automatedTerminals.filter { automation[$0.bundleID] == .denied }.map(\.name)
+        if !denied.isEmpty {
+            problems.append(warning(loc("Allow Automation for %@…", denied.joined(separator: " · ")), #selector(openAutomationSettings)))
         }
         if !problems.isEmpty {
             menu.addItem(.separator())

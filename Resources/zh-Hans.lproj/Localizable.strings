@@ -2,7 +2,7 @@
 
 "             verified version" = "             已验证的版本";
 "%@ is not running, so this cannot be checked now." = "%@ 未在运行，现在无法检查。";
-"%@ is not supported. Press it in a Ghostty, Orca, WezTerm or kitty terminal." = "不支持 %@。请在 Ghostty、Orca、WezTerm 或 kitty 终端中按下。";
+"%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "不支持 %@。请在 Ghostty、Orca、iTerm2、WezTerm 或 kitty 终端中按下。";
 "%@ version  installed %@ · running %@" = "%@ 版本  已安装 %@ · 运行中 %@";
 "%@ — no agent found in the front session" = "%@ — 在最前面的会话中未找到代理";
 "%@ — not set for %@" = "%1$@ — 未为 %2$@ 设置";
@@ -19,7 +19,7 @@
 "Accessibility" = "辅助功能";
 "Add Agent" = "添加代理";
 "Add Preset" = "添加预设";
-"Allow Automation for Ghostty…" = "允许自动化 Ghostty…";
+"Allow Automation for %@…" = "允许自动化 %@…";
 "Already at the highest level (%@)." = "已是最高级别（%@）。";
 "Already at the lowest level (%@)." = "已是最低级别（%@）。";
 "Another app is using these shortcut keys: %@" = "这些快捷键已被其他 App 占用：%@";
@@ -110,7 +110,7 @@
 "Model" = "模型";
 "Modifier keys" = "修饰键";
 "Name (optional)" = "名称（可选）";
-"Needed to read the Ghostty screen; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "读取 Ghostty 屏幕必须有此权限；在 Orca 中，它能让 App 及时跟上你刚切换的标签页。请在打开的列表中打开 Slash Command（如果列表中没有，请用 + 添加）。";
+"Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "读取 Ghostty 屏幕以及确认 iTerm2 的广播输入（Broadcast Input）已关闭必须有此权限；在 Orca 中，它能让 App 及时跟上你刚切换的标签页。请在打开的列表中打开 Slash Command（如果列表中没有，请用 + 添加）。";
 "No agents set" = "未设置代理";
 "No model list for this agent. Type the name it shows on screen." = "此代理没有模型列表。请输入它在屏幕上显示的名称。";
 "No presets yet — add one in Settings" = "还没有预设 — 请在设置中添加";
@@ -251,7 +251,7 @@
 "Turn On Accessibility…" = "打开辅助功能…";
 "Turn on Accessibility from the menu bar icon to stay accurate right after switching tabs." = "从菜单栏图标打开辅助功能，可在切换标签页后立即保持准确。";
 "Unsaved changes" = "有未存储的更改";
-"Used to read the Ghostty screen and to follow tab changes in Orca." = "用于读取 Ghostty 屏幕，并跟随 Orca 中的标签页切换。";
+"Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "用于读取 Ghostty 屏幕、跟随 Orca 中的标签页切换，并确认 iTerm2 的广播输入（Broadcast Input）已关闭。";
 "Used to type the switch commands into %@." = "用于向 %@ 输入切换命令。";
 "Works in Ghostty and Orca" = "适用于 Ghostty 和 Orca";
 "installed %@" = "已安装 %@";
@@ -270,3 +270,9 @@
 "kitty remote control is off. Add `allow_remote_control socket-only` and `listen_on unix:/tmp/kitty` to kitty.conf, then restart kitty." = "kitty 的远程控制已关闭。请在 kitty.conf 中加入 `allow_remote_control socket-only` 和 `listen_on unix:/tmp/kitty`，然后重新启动 kitty。";
 "Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again." = "未发送：此 tmux 窗口已开启 `synchronize-panes`，按键也会进入其他窗格。请关闭后再按一次。";
 "Nothing was changed: the window is too low to show the whole model picker. Make it taller, then press again." = "未作更改：窗口太矮，无法完整显示模型选择器。请把窗口拉高后再按一次。";
+"iTerm2 has no open window." = "iTerm2 没有打开的窗口。";
+"Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked." = "未发送：该会话不在 iTerm2 的最前面窗口中，无法确认广播输入（Broadcast Input）是否已关闭。";
+"Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "未发送：iTerm2 的广播输入（Broadcast Input）已开启（%@），按键也会进入其他窗格。请选择 Shell ▸ Broadcast Input ▸ Send Input to Current Session Only 后再按一次。";
+"Not sent: Slash Command needs the Accessibility permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security → Accessibility, then press again." = "未发送：要确认 iTerm2 的广播输入（Broadcast Input）已关闭，Slash Command 需要辅助功能权限。请在“系统设置”→“隐私与安全性”→“辅助功能”中打开后再按一次。";
+"Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "未发送：无法从 iTerm2 的 Shell ▸ Broadcast Input 菜单确认广播输入已关闭。";
+"Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";

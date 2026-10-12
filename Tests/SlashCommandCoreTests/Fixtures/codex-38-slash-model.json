@@ -1,0 +1,26 @@
+{
+  "tail" : [
+    "reasoning effort to use ",
+    "  \/review - review any changes and ",
+    "find issues ",
+    " ",
+    "• Model changed to gpt-6.1-sol high ",
+    "for this session only ",
+    " ",
+    "• Model changed to gpt-6.1-sol medium ",
+    "for this session only ",
+    "  ",
+    "• Model changed to gpt-6.1-sol high ",
+    "for this session only ",
+    " ",
+    "• Model changed to gpt-6-astra high ",
+    "› \/model  choose what model and       ",
+    "          reasoning effort to use     ",
+    "  ",
+    "› \/model ",
+    "  ",
+    "  GPT-6-Astra high · ~\/Repos ",
+    " "
+  ],
+  "draft" : null
+}

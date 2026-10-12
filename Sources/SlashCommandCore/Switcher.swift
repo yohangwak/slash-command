@@ -186,6 +186,8 @@ public struct Switcher {
                 throw SlashCommandError(loc("The wezterm command was not found."))
             }
             return WezTermIO(wezterm: wezterm, socket: socket, pane: pane)
+        case .iterm(let sessionID):
+            return ITermIO(sessionID: sessionID)
         }
     }
 
@@ -195,7 +197,7 @@ public struct Switcher {
             return loc("Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → Accessibility.")
         case .orca:
             return loc("Not switched: could not read the Orca terminal screen.")
-        case .tmux, .kitty, .wezterm:
+        case .tmux, .kitty, .wezterm, .iterm:
             return loc("Not switched: could not read the %@ screen. Check that the target is still there.", host.appName)
         }
     }
@@ -755,8 +757,16 @@ public struct Runner {
         try poll(timeoutMs: timeoutMs) { lines in
             guard let bottom else { return lines.contains { $0.contains(needle) } }
             let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            return shown.suffix(bottom).contains { $0.contains(needle) }
+            return Runner.contains(needle, in: Array(shown.suffix(bottom)))
         }
+    }
+
+    /// 그 줄들 가운데 `needle` 이 있는가. 좁은 칸에서는 한 줄이 둘로 접힌다(38칸의 codex: `/model  choose what model and` / `reasoning effort to use`
+    /// — 2026-10-12 iTerm2 의 나뉜 칸에서 실측) — 이웃한 두 줄을 이은 글에서도 찾는다.
+    static func contains(_ needle: String, in lines: [String]) -> Bool {
+        if lines.contains(where: { $0.contains(needle) }) { return true }
+        func words(_ text: String) -> String { text.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ") }
+        return zip(lines, lines.dropFirst()).contains { words($0 + " " + $1).contains(needle) }
     }
 
     /// 화면이 `condition` 을 만족할 때까지 다시 읽는다. 시간 안에 만족하면 참.
