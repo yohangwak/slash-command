@@ -880,7 +880,9 @@ public struct Runner {
         case failed
     }
 
-    /// claude 선택창의 effort 줄을 `level` 로 맞춘다. → 한 번에 한 단계, 끝에서 처음으로 돈다.
+    /// claude 선택창의 effort 줄을 `level` 로 맞춘다. ←/→ 한 번에 한 단계.
+    /// 끝에서 반대쪽으로 도는 판(2.1.289)도 있고 돌지 않는 판(2.1.296 — 2026-10-13 실측: `xhigh` 에서 `high` 로 가려고 → 만 누르다
+    /// `max` 에서 멈춰 실패했다)도 있다. 그래서 가야 할 쪽으로 먼저 가고, 거기서 막히면 반대쪽으로 끝까지 가 본다.
     private func setEffort(_ level: String, timeoutMs: Int) throws -> EffortOutcome {
         var current: String?
         var note: String?
@@ -892,18 +894,29 @@ public struct Runner {
         guard shown else { return .failed }
         if current == nil, let note { return .unsupported(note.drop(while: { !$0.isLetter }).description) }
         let wanted = level.lowercased()
-        var presses = 0
-        while let now = current, now != wanted {
-            guard presses < 8 else { return .failed }   // 한 바퀴를 돌아도 없으면 그 모델에 없는 단계다
-            try io.press(.right)
-            presses += 1
-            let moved = try poll(timeoutMs: min(timeoutMs, 1000)) { lines in
-                current = Picker.claudeEffort(lines)
-                return current != nil && current != now
+        /// 한쪽으로 한 칸씩 간다. 원하는 단계에 닿으면 참. 더 움직이지 않으면(끝) 거기서 멈춘다.
+        func walk(_ key: Key) throws -> Bool {
+            var presses = 0
+            while let now = current, now != wanted {
+                guard presses < 8 else { return false }   // 한 바퀴를 돌아도 없으면 그 모델에 없는 단계다
+                try io.press(key)
+                presses += 1
+                let moved = try poll(timeoutMs: min(timeoutMs, 1000)) { lines in
+                    current = Picker.claudeEffort(lines)
+                    return current != nil && current != now
+                }
+                if !moved {
+                    current = now
+                    return false
+                }
             }
-            if !moved { return .failed }
+            return current == wanted
         }
-        return current == wanted ? .set : .failed
+        let order = Picker.claudeEffortOrder
+        var first = Key.right
+        if let now = current, let from = order.firstIndex(of: now), let to = order.firstIndex(of: wanted), to < from { first = .left }
+        if try walk(first) { return .set }
+        return try walk(first == .right ? .left : .right) ? .set : .failed
     }
 
     enum StepOutcome {
@@ -1045,7 +1058,14 @@ public struct Runner {
         for _ in 0..<4 {
             guard let lines = io.screen() else { return }
             let before = Picker.rows(lines)
-            guard !before.isEmpty else { return }
+            if before.isEmpty {
+                // 맨 아래 안내 줄이 잘린 선택창도 선택창이다: 낮은 창에서 effort 설명이 길어지면(`Max` 는 두 줄이 더 붙는다) 안내 줄이
+                // 화면 밖으로 밀린다(2026-10-13 실측: 16줄 창에서 그렇게 선택창을 열어 둔 채 끝났다). 머리말과 커서 행이 보이면 닫는다.
+                guard let header = Picker.headers.first(where: { Picker.clipped(lines, header: $0) }) else { return }
+                try io.press(.escape)
+                _ = try poll(timeoutMs: 800) { !Picker.clipped($0, header: header) }
+                continue
+            }
             try io.press(.escape)
             _ = try poll(timeoutMs: 800) { Picker.rows($0) != before }
         }

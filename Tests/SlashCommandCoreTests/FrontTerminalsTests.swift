@@ -245,4 +245,15 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertTrue(Detector.supportedBundleIDs.contains(Detector.kittyBundleID))
         XCTAssertThrowsError(try Detector.target(bundleID: "com.apple.TextEdit", appName: "TextEdit"))
     }
+
+    /// 같은 터미널 앱을 둘 띄웠을 때: 부른 쪽이 아는 맨 앞 pid 가 있으면 그것이 이긴다. 실행 중인 앱 목록은 모를 때만 본다
+    /// (2026-10-13 실측 — 목록에서 고른 «활성» 프로세스가 먼저 뜬 쪽이어서 단축키가 그쪽의 셸로 갔다).
+    func testTheFrontProcessTheCallerKnowsWins() {
+        var asked: [String] = []
+        let active: (String) -> Int32? = { asked.append($0); return 1667 }
+        XCTAssertEqual(Detector.frontProcess(known: 84481, bundleID: Detector.weztermBundleID, active: active), 84481)
+        XCTAssertEqual(asked, [], "아는 pid 가 있으면 목록에 묻지 않는다")
+        XCTAssertEqual(Detector.frontProcess(known: nil, bundleID: Detector.kittyBundleID, active: active), 1667)
+        XCTAssertEqual(asked, [Detector.kittyBundleID])
+    }
 }

@@ -860,6 +860,10 @@ final class FakeClaude: TerminalIO {
     var windowRows: Int?
     /// 더 낮은 창: 선택창의 맨 아래 안내 줄까지 잘린다(실측: 11줄 칸).
     var hintCutOff = false
+    /// 거짓이면 effort 가 끝에서 반대쪽으로 돌지 않는다(2.1.296 실측). 참은 2.1.289 의 모습.
+    var effortWraps = true
+    /// 참이면 effort 가 `max` 일 때 설명 두 줄이 더 붙어 안내 줄이 화면 밖으로 밀린다(낮은 창, 2.1.296 실측).
+    var maxNoteHidesHint = false
     private var writes = 0
     private let rule = String(repeating: "─", count: 30)
 
@@ -943,8 +947,14 @@ final class FakeClaude: TerminalIO {
             let arrows: [(String, () -> Void)] = [
                 ("\u{1B}[A", { self.cursor = max(0, self.cursor - 1) }),
                 ("\u{1B}[B", { self.cursor = min(self.rows.count - 1, self.cursor + 1) }),
-                ("\u{1B}[C", { self.pickerEffort = (self.pickerEffort + 1) % self.efforts.count }),
-                ("\u{1B}[D", { self.pickerEffort = (self.pickerEffort + self.efforts.count - 1) % self.efforts.count }),
+                ("\u{1B}[C", {
+                    if self.effortWraps { self.pickerEffort = (self.pickerEffort + 1) % self.efforts.count }
+                    else { self.pickerEffort = min(self.efforts.count - 1, self.pickerEffort + 1) }
+                }),
+                ("\u{1B}[D", {
+                    if self.effortWraps { self.pickerEffort = (self.pickerEffort + self.efforts.count - 1) % self.efforts.count }
+                    else { self.pickerEffort = max(0, self.pickerEffort - 1) }
+                }),
             ]
             if let arrow = arrows.first(where: { rest.hasPrefix($0.0) }) {
                 if stage == .picker { arrow.1() }
@@ -998,7 +1008,9 @@ final class FakeClaude: TerminalIO {
                 ? "   ● \(level == "xhigh" ? "xHigh" : level.capitalized) effort ←/→ to adjust"
                 : "   ○ Effort not supported for \(rows[cursor])"
             return shown + ["   Select model", "   Switch between Claude models. Your pick becomes the default for new sessions."]
-                + list + [effortLine] + (hintCutOff ? [] : ["   Enter to set as default · s to use this session only · Esc to cancel"])
+                + list + [effortLine]
+                + (maxNoteHidesHint && level == "max" ? ["   May use excessive tokens resulting in long response times or", "   overthinking. Use sparingly for the hardest tasks."] : [])
+                + (hintCutOff || (maxNoteHidesHint && level == "max") ? [] : ["   Enter to set as default · s to use this session only · Esc to cancel"])
         case .confirm:
             return shown + [askingAboutEffort ? "   Change effort level?" : "   Switch model?",
                             "   Your next response will be slower and use more tokens",
@@ -1104,6 +1116,51 @@ final class SwitcherApplyTests: KoreanMessagesTestCase {
         _ = try switcher(config("opus", "low"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
         XCTAssertEqual(claude.effort, "low")
         XCTAssertEqual(claude.model, "Opus 5.5")
+    }
+
+    /// 2026-10-13 실측(claude 2.1.296): effort 줄이 끝에서 돌지 않는다. `xhigh` 인 세션에서 `high` 프리셋을 누르자 → 만 눌러
+    /// `max` 에서 멈췄고 «effort 를 맞추지 못했다» 로 끝났다.
+    func testReachesALowerLevelWhereTheEffortDoesNotWrap() throws {
+        for (start, wanted) in [("xhigh", "high"), ("max", "low"), ("low", "max"), ("medium", "xhigh")] {
+            let claude = FakeClaude()
+            claude.effortWraps = false
+            claude.effort = start
+            _ = try switcher(config("opus", wanted), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
+            XCTAssertEqual(claude.effort, wanted, "\(start) → \(wanted)")
+            XCTAssertEqual(claude.confirmedBy, "s")
+            let arrows = claude.sent.filter { $0 == "\u{1B}[C" || $0 == "\u{1B}[D" }
+            let order = Picker.claudeEffortOrder
+            XCTAssertEqual(arrows.count, abs(order.firstIndex(of: start)! - order.firstIndex(of: wanted)!), "가야 할 쪽으로만, 꼭 그만큼: \(arrows)")
+        }
+    }
+
+    /// 선택창에 그 단계가 없으면: 양쪽 끝까지 가 보고, 선택창을 닫고, 명령 방식(`/model` · `/effort`)으로 넘어간다 — 끝없이 누르지 않는다.
+    func testALevelThePickerDoesNotOfferFallsBackToTheCommands() throws {
+        for wraps in [true, false] {
+            let claude = FakeClaude()
+            claude.effortWraps = wraps
+            claude.efforts = ["low", "medium", "high"]
+            _ = try switcher(config("opus", "max"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
+            XCTAssertEqual(claude.stage, .prompt, "선택창을 닫고 나온다 (wraps=\(wraps))")
+            XCTAssertEqual(claude.confirmedBy, "command", "선택창에서 확정하지 않았다 (wraps=\(wraps))")
+            let arrows = claude.sent.filter { $0 == "\u{1B}[C" || $0 == "\u{1B}[D" }
+            XCTAssertLessThanOrEqual(arrows.count, 16, "한쪽에 여덟 번까지: \(arrows.count)")
+        }
+    }
+
+    /// 낮은 창에서 effort 가 `max` 에 닿으면 설명이 두 줄 붙어 안내 줄이 화면 밖으로 밀린다. 그 상태에서 그만둘 때도 선택창을 닫는다
+    /// (2026-10-13 실측: 16줄 창에서 선택창이 열린 채 남아 다음 누름들이 «입력창이 보이지 않는다» 로 거절됐다).
+    func testClosesAPickerWhoseHintRowWasPushedOutWhileSettingTheEffort() throws {
+        let claude = FakeClaude()
+        claude.effortWraps = false
+        claude.maxNoteHidesHint = true
+        claude.efforts = ["medium", "high", "xhigh", "max"]   // 선택창에는 low 가 없다
+        claude.effort = "xhigh"
+        // 왼쪽 끝(medium)까지 가도 없으니 오른쪽 끝(max)까지 가 본다 — 거기서 안내 줄이 사라진 채 그만둔다.
+        _ = try switcher(config("opus", "low"), io: claude, settings: tempSettings()).apply(slot: 1, to: target)
+        XCTAssertTrue(claude.sent.contains("\u{1B}[C"), "오른쪽 끝까지 가 봤다")
+        XCTAssertEqual(claude.stage, .prompt, "안내 줄이 안 보여도 선택창을 닫고 나온다")
+        XCTAssertEqual(claude.confirmedBy, "command", "닫은 뒤 명령 방식으로 넘어갔다")
     }
 
     func testFullModelIDPicksThatVersionNotTheNewest() throws {

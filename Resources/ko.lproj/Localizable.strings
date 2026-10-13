@@ -105,7 +105,7 @@
 "Grok %@ does not support effort '%@' (%@)." = "grok %@ 은 effort '%@' 를 지원하지 않습니다(%@).";
 "Grok did not accept '%@': %@" = "grok 가 '%@' 를 받아들이지 않았습니다: %@";
 "If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)." = "지금 확정하면 새 세션 기본값도 이 모델이 되고 effort 는 따로 맞춰야 합니다(취소하고 다시 누르면 둘 다 맞춰집니다).";
-"In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "Ghostty·Orca 에서 %@ 와 번호를 누르면, 맨 앞 세션에서 돌고 있는 에이전트에 그 번호의 프리셋을 적용합니다. 그 에이전트의 설정이 없는 프리셋은 아무것도 하지 않습니다.";
+"In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "지원하는 터미널에서 %@ 와 번호를 누르면, 맨 앞 세션에서 돌고 있는 에이전트에 그 번호의 프리셋을 적용합니다. 그 에이전트의 설정이 없는 프리셋은 아무것도 하지 않습니다.";
 "Lower Effort" = "effort 한 단계 내리기";
 "Model" = "모델";
 "Modifier keys" = "조합 키";
@@ -240,7 +240,7 @@
 "The presets file could not be read." = "프리셋 파일을 읽지 못했습니다.";
 "The settings file is not UTF-8" = "설정 파일이 UTF-8 이 아닙니다";
 "The settings file is not a JSON object" = "설정 파일이 JSON 객체가 아닙니다";
-"The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys." = "단축키는 Ghostty 나 Orca 가 맨 앞일 때만 잡습니다. 다른 앱에서는 이 키들이 원래대로 동작합니다.";
+"The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys." = "단축키는 지원하는 터미널이 맨 앞일 때만 잡습니다. 다른 앱에서는 이 키들이 원래대로 동작합니다.";
 "The socket path is too long" = "소켓 경로가 너무 깁니다";
 "The target terminal is no longer in front" = "대상 터미널이 더 이상 맨 앞에 없습니다";
 "The target terminal is no longer in the front window" = "대상 터미널이 더 이상 맨 앞 창에 없습니다";

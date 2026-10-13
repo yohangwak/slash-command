@@ -188,6 +188,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         guard let front = NSWorkspace.shared.frontmostApplication, let bundleID = front.bundleIdentifier else { return }
         let appName = front.localizedName ?? bundleID
+        // 같은 터미널 앱을 둘 띄웠을 때 «누른 그 프로세스» 로 가게, 지금 맨 앞인 pid 를 들고 간다.
+        let frontPID = front.processIdentifier
         // Ghostty 화면은 접근성으로 읽는다. 권한이 없으면 «그 권한을 켜는 설정 화면» 을 바로 열어 주고 여기서 멈춘다
         // — 사용자가 시스템 설정에서 길을 찾게 하지 않는다. (Orca 는 없어도 되지만 있으면 지금 보이는 탭을 지연 없이 안다.)
         if bundleID == Detector.ghosttyBundleID, !Permissions.accessibility {
@@ -217,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 switcher = made
                 try self.confirmAutomation(bundleID: bundleID, appName: appName, action: action)
                 trace.mark("automation")
-                let target = try Detector.target(bundleID: bundleID, appName: appName)
+                let target = try Detector.target(bundleID: bundleID, appName: appName, frontPID: frontPID)
                 trace.mark("find target")
                 switch action {
                 case .preset(let slot): return try made.apply(slot: slot, to: target, deferFinalCheck: true)
@@ -317,16 +319,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshAutomation()
         let app = NSWorkspace.shared.frontmostApplication
         let bundleID = app?.bundleIdentifier ?? ""
-        fill(menu, bundleID: bundleID, appName: app?.localizedName ?? bundleID)
+        fill(menu, bundleID: bundleID, appName: app?.localizedName ?? bundleID, frontPID: app?.processIdentifier)
     }
 
-    private func fill(_ menu: NSMenu, bundleID: String, appName: String) {
+    private func fill(_ menu: NSMenu, bundleID: String, appName: String, frontPID: Int32? = nil) {
         menuOpening += 1
-        build(menu, front: frontSession(bundleID: bundleID, appName: appName, menu: menu))
+        build(menu, front: frontSession(bundleID: bundleID, appName: appName, frontPID: frontPID, menu: menu))
     }
 
     /// 맨 앞 세션의 에이전트 — 메뉴가 «지금 누르면 무엇이 되는가» 를 보여 주게 한다. 아무것도 보내지 않는다.
-    private func frontSession(bundleID: String, appName: String, menu: NSMenu) -> Front {
+    private func frontSession(bundleID: String, appName: String, frontPID: Int32? = nil, menu: NSMenu) -> Front {
         guard Detector.supportedBundleIDs.contains(bundleID) else { return .unsupported }
         // 전환 중에는 그 터미널을 건드리지 않는다.
         guard !busy else { return .checking(appName: appName) }
@@ -336,13 +338,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // 권한 확인 자체도 여기(주 스레드)서 하지 않는다 — 미리 알아 둔 값을 본다.
             // 허용이 아니거나 아직 모르면 «못 찾았다» 가 아니라 «모른다» 다 — 머리말에 앱 이름만 적는다.
             guard automation[bundleID] == .allowed else { return .checking(appName: appName) }
-            return (try? Detector.target(bundleID: bundleID, appName: appName)).map(Front.agent) ?? .none(appName: appName)
+            return (try? Detector.target(bundleID: bundleID, appName: appName, frontPID: frontPID)).map(Front.agent) ?? .none(appName: appName)
         }
         // Orca 는 주 스레드 밖에서 읽는다(0.1초 안팎). 0.25초 안에 오면 그대로 그리고, 늦으면 온 뒤에 메뉴를 고친다.
         let answer = Answer()
         let opening = menuOpening
         detector.async { [weak self] in
-            let target = try? Detector.target(bundleID: bundleID, appName: appName)
+            let target = try? Detector.target(bundleID: bundleID, appName: appName, frontPID: frontPID)
             answer.give(target)
             DispatchQueue.main.async {
                 guard let self, answer.late, opening == self.menuOpening else { return }

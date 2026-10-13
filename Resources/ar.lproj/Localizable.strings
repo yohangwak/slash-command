@@ -105,7 +105,7 @@
 "Grok %@ does not support effort '%@' (%@)." = "لا يدعم Grok %@ مستوى effort '%@' (%@).";
 "Grok did not accept '%@': %@" = "لم يقبل Grok '%@': %@";
 "If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)." = "إذا أكدت الآن، فسيصبح هذا النموذج أيضًا الافتراضي للجلسات الجديدة، وسيلزم ضبط effort بشكل منفصل (ألغِ واضغط مرة أخرى لضبط الاثنين).";
-"In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "في Ghostty أو Orca، اضغط %@ ثم رقمًا. يُطبَّق الإعداد المسبق على الوكيل الذي يعمل في الجلسة الأمامية، ولا يفعل الإعداد المسبق شيئًا للوكلاء التي لا يتضمن إدخالًا لها.";
+"In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "في طرفية مدعومة، اضغط %@ ثم رقمًا. يُطبَّق الإعداد المسبق على الوكيل الذي يعمل في الجلسة الأمامية، ولا يفعل الإعداد المسبق شيئًا للوكلاء التي لا يتضمن إدخالًا لها.";
 "Lower Effort" = "خفض effort";
 "Model" = "النموذج";
 "Modifier keys" = "مفاتيح التعديل";
@@ -240,7 +240,7 @@
 "The presets file could not be read." = "تعذّرت قراءة ملف الإعدادات المسبقة.";
 "The settings file is not UTF-8" = "ملف الإعدادات ليس بترميز UTF-8";
 "The settings file is not a JSON object" = "ملف الإعدادات ليس كائن JSON";
-"The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys." = "تُلتقط الاختصارات فقط أثناء وجود Ghostty أو Orca في المقدمة. تحتفظ التطبيقات الأخرى بهذه المفاتيح.";
+"The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys." = "تُلتقط الاختصارات فقط أثناء وجود طرفية مدعومة في المقدمة. تحتفظ التطبيقات الأخرى بهذه المفاتيح.";
 "The socket path is too long" = "مسار المقبس طويل جدًا";
 "The target terminal is no longer in front" = "الطرفية الهدف لم تعد في المقدمة";
 "The target terminal is no longer in the front window" = "الطرفية الهدف لم تعد في النافذة الأمامية";

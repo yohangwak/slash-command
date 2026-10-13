@@ -105,7 +105,7 @@
 "Grok %@ does not support effort '%@' (%@)." = "Grok %@ は effort '%@' に対応していません(%@)。";
 "Grok did not accept '%@': %@" = "Grok が '%@' を受け付けませんでした: %@";
 "If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)." = "今確定すると、このモデルが新規セッションのデフォルトにもなり、effort は別に設定する必要があります(両方設定するには、キャンセルしてもう一度押してください)。";
-"In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "GhosttyまたはOrcaで %@ と番号を押すと、最前面のセッションで動いているエージェントにその番号のプリセットを適用します。そのエージェントの設定がないプリセットは何もしません。";
+"In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "対応するターミナルで %@ と番号を押すと、最前面のセッションで動いているエージェントにその番号のプリセットを適用します。そのエージェントの設定がないプリセットは何もしません。";
 "Lower Effort" = "effort を1段階下げる";
 "Model" = "モデル";
 "Modifier keys" = "修飾キー";
@@ -240,7 +240,7 @@
 "The presets file could not be read." = "プリセットファイルを読み込めませんでした。";
 "The settings file is not UTF-8" = "設定ファイルが UTF-8 ではありません";
 "The settings file is not a JSON object" = "設定ファイルが JSON オブジェクトではありません";
-"The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys." = "ショートカットは、GhosttyまたはOrcaが最前面のときだけ取得します。ほかのアプリではこれらのキーは通常どおり動作します。";
+"The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys." = "ショートカットは、対応するターミナルが最前面のときだけ取得します。ほかのアプリではこれらのキーは通常どおり動作します。";
 "The socket path is too long" = "ソケットのパスが長すぎます";
 "The target terminal is no longer in front" = "対象のターミナルが最前面ではなくなりました";
 "The target terminal is no longer in the front window" = "対象のターミナルが最前面のウインドウになくなりました";

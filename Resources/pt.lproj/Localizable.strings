@@ -105,7 +105,7 @@
 "Grok %@ does not support effort '%@' (%@)." = "O Grok %@ não é compatível com o effort \"%@\" (%@).";
 "Grok did not accept '%@': %@" = "O Grok não aceitou \"%@\": %@";
 "If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)." = "Se você confirmar agora, este modelo também se tornará o padrão para novas sessões e o effort terá de ser definido separadamente (cancele e pressione de novo para obter os dois).";
-"In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "No Ghostty ou no Orca, pressione %@ e um número. A predefinição vai para o agente que estiver em execução na sessão da frente; uma predefinição não faz nada com agentes para os quais não tem entrada.";
+"In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "Em um terminal compatível, pressione %@ e um número. A predefinição vai para o agente que estiver em execução na sessão da frente; uma predefinição não faz nada com agentes para os quais não tem entrada.";
 "Lower Effort" = "Diminuir effort";
 "Model" = "Modelo";
 "Modifier keys" = "Teclas modificadoras";
@@ -240,7 +240,7 @@
 "The presets file could not be read." = "Não foi possível ler o arquivo de predefinições.";
 "The settings file is not UTF-8" = "O arquivo de ajustes não está em UTF-8";
 "The settings file is not a JSON object" = "O arquivo de ajustes não é um objeto JSON";
-"The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys." = "Os atalhos só são capturados enquanto o Ghostty ou o Orca estiver na frente. Outros apps mantêm estas teclas.";
+"The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys." = "Os atalhos só são capturados enquanto um terminal compatível estiver na frente. Outros apps mantêm estas teclas.";
 "The socket path is too long" = "O caminho do socket é longo demais";
 "The target terminal is no longer in front" = "O terminal de destino não está mais na frente";
 "The target terminal is no longer in the front window" = "O terminal de destino não está mais na janela da frente";

@@ -105,7 +105,7 @@
 "Grok %@ does not support effort '%@' (%@)." = "Grok %@ ne prend pas en charge l’effort « %@ » (%@).";
 "Grok did not accept '%@': %@" = "Grok n’a pas accepté « %@ » : %@";
 "If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)." = "Si vous confirmez maintenant, ce modèle devient aussi la valeur par défaut des nouvelles sessions et l’effort doit être réglé séparément (annulez et appuyez de nouveau pour obtenir les deux).";
-"In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "Dans Ghostty ou Orca, appuyez sur %@ puis sur un numéro. Le préréglage s’applique à l’agent qui tourne dans la session au premier plan ; un préréglage sans entrée pour un agent ne fait rien pour celui-ci.";
+"In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "Dans un terminal pris en charge, appuyez sur %@ puis sur un numéro. Le préréglage s’applique à l’agent qui tourne dans la session au premier plan ; un préréglage sans entrée pour un agent ne fait rien pour celui-ci.";
 "Lower Effort" = "Diminuer l’effort";
 "Model" = "Modèle";
 "Modifier keys" = "Touches de modification";
@@ -240,7 +240,7 @@
 "The presets file could not be read." = "Le fichier de préréglages n’a pas pu être lu.";
 "The settings file is not UTF-8" = "Le fichier de réglages n’est pas en UTF-8";
 "The settings file is not a JSON object" = "Le fichier de réglages n’est pas un objet JSON";
-"The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys." = "Les raccourcis ne sont captés que lorsque Ghostty ou Orca est au premier plan. Les autres apps gardent ces touches.";
+"The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys." = "Les raccourcis ne sont captés que lorsqu’un terminal pris en charge est au premier plan. Les autres apps gardent ces touches.";
 "The socket path is too long" = "Le chemin du socket est trop long";
 "The target terminal is no longer in front" = "Le terminal cible n’est plus au premier plan";
 "The target terminal is no longer in the front window" = "Le terminal cible n’est plus dans la fenêtre au premier plan";

@@ -53,23 +53,34 @@ public enum Detector {
         }
         let appName = app.localizedName ?? bundleID
         // 허용 창에 답하는 사이 다른 앱으로 갔다면 뒤에 있는 터미널을 바꾸지 않는다.
+        var frontPID = app.processIdentifier
         if try AutomationConsent.ensure(bundleID: bundleID, appName: appName, willAsk: willAskAutomation) {
             try AutomationConsent.requireFront(bundleID: bundleID, appName: appName)
+            // 창에 답하는 사이 같은 앱의 다른 프로세스가 앞에 왔을 수 있다.
+            if let now = NSWorkspace.shared.frontmostApplication, now.bundleIdentifier == bundleID { frontPID = now.processIdentifier }
         }
-        return try target(bundleID: bundleID, appName: appName)
+        return try target(bundleID: bundleID, appName: appName, frontPID: frontPID)
     }
 
-    public static func target(bundleID: String, appName: String) throws -> Target {
+    /// `frontPID` 는 맨 앞 앱의 pid(`NSWorkspace.frontmostApplication` 이 알려 준 것). 같은 앱을 둘 이상 띄웠을 때 «맨 앞» 인 프로세스를 짚는 데 쓴다.
+    /// 모르면(그 앱이 맨 앞인 것처럼 묻는 `--bundle`) 실행 중인 것들 가운데 활성인 것을 찾는다.
+    public static func target(bundleID: String, appName: String, frontPID: Int32? = nil) throws -> Target {
         switch bundleID {
         case ghosttyBundleID: return try ghostty()
         case orcaBundleID: return try orca()
         case itermBundleID: return try iterm()
-        // 같은 앱을 둘 이상 띄웠을 수 있다 — 그 가운데 «맨 앞» 인 프로세스를 짚어 준다.
-        case weztermBundleID: return try wezterm(frontPID: activeProcess(bundleID: weztermBundleID))
-        case kittyBundleID: return try kitty(frontPID: activeProcess(bundleID: kittyBundleID))
+        case weztermBundleID: return try wezterm(frontPID: frontProcess(known: frontPID, bundleID: weztermBundleID))
+        case kittyBundleID: return try kitty(frontPID: frontProcess(known: frontPID, bundleID: kittyBundleID))
         default:
             throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal.", appName))
         }
+    }
+
+    /// 맨 앞 프로세스. 부른 쪽이 아는 pid 가 있으면 그것을 쓴다 — 실행 중인 앱 목록에서 «활성» 인 것을 고르는 길은
+    /// 오래 떠 있는 앱 안에서 틀릴 때가 있다(2026-10-13 실측: WezTerm 을 둘 띄우고 뒤에 뜬 쪽을 앞에 둔 채 단축키 4번 중 2번이
+    /// 먼저 뜬 쪽의 셸로 갔다. 같은 순간 새로 띄운 프로세스가 읽은 목록은 맞았다).
+    static func frontProcess(known: Int32?, bundleID: String, active: (String) -> Int32? = Detector.activeProcess) -> Int32? {
+        known ?? active(bundleID)
     }
 
     static func activeProcess(bundleID: String) -> Int32? {

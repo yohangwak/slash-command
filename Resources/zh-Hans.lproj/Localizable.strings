@@ -105,7 +105,7 @@
 "Grok %@ does not support effort '%@' (%@)." = "Grok %1$@ 不支持 effort“%2$@”（%3$@）。";
 "Grok did not accept '%@': %@" = "Grok 未接受“%1$@”：%2$@";
 "If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)." = "如果现在确认，此模型也会成为新会话的默认值，且 effort 需另行设置（取消后再按一次可同时设置两者）。";
-"In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "在 Ghostty 或 Orca 中，按 %@ 加数字。预设会应用到最前面会话中正在运行的代理；没有相应条目的代理不受该预设影响。";
+"In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "在支持的终端中，按 %@ 加数字。预设会应用到最前面会话中正在运行的代理；没有相应条目的代理不受该预设影响。";
 "Lower Effort" = "降低 effort";
 "Model" = "模型";
 "Modifier keys" = "修饰键";
@@ -240,7 +240,7 @@
 "The presets file could not be read." = "无法读取预设文件。";
 "The settings file is not UTF-8" = "设置文件不是 UTF-8";
 "The settings file is not a JSON object" = "设置文件不是 JSON 对象";
-"The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys." = "仅当 Ghostty 或 Orca 在最前面时才会占用快捷键。其他 App 中这些按键保持原有功能。";
+"The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys." = "仅当支持的终端在最前面时才会占用快捷键。其他 App 中这些按键保持原有功能。";
 "The socket path is too long" = "套接字路径太长";
 "The target terminal is no longer in front" = "目标终端已不在最前面";
 "The target terminal is no longer in the front window" = "目标终端已不在最前面的窗口中";

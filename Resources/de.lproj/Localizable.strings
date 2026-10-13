@@ -105,7 +105,7 @@
 "Grok %@ does not support effort '%@' (%@)." = "Grok %@ unterstützt den effort „%@“ nicht (%@).";
 "Grok did not accept '%@': %@" = "Grok hat „%@“ nicht angenommen: %@";
 "If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)." = "Bei Bestätigung jetzt wird dieses Modell auch zum Standard für neue Sitzungen, und der effort muss separat eingestellt werden (abbrechen und erneut drücken, um beides zu setzen).";
-"In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "Ghostty oder Orca: %@ und eine Zahl drücken. Das Preset gilt für den Agenten, der in der vordersten Sitzung läuft; hat ein Preset für einen Agenten keinen Eintrag, passiert nichts.";
+"In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "In einem unterstützten Terminal: %@ und eine Zahl drücken. Das Preset gilt für den Agenten, der in der vordersten Sitzung läuft; hat ein Preset für einen Agenten keinen Eintrag, passiert nichts.";
 "Lower Effort" = "effort senken";
 "Model" = "Modell";
 "Modifier keys" = "Zusatztasten";
@@ -240,7 +240,7 @@
 "The presets file could not be read." = "Die Presets-Datei konnte nicht gelesen werden.";
 "The settings file is not UTF-8" = "Die Einstellungsdatei ist nicht UTF-8";
 "The settings file is not a JSON object" = "Die Einstellungsdatei ist kein JSON-Objekt";
-"The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys." = "Die Tastenkürzel werden nur belegt, solange Ghostty oder Orca im Vordergrund ist. In anderen Apps behalten diese Tasten ihre Funktion.";
+"The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys." = "Die Tastenkürzel werden nur belegt, solange ein unterstütztes Terminal im Vordergrund ist. In anderen Apps behalten diese Tasten ihre Funktion.";
 "The socket path is too long" = "Der Socket-Pfad ist zu lang";
 "The target terminal is no longer in front" = "Das Zielterminal ist nicht mehr im Vordergrund";
 "The target terminal is no longer in the front window" = "Das Zielterminal ist nicht mehr im vordersten Fenster";
