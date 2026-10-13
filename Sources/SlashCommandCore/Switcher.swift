@@ -894,29 +894,34 @@ public struct Runner {
         guard shown else { return .failed }
         if current == nil, let note { return .unsupported(note.drop(while: { !$0.isLetter }).description) }
         let wanted = level.lowercased()
-        /// 한쪽으로 한 칸씩 간다. 원하는 단계에 닿으면 참. 더 움직이지 않으면(끝) 거기서 멈춘다.
-        func walk(_ key: Key) throws -> Bool {
+        enum Walk { case reached, blocked, lost }
+        /// 한쪽으로 한 칸씩 간다. 더 움직이지 않으면(끝) `blocked`. effort 줄이 화면에서 사라지면 `lost` — 선택창이 닫혔거나
+        /// 다른 창으로 바뀐 것이므로 그 뒤로는 화살표를 더 보내지 않는다(쓰던 글의 커서나 다른 창의 선택이 움직인다).
+        func walk(_ key: Key) throws -> Walk {
             var presses = 0
             while let now = current, now != wanted {
-                guard presses < 8 else { return false }   // 한 바퀴를 돌아도 없으면 그 모델에 없는 단계다
+                guard presses < 8 else { return .blocked }   // 한 바퀴를 돌아도 없으면 그 모델에 없는 단계다
                 try io.press(key)
                 presses += 1
+                var seen: String?
                 let moved = try poll(timeoutMs: min(timeoutMs, 1000)) { lines in
-                    current = Picker.claudeEffort(lines)
-                    return current != nil && current != now
+                    seen = Picker.claudeEffort(lines)
+                    return seen != nil && seen != now
                 }
-                if !moved {
-                    current = now
-                    return false
-                }
+                guard let seen else { return .lost }
+                current = seen
+                if !moved { return .blocked }
             }
-            return current == wanted
+            return current == wanted ? .reached : .lost
         }
         let order = Picker.claudeEffortOrder
         var first = Key.right
         if let now = current, let from = order.firstIndex(of: now), let to = order.firstIndex(of: wanted), to < from { first = .left }
-        if try walk(first) { return .set }
-        return try walk(first == .right ? .left : .right) ? .set : .failed
+        switch try walk(first) {
+        case .reached: return .set
+        case .lost: return .failed
+        case .blocked: return try walk(first == .right ? .left : .right) == .reached ? .set : .failed
+        }
     }
 
     enum StepOutcome {

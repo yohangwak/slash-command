@@ -120,6 +120,18 @@ final class RunnerTests: KoreanMessagesTestCase {
         try Runner(io: io, sleep: { _ in }).run(steps)
     }
 
+    /// PR #39 리뷰: effort 줄이 화면에서 사라졌으면(선택창이 닫혔거나 다른 창으로 바뀌었다) 반대쪽 화살표를 더 보내지 않는다 —
+    /// 마지막으로 본 값으로 되돌려 놓고 반대쪽으로 가 보면, 보이지 않는 곳에 화살표를 누르게 된다.
+    func testStopsAdjustingTheEffortOnceTheEffortRowIsGone() {
+        let io = FakeIO()
+        let picker = ["   Select model", "   ❯ 1.  Opus 5.5 ✔   설명", "   ● High effort ←/→ to adjust",
+                      "   Enter to set as default · s to use this session only · Esc to cancel"]
+        let prompt = ["────", "❯", "────", "  ⏵⏵ auto mode on"]
+        io.screens = [picker, prompt]
+        XCTAssertThrowsError(try run([.setEffort(level: "xhigh", timeoutMs: 500, abort: [], failure: "effort")], io: io))
+        XCTAssertEqual(io.sent, [Key.right.bytes], "처음 한 번만 누르고, 줄이 사라진 뒤에는 누르지 않는다")
+    }
+
     func testExpectPassesWhenScreenShowsNeedle() throws {
         let io = FakeIO()
         io.screens = [["nothing"], ["Select Model and Effort"]]
