@@ -77,4 +77,23 @@ The icon is a key with a slash on it. `swift scripts/make-icon.swift` regenerate
 
 ## Signing
 
-`build-app.sh` signs with an "Apple Development" certificate when one is in the keychain, and ad-hoc otherwise. With an ad-hoc signature macOS asks for the permissions again after every build, because the app's identity changes.
+`build-app.sh` signs with an "Apple Development" certificate when one is in the keychain, and ad-hoc otherwise. With an ad-hoc signature macOS asks for the permissions again after every build, because the app's identity changes. A certificate-signed build uses the Hardened Runtime with one entitlement, `com.apple.security.automation.apple-events`, which the AppleScript connections to Ghostty and iTerm2 need.
+
+## Releasing
+
+Releases are built on a maintainer's Mac. There is no macOS CI.
+
+```sh
+./scripts/release.sh                # universal build, Developer ID signature, notarization, stapling → dist/Slash-Command.zip
+./scripts/release.sh --no-notarize  # stop after signing
+```
+
+The script needs a "Developer ID Application" certificate and a `notarytool` keychain profile named `slashcommand-notary` (`xcrun notarytool store-credentials slashcommand-notary`). It refuses to run when `CHANGELOG.md` has no section for the version in `scripts/Info.plist`. Run it in a login session; over ssh the keychain is locked and `codesign` fails.
+
+Then publish the zip:
+
+```sh
+gh release create v0.1.0 dist/Slash-Command.zip --title "Slash Command 0.1.0" --notes-file notes.md
+```
+
+Keep the asset name `Slash-Command.zip`. The README links to the latest release, and a stable name keeps `releases/latest/download/Slash-Command.zip` working.

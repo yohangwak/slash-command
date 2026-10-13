@@ -3,8 +3,14 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-swift build -c release
-bin=$(swift build -c release --show-bin-path)
+# SLASHCOMMAND_UNIVERSAL=1 이면 Apple silicon · Intel 둘 다 든 실행 파일을 만든다(릴리스용 — Xcode 가 있어야 한다).
+if [ "${SLASHCOMMAND_UNIVERSAL:-}" = 1 ]; then
+    swift build -c release --arch arm64 --arch x86_64
+    bin=$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)
+else
+    swift build -c release
+    bin=$(swift build -c release --show-bin-path)
+fi
 
 app="dist/Slash Command.app"
 rm -rf "$app"
@@ -21,8 +27,17 @@ cp -R Resources/*.lproj "$app/Contents/Resources/"
 
 # 개발 인증서가 있으면 그걸로 서명한다 — 다시 빌드해도 Ghostty 제어 권한(자동화)이 유지된다.
 # 없으면 임시 서명으로 떨어지고, 그때는 빌드마다 권한을 다시 묻는다.
-identity=$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1)
-codesign --force --sign "${identity:--}" "$app"
+# SLASHCOMMAND_SIGN_IDENTITY 로 인증서를 정할 수 있다(릴리스는 "Developer ID Application: …" — scripts/release.sh).
+identity=${SLASHCOMMAND_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1)}
+if [ -n "$identity" ]; then
+    # 인증서로 서명할 때는 Hardened Runtime 을 켠다(공증의 조건이고, 개발 빌드도 릴리스와 같은 조건에서 돌게).
+    # 안에 든 명령줄 도구는 따로 서명해야 한다 — 묶음 서명은 그 파일을 다시 서명하지 않는다.
+    for item in "$app/Contents/MacOS/slashcommand-cli" "$app"; do
+        codesign --force --options runtime --timestamp --entitlements scripts/SlashCommand.entitlements --sign "$identity" "$item"
+    done
+else
+    codesign --force --sign - "$app"
+fi
 echo "서명: ${identity:-임시(ad-hoc)}"
 
 if [ "${1:-}" = "--install" ]; then

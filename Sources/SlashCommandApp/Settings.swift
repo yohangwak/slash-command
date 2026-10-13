@@ -277,7 +277,7 @@ struct SettingsView: View {
         } header: {
             Text(loc("Presets"))
         } footer: {
-            Text(loc("In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for.", model.symbols))
+            Text(loc("In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for.", model.symbols))
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -301,7 +301,7 @@ struct SettingsView: View {
         } header: {
             Text(loc("Shortcut"))
         } footer: {
-            Text(loc("The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys."))
+            Text(loc("The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys."))
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

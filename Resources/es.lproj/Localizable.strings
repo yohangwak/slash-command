@@ -105,7 +105,7 @@
 "Grok %@ does not support effort '%@' (%@)." = "Grok %@ no admite el effort '%@' (%@).";
 "Grok did not accept '%@': %@" = "Grok no aceptó '%@': %@";
 "If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)." = "Si confirmas ahora, este modelo también será el predeterminado para sesiones nuevas y el effort deberá ajustarse por separado (cancela y presiona de nuevo para obtener ambos).";
-"In Ghostty or Orca, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "En Ghostty u Orca, presiona %@ y un número. El preajuste se aplica al agente que se ejecute en la sesión frontal; un preajuste no hace nada con los agentes para los que no tiene entrada.";
+"In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for." = "En un terminal compatible, presiona %@ y un número. El preajuste se aplica al agente que se ejecute en la sesión frontal; un preajuste no hace nada con los agentes para los que no tiene entrada.";
 "Lower Effort" = "Bajar effort";
 "Model" = "Modelo";
 "Modifier keys" = "Teclas modificadoras";
@@ -240,7 +240,7 @@
 "The presets file could not be read." = "No se pudo leer el archivo de preajustes.";
 "The settings file is not UTF-8" = "El archivo de ajustes no es UTF-8";
 "The settings file is not a JSON object" = "El archivo de ajustes no es un objeto JSON";
-"The shortcuts are taken only while Ghostty or Orca is in front. Other apps keep these keys." = "Los atajos solo se capturan mientras Ghostty u Orca está al frente. Las demás apps conservan estas teclas.";
+"The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys." = "Los atajos solo se capturan mientras un terminal compatible está al frente. Las demás apps conservan estas teclas.";
 "The socket path is too long" = "La ruta del socket es demasiado larga";
 "The target terminal is no longer in front" = "La terminal de destino ya no está al frente";
 "The target terminal is no longer in the front window" = "La terminal de destino ya no está en la ventana frontal";
