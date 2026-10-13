@@ -31,7 +31,7 @@ What a terminal connection has to guarantee, and what the product promises. Use 
 - **One character at a time.** Cursor treats text sent in one burst as a paste and ignores it. Type filters character by character.
 - **When the cursor is not shown as a character, count rows.** OpenCode marks the list cursor by colour only. Count down from the top filtered row to the row equal to the preset, then verify the model line afterwards.
 - **Each agent marks "working" its own way.** An empty-looking input box can belong to a working agent (Grok `Ctrl+c:cancel`, Cursor's spinner, Antigravity `esc to cancel`, OpenCode `esc interrupt`). An unknown hint line is not "idle".
-- **Restore only those keys.** With `keepDefaults` on, restore only the model keys to their values from before the switch, and look once more 250 ms later. Leave other keys and other sessions' writes alone.
+- **Restore only those keys.** With `keepDefaults` on, restore only the model keys to their values from before the switch, and look once more 250 ms later. Leave every other key alone, whoever wrote it. The restore does not check who last wrote the model keys, so a change another session makes to those same keys during the switch is overwritten.
 - **Do not press past the end.** Compute the neighbour from the list of levels and go only there, so that a slider or radio group does not wrap or move to another row (Cursor's Fast switch, for example).
 
 ## 3. Known limits (outside the contract)

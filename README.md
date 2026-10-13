@@ -4,6 +4,8 @@
 
 [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
+![Pressing a hotkey switches Claude Code between Sonnet, Fable and Opus and raises the effort, with a notice for each change](docs/assets/demo.gif)
+
 Slash Command is a macOS menu bar app. Press **⇧⌥1 … ⇧⌥9** in your terminal and the agent in the frontmost session switches to that preset's **model + effort**. **⇧⌥=** and **⇧⌥-** move the effort one level up or down.
 
 It works with **Claude Code, Codex, Grok, Cursor Agent, Antigravity and OpenCode**, in **Ghostty, Orca, iTerm2, WezTerm and kitty**.

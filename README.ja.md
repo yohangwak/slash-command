@@ -4,6 +4,8 @@
 
 [English](README.md) · [한국어](README.ko.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
+![ホットキーを押すたびに Claude Code が Sonnet、Fable、Opus に切り替わり、effort が上がり、そのつど通知が表示されます](docs/assets/demo.gif)
+
 Slash Command は macOS のメニューバーアプリです。ターミナルで **⇧⌥1 … ⇧⌥9** を押すと、最前面のセッションのエージェントがそのプリセットの **モデル + effort** に切り替わります。**⇧⌥=** と **⇧⌥-** は effort を一段階上げ下げします。
 
 **Claude Code、Codex、Grok、Cursor Agent、Antigravity、OpenCode** に対応し、**Ghostty、Orca、iTerm2、WezTerm、kitty** で動作します。

@@ -4,6 +4,8 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
+![단축키를 누를 때마다 Claude Code 가 Sonnet, Fable, Opus 로 바뀌고 effort 가 올라가며, 바뀔 때마다 알림이 뜹니다](docs/assets/demo.gif)
+
 Slash Command 는 macOS 메뉴 막대 앱입니다. 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면 맨 앞 세션의 에이전트가 그 번호 프리셋의 **모델 + effort** 로 바뀝니다. **⇧⌥=** 와 **⇧⌥-** 는 effort 만 한 단계 올리고 내립니다.
 
 **Claude Code, Codex, Grok, Cursor Agent, Antigravity, OpenCode** 를 **Ghostty, Orca, iTerm2, WezTerm, kitty** 에서 지원합니다.

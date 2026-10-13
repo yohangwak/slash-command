@@ -4,6 +4,8 @@
 
 [English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [Español](README.es.md)
 
+![每按一次快捷键,Claude Code 就在 Sonnet、Fable、Opus 之间切换并提高 effort,每次变更都会显示通知](docs/assets/demo.gif)
+
 Slash Command 是一款 macOS 菜单栏应用。在终端里按下 **⇧⌥1 … ⇧⌥9**,最前面会话中的智能体就会切换到对应预设的 **模型 + effort**。**⇧⌥=** 和 **⇧⌥-** 可以把 effort 调高或调低一级。
 
 它支持 **Claude Code、Codex、Grok、Cursor Agent、Antigravity 和 OpenCode**,可在 **Ghostty、Orca、iTerm2、WezTerm 和 kitty** 中使用。
