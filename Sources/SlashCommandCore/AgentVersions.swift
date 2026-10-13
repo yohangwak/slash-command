@@ -5,7 +5,7 @@ import Foundation
 /// 전환은 에이전트가 그리는 문구(`Select model` · `Set model to` 등)에 기댄다. 판이 바뀌어 문구가 달라지면 화면을 못 알아봐서
 /// 아무것도 보내지 않고 멈춘다(안전한 쪽) — 그래도 «왜 안 되는지» 를 `doctor` 가 먼저 말해 줄 수 있어야 한다.
 public enum AgentVersions {
-    /// 선택창 문구·키 동작을 실제 세션에서 확인한 판(docs/PLAN-generalization.md 「화면 문구에 기댄다」 · README 실측 표).
+    /// 선택창 문구·키 동작을 실제 세션에서 확인한 판(docs/agents.md 의 표).
     /// 목록에 없다고 동작하지 않는다는 뜻은 아니다 — 확인하지 못했다는 뜻이다.
     /// 실행 중인 프로세스에서 판을 읽지 못했을 때의 표시.
     static var unknown: String { loc("unknown") }

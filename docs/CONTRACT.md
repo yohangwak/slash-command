@@ -1,47 +1,47 @@
-# 계약 — 터미널 연결이 지켜야 하는 것, 제품이 약속하는 것
+# Contract
 
-새 터미널을 붙이거나 단계 실행기를 고칠 때의 기준. 근거가 된 실측은 `PLAN-generalization.md` 「터미널 실측」, 사고 경위는 `PROGRESS-2026-10-06.md`.
+What a terminal connection has to guarantee, and what the product promises. Use this when adding a terminal or changing the step runner.
 
-## 1. 터미널 연결(`TerminalIO`)이 해야 하는 일
+## 1. What a terminal connection (`TerminalIO`) must do
 
-| 일 | 계약 | 이유 |
+| Operation | Contract | Why |
 |---|---|---|
-| `type` / `press` | 정확히 그 바이트를 넣는다. 붙여넣기 표시(`ESC[200~`)로 감싸지 않는다 | WezTerm 은 기본이 감싸기(`--no-paste` 필요). 감싸면 에이전트가 키가 아니라 «붙여넣은 글»로 받는다 |
-| 쓰기 실패 | 못 쓴 것이 확실하면 실패를 돌려준다. **성공을 돌려줬어도 도착을 믿지 않는다** | kitty `send-text` 는 없는 창에도 성공(0)을 준다 → 쓰기 전에 `ls` 로 창 존재를 확인 |
-| `screen` | 읽은 줄들 또는 «못 읽음». 빈 화면과 못 읽음을 구별한다 | 못 읽으면 보내지 않는다 |
-| `snapshot` / `freshSnapshot` | 화면이 «지금 것»임을 보장하는 읽기. 보관본이면 `screenLagMs` 를 알린다 | Ghostty 접근성 글자는 0.5초 보관본(2026-10-06 사고: 낡은 화면을 믿고 열린 선택창에 Enter) |
-| 읽기와 쓰기의 대상 | 같은 터미널. 포커스가 바뀌었으면 쓰지 않는다 | 읽은 화면과 쓰는 곳이 다르면 입력창 확인이 무의미하다 |
-| 화면의 «범위» | 돌려주는 줄들은 «지금 화면»만이다. 스크롤백이 섞이면(iTerm2 `contents`) 지워진 화면 위의 예전 입력창이 지금 것으로 읽힌다 | 2026-10-07 레드팀 리뷰가 지적, 맥북에서 `contents` 88줄/화면 25줄로 재현 |
-| `draft` | 사용자가 치던 글을 읽을 수 있으면 읽고, 끝나면 그대로 남긴다 | 전환이 사용자 글을 지우면 안 된다 |
+| `type` / `press` | Put in exactly those bytes. Do not wrap them in bracketed-paste markers (`ESC[200~`) | WezTerm wraps by default (`--no-paste` is required). Wrapped text reaches the agent as a paste, not as keys |
+| Write failure | Return a failure when the write certainly did not happen. **Even after a success, do not assume the bytes arrived** | kitty `send-text` returns success (0) for a window that does not exist, so check with `ls` that the window is there before writing |
+| `screen` | The lines read, or "could not read". An empty screen and an unreadable one are different | Unreadable means nothing is sent |
+| `snapshot` / `freshSnapshot` | A read that is guaranteed to be current. If the source is cached, report `screenLagMs` | Ghostty's accessibility text is a half-second-old copy. Trusting it once sent Enter into an open picker |
+| Target of read and write | The same terminal. If the focus changed, do not write | If the screen read and the place written differ, the input-box check means nothing |
+| Extent of the screen | Only the lines on screen now. With scrollback mixed in (iTerm2 `contents`), an old input box above a cleared screen reads as the current one | Reproduced with `contents` returning 88 lines for a 25-line screen |
+| `draft` | Read the user's unsent text where possible and leave it as it was | A switch must not erase what the user typed |
 
-## 2. 제품이 약속하는 것 (실행기 `Runner`)
+## 2. What the product promises (`Runner`)
 
-1. **입력창이 «맨 아래»에 보일 때만 보낸다.** 승인 창·선택창·작업 중 화면에서는 보내지 않는다. 판정은 「창이 없다」가 아니라 「입력창이 보인다」.
-2. **선택창은 화면의 맨 아랫줄이 그 선택창의 안내문(`s to use this session only`, `esc back` 등)일 때만 인정한다.** 대화 내용에 선택창처럼 보이는 글이 있어도 읽지 않는다.
-3. **Esc 는 우리가 연 선택창이 보이는 동안에만 누른다.** 작업 중인 에이전트에서 Esc 는 중단이다.
-4. **기본값을 건드리지 않는다.** 선택창의 「이 세션만」(`s`)으로 확정한다. Enter·숫자 키(기본값 저장)는 쓰지 않는다. 명령 방식(`/model X`)으로 가야 하면 기본값 파일을 먼저 저장해 두고, 끝나면 되돌려 해시로 확인한다.
-5. **성공의 증거는 화면에 보이는 «우리가 친 명령의 답»이다.** 기본값 파일은 다른 세션도 쓰므로 증거가 아니다. 알림에 쓰는 결과 문구도 마지막 명령 바로 아래의 답에서만 읽는다.
-6. **확인 창**(claude 의 「Switch model?」·「Change effort level?」)은 `acceptSwitchPrompt` 가 켜져 있고, 물은 값이 «우리가 고른 값»이며, 커서가 Yes 일 때만 받아들인다. 아니면 사용자에게 알리고 20초 기다린다. 기다리다 사용자가 처리하면 계속한다.
-7. **모르면 멈춘다.** 화면 문구가 달라졌거나 모델 행이 없으면 아무 키도 보내지 않거나(선택창 밖), 우리가 연 선택창만 닫고 끝낸다. 엉뚱한 키로 «맞춰 보지» 않는다.
-8. **기록에는 화면 글자를 남기지 않는다.** 누른 조합·고른 프리셋·결과 문구(에이전트가 한 말)·단계별 시간만 남긴다. 프롬프트·코드·비밀이 화면에 섞여 있다.
+1. **Send only when the input box is visible at the bottom.** Not on an approval dialog, a picker, or a working screen. The test is "the input box is visible", not "no dialog".
+2. **A picker counts only when the last line of the screen is its hint line** (`s to use this session only`, `esc back`, and so on). Text in the conversation that looks like a picker is not read.
+3. **Esc only while the picker we opened is visible.** In a working agent, Esc is an interrupt.
+4. **Leave the defaults alone.** Confirm with "this session only" (`s`). Do not use Enter or a number key where that saves the default. When the command form (`/model X`) is unavoidable, capture the defaults file first, restore it afterwards, and verify by hash.
+5. **Proof of success is the on-screen answer to the command we typed.** The defaults file is written by other sessions too, so it is not proof. The result text in the notice is read only from the answer under the last command.
+6. **Confirmation dialogs** (Claude Code's "Switch model?" and "Change effort level?") are accepted only when `acceptSwitchPrompt` is on, the value asked about is the value we chose, and the cursor is on Yes. Otherwise tell the user and wait 20 seconds. If the user handles it in that time, continue.
+7. **When unsure, stop.** If the wording changed or the model row is missing, send no key (outside a picker) or close only the picker we opened. Never probe with other keys.
+8. **Never log screen text.** Log the hotkey, the preset, the result sentence the agent gave, and the time per step. The screen holds prompts, code and secrets.
 
-## 2′. 에이전트별 드라이버(grok · cursor · agy · opencode)가 더 지키는 것
+## 2′. Extra rules for the Grok, Cursor, Antigravity and OpenCode drivers
 
-- **쓴 글이 보여야 Enter.** 명령을 친 뒤 그 글이 입력창에 «보임» 을 확인하고서야 Enter 를 보낸다 — 입력창이 글자를 받지 않는 상태(opencode 의 긴 답변 뒤, cursor 의 붙여넣기 취급)에서 Enter 가 엉뚱한 곳에 가지 않게.
-- **한 글자씩.** cursor 는 한 덩이로 보낸 글을 붙여넣기로 보고 무시한다(실측). 걸러내기는 한 글자씩 친다.
-- **커서가 글자로 안 보이면 «맨 위 행» 이 근거.** opencode 의 목록 커서는 색으로만 보인다. 걸러낸 맨 위 행이 우리가 찾는 이름과 같을 때만 고른다.
-- **작업 중 표시는 에이전트마다 다르다.** 입력창이 비어 보여도 작업 중일 수 있다(grok `Ctrl+c:cancel`, cursor 스피너, agy `esc to cancel`, opencode `esc interrupt`). 모르는 안내 줄이면 «대기» 가 아니다.
-- **기본값 되돌리기는 «그 키만».** `keepDefaults`(기본 켬)일 때 전환 뒤 모델 관련 키만 전환 전 값으로 되돌리고, 250ms 뒤 한 번 더 본다. 다른 키·다른 세션의 쓰기는 건드리지 않는다.
-- **끝 단계에서 더 누르지 않는다.** 슬라이더·라디오가 끝에서 돌거나 엉뚱한 줄(예: cursor 의 Fast 스위치)로 가지 않게, 단계 목록에서 이웃을 계산해 그 줄에만 간다.
+- **Enter only after the text is visible.** After typing a command, confirm it shows in the input box before sending Enter, so that Enter cannot land elsewhere when the box is not taking input (OpenCode after a long answer, Cursor treating a burst as a paste).
+- **One character at a time.** Cursor treats text sent in one burst as a paste and ignores it. Type filters character by character.
+- **When the cursor is not shown as a character, count rows.** OpenCode marks the list cursor by colour only. Count down from the top filtered row to the row equal to the preset, then verify the model line afterwards.
+- **Each agent marks "working" its own way.** An empty-looking input box can belong to a working agent (Grok `Ctrl+c:cancel`, Cursor's spinner, Antigravity `esc to cancel`, OpenCode `esc interrupt`). An unknown hint line is not "idle".
+- **Restore only those keys.** With `keepDefaults` on, restore only the model keys to their values from before the switch, and look once more 250 ms later. Leave every other key alone, whoever wrote it. The restore does not check who last wrote the model keys, so a change another session makes to those same keys during the switch is overwritten.
+- **Do not press past the end.** Compute the neighbour from the list of levels and go only there, so that a slider or radio group does not wrap or move to another row (Cursor's Fast switch, for example).
 
-## 3. 알려진 한계 (계약 밖)
+## 3. Known limits (outside the contract)
 
-- 「지금 맨 앞 터미널」을 아는 방법은 터미널마다 다르다. 우리가 단축키로 지원하는 곳은 Ghostty·Orca 다(iTerm2 는 입력 방송 문제로 보류). tmux·kitty·WezTerm 은 대상을 명령줄로 직접 지정할 때만 된다.
-- Orca 의 «화면에 떠 있는 탭»: 상태 DB·`terminal.list` 는 바꾼 뒤 1.3~2.5초 늦다. 손쉬운 사용 권한이 있으면 접근성 트리의 탭 줄(활성 탭 클래스)을 터미널 목록의 탭 제목 순서와 맞춰 지연 없이 정한다(2026-10-07 실측 7/7). 못 읽거나 맞는 워크스페이스가 없으면 옛 DB 방식(지연 위험 그대로), 같은 탭 제목 순서의 워크스페이스가 둘이면 보내지 않는다. 숨은 터미널도 입력창은 있으므로(실측 3/3) «입력창이 보인다» 는 가시성의 증거가 아니다.
-- 에이전트의 화면 문구에 기댄다. 확인한 판은 `slashcommand doctor` 가 알려 준다(`AgentVersions.tested`). 확인 못 한 판은 «동작하지 않는다»가 아니라 «확인하지 못했다»이며, 문구가 달라졌다면 위 7번대로 멈춘다.
+- How "the frontmost terminal" is found differs per terminal. See [Terminals](terminals.md).
+- Orca's visible tab: the state database and `terminal.list` lag 1.3 to 2.5 seconds after a change. With Accessibility, the tab strip in the accessibility tree is matched against the order of tab titles in the terminal list, with no lag. If that cannot be read or no workspace matches, the database is used, with the lag. If two workspaces have the same tab-title order, nothing is sent. A hidden terminal also has an input box, so "the input box is visible" is not proof that the terminal is visible.
+- The app relies on the agents' on-screen wording. `slashcommand doctor` reports checked versions (`AgentVersions.tested`). An unchecked version means "not verified", not "broken". If the wording changed, rule 7 applies.
 
-## 4. 새 판·새 터미널을 확인하는 순서
+## 4. Checking a new version or a new terminal
 
-1. `slashcommand doctor` — 대상·판·화면 읽기·입력창 상태(아무것도 보내지 않는다).
-2. 시험 세션을 따로 연다(실제 작업 세션에 시험 입력을 보내지 않는다). 시험은 «지금 기본값과 같은 값»으로만 하고, 끝나면 `shasum ~/.claude/settings.json` 을 처음과 대조한다.
-3. 통과하면 `AgentVersions.tested` 에 판을 추가하고 README 실측 표에 날짜·환경을 적는다.
+1. `slashcommand doctor`: target, version, screen reading, input box state. It sends nothing.
+2. Open a separate test session. Never send test input to a session doing real work. Test only with values equal to the current defaults, and compare the agent's defaults file with a copy taken before the test.
+3. When it passes, add the version to `AgentVersions.tested` and to the table in [Agents](agents.md#versions).

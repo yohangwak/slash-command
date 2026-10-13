@@ -2,7 +2,7 @@ import Foundation
 
 // Antigravity CLI(`agy` 1.3.1)로 모델·effort 를 바꾼다.
 //
-// 2026-10-07 집 맥 실측(요한님의 시험 터미널):
+// 2026-10-07 실측(따로 연 시험 터미널):
 // - `/model` 이 «Switch Model» 선택창을 연다: `>` 가 커서, 지금 모델에 `(current)`, 아래에 `Effort ◂ ●━●━◉ ▸` 슬라이더(←/→)와
 //   그 밑의 단계 이름(`low medium high`, 모델마다 다르다). Enter 가 확정, Esc 는 «Exited /model command» 로 닫는다.
 // - 확정하면 `> /model` 아래에 `⎿  Model set to Gemini 3.7 Flash (Medium)` 이 남는다.
