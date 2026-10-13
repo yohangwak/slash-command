@@ -37,7 +37,7 @@ WezTerm 과 kitty 는 둘 다 필요 없고, Orca 는 없어도 동작합니다.
 ```sh
 git clone https://github.com/yohangwak/slash-command.git
 cd slash-command
-./scripts/build-app.sh --install   # 빌드해서 ~/Applications 에 복사하고 ~/.local/bin/slashcommand 를 겁니다
+./scripts/build-app.sh --install   # 빌드해서 ~/Applications 에 복사하고, ~/.local/bin 폴더가 있으면 slashcommand 링크를 겁니다
 ```
 
 Swift 도구(Xcode 또는 Command Line Tools)가 필요합니다. 서명 인증서가 없으면 임시 서명이 되어, 다시 빌드할 때마다 macOS 가 권한을 다시 묻습니다.
@@ -74,7 +74,14 @@ Swift 도구(Xcode 또는 Command Line Tools)가 필요합니다. 서명 인증�
 
 ## 명령줄
 
-앱에는 같은 전환 로직을 쓰는 명령줄 도구가 들어 있습니다.
+앱에는 같은 전환 로직을 쓰는 명령줄 도구가 들어 있습니다. 앱 묶음 안에 있으므로, `slashcommand` 로 부르려면 한 번 링크를 겁니다.
+
+```sh
+sudo mkdir -p /usr/local/bin
+sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
+```
+
+그다음:
 
 ```sh
 slashcommand list              # 프리셋 목록

@@ -17,7 +17,9 @@ Times are measured in Orca or tmux. Other terminals add their own cost. See [Ter
 
 Claude Code and Codex have a way to confirm a choice for the current session only, and the app always uses it.
 
-The other four agents save the choice as the default for new sessions. With `keepDefaults` on, which is the default, the app restores **only the keys that agent just wrote** to the values they had before the switch. Other keys and anything another session wrote are left alone. The running session keeps its new model.
+The other four agents save the choice as the default for new sessions. With `keepDefaults` on, which is the default, the app restores **only the model keys that agent just wrote** to the values they had before the switch. Every other key in the file is left alone, including changes another session made to them in the meantime. The running session keeps its new model.
+
+One case is not protected: if another session changes those same model keys during the second or two a switch takes, the restore puts the earlier values back over that change.
 
 - If the defaults file did not exist before the switch, the keys are removed again afterwards.
 - If the file exists but cannot be read, the app does not know what to restore, so it sends nothing.
@@ -26,9 +28,11 @@ The other four agents save the choice as the default for new sessions. With `kee
 
 ## When the app sends nothing
 
-For every agent the app sends keys only when the input box is empty and the agent is idle. If you have text in the box, the four agents above are not switched. Claude Code and Codex set your draft aside and bring it back; see [How it works](how-it-works.md).
+Claude Code and Codex need only a visible input box. They can be switched while they work, and the app sets your draft aside and brings it back; see [How it works](how-it-works.md).
 
-Each agent marks "working" differently, and the app reads that marker:
+Grok, Cursor Agent, Antigravity and OpenCode are switched only when the input box is empty and the agent is idle. If you have text in the box, or the agent is working, nothing is sent.
+
+Each of those four marks "working" differently, and the app reads that marker:
 
 | Agent | Working marker |
 |---|---|

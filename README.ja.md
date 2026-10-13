@@ -37,7 +37,7 @@ WezTerm と kitty はどちらも不要で、Orca も権限なしで動作しま
 ```sh
 git clone https://github.com/yohangwak/slash-command.git
 cd slash-command
-./scripts/build-app.sh --install   # builds, copies to ~/Applications, links ~/.local/bin/slashcommand
+./scripts/build-app.sh --install   # builds, copies to ~/Applications, links ~/.local/bin/slashcommand if that folder exists
 ```
 
 Swift ツールチェーン(Xcode または Command Line Tools)が必要です。署名証明書がない場合はアドホック署名でビルドされ、macOS はリビルドのたびに権限をもう一度確認します。
@@ -74,7 +74,14 @@ Swift ツールチェーン(Xcode または Command Line Tools)が必要です�
 
 ## コマンドライン
 
-アプリには、同じ切り替えロジックを使うコマンドラインツールが付属しています。
+アプリには、同じ切り替えロジックを使うコマンドラインツールが付属しています。ツールはアプリバンドルの中にあるので、`slashcommand` として呼び出すには一度リンクを作成します。
+
+```sh
+sudo mkdir -p /usr/local/bin
+sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
+```
+
+その後:
 
 ```sh
 slashcommand list              # the presets

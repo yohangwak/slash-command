@@ -4,7 +4,7 @@ Thanks for your interest. Slash Command is a small project, and the most useful 
 
 ## What helps most
 
-- **A new agent version broke switching.** Slash Command reads each agent's screen, so this is the most common problem. Open an issue with the output of `slashcommand doctor --screen`. Read it before posting and remove anything private, because it contains the visible lines of your terminal.
+- **A new agent version broke switching.** Slash Command reads each agent's screen, so this is the most common problem. Open an issue with the output of `slashcommand doctor --screen` (the [README](README.md#command-line) shows how to set up the command). Read it before posting and remove anything private, because it contains the visible lines of your terminal.
 - **Translation corrections.** Every language except English and Korean is machine translated. Edit the line in `Resources/<language>.lproj/Localizable.strings` and open a pull request.
 - **Bug reports** with the terminal, the agent and its version, and the relevant lines of `~/Library/Logs/SlashCommand/slashcommand.log`. The log holds no screen text.
 - **A new terminal or agent.** Please open an issue first so we can agree on the approach. [docs/CONTRACT.md](docs/CONTRACT.md) lists what a terminal connection has to guarantee.

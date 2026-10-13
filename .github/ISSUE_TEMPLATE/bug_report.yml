@@ -54,5 +54,5 @@ body:
     id: doctor
     attributes:
       label: Output of `slashcommand doctor --screen`
-      description: Optional but very helpful. It includes the visible lines of your terminal, so read it and remove anything private before pasting.
+      description: Optional but very helpful. The README's Command line section shows how to set up the command. The output includes the visible lines of your terminal, so read it and remove anything private before pasting.
       render: text

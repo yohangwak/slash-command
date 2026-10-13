@@ -37,7 +37,7 @@ WezTerm 和 kitty 两者都不需要,Orca 也无需这些权限即可使用。ki
 ```sh
 git clone https://github.com/yohangwak/slash-command.git
 cd slash-command
-./scripts/build-app.sh --install   # builds, copies to ~/Applications, links ~/.local/bin/slashcommand
+./scripts/build-app.sh --install   # builds, copies to ~/Applications, links ~/.local/bin/slashcommand if that folder exists
 ```
 
 你需要 Swift 工具链(Xcode 或 Command Line Tools)。没有签名证书时,构建结果使用临时(ad-hoc)签名,每次重新构建后 macOS 都会再次请求权限。
@@ -74,7 +74,14 @@ cd slash-command
 
 ## 命令行
 
-应用自带一个命令行工具,使用相同的切换逻辑。
+应用自带一个命令行工具,使用相同的切换逻辑。它位于应用包内,创建一次链接后即可用 `slashcommand` 调用:
+
+```sh
+sudo mkdir -p /usr/local/bin
+sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
+```
+
+然后:
 
 ```sh
 slashcommand list              # the presets

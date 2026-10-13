@@ -37,7 +37,7 @@ To start it at login, turn on **Open at login** under **General** in Settings.
 ```sh
 git clone https://github.com/yohangwak/slash-command.git
 cd slash-command
-./scripts/build-app.sh --install   # builds, copies to ~/Applications, links ~/.local/bin/slashcommand
+./scripts/build-app.sh --install   # builds, copies to ~/Applications, links ~/.local/bin/slashcommand if that folder exists
 ```
 
 You need the Swift toolchain (Xcode or the Command Line Tools). Without a signing certificate the build is ad-hoc signed, and macOS asks for the permissions again after every rebuild.
@@ -74,7 +74,14 @@ A preset number is an intent. Each preset holds one entry per agent, and a hotke
 
 ## Command line
 
-The app ships a command line tool with the same switching logic.
+The app ships a command line tool with the same switching logic. It lives inside the app bundle, so link it once to call it as `slashcommand`:
+
+```sh
+sudo mkdir -p /usr/local/bin
+sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
+```
+
+Then:
 
 ```sh
 slashcommand list              # the presets

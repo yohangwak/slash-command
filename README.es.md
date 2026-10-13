@@ -37,7 +37,7 @@ Para que se inicie al iniciar sesión, activa **Abrir al iniciar sesión** en **
 ```sh
 git clone https://github.com/yohangwak/slash-command.git
 cd slash-command
-./scripts/build-app.sh --install   # builds, copies to ~/Applications, links ~/.local/bin/slashcommand
+./scripts/build-app.sh --install   # builds, copies to ~/Applications, links ~/.local/bin/slashcommand if that folder exists
 ```
 
 Necesitas la cadena de herramientas de Swift (Xcode o las Command Line Tools). Sin un certificado de firma, la compilación se firma ad hoc y macOS vuelve a pedir los permisos después de cada recompilación.
@@ -74,7 +74,14 @@ El número de un preajuste es una intención. Cada preajuste tiene una entrada p
 
 ## Línea de comandos
 
-La app incluye una herramienta de línea de comandos con la misma lógica de cambio.
+La app incluye una herramienta de línea de comandos con la misma lógica de cambio. Está dentro del paquete de la app, así que crea el enlace una vez para llamarla como `slashcommand`:
+
+```sh
+sudo mkdir -p /usr/local/bin
+sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
+```
+
+Después:
 
 ```sh
 slashcommand list              # the presets
