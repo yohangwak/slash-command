@@ -1,20 +1,20 @@
 import Foundation
 
-/// 화면에 보이는 문구의 번역.
+/// Translation of the text shown on screen.
 ///
-/// 영어가 기준이다 — 코드에 쓴 영어 문장이 곧 키이고, 번역은 앱 묶음의 `<언어>.lproj/Localizable.strings` 에 있다
-/// (repo 의 `Resources/`, `scripts/build-app.sh` 가 묶음에 넣는다). 언어는 시스템의 언어 순서에서 우리가 가진 첫 언어를 쓴다.
-/// 번역이 없는 문장은 영어 그대로 나온다. 에이전트 화면의 문구(`Select model` 등)는 번역 대상이 아니다 — 그 도구들의 화면이다.
+/// English is the baseline: the English sentence written in the code is the key, and translations are in the app bundle's `<language>.lproj/Localizable.strings`
+/// (`Resources/` in the repo; `scripts/build-app.sh` puts them in the bundle). The language is the first one we have in the system's language order.
+/// A sentence with no translation comes out in English. Text on the agents' screens (`Select model` and so on) is not translated: it is those tools' screens.
 public enum L10n {
     private static let lock = NSLock()
     private static var loaded: (language: String, table: [String: String])?
 
-    /// 지금 쓰는 언어(`en`·`ko`·`zh-Hans` …).
+    /// The language in use (`en`, `ko`, `zh-Hans` …).
     public static var language: String { current().language }
 
-    /// 번역 파일들이 있는 폴더. 앱 묶음 안에서 실행 중이면 그 `Contents/Resources` 다.
-    /// `~/.local/bin/slashcommand` 처럼 링크로 불려도 실제 실행 파일의 자리에서 찾는다.
-    /// `SLASHCOMMAND_L10N_DIR` 로 다른 폴더를 가리킬 수 있다(개발·시험용).
+    /// The folder holding the translation files. When running inside the app bundle, its `Contents/Resources`.
+    /// Even when called through a link such as `~/.local/bin/slashcommand`, it looks next to the real executable.
+    /// `SLASHCOMMAND_L10N_DIR` can point at another folder (for development and tests).
     public static var directory: URL? {
         if let override = ProcessInfo.processInfo.environment["SLASHCOMMAND_L10N_DIR"], !override.isEmpty {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
@@ -26,20 +26,20 @@ public enum L10n {
         return contents.appendingPathComponent("Resources")
     }
 
-    /// 그 폴더에 있는 언어들(`ko.lproj` → `ko`).
+    /// The languages in that folder (`ko.lproj` → `ko`).
     public static func available(in directory: URL) -> [String] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return names.filter { $0.hasSuffix(".lproj") }.map { String($0.dropLast(6)) }.sorted()
     }
 
-    /// 사용자의 언어 순서에서 우리가 가진 첫 언어. `pt-BR` 은 `pt-BR` → `pt`, `zh-Hans-CN` 은 `zh-Hans-CN` → `zh-Hans` → `zh` 순으로 찾는다.
-    /// 하나도 맞지 않으면 영어다. 문자가 다른 언어(`zh-Hant` 와 `zh-Hans`)는 서로 대신하지 않는다.
+    /// The first language we have in the user's language order. `pt-BR` is looked up as `pt-BR` → `pt`, `zh-Hans-CN` as `zh-Hans-CN` → `zh-Hans` → `zh`.
+    /// English if none match. Languages with a different script (`zh-Hant` and `zh-Hans`) do not stand in for each other.
     public static func pick(from available: [String], preferences: [String]) -> String {
-        // 영어는 코드에 있으므로 번역 파일이 없어도 늘 가진 언어다.
+        // English is in the code, so it is always an available language even without a translation file.
         let lowered = Dictionary((available + ["en"]).map { ($0.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
         for preference in preferences {
             var parts = preference.replacingOccurrences(of: "_", with: "-").split(separator: "-").map(String.init)
-            // 문자를 적지 않은 중국어는 지역으로 문자를 가린다(대만·홍콩·마카오는 번체).
+            // Chinese with no script given picks the script by region (Taiwan, Hong Kong and Macau are Traditional).
             if parts.first?.lowercased() == "zh", !parts.contains(where: { ["hans", "hant"].contains($0.lowercased()) }) {
                 let traditional = parts.dropFirst().contains { ["tw", "hk", "mo"].contains($0.lowercased()) }
                 parts.insert(traditional ? "Hant" : "Hans", at: 1)
@@ -54,7 +54,7 @@ public enum L10n {
         return "en"
     }
 
-    /// `Localizable.strings` 한 벌을 읽는다. 없거나 읽지 못하면 빈 표(영어 그대로).
+    /// Reads one `Localizable.strings`. If it is missing or unreadable, an empty table (English as is).
     public static func table(in directory: URL, language: String) -> [String: String] {
         let url = directory.appendingPathComponent("\(language).lproj/Localizable.strings")
         return (NSDictionary(contentsOf: url) as? [String: String]) ?? [:]
@@ -75,15 +75,15 @@ public enum L10n {
         return found
     }
 
-    /// 시험에서 언어를 고정한다. `directory` 가 nil 이면 영어(번역 없음).
+    /// Pins the language in tests. If `directory` is nil, English (no translation).
     public static func use(language: String, directory: URL?) {
         lock.lock()
         defer { lock.unlock() }
         loaded = (language, directory.map { table(in: $0, language: language) } ?? [:])
     }
 
-    /// 번역한 문장에 값을 넣는다. 자리표는 `%@`(차례대로)와 `%1$@`(번호로)만 쓴다 — 값은 `"\(값)"` 과 같은 글이 된다.
-    /// 값이 없으면 문장을 그대로 돌려준다(그때는 `%` 를 겹쳐 쓰지 않는다).
+    /// Fills values into a translated sentence. Only `%@` (in order) and `%1$@` (by number) are used as placeholders; the value becomes the same text as `"\(value)"`.
+    /// If there are no values, the sentence is returned as is (then `%` is not doubled).
     public static func format(_ template: String, _ arguments: [Any]) -> String {
         guard !arguments.isEmpty else { return template }
         var out = ""
@@ -118,7 +118,7 @@ public enum L10n {
     }
 }
 
-/// 화면에 보일 문장. 영어 문장이 키다. 값은 문장의 `%@` 자리에 차례대로 들어간다(번역에서는 `%1$@` 처럼 번호로 순서를 바꿀 수 있다).
+/// A sentence to be shown on screen. The English sentence is the key. Values fill the sentence's `%@` slots in order (a translation can reorder them by number, like `%1$@`).
 public func loc(_ key: String, _ arguments: Any...) -> String {
     L10n.text(key, arguments)
 }

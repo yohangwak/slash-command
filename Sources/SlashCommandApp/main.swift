@@ -2,8 +2,8 @@ import AppKit
 import ServiceManagement
 import SlashCommandCore
 
-// `SlashCommand --login-item on|off|status` — 로그인할 때 실행을 명령줄에서 켜고 끈다(설정 창의 같은 항목과 같다).
-// 로그인 항목은 앱 자신만 등록할 수 있어서 명령줄 도구가 아니라 여기서 받는다.
+// `SlashCommand --login-item on|off|status`: turns launch at login on or off from the command line (same as the same item in the settings window).
+// Only the app itself can register a login item, so it is handled here rather than by the command-line tool.
 let arguments = CommandLine.arguments
 if let flag = arguments.firstIndex(of: "--login-item") {
     do {
@@ -23,9 +23,9 @@ if let flag = arguments.firstIndex(of: "--login-item") {
     exit(0)
 }
 
-// `SlashCommand --automation-status <번들 id>` — 개발용. 이 앱이 그 앱을 AppleScript 로 다뤄도 되는지 시스템의 답을 번호 그대로 찍는다(묻는 창은 띄우지 않는다).
-// 권한은 그 프로세스를 «띄운 앱» 을 따른다 — 터미널에서 바로 부르면 터미널의 답이 나온다. 앱 자신의 답은
-// `open -n -W -a "Slash Command" --stdout <파일> --args --automation-status <번들 id>` 로 본다.
+// `SlashCommand --automation-status <bundle id>`: for development. Prints the system's answer, as the raw number, to whether this app may control that app with AppleScript (no prompt is shown).
+// The permission follows the "app that launched" the process: calling it directly from a terminal gives the terminal's answer. The app's own answer is seen with
+// `open -n -W -a "Slash Command" --stdout <file> --args --automation-status <bundle id>`.
 if let flag = arguments.firstIndex(of: "--automation-status"), arguments.count > flag + 1 {
     let bundleID = arguments[flag + 1]
     print("\(bundleID): \(AutomationConsent.rawStatus(bundleID: bundleID)) (\(AutomationConsent.status(bundleID: bundleID)))")
@@ -35,7 +35,7 @@ if let flag = arguments.firstIndex(of: "--automation-status"), arguments.count >
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
-// `SlashCommand --snapshot 파일.png [--dark] [--height N] [--collapsed]` — 개발용. 설정 창을 띄우지 않고 그림 파일로 낸다.
+// `SlashCommand --snapshot file.png [--dark] [--height N] [--collapsed]`: for development. Writes the settings window to an image file without showing it.
 if let flag = arguments.firstIndex(of: "--snapshot"), arguments.count > flag + 1 {
     let height = arguments.firstIndex(of: "--height").flatMap { arguments.count > $0 + 1 ? Double(arguments[$0 + 1]) : nil } ?? 900
     let done = SettingsSnapshot.write(to: URL(fileURLWithPath: arguments[flag + 1]), height: height,
@@ -45,7 +45,7 @@ if let flag = arguments.firstIndex(of: "--snapshot"), arguments.count > flag + 1
 
 let delegate = AppDelegate()
 
-// `SlashCommand --menu-text [번들 id]` — 개발용. 지금 맨 앞 앱(또는 적어 준 앱)을 두고 메뉴를 만들어 그 줄들을 글로 찍는다(아무것도 보내지 않는다).
+// `SlashCommand --menu-text [bundle id]`: for development. Builds the menu for the frontmost app (or the given one) and prints its lines as text (nothing is sent).
 if let flag = arguments.firstIndex(of: "--menu-text") {
     let bundleID = arguments.count > flag + 1 ? arguments[flag + 1] : nil
     print(delegate.menuText(asIfFront: bundleID))

@@ -1,7 +1,7 @@
 import XCTest
 @testable import SlashCommandCore
 
-/// 나중 판이 프리셋 파일에 쓴 키를, 이 판이 읽고 저장해도 잃지 않는다.
+/// Keys that a later version wrote to the presets file are not lost when this version reads and saves it.
 final class UnknownKeysTests: XCTestCase {
     private let newer = """
     {
@@ -33,17 +33,17 @@ final class UnknownKeysTests: XCTestCase {
         XCTAssertEqual(sizes[3] as? Bool, true)
         let slots = try XCTUnwrap(written["slots"] as? [[String: Any]])
         XCTAssertEqual(slots[0]["note"] as? String, "keep me")
-        XCTAssertEqual((slots[0]["gemini"] as? [String: Any])?["model"] as? String, "g-3", "모르는 에이전트의 프리셋")
-        XCTAssertEqual((slots[0]["claude"] as? [String: Any])?["fast"] as? Bool, true, "프리셋 안의 모르는 키")
+        XCTAssertEqual((slots[0]["gemini"] as? [String: Any])?["model"] as? String, "g-3", "Preset of an unknown agent")
+        XCTAssertEqual((slots[0]["claude"] as? [String: Any])?["fast"] as? Bool, true, "Unknown key inside a preset")
         XCTAssertEqual(slots[1]["pinned"] as? Int, 7)
-        // 아는 키는 한 번씩만, 이 판의 값으로.
+        // Known keys appear only once, with this version's values.
         XCTAssertEqual(written["version"] as? Int, 3)
         XCTAssertEqual((slots[0]["claude"] as? [String: Any])?["model"] as? String, "opus")
     }
 
     func testUnknownKeysTravelWithTheirSlot() throws {
         var config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(newer.utf8))
-        // 첫 프리셋을 지우면 그 프리셋의 모르는 키도 같이 사라지고, 남은 프리셋의 것은 제자리에 있다(순서로 붙이지 않는다).
+        // Deleting the first preset also drops that preset's unknown keys, and those of the remaining presets stay in place (they are not matched up by order).
         config.slots.removeFirst()
         config.slots[0].codex?.effort = "low"
         let slots = try XCTUnwrap(try object(JSONEncoder().encode(config))["slots"] as? [[String: Any]])
@@ -65,16 +65,16 @@ final class UnknownKeysTests: XCTestCase {
         let saved = try object(Data(contentsOf: url))
         XCTAssertEqual(saved["keepDefaults"] as? Bool, false)
         XCTAssertNotNil(saved["theme"])
-        XCTAssertEqual(try store.load(), config, "다시 읽어도 같다")
+        XCTAssertEqual(try store.load(), config, "Same after reading again")
     }
 
-    /// PR #28 리뷰: `Int64` 를 넘는 부호 없는 정수를 실수로 받아 다른 값으로 쓰지 않는다.
+    /// PR #28 review: an unsigned integer beyond `Int64` is not read as a floating-point number and written back as a different value.
     func testUnsignedIntegersBeyondInt64AreKeptExactly() throws {
         struct Future: Decodable { let futureID: UInt64; let negative: Int64; let ratio: Double }
         let json = #"{"slots":[],"futureID":18446744073709551615,"negative":-9223372036854775808,"ratio":0.1}"#
         var config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(json.utf8))
         XCTAssertEqual(config.extra["futureID"], .unsigned(UInt64.max))
-        config.keepDefaults = false   // 상관없는 설정을 바꾸고 저장한다
+        config.keepDefaults = false   // Change and save an unrelated setting
         let saved = try JSONDecoder().decode(Future.self, from: JSONEncoder().encode(config))
         XCTAssertEqual(saved.futureID, UInt64.max)
         XCTAssertEqual(saved.negative, Int64.min)

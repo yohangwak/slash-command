@@ -1,14 +1,14 @@
 import Foundation
 
-// Antigravity CLI(`agy` 1.3.1)로 모델·effort 를 바꾼다.
+// Switches the model and effort with the Antigravity CLI (`agy` 1.3.1).
 //
-// 2026-10-07 실측(따로 연 시험 터미널):
-// - `/model` 이 «Switch Model» 선택창을 연다: `>` 가 커서, 지금 모델에 `(current)`, 아래에 `Effort ◂ ●━●━◉ ▸` 슬라이더(←/→)와
-//   그 밑의 단계 이름(`low medium high`, 모델마다 다르다). Enter 가 확정, Esc 는 «Exited /model command» 로 닫는다.
-// - 확정하면 `> /model` 아래에 `⎿  Model set to Gemini 3.7 Flash (Medium)` 이 남는다.
-// - 🔴 확정은 «새 세션 기본값»을 `~/.gemini/antigravity-cli/settings.json` 의 `model` 키로 저장한다(「이 세션만」 없음).
-//   그래서 전환 뒤 그 키만 전환 전 값으로 되돌린다.
-// - 작업 중에는 입력줄 위에 스피너(`⣻  Generating...`)가 돈다. 입력줄(`>`)은 그대로 비어 보인다.
+// Measured 2026-10-07 (in a separately opened test terminal):
+// - `/model` opens a "Switch Model" picker: `>` is the cursor, `(current)` marks the current model, below it an `Effort ◂ ●━●━◉ ▸` slider (left/right arrows) and
+//   under that the step names (`low medium high`, different per model). Enter confirms; Esc closes it with "Exited /model command".
+// - Once confirmed, `⎿  Model set to Gemini 3.7 Flash (Medium)` is left under `> /model`.
+// - RED: confirming saves the "new session default" in the `model` key of `~/.gemini/antigravity-cli/settings.json` (there is no "this session only").
+//   So after the switch only that key is restored to its pre-switch value.
+// - While working, a spinner (`⣻  Generating...`) runs above the input line. The input line (`>`) still looks empty.
 
 public enum AgyScreen {
     public struct Row: Equatable, Sendable {
@@ -34,15 +34,15 @@ public enum AgyScreen {
         line.unicodeScalars.first.map { (0x2800...0x28FF).contains($0.value) } ?? false
     }
 
-    // MARK: 입력줄
+    // MARK: Input line
 
-    /// 맨 아래 영역: `────` · `> 입력` · `────` · 안내 줄(`? for shortcuts … <모델> · <effort>`).
-    /// `/` 로 시작하는 글을 치면 아래에 명령 목록(`> /model  Set a model…`, `↑/↓ Navigate · enter Select · tab Complete`)이 붙고
-    /// 안내 줄이 `esc to cancel` 로 바뀐다. 작업 중에도 안내 줄이 `esc to cancel` 이지만 명령 목록이 없고 위에 스피너(`⣽  Working...`)가 돈다
-    /// (2026-10-07 실측). 어느 쪽이든 입력줄은 그대로 읽는다.
+    /// The bottom area: `────`, `> input`, `────`, the hint line (`? for shortcuts … <model> · <effort>`).
+    /// Typing text that starts with `/` attaches a command list below (`> /model  Set a model…`, `↑/↓ Navigate · enter Select · tab Complete`) and
+    /// the hint line changes to `esc to cancel`. While working the hint line is also `esc to cancel`, but there is no command list and a spinner (`⣽  Working...`) runs above
+    /// (measured 2026-10-07). Either way the input line is read as it is.
     static func bottom(_ screen: [String]) -> (input: String, footer: String, popup: Bool, busy: Bool)? {
         let lines = trimmed(screen).filter { !$0.isEmpty }
-        // 입력 상자 = 가로줄 · `>` 줄 · 가로줄. 맨 아래 여덟 줄 안에서 마지막 것을 찾는다(명령 목록의 `>` 줄은 아래에 가로줄이 없다).
+        // Input box = horizontal rule, `>` line, horizontal rule. Finds the last one within the bottom eight lines (the `>` line of the command list has no rule below it).
         guard let index = lines.indices.reversed().prefix(8).first(where: {
             lines[$0].hasPrefix(">") && $0 >= 1 && $0 + 1 < lines.count && isRule(lines[$0 - 1]) && isRule(lines[$0 + 1])
         }) else { return nil }
@@ -62,13 +62,13 @@ public enum AgyScreen {
 
     public static func draft(_ screen: [String]) -> String? { bottom(screen)?.input }
 
-    // MARK: 선택창
+    // MARK: Picker
 
-    /// 선택창이 «열려 있는» 상태: 맨 아랫줄이 `Keyboard: …` 안내이고 위에 `Switch Model` 머리말이 있다.
-    /// 모델 행은 구분선(`────`) 아래 `Effort` 줄 위에 있고, 슬라이더 줄과 그 아래 이름 줄은 칸 위치(열)로 읽는다.
+    /// The picker is "open" when: the bottom line is the `Keyboard: …` hint and there is a `Switch Model` header above.
+    /// The model rows are below the divider (`────`) and above the `Effort` line; the slider line and the name line under it are read by column position.
     public static func picker(_ screen: [String]) -> (rows: [Row], slider: Slider?)? {
         let lines = trimmed(screen)
-        // 안내 줄(`Keyboard: …`)은 맨 아래 가까이에 있다(그 아래에는 입력줄 상태가 한두 줄 남는다 — 실측).
+        // The hint line (`Keyboard: …`) is near the bottom (below it one or two lines of input-line state remain — measured).
         guard let footerIndex = lines.lastIndex(where: { $0.hasPrefix("Keyboard:") && $0.contains("enter Select") }),
               footerIndex >= lines.count - 4,
               let header = lines[..<footerIndex].lastIndex(of: "Switch Model"),
@@ -90,7 +90,7 @@ public enum AgyScreen {
         return (rows, effort.flatMap { _ in slider(screen) })
     }
 
-    /// 슬라이더 줄(`Effort ◂ ●━━●━━◉ ▸`)의 점들과 그 아래 줄의 이름들을 열 위치로 맞춘다. 선택된 단계는 `◉`.
+    /// Aligns the dots of the slider line (`Effort ◂ ●━━●━━◉ ▸`) with the names in the line below it by column position. The selected step is `◉`.
     static func slider(_ screen: [String]) -> Slider? {
         guard let at = screen.lastIndex(where: { $0.contains("Effort") && $0.contains("◂") }), at + 1 < screen.count else { return nil }
         let dots = Array(screen[at]).enumerated().filter { "●◉○".contains($0.element) }
@@ -116,9 +116,9 @@ public enum AgyScreen {
         return Slider(labels: labels, selected: selected)
     }
 
-    // MARK: 결과 줄
+    // MARK: Result lines
 
-    /// `> /model` 아래의 `⎿  Model set to …` 답들(오래된 것부터).
+    /// The `⎿  Model set to …` answers under `> /model` (oldest first).
     public static func replies(_ screen: [String]) -> [String] {
         let lines = trimmed(screen)
         var found: [String] = []
@@ -134,7 +134,7 @@ public enum AgyScreen {
     }
 }
 
-/// `~/.gemini/antigravity-cli/settings.json` 의 `model` 키.
+/// The `model` key of `~/.gemini/antigravity-cli/settings.json`.
 public struct AntigravityDefaults: Sendable {
     public let url: URL
 
@@ -152,7 +152,7 @@ public struct AntigravityDefaults: Sendable {
         case failed(String)
     }
 
-    /// 모델 관련 키만 전환 전 값으로 되돌린다(`DefaultsFile.restoreJSON`). 전환 전에 파일이 없었으면 그 키들을 없애고, 남는 것이 없으면 파일도 없앤다.
+    /// Restores only the model-related keys to their pre-switch values (`DefaultsFile.restoreJSON`). If the file did not exist before the switch, those keys are removed, and if nothing is left the file is removed too.
     public func restore(to snapshot: DefaultsSnapshot) -> Outcome {
         switch DefaultsFile.restoreJSON(url: url, keys: ["model"], to: snapshot, pretty: true, name: "antigravity") {
         case .unchanged: return .unchanged
@@ -195,7 +195,7 @@ public struct AntigravityDriver {
         }
     }
 
-    /// 선택창이 열려 있으면 Esc 로 닫고, 입력줄에 우리가 쓴 글이 남아 있으면 지운다.
+    /// If the picker is open, closes it with Esc, and if the text we typed remains in the input line, clears it.
     private func back(clearing leftover: String? = nil) {
         for _ in 0..<2 {
             guard let lines = io.freshSnapshot()?.lines, AntigravityDriverHelper.pickerOpen(lines) else { break }
@@ -208,14 +208,14 @@ public struct AntigravityDriver {
 
     public func apply(_ preset: AgentPreset) throws -> Outcome { try guarded { try applyUnguarded(preset) } }
 
-    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다.
+    /// Raises or lowers only the effort by one step, leaving the model as is.
     public func stepEffort(up: Bool) throws -> Outcome { try guarded { try stepEffortUnguarded(up: up) } }
 
-    /// 어느 단계에서 던져졌든 — 확정한 뒤 화면을 읽지 못한 경우까지 — 새 세션 기본값을 전환 전 값으로 되돌리고 나서 실패를 알린다.
-    /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
+    /// Whichever step it was thrown from — including when the screen could not be read after confirming — it restores the new-session default to its pre-switch value and then reports the failure.
+    /// (Each step's failure handling also restores, but a screen read failure is thrown directly without going through that handling.)
     private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
         let before = keepDefaults ? defaults.snapshot() : nil
-        // 전환 전 값을 읽지 못했으면 되돌릴 수 없다 — 아무것도 보내기 전에 멈춘다. (파일이 «없던» 것은 괜찮다: 끝나고 다시 없앤다.)
+        // If the pre-switch value could not be read, it cannot be restored — stop before sending anything. (A file that "did not exist" is fine: it is removed again at the end.)
         try DefaultsFile.refuseIfUnreadable(before, name: "antigravity")
         do {
             return try body()
@@ -252,7 +252,7 @@ public struct AntigravityDriver {
         return try confirm(name: target.name, before: before, failure: fail)
     }
 
-    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다. 선택창의 첫 커서·슬라이더가 지금 모델과 effort 다.
+    /// Raises or lowers only the effort by one step, leaving the model as is. The picker's initial cursor and slider are the current model and effort.
     private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         try start()
         let before = keepDefaults ? defaults.snapshot() : nil
@@ -277,7 +277,7 @@ public struct AntigravityDriver {
         return try confirm(name: current.name, before: before, failure: fail)
     }
 
-    // MARK: 단계
+    // MARK: Steps
 
     private func start() throws {
         guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the Antigravity terminal screen.")) }
@@ -313,7 +313,7 @@ public struct AntigravityDriver {
         throw failure(loc("Could not move the cursor to the '%@' row in the Antigravity picker.", name), nil)
     }
 
-    /// 슬라이더를 `target` 번째 단계에 맞춘다. 한 번 누를 때마다 다시 읽어 확인한다 — 끝에서 더 누르지 않는다.
+    /// Sets the slider to the `target`-th step. Re-reads after each press to confirm — it does not press further at the end.
     private func moveEffort(to target: Int, failure: (String, String?) -> SlashCommandError) throws {
         for _ in 0..<8 {
             guard let slider = AgyScreen.picker(io.freshSnapshot()?.lines ?? [])?.slider else { throw failure(loc("Could not read the Antigravity effort slider."), nil) }

@@ -1,39 +1,39 @@
 import Foundation
 
-// grok(xAI 의 Grok Build CLI, 1.0.46 · 1.0.50)로 모델·effort 를 바꾼다.
+// Switches model and effort with grok (xAI's Grok Build CLI, 1.0.46 and 1.0.50).
 //
-// 2026-10-07 실측(따로 연 시험 터미널):
-// - `/model <모델> [창] [effort]` 한 줄이 이 세션의 모델과 effort 를 바꾸고, 입력 상자 아래 테두리의 이름표가
-//   `Grok 4.7 (xhigh)` 로 바뀐다. 없는 모델이면 «Unknown model: …» 한 줄이 뜬다.
-// - 🔴 `/model` 명령도 선택창(`/model` 만 쳐서 여는 3단계: 모델 → 창 크기 → effort)도 «새 세션 기본값»을
-//   `~/.grok/config.toml` 의 `[models] default · default_reasoning_effort` 로 저장한다. 「이 세션만」 확정이 없다.
-//   그래서 claude 의 명령 방식처럼 «전환 뒤 그 두 키만 전환 전 값으로 되돌린다»(다른 키·다른 세션의 쓰기는 건드리지 않는다).
-// - 입력 상자에 쓰던 글이 있으면 명령과 섞이므로 비어 있을 때만 보낸다.
+// Measured 2026-10-07 (in a separately opened test terminal):
+// - A single line `/model <model> [window] [effort]` changes this session's model and effort, and the label on the bottom border of the input box
+//   changes to `Grok 4.7 (xhigh)`. For a nonexistent model, a line «Unknown model: …» appears.
+// - 🔴 Both the `/model` command and the picker (opened by typing only `/model`: 3 steps, model → window size → effort) save the «new session default»
+//   to `[models] default · default_reasoning_effort` in `~/.grok/config.toml`. There is no "this session only" confirmation.
+//   So, like claude's command mode, «after switching, restore only those two keys to their pre-switch values» (other keys and writes by other sessions are left alone).
+// - If there is text being written in the input box it would mix with the command, so send only when it is empty.
 //
-// 2026-10-12 집 맥 실측(1.0.50, 따로 연 시험 세션):
-// - 막 연 세션(첫 화면)은 안내 줄 자리에 배포 채널 표지 `[stable]` 만 있다(창이 낮으면 `Grok Build  1.0.50 [stable]`).
-//   무엇이든 한 번 하고 나면 예전의 안내 줄이 된다.
-// - 권한 모드가 기본이 아니면 이름표 뒤에 붙는다: `Grok 4.7 (high) · always-approve` · `· plan` · `· auto-review`.
-// - 창이 20줄보다 높으면 아래 테두리와 안내 줄 사이에 빈 줄이 하나 있다. 20줄 이하면 안내 줄이 언제나 `Ctrl+x:shortcuts` 뿐이다.
+// Measured 2026-10-12 on a test Mac (1.0.50, in a separately opened test session):
+// - A just-opened session (first screen) has only the release channel marker `[stable]` in the hint line's place (`Grok Build  1.0.50 [stable]` when the window is short).
+//   After doing anything, it becomes the old hint line.
+// - When the permission mode is not the default it follows the label: `Grok 4.7 (high) · always-approve`, `· plan`, `· auto-review`.
+// - If the window is taller than 20 lines there is one blank line between the bottom border and the hint line. At 20 lines or fewer the hint line is always just `Ctrl+x:shortcuts`.
 
-/// 화면에서 grok 입력 상자를 읽는다. 맨 아래 줄부터 읽는다 — 대화 내용에 비슷한 글이 있어도 보지 않는다.
+/// Reads the grok input box from the screen. Reads from the bottom line up — similar text in the conversation is ignored.
 public enum GrokScreen {
     public struct Box: Equatable, Sendable {
-        /// `│ ❯ ` 뒤의 글(여러 줄이면 이어 붙인다). 비어 있으면 "".
+        /// The text after `│ ❯ ` (joined if multiple lines). "" if empty.
         public let input: String
-        /// 아래 테두리의 이름표에서 모델 부분(`Grok 4.7 (xhigh)`). 없으면 nil.
+        /// The model part from the label on the bottom border (`Grok 4.7 (xhigh)`). nil if none.
         public let label: String?
         public let footer: String
     }
 
     static let placeholders: Set<String> = ["Build anything"]
 
-    /// 막 연 세션의 안내 줄 자리: 배포 채널 표지 하나(`[stable]`), 낮은 창에서는 앞에 판이 붙는다(`Grok Build  1.0.50 [stable]`).
+    /// The hint-line slot of a just-opened session: one release channel marker (`[stable]`); in a short window the version precedes it (`Grok Build  1.0.50 [stable]`).
     static func isChannelTag(_ footer: String) -> Bool {
         footer.range(of: "^(Grok Build +[0-9][^ ]* +)?\\[[a-z0-9-]+\\]$", options: .regularExpression) != nil
     }
 
-    /// 화면 맨 아래의 입력 상자: 마지막 줄은 안내 줄, 그 위는 아래 테두리(`╰…╯`), 그 위는 `│` 로 시작하는 입력 줄들, 그 위는 위 테두리(`╭`).
+    /// The input box at the very bottom of the screen: the last line is the hint line, above it the bottom border (`╰…╯`), above that the input lines starting with `│`, above that the top border (`╭`).
     public static func box(_ screen: [String]) -> Box? {
         var lines = screen.map { $0.trimmingCharacters(in: .whitespaces) }
         while lines.last?.isEmpty == true { lines.removeLast() }
@@ -63,7 +63,7 @@ public enum GrokScreen {
         return Box(input: text, label: label(inBorder: bottom), footer: footer)
     }
 
-    /// `╰───── Grok 4.7 (xhigh) ─╯` 에서 이름표. 뒤에 붙는 권한 모드(` · always-approve`)는 뗀다.
+    /// The label from `╰───── Grok 4.7 (xhigh) ─╯`. The trailing permission mode (` · always-approve`) is stripped.
     static func label(inBorder border: String) -> String? {
         var inner = border
         inner.removeFirst()
@@ -74,7 +74,7 @@ public enum GrokScreen {
         return model.isEmpty ? nil : model
     }
 
-    /// 작업 중이면 입력 상자 위에 상태 줄이 있다: `⠹ Waiting for response… 1.4s   1.4s ⇣38.7k [stop]`(스피너로 시작하고 `[stop]` 으로 끝난다).
+    /// While working there is a status line above the input box: `⠹ Waiting for response… 1.4s   1.4s ⇣38.7k [stop]` (starts with a spinner and ends with `[stop]`).
     public static func working(_ screen: [String]) -> Bool {
         screen.contains { line in
             let text = line.trimmingCharacters(in: .whitespaces)
@@ -83,11 +83,11 @@ public enum GrokScreen {
         }
     }
 
-    /// 입력 상자가 «비어 있고» 아무것도 열려 있지 않은 대기 상태. 안내 줄이 알려진 꼴(입력 칸 / 대화 칸에 포커스 / 막 연 세션의 채널 표지 /
-    /// 낮은 창의 짧은 안내 줄)일 때만 인정한다 — 작업 중에는 안내 줄에 `Ctrl+c:cancel` 이 붙고(2026-10-07 실측: 입력 상자는 그대로 비어 보인다),
-    /// 선택창·명령 목록·글을 쓰는 중에는 `Enter:send …` 가 붙는다. 처음 보는 안내 줄이면 대기가 아니다.
-    /// 창이 20줄 이하면 안내 줄이 언제나 `Ctrl+x:shortcuts` 뿐이라(1.0.50 실측: 작업 중에도, 선택창이 열려도) 작업 중은 상태 줄로 가린다 —
-    /// 선택창·쓰던 글은 입력 상자에 글이 있어서 걸린다.
+    /// The idle state where the input box is «empty» and nothing is open. Accepted only when the hint line is a known form (input field / conversation focused / release channel marker of a just-opened session /
+    /// the short hint line of a short window) — while working `Ctrl+c:cancel` is added to the hint line (measured 2026-10-07: the input box still looks empty),
+    /// and with a picker, command list, or text being written `Enter:send …` is added. A hint line never seen before is not idle.
+    /// When the window is 20 lines or fewer the hint line is always just `Ctrl+x:shortcuts` (measured on 1.0.50: even while working, even with a picker open), so working is screened out by the status line —
+    /// a picker or text being written is caught because the input box has text.
     public static func idle(_ screen: [String]) -> Bool {
         guard let box = box(screen), !working(screen) else { return false }
         let footer = box.footer.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.joined(separator: " ")
@@ -96,13 +96,13 @@ public enum GrokScreen {
         return known && (box.input.isEmpty || placeholders.contains(box.input))
     }
 
-    /// 입력 상자의 글(자리 표시 문구는 빈 글로 본다). 상자를 못 읽으면 nil.
+    /// The text of the input box (placeholder text counts as empty). nil if the box cannot be read.
     public static func draft(_ screen: [String]) -> String? {
         guard let box = box(screen) else { return nil }
         return placeholders.contains(box.input) ? "" : box.input
     }
 
-    /// 이름표 `Grok 4.7 (xhigh)` → (이름, effort). effort 가 없는 모델이면 effort 는 nil.
+    /// Label `Grok 4.7 (xhigh)` → (name, effort). effort is nil for a model without effort.
     public static func parse(label: String) -> (name: String, effort: String?) {
         guard label.hasSuffix(")"), let open = label.lastIndex(of: "(") else { return (label, nil) }
         let effort = String(label[label.index(after: open)..<label.index(before: label.endIndex)])
@@ -110,19 +110,19 @@ public enum GrokScreen {
         return (name, effort)
     }
 
-    /// 마지막 몇 줄에 있는 grok 의 «모른다» 류 답 줄들. 예전 시도의 줄이 화면에 남아 있을 수 있으므로 부른 쪽이 «전·후 비교» 로 새 줄만 본다.
+    /// Lines in the last few lines where grok answers in the «unknown» vein. Lines from earlier attempts may remain on screen, so the caller compares «before and after» and looks only at new lines.
     public static func errorLines(_ screen: [String], bottom: Int = 14) -> [String] {
         let tail = screen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.suffix(bottom)
         return tail.map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0.hasPrefix("Unknown model") || $0.hasPrefix("Invalid ") || $0.contains("not available") }
     }
 }
 
-/// `~/.grok/models_cache.json` — grok 이 서버에서 받아 둔 모델 목록.
+/// `~/.grok/models_cache.json` — the model list grok has fetched from the server.
 public struct GrokModels: Sendable {
     public struct Model: Equatable, Sendable {
         public let id: String
         public let name: String
-        /// 지원하는 effort(낮은 단계부터). 비어 있으면 effort 가 없는 모델.
+        /// Supported efforts (from the lowest level). Empty for a model without effort.
         public let efforts: [String]
     }
 
@@ -155,7 +155,7 @@ public struct GrokModels: Sendable {
         return GrokModels(models: found.sorted { $0.id < $1.id })
     }
 
-    /// 프리셋의 모델 칸(id 나 화면 이름)에 맞는 모델. 목록이 비어 있으면 nil(모르는 것과 없는 것은 다르다).
+    /// The model matching the preset's model field (an id or screen name). nil if the list is empty (not knowing differs from not having).
     public func resolve(_ text: String) -> Model? {
         let wanted = text.trimmingCharacters(in: .whitespaces).lowercased()
         return models.first { $0.id.lowercased() == wanted || $0.name.lowercased() == wanted }
@@ -166,7 +166,7 @@ public struct GrokModels: Sendable {
     }
 }
 
-/// `~/.grok/config.toml` 의 `[models]` 에서 `default` · `default_reasoning_effort` 두 키만 다룬다.
+/// Handles only the two keys `default` and `default_reasoning_effort` in `[models]` of `~/.grok/config.toml`.
 public struct GrokDefaults: Sendable {
     public let url: URL
 
@@ -188,8 +188,8 @@ public struct GrokDefaults: Sendable {
         case failed(String)
     }
 
-    /// 지금 파일에서 두 키만 전환 전 값으로 되돌린다. 나머지(다른 키·다른 세션이 쓴 것)는 그대로 둔다.
-    /// 전환 전에 파일이 없었으면 두 키를 없애고, 남는 것이 없으면 파일도 없앤다.
+    /// Restores only the two keys in the current file to their pre-switch values. Everything else (other keys, what other sessions wrote) is left alone.
+    /// If the file did not exist before the switch, it removes the two keys, and removes the file too if nothing is left.
     public func restore(to snapshot: DefaultsSnapshot) -> Outcome {
         let before: String
         var wasAbsent = false
@@ -223,7 +223,7 @@ public struct GrokDefaults: Sendable {
 
     public func restore(to before: String) -> Outcome { restore(to: .content(Data(before.utf8))) }
 
-    // MARK: 텍스트 처리 (TOML 전체를 해석하지 않고 `[models]` 표의 두 줄만 다룬다)
+    // MARK: Text handling (does not parse all of TOML; handles only the two lines of the `[models]` table)
 
     private static func section(_ lines: [String]) -> Range<Int>? {
         guard let start = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "[models]" }) else { return nil }
@@ -254,7 +254,7 @@ public struct GrokDefaults: Sendable {
                 if let line = beforeLines[beforeSection].dropFirst().first(where: { isKey($0, key) }) { restored.append(line) }
             }
         }
-        // 표 끝의 빈 줄은 키 뒤가 아니라 표 뒤에 둔다.
+        // A blank line at the end of the table goes after the table, not after the key.
         var trailing: [String] = []
         while let last = kept.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
             trailing.insert(kept.removeLast(), at: 0)
@@ -262,7 +262,7 @@ public struct GrokDefaults: Sendable {
         let body = kept + restored
         var replacement = [lines[range.lowerBound]] + body
         if body.isEmpty && beforeSection == nil {
-            // 원래 `[models]` 표가 없었고 지금 비었다 — 표 머리와 그 앞의 빈 줄 하나를 함께 없앤다.
+            // The `[models]` table did not originally exist and is now empty — remove the table header together with one blank line before it.
             replacement = []
             if range.lowerBound > 0, lines[range.lowerBound - 1].trimmingCharacters(in: .whitespaces).isEmpty {
                 lines.remove(at: range.lowerBound - 1)
@@ -276,7 +276,7 @@ public struct GrokDefaults: Sendable {
     }
 }
 
-/// grok 의 `/model` 명령으로 이 세션의 모델·effort 를 바꾼다.
+/// Changes this session's model and effort with grok's `/model` command.
 public struct GrokDriver {
     public let io: TerminalIO
     public let sleep: (Int) -> Void
@@ -298,7 +298,7 @@ public struct GrokDriver {
         public let warning: String?
     }
 
-    // MARK: 화면 기다리기
+    // MARK: Waiting for the screen
 
     private func poll(timeoutMs: Int, _ condition: ([String]) -> Bool) throws -> [String]? {
         let started = DispatchTime.now()
@@ -313,7 +313,7 @@ public struct GrokDriver {
         }
     }
 
-    /// 우리가 쓴 글이 입력 상자에 남아 있으면 지운다(다른 글은 건드리지 않는다).
+    /// If the text we wrote remains in the input box, erase it (other text is left alone).
     private func clear(_ text: String) {
         guard let lines = io.freshSnapshot()?.lines, let now = GrokScreen.draft(lines), !now.isEmpty, text.hasPrefix(now) || now.hasPrefix(text) else { return }
         for _ in 0..<(now.count + 2) {
@@ -322,18 +322,18 @@ public struct GrokDriver {
         }
     }
 
-    // MARK: 전환
+    // MARK: Switching
 
     public func apply(_ preset: AgentPreset) throws -> Outcome { try guarded { try applyUnguarded(preset) } }
 
-    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다.
+    /// Leaves the model alone and raises or lowers only the effort by one step.
     public func stepEffort(up: Bool) throws -> Outcome { try guarded { try stepEffortUnguarded(up: up) } }
 
-    /// 어느 단계에서 던져졌든 — 확정한 뒤 화면을 읽지 못한 경우까지 — 새 세션 기본값을 전환 전 값으로 되돌리고 나서 실패를 알린다.
-    /// (각 단계의 실패 처리도 되돌리지만, 화면 읽기 실패는 그 처리를 거치지 않고 곧바로 던져진다.)
+    /// At whatever step it was thrown — including when the screen could not be read after confirming — restore the new-session default to its pre-switch value, then report the failure.
+    /// (Each step's failure handling also restores, but a screen-read failure is thrown straight away without going through that handling.)
     private func guarded(_ body: () throws -> Outcome) throws -> Outcome {
         let before = keepDefaults ? defaults.snapshot() : nil
-        // 전환 전 값을 읽지 못했으면 되돌릴 수 없다 — 아무것도 보내기 전에 멈춘다. (파일이 «없던» 것은 괜찮다: 끝나고 다시 없앤다.)
+        // If the pre-switch values could not be read, it cannot restore — stop before sending anything. (A file that "did not exist" is fine: it is removed again at the end.)
         try DefaultsFile.refuseIfUnreadable(before, name: "grok")
         do {
             return try body()
@@ -346,7 +346,7 @@ public struct GrokDriver {
         }
     }
 
-    /// 입력 상자가 비어 있는 대기 상태에서만 시작한다. 실패하면 우리가 쓴 글만 지우고 멈춘다.
+    /// Starts only in the idle state with an empty input box. On failure it erases only the text we wrote and stops.
     private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
         guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the Grok terminal screen.")) }
         guard GrokScreen.box(first.lines) != nil else {
@@ -359,7 +359,7 @@ public struct GrokDriver {
             throw SlashCommandError(loc("Not switched: Grok is working, or a picker or command list is showing."))
         }
 
-        // 프리셋의 모델을 목록에서 찾는다. 목록이 없으면(캐시 없음) 쓴 그대로 보낸다.
+        // Find the preset's model in the list. If there is no list (no cache), send it as written.
         let known = models.resolve(preset.model)
         if !models.models.isEmpty, known == nil {
             throw SlashCommandError(loc("'%@' is not in the Grok model list.", preset.model))
@@ -377,7 +377,7 @@ public struct GrokDriver {
         return try run(command: command, expectedLabel: expected, effort: effort, first: first.lines)
     }
 
-    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다. 지금 값은 입력 상자 테두리의 이름표로 안다.
+    /// Leaves the model alone and raises or lowers only the effort by one step. The current value is known from the label on the input box border.
     private func stepEffortUnguarded(up: Bool) throws -> Outcome {
         guard let first = io.freshSnapshot(), let box = GrokScreen.box(first.lines) else {
             throw SlashCommandError(loc("Nothing was changed: the Grok input box is not visible."))
@@ -409,7 +409,7 @@ public struct GrokDriver {
         }
 
         try io.type(command)
-        // 쓴 글이 입력 상자에 «보임»을 확인한 뒤에만 Enter 를 보낸다.
+        // Enter is sent only after confirming the text we wrote is «visible» in the input box.
         guard (try poll(timeoutMs: 1500) { GrokScreen.draft($0) == command }) != nil else {
             clear(command)
             throw finish(SlashCommandError(loc("Nothing was sent: the command did not appear in the Grok input box.")))
@@ -422,7 +422,7 @@ public struct GrokDriver {
             guard let effort else { return true }
             return label.lowercased().hasSuffix("(\(effort.lowercased()))")
         }
-        // 성공: 이름표가 목표 값이 되고 입력 상자가 비었다. 실패: grok 가 «모른다» 고 새로 답했다(예전 시도의 줄은 세지 않는다).
+        // Success: the label becomes the target value and the input box is empty. Failure: grok newly answered «unknown» (lines from earlier attempts are not counted).
         let errorsBefore = GrokScreen.errorLines(first)
         var failure: String?
         let landed = try poll(timeoutMs: 4000) { lines in
@@ -442,7 +442,7 @@ public struct GrokDriver {
 
         var warning: String?
         if let before {
-            // 파일은 이미 써졌다. 바로 되돌리고, 늦게 오는 쓰기에 대비해 한 번 더 본다.
+            // The file has already been written. Restore it right away, and look once more in case of a late write.
             if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }
             sleep(250)
             if case .failed(let reason) = defaults.restore(to: before) { warning = loc("Could not put back the default for new sessions: %@", reason) }

@@ -1,10 +1,10 @@
 import Carbon.HIToolbox
 import Foundation
 
-/// 조합 키 + 1 … 9 전역 단축키, 그리고 조합 키 + `=` · `-`(effort 올림·내림). Carbon 핫키는 키 위치로 잡으므로 한글 입력 상태와 무관하고 손쉬운 사용 권한도 필요 없다.
+/// Global hotkeys modifier + 1 … 9, and modifier + `=` · `-` (effort up and down). Carbon hotkeys are matched by key position, so they work regardless of the Korean input state and need no Accessibility permission.
 final class HotKeyCenter {
     var onPress: ((Int) -> Void)?
-    /// 다른 앱이 이미 잡고 있어 등록하지 못한 번호.
+    /// Numbers that could not be registered because another app already holds them.
     private(set) var failed: [Int] = []
 
     private var refs: [EventHotKeyRef] = []
@@ -13,7 +13,7 @@ final class HotKeyCenter {
     private(set) var registeredEffortKeys = false
     private var handler: EventHandlerRef?
 
-    /// `onPress` 로 넘어오는 번호: 1 … 9 는 프리셋, 아래 둘은 effort 한 단계.
+    /// The number passed to `onPress`: 1 … 9 are presets, the two below are one effort step.
     static let effortUp = 101
     static let effortDown = 102
 
@@ -38,7 +38,7 @@ final class HotKeyCenter {
         }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
 
-    /// `retry` 면 같은 설정이어도 다시 잡는다 — 앞서 다른 앱이 쥐고 있어 못 잡은 키를 다시 시도할 때.
+    /// With `retry`, register again even if the settings are the same, to retry keys that could not be taken earlier because another app held them.
     func register(count: Int, modifiers: [String], effortKeys: Bool, retry: Bool = false) {
         let wanted = min(count, HotKeyCenter.keyCodes.count)
         guard retry || wanted != registeredCount || modifiers != registeredModifiers || effortKeys != registeredEffortKeys else { return }

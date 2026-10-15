@@ -3,20 +3,20 @@ import ApplicationServices
 import SlashCommandCore
 import SwiftUI
 
-/// macOS 권한의 상태를 읽고, 그 권한을 켜는 «바로 그» 시스템 설정 화면을 연다.
+/// Reads the state of macOS permissions and opens the exact System Settings pane that turns each one on.
 ///
-/// 사용자가 시스템 설정에서 길을 찾게 하지 않는다 — 설정에서 켜야 하는 것이 있으면 그 화면으로 바로 가는 버튼을 앱에 둔다(2026-10-08 결정).
-/// 시스템 설정에는 «Accessibility» 가 둘이라(사이드바의 장애 접근성 기능 화면과
-/// Privacy & Security 안의 앱 권한 목록) 말로 안내하면 엉뚱한 화면에 간다.
+/// Users should not have to find their way around System Settings: when something must be turned on there, the app has a button that goes straight to that pane (decided 2026-10-08).
+/// System Settings has two "Accessibility" entries (the accessibility features pane in the sidebar and
+/// the app permission list inside Privacy & Security), so describing it in words sends people to the wrong one.
 enum Permissions {
-    /// 시스템 설정 → Privacy & Security → Accessibility(앱 권한 목록).
+    /// System Settings → Privacy & Security → Accessibility (the app permission list).
     static let accessibilityPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-    /// 시스템 설정 → Privacy & Security → Automation.
+    /// System Settings → Privacy & Security → Automation.
     static let automationPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
 
     static var accessibility: Bool { GhosttyScreen.trusted() }
 
-    /// 그 권한 목록 화면을 연다. 먼저 시스템에 한 번 물어 둔다 — 그래야 Slash Command 가 목록에 «이미 들어 있고» 스위치만 켜면 된다.
+    /// Opens that permission list. It asks the system once first, so Slash Command is already in the list and only the switch needs turning on.
     static func openAccessibility() {
         _ = GhosttyScreen.trusted(prompt: true)
         NSWorkspace.shared.open(accessibilityPane)
@@ -28,27 +28,27 @@ enum Permissions {
 
     typealias Automation = AutomationConsent
 
-    /// Slash Command 가 그 앱을 AppleScript 로 다뤄도 되는가. 묻는 창은 띄우지 않는다.
-    /// 대상 앱이 응답하지 않으면 오래 걸릴 수 있으므로 주 스레드 밖에서 부른다.
+    /// Whether Slash Command may control that app with AppleScript. It does not show the prompt.
+    /// Call it off the main thread: it can take a long time if the target app does not respond.
     static func automation(bundleID: String) -> Automation { AutomationConsent.status(bundleID: bundleID) }
 
-    /// AppleScript 로 다루는 터미널들(이름, 번들 id).
+    /// Terminals controlled with AppleScript (name, bundle id).
     static let automatedTerminals: [(name: String, bundleID: String)] = [("Ghostty", Detector.ghosttyBundleID), ("iTerm2", Detector.itermBundleID)]
 
-    /// 그 가운데 이 맥에 깔려 있는 것 — 쓰지 않는 터미널의 권한은 보여 주지 않는다.
+    /// Those installed on this Mac. Permissions of terminals that are not used are not shown.
     static var installedAutomatedTerminals: [(name: String, bundleID: String)] {
         automatedTerminals.filter { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleID) != nil }
     }
 }
 
-/// 편집 화면 맨 위의 「권한」 칸이 보는 상태. 창이 떠 있는 동안 1초마다 다시 읽어 — 설정에서 켜고 돌아오면 바로 ✓ 로 바뀐다.
+/// The state the "Permissions" row at the top of the edit window shows. It is re-read every second while the window is open, so it flips to ✓ as soon as the user turns it on in Settings and comes back.
 final class PermissionsModel: ObservableObject {
     @Published var accessibility = Permissions.accessibility
     @Published var automation: [String: Permissions.Automation] = [:]
 
     private var timer: Timer?
     private let queue = DispatchQueue(label: "slashcommand.permissions")
-    /// 앞의 확인이 아직 끝나지 않았으면 새로 넣지 않는다 — 대상 앱이 응답하지 않으면 확인이 오래 걸리고, 그동안 1초마다 쌓인다.
+    /// Do not start a new check while the previous one is unfinished: if the target app does not respond, a check takes a long time and they would pile up every second.
     private var checking = false
 
     func start() {
@@ -79,7 +79,7 @@ final class PermissionsModel: ObservableObject {
     }
 }
 
-/// 「권한」 칸: 권한마다 상태와 «그 설정 화면을 여는» 버튼. 켜져 있으면 한 줄, 손댈 것이 있으면 무엇을 하면 되는지 적는다.
+/// The "Permissions" row: for each permission, its state and a button that opens that settings pane. One line when it is on; when something needs doing, it says what to do.
 struct PermissionsSection: View {
     @ObservedObject var model: PermissionsModel
 

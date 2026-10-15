@@ -1,29 +1,29 @@
 import Darwin
 import Foundation
 
-/// 실행 중인 프로세스의 명령줄과 환경변수를 프로세스 안에서 읽는다(`ps -axEww` 와 같은 정보).
+/// Reads the command line and environment variables of running processes from inside the process (the same information as `ps -axEww`).
 ///
-/// `ps` 를 띄우면 약 0.2초가 든다(2026-10-06 실측). 터미널에 붙은 프로세스만 직접 읽으면 수 ms 다.
-/// 환경변수에는 비밀이 섞여 있을 수 있으므로 여기서 읽은 것은 어디에도 남기지 않는다.
+/// Starting `ps` costs about 0.2 s (measured 2026-10-06). Reading only the processes attached to a terminal directly takes a few ms.
+/// Environment variables may contain secrets, so what is read here is not kept anywhere.
 enum ProcessTable {
     struct Entry {
         let pid: Int32
         let parent: Int32
         let hasTerminal: Bool
-        /// 붙어 있는 터미널의 장치 번호(`stat("/dev/ttys004").st_rdev` 와 같은 값).
+        /// Device number of the attached terminal (the same value as `stat("/dev/ttys004").st_rdev`).
         let terminalDevice: UInt32
-        /// 이 프로세스의 프로세스 그룹과, 그 터미널에서 «지금 앞에 있는» 프로세스 그룹. 같으면 그 터미널의 앞 작업이다
-        /// (Ctrl-Z 나 `tmux suspend-client` 로 멈춰 둔 것은 다르다).
+        /// This process's process group, and the process group that is "currently in front" on that terminal. If they are equal, it is that terminal's foreground job
+        /// (one stopped with Ctrl-Z or `tmux suspend-client` is different).
         var processGroup: Int32 = 0
         var foregroundGroup: Int32 = 0
         var isForeground: Bool { processGroup != 0 && processGroup == foregroundGroup }
         let arguments: [String]
         let environment: [String]
-        /// 실제로 실행 중인 파일의 경로(링크를 푼 것). 명령줄의 첫 낱말은 `claude` 처럼 이름만일 수 있다.
+        /// Path of the file actually running (symlinks resolved). The first word of the command line can be just a name like `claude`.
         let executable: String
     }
 
-    /// 터미널에 붙어 있고 읽을 수 있는 프로세스들과, 모든 프로세스의 부모 관계.
+    /// Processes that are attached to a terminal and readable, plus the parent relations of all processes.
     static func snapshot() -> (entries: [Entry], parents: [Int32: Int32]) {
         var entries: [Entry] = []
         var parents: [Int32: Int32] = [:]
@@ -32,7 +32,7 @@ enum ProcessTable {
             let size = Int32(MemoryLayout<proc_bsdinfo>.size)
             guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { continue }
             parents[pid] = Int32(info.pbi_ppid)
-            // e_tdev 가 NODEV(-1) 면 터미널 없는 프로세스다 — 에이전트 세션이 아니므로 명령줄을 읽지 않는다.
+            // If e_tdev is NODEV (-1), the process has no terminal; it is not an agent session, so its command line is not read.
             guard info.e_tdev != UInt32.max, let (arguments, environment) = commandLine(of: pid) else { continue }
             entries.append(Entry(pid: pid, parent: Int32(info.pbi_ppid), hasTerminal: true, terminalDevice: info.e_tdev,
                                  processGroup: Int32(info.pbi_pgid), foregroundGroup: Int32(info.e_tpgid),
@@ -42,7 +42,7 @@ enum ProcessTable {
         return (entries, parents)
     }
 
-    /// 그 프로세스가 시작한 시각(초 · 마이크로초를 한 수로). `exec` 로 다른 프로그램이 돼도 그대로다 — pid 가 다시 쓰였는지 가릴 때 쓴다.
+    /// When that process started (seconds and microseconds as one number). It stays the same even if it becomes another program through `exec`; used to tell whether a pid was reused.
     static func startTime(of pid: Int32) -> UInt64? {
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
@@ -74,20 +74,20 @@ enum ProcessTable {
         return parse(procargs: Array(buffer.prefix(size)))
     }
 
-    /// `KERN_PROCARGS2` 의 배치: 인자 개수(Int32) · 실행 파일 경로 · 0 채움 · 인자들 · 환경변수들(각각 0 으로 끝남).
+    /// Layout of `KERN_PROCARGS2`: argument count (Int32) · executable path · zero padding · arguments · environment variables (each ends with 0).
     static func parse(procargs buffer: [UInt8]) -> (arguments: [String], environment: [String])? {
         let header = MemoryLayout<Int32>.size
         guard buffer.count > header else { return nil }
         let argc = buffer.withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
         guard argc >= 0 else { return nil }
         var index = header
-        while index < buffer.count, buffer[index] != 0 { index += 1 }   // 실행 파일 경로
-        while index < buffer.count, buffer[index] == 0 { index += 1 }   // 채움
+        while index < buffer.count, buffer[index] != 0 { index += 1 }   // executable path
+        while index < buffer.count, buffer[index] == 0 { index += 1 }   // padding
         var strings: [String] = []
         while index < buffer.count {
             var end = index
             while end < buffer.count, buffer[end] != 0 { end += 1 }
-            if end == index, strings.count >= Int(argc) { break }       // 환경변수 뒤의 빈 문자열 = 끝
+            if end == index, strings.count >= Int(argc) { break }       // empty string after the environment variables = end
             strings.append(String(decoding: buffer[index..<end], as: UTF8.self))
             index = end + 1
         }

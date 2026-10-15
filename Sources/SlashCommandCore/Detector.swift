@@ -4,13 +4,13 @@ import Foundation
 public enum TerminalHost: Equatable, Sendable {
     case ghostty(terminalID: String)
     case orca(handle: String)
-    /// tmux pane(`%3`, `세션:창.칸`). `socket` 은 `tmux -L` 의 이름이거나 `-S` 의 경로(`/` 가 들어 있으면 경로).
+    /// tmux pane (`%3`, `session:window.pane`). `socket` is the `tmux -L` name or the `-S` path (a path if it contains `/`).
     case tmux(socket: String?, pane: String)
-    /// kitty 창 id 와 원격 제어 소켓(`unix:/path`).
+    /// kitty window id and remote-control socket (`unix:/path`).
     case kitty(socket: String, window: String)
-    /// WezTerm pane id. `socket` 은 그 GUI 의 mux 소켓 경로(없으면 `wezterm cli` 가 고르는 GUI).
+    /// WezTerm pane id. `socket` is the path of that GUI's mux socket (if none, the GUI `wezterm cli` picks).
     case wezterm(socket: String?, pane: String)
-    /// iTerm2 세션의 `unique id`.
+    /// The `unique id` of an iTerm2 session.
     case iterm(sessionID: String)
 
     public var appName: String {
@@ -28,7 +28,7 @@ public enum TerminalHost: Equatable, Sendable {
 public struct Target: Equatable, Sendable {
     public let host: TerminalHost
     public let agent: Agent
-    /// 사람이 읽는 설명(터미널 제목 등).
+    /// A human-readable description (terminal title, etc.).
     public let label: String
 
     public init(host: TerminalHost, agent: Agent, label: String) {
@@ -43,27 +43,27 @@ public enum Detector {
     public static let orcaBundleID = "com.stablyai.orca"
     public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID, itermBundleID, weztermBundleID, kittyBundleID]
 
-    /// 지금 맨 앞 앱의 맨 앞 터미널과 그 안의 에이전트. AppleScript 로 다루는 터미널이면 자동화 허락부터 확인한다
-    /// (허용 창이 뜨면 `willAskAutomation` 을 부르고 그 답을 기다린다 — `AutomationConsent.ensure`).
-    /// 창을 띄워 허락받았으면 그 앱이 다시 맨 앞에 왔을 때만 이어 간다.
+    /// The frontmost terminal of the frontmost app and the agent in it. For a terminal driven by AppleScript, it first checks automation permission
+    /// (if a permission dialog appears it calls `willAskAutomation` and waits for the answer — `AutomationConsent.ensure`).
+    /// If it showed a dialog to get permission, it continues only when that app is back in front.
     public static func frontmost(willAskAutomation: @escaping () -> Void = {}) throws -> Target {
         guard let app = NSWorkspace.shared.frontmostApplication,
               let bundleID = app.bundleIdentifier else {
             throw SlashCommandError(loc("Cannot tell which app is in front."))
         }
         let appName = app.localizedName ?? bundleID
-        // 허용 창에 답하는 사이 다른 앱으로 갔다면 뒤에 있는 터미널을 바꾸지 않는다.
+        // If the user moved to another app while answering the permission dialog, do not change the terminal behind it.
         var frontPID = app.processIdentifier
         if try AutomationConsent.ensure(bundleID: bundleID, appName: appName, willAsk: willAskAutomation) {
             try AutomationConsent.requireFront(bundleID: bundleID, appName: appName)
-            // 창에 답하는 사이 같은 앱의 다른 프로세스가 앞에 왔을 수 있다.
+            // While answering the dialog, another process of the same app may have come to the front.
             if let now = NSWorkspace.shared.frontmostApplication, now.bundleIdentifier == bundleID { frontPID = now.processIdentifier }
         }
         return try target(bundleID: bundleID, appName: appName, frontPID: frontPID)
     }
 
-    /// `frontPID` 는 맨 앞 앱의 pid(`NSWorkspace.frontmostApplication` 이 알려 준 것). 같은 앱을 둘 이상 띄웠을 때 «맨 앞» 인 프로세스를 짚는 데 쓴다.
-    /// 모르면(그 앱이 맨 앞인 것처럼 묻는 `--bundle`) 실행 중인 것들 가운데 활성인 것을 찾는다.
+    /// `frontPID` is the pid of the frontmost app (as reported by `NSWorkspace.frontmostApplication`). It is used to pick the «frontmost» process when more than one instance of the same app is running.
+    /// If unknown (`--bundle`, which asks as if that app were in front), it looks for the active one among the running ones.
     public static func target(bundleID: String, appName: String, frontPID: Int32? = nil) throws -> Target {
         switch bundleID {
         case ghosttyBundleID: return try ghostty()
@@ -76,9 +76,9 @@ public enum Detector {
         }
     }
 
-    /// 맨 앞 프로세스. 부른 쪽이 아는 pid 가 있으면 그것을 쓴다 — 실행 중인 앱 목록에서 «활성» 인 것을 고르는 길은
-    /// 오래 떠 있는 앱 안에서 틀릴 때가 있다(2026-10-13 실측: WezTerm 을 둘 띄우고 뒤에 뜬 쪽을 앞에 둔 채 단축키 4번 중 2번이
-    /// 먼저 뜬 쪽의 셸로 갔다. 같은 순간 새로 띄운 프로세스가 읽은 목록은 맞았다).
+    /// The frontmost process. If the caller knows a pid, use it — picking the «active» one from the running-app list
+    /// can be wrong in a long-lived app (measured 2026-10-13: with two WezTerms running and the later-launched one in front, 2 of 4 shortcut presses
+    /// went to the shell of the first-launched one. A list read by a freshly launched process at the same moment was right).
     static func frontProcess(known: Int32?, bundleID: String, active: (String) -> Int32? = Detector.activeProcess) -> Int32? {
         known ?? active(bundleID)
     }
@@ -113,9 +113,9 @@ public enum Detector {
         if let agent = agent(inTitle: name) {
             return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
         }
-        // 제목을 직접 바꿔 둔 탭은 제목으로 못 가린다. 그 폴더에서 도는 에이전트가 한 종류뿐이면 그것으로 본다.
+        // A tab whose title was changed by hand cannot be told apart by title. If only one kind of agent runs in that folder, take that one.
         let kinds = AgentProcesses.kinds(inDirectory: cwd)
-        // 같은 폴더에서 claude 와 codex 가 따로 도는 경우: 이 터미널 화면에 어느 쪽 입력창이 보이는지로 가린다.
+        // If claude and codex run separately in the same folder: decide by which input box is visible on this terminal's screen.
         if kinds.count > 1, let lines = GhosttyIO(terminalID: id).screen(), let agent = agent(onScreen: lines) {
             return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
         }
@@ -127,7 +127,7 @@ public enum Detector {
         return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
     }
 
-    /// 화면에 입력창이 «보이는» 에이전트. 하나로 정해지지 않으면(둘 다 보이거나 하나도 안 보이면) nil.
+    /// The agent whose input box is «visible» on screen. nil if it cannot be narrowed to one (both visible or neither visible).
     static func agent(onScreen lines: [String]) -> Agent? {
         let visible = Agent.allCases.filter { Readiness.inputVisible(agent: $0, screen: lines) }
         return visible.count == 1 ? visible.first : nil
@@ -143,7 +143,7 @@ public enum Detector {
 
     // MARK: Orca
 
-    /// 핸들만 알 때 그 터미널에서 도는 에이전트.
+    /// The agent running in that terminal when only the handle is known.
     public static func orcaAgent(handle: String) -> Agent? {
         AgentProcesses.agent(orcaHandle: handle)
     }
@@ -151,15 +151,15 @@ public enum Detector {
     public static func orca() throws -> Target {
         let payload = try orcaTerminals()
         let active = try orcaActive(payload: payload).active
-        // 그 터미널에서 tmux 가 «앞 작업» 으로 돌고 있으면 그 클라이언트가 보고 있는 tmux 칸으로 들어간다(쓰기·읽기도 tmux 로).
-        // Orca 로 그대로 쓰면 화면 맨 아래가 tmux 의 상태 줄이고, 칸이 나뉘어 있으면 여러 칸의 글이 한 화면에 섞인다.
+        // If tmux is running as the «foreground job» in that terminal, go into the tmux pane that client is looking at (write and read via tmux too).
+        // Used as-is through Orca, the bottom of the screen is tmux's status line, and if panes are split the text of several panes is mixed on one screen.
         if let handle = try? OrcaState.pane(in: payload, active: active).handle, let inside = try orcaTmux(handle: handle) {
             return inside
         }
         return try OrcaState.target(in: payload, active: active, processAgent: AgentProcesses.agent(orcaHandle:))
     }
 
-    /// 그 Orca 터미널에서 tmux 클라이언트가 앞 작업이면, 그 클라이언트가 보고 있는 tmux 칸. 아니면 nil.
+    /// If a tmux client is the foreground job in that Orca terminal, the tmux pane that client is looking at. Otherwise nil.
     public static func orcaTmux(handle: String) throws -> Target? {
         let table = ProcessTable.snapshot()
         let client = AgentProcesses.tmuxClient(orcaHandle: handle, entries: table.entries, parents: table.parents,
@@ -167,9 +167,9 @@ public enum Detector {
         return try client.map { try TmuxFront.target(client: $0, table: table, outer: "Orca") }
     }
 
-    /// 화면에 떠 있는 워크스페이스·탭과 «어디서 알았는가».
-    /// 접근성으로 읽은 탭 줄(지연 없음)을 먼저 쓰고, 읽지 못하거나 맞는 워크스페이스가 없으면 상태 DB(1.3~2.5초 늦음)로 되돌아간다.
-    /// 탭 줄이 둘 이상의 워크스페이스와 똑같으면 어느 쪽인지 모르므로 보내지 않는다.
+    /// The workspace and tab shown on screen, and «how it was learned».
+    /// It first uses the tab lines read through accessibility (no delay), and falls back to the state DB (1.3–2.5 s late) if they cannot be read or no workspace matches.
+    /// If the tab lines match more than one workspace, it cannot tell which, so nothing is sent.
     public static func orcaActive(payload: [String: Any]) throws -> (active: OrcaState.Active, source: String) {
         let database = try? OrcaState.active()
         guard let strip = OrcaView.readStrip() else {
@@ -187,7 +187,7 @@ public enum Detector {
         }
     }
 
-    /// 터미널 목록과 화면 배치. Orca 앱에 직접 묻고, 안 되면 `orca` 명령으로 묻는다.
+    /// The terminal list and screen layout. Asks the Orca app directly, and if that fails asks through the `orca` command.
     public static func orcaTerminals() throws -> [String: Any] {
         if case .success(let payload) = OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) {
             return payload
@@ -206,11 +206,11 @@ public enum Detector {
     }
 }
 
-/// Orca 화면에 지금 보이는 워크스페이스·탭.
+/// The workspace and tab currently shown on the Orca screen.
 ///
-/// `orca` CLI 는 워크스페이스별 활성 탭까지만 알려 주고 「어느 워크스페이스가 화면에 떠 있나」는 주지 않는다
-/// (핸들 없이 `terminal show` 를 부르면 화면과 무관한 터미널이 나온다 — 2026-10-05 실측). 그래서 그 한 가지만
-/// Orca 의 상태 DB 에서 읽는다. 공개된 인터페이스가 아니므로 형식이 바뀌면 추측하지 않고 실패한다.
+/// The `orca` CLI only tells the active tab per workspace and does not say "which workspace is on screen"
+/// (calling `terminal show` without a handle returns a terminal unrelated to the screen — measured 2026-10-05). So only that one thing
+/// is read from Orca's state DB. It is not a public interface, so if the format changes it fails instead of guessing.
 public enum OrcaState {
     public struct Active: Equatable, Sendable {
         public let worktreeID: String
@@ -257,10 +257,10 @@ public enum OrcaState {
         return Active(worktreeID: worktree, tabID: tab)
     }
 
-    /// `orca terminal list --include-visual-layouts` 결과에서 화면에 보이는 탭의 활성 터미널을 고른다.
+    /// Picks the active terminal of the tab visible on screen from the result of `orca terminal list --include-visual-layouts`.
     ///
-    /// 목록의 `agentIdentity` 는 같은 세션에서도 상태에 따라 비어 온다(2026-10-06 실측: 대기 중 null, 작업 중 claude).
-    /// 그래서 그 터미널에서 실제로 도는 프로세스(`processAgent`)를 먼저 보고, 못 찾을 때만 `agentIdentity` 를 쓴다.
+    /// `agentIdentity` in the list comes back empty depending on state even for the same session (measured 2026-10-06: null while idle, claude while working).
+    /// So first look at the process actually running in that terminal (`processAgent`), and use `agentIdentity` only when it is not found.
     static func target(in payload: [String: Any], active: Active,
                        processAgent: (String) -> Agent? = { _ in nil }) throws -> Target {
         let pane = try pane(in: payload, active: active)
@@ -270,7 +270,7 @@ public enum OrcaState {
         return Target(host: .orca(handle: pane.handle), agent: agent, label: pane.label)
     }
 
-    /// 화면에 보이는 탭의 활성 터미널: 핸들 · 사람이 읽는 이름 · 목록이 적어 둔 에이전트(없을 수 있다).
+    /// The active terminal of the tab visible on screen: handle, human-readable name, and the agent the list records (may be absent).
     static func pane(in payload: [String: Any], active: Active) throws -> (handle: String, label: String, listedAgent: Agent?) {
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
         guard let layout = layouts.first(where: { $0["worktreeId"] as? String == active.worktreeID }) else {
@@ -293,7 +293,7 @@ public enum OrcaState {
         return (handle, label, (listed?["agentIdentity"] as? String).flatMap(Agent.init(rawValue:)))
     }
 
-    /// 탭 묶음이 좌우로 나뉘어 있어도 찾도록 트리 전체에서 탭을 모은다.
+    /// Collects tabs from the whole tree so they are found even when the tab group is split left and right.
     static func tabs(in node: Any?) -> [[String: Any]] {
         if let array = node as? [Any] { return array.flatMap { tabs(in: $0) } }
         guard let dict = node as? [String: Any] else { return [] }
@@ -302,7 +302,7 @@ public enum OrcaState {
         return found
     }
 
-    /// 한 탭 안의 분할된 터미널들.
+    /// The split terminals inside one tab.
     static func terminals(in node: Any?) -> [[String: Any]] {
         if let array = node as? [Any] { return array.flatMap { terminals(in: $0) } }
         guard let dict = node as? [String: Any] else { return [] }
@@ -311,7 +311,7 @@ public enum OrcaState {
     }
 }
 
-/// 실행 중인 claude·codex 프로세스를 작업 폴더로 찾는다(Ghostty 제목으로 못 가릴 때의 보조 수단).
+/// Finds running claude and codex processes by working directory (a fallback for when the Ghostty title cannot tell).
 enum AgentProcesses {
     static func kinds(inDirectory directory: String) -> Set<Agent> {
         guard !directory.isEmpty else { return [] }
@@ -341,16 +341,16 @@ enum AgentProcesses {
         return Set(candidates.filter { cwdByPID[$0.pid] == wanted }.map(\.agent))
     }
 
-    /// Orca 는 터미널마다 `ORCA_TERMINAL_HANDLE` 을 환경변수로 준다. 그 값을 가진 프로세스 중 에이전트를 찾는다.
-    /// 에이전트가 다른 에이전트를 자식으로 띄운 경우(예: claude 가 `codex exec` 실행)는 바깥쪽 것을 고른다.
-    /// 환경변수에는 비밀이 섞여 있을 수 있으므로 이 출력은 어디에도 남기지 않는다.
+    /// Orca gives each terminal `ORCA_TERMINAL_HANDLE` as an environment variable. Among the processes that have that value, find the agent.
+    /// If an agent started another agent as a child (e.g. claude runs `codex exec`), pick the outer one.
+    /// The environment may contain secrets, so this output is not kept anywhere.
     static func agent(orcaHandle handle: String) -> Agent? {
         let table = ProcessTable.snapshot()
         if !table.entries.isEmpty {
             return agent(orcaHandle: handle, entries: table.entries, parents: table.parents,
                          isTmux: { TTYProcesses.isTmux(executable: ProcessTable.executablePath(of: $0)) })
         }
-        // 프로세스 안에서 못 읽으면 `ps` 로 같은 정보를 읽는다.
+        // If it cannot be read inside the process, read the same information with `ps`.
         let ps = Proc.run("/bin/ps", ["-axEww", "-o", "pid=,ppid=,tty=,command="], timeout: 5)
         guard ps.ok else { return nil }
         return agent(orcaHandle: handle, psOutput: ps.out)
@@ -359,7 +359,7 @@ enum AgentProcesses {
     static func agent(orcaHandle handle: String, entries: [ProcessTable.Entry], parents: [Int32: Int32], isTmux: (Int32) -> Bool) -> Agent? {
         let marker = "ORCA_TERMINAL_HANDLE=\(handle)"
         let candidates = entries.compactMap { entry -> (pid: String, agent: Agent)? in
-            // tmux 칸 안의 프로세스는 서버가 물려준 같은 핸들을 갖지만 이 터미널의 화면에 있는 것이 아니다(클라이언트를 떼면 셸만 보인다).
+            // A process inside a tmux pane has the same handle inherited from the server, but it is not on this terminal's screen (detach the client and only a shell shows).
             guard entry.environment.contains(marker), !hasAncestor(of: entry.pid, parents: parents, where: isTmux),
                   let agent = agent(forCommandLine: entry.arguments.joined(separator: " ")) else { return nil }
             return (String(entry.pid), agent)
@@ -368,10 +368,10 @@ enum AgentProcesses {
         return outermostAgent(candidates, parents: table)
     }
 
-    /// Orca 터미널 `handle` 에서 «앞 작업» 으로 도는 tmux 클라이언트. 하나로 정해지지 않으면 nil.
+    /// The tmux client running as the «foreground job» in Orca terminal `handle`. nil if it cannot be narrowed to one.
     ///
-    /// tmux 서버를 그 터미널에서 처음 띄웠으면 서버가 그 환경변수를 물려받아, 모든 칸의 프로세스가 같은 `ORCA_TERMINAL_HANDLE` 을 갖는다.
-    /// 그래서 칸 안에서 다시 띄운 tmux 클라이언트(조상에 tmux 가 있다)는 그 터미널의 것이 아니다 — 조상에 tmux 가 없는 것만 센다.
+    /// If the tmux server was first started in that terminal, the server inherits that environment variable, so processes in every pane carry the same `ORCA_TERMINAL_HANDLE`.
+    /// So a tmux client started again inside a pane (tmux is among its ancestors) is not that terminal's — count only those with no tmux among ancestors.
     static func tmuxClient(orcaHandle handle: String, entries: [ProcessTable.Entry], parents: [Int32: Int32],
                            isTmux: (Int32) -> Bool) -> ProcessTable.Entry? {
         let marker = "ORCA_TERMINAL_HANDLE=\(handle)"
@@ -411,7 +411,7 @@ enum AgentProcesses {
         return outermostAgent(candidates, parents: parents)
     }
 
-    /// 후보 중 다른 후보의 자손이 아닌 것(바깥쪽)의 종류. 한 종류로 모이지 않으면 nil.
+    /// Of the candidates, the kind of those that are not descendants of another candidate (the outer ones). nil if they do not collapse to one kind.
     static func outermostAgent(_ candidates: [(pid: String, agent: Agent)], parents: [String: String]) -> Agent? {
         let pids = Set(candidates.map(\.pid))
         let outermost = candidates.filter { candidate in

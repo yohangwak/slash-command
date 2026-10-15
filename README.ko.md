@@ -20,7 +20,13 @@ Slash Command 는 macOS 메뉴 막대 앱입니다. 터미널에서 **⇧⌥1 �
 
 macOS 13 이상이 필요합니다.
 
-1. [최신 릴리스](https://github.com/yohangwak/slash-command/releases/latest)에서 `Slash-Command.zip` 을 내려받아 압축을 풀고 **Slash Command** 를 응용 프로그램 폴더로 옮깁니다.
+1. [Homebrew](https://brew.sh) 로 설치합니다.
+
+   ```sh
+   brew install --cask yohangwak/tap/slash-command
+   ```
+
+   또는 [최신 릴리스](https://github.com/yohangwak/slash-command/releases/latest)에서 `Slash-Command.zip` 을 내려받아 압축을 풀고 **Slash Command** 를 응용 프로그램 폴더로 옮깁니다.
 2. 앱을 엽니다. 메뉴 막대에 `/` 키 모양 아이콘이 생깁니다.
 3. 그 아이콘에서 **설정…** 을 열고 맨 위의 **권한** 칸을 씁니다. 버튼이 시스템 설정의 해당 화면을 바로 열어 줍니다.
 
@@ -76,7 +82,7 @@ Swift 도구(Xcode 또는 Command Line Tools)가 필요합니다. 서명 인증�
 
 ## 명령줄
 
-앱에는 같은 전환 로직을 쓰는 명령줄 도구가 들어 있습니다. 앱 묶음 안에 있으므로, `slashcommand` 로 부르려면 한 번 링크를 겁니다.
+앱에는 같은 전환 로직을 쓰는 명령줄 도구가 들어 있습니다. Homebrew 로 설치했다면 `slashcommand` 로 바로 부를 수 있습니다. zip 으로 설치했다면 도구가 앱 묶음 안에 있으므로 한 번 링크를 겁니다.
 
 ```sh
 sudo mkdir -p /usr/local/bin

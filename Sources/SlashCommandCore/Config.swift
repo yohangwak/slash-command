@@ -8,7 +8,7 @@ public enum Agent: String, Codable, CaseIterable, Sendable {
     case antigravity
     case opencode
 
-    /// 설치된 실행 파일 이름(`--version` 을 부를 때).
+    /// Name of the installed executable (used when calling `--version`).
     public var executable: String {
         switch self {
         case .cursor: return "cursor-agent"
@@ -17,7 +17,7 @@ public enum Agent: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// 사람에게 보여 주는 이름(제품 이름이라 번역하지 않는다). 파일의 키와 명령줄은 `rawValue` 를 쓴다.
+    /// Name shown to people (a product name, so not translated). The file's keys and the command line use `rawValue`.
     public var displayName: String {
         switch self {
         case .claude: return "Claude Code"
@@ -29,17 +29,17 @@ public enum Agent: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// 단계 목록(`Step`)이 아니라 전용 드라이버가 화면을 보며 진행하는 에이전트.
+    /// An agent driven by a dedicated driver that watches the screen, rather than by a list of steps (`Step`).
     public var usesDriver: Bool { self != .claude && self != .codex }
 }
 
-/// 이 판이 모르는 JSON 값. 나중 판이 프리셋 파일에 쓴 키를 읽었다가, 저장할 때 그대로 돌려주려고 든다
-/// (전에는 설정 창에서 저장하면 모르는 키가 사라졌다).
+/// A JSON value this version does not know. It is read from a key a later version wrote in the preset file and held so it can be handed back on save
+/// (previously, saving from the settings window dropped unknown keys).
 public enum JSONValue: Codable, Equatable, Sendable {
     case null
     case bool(Bool)
     case integer(Int64)
-    /// `Int64` 에 안 들어가는 부호 없는 정수(`UInt64` 값) — 실수로 받으면 값이 달라진다(PR #28 리뷰).
+    /// An unsigned integer that does not fit in `Int64` (a `UInt64` value) — reading it as a floating-point number would change the value (PR #28 review).
     case unsigned(UInt64)
     case number(Double)
     case string(String)
@@ -73,7 +73,7 @@ public enum JSONValue: Codable, Equatable, Sendable {
     }
 }
 
-/// 이름을 실행 중에 정하는 JSON 키.
+/// A JSON key whose name is decided at run time.
 struct DynamicKey: CodingKey {
     let stringValue: String
     var intValue: Int? { nil }
@@ -81,7 +81,7 @@ struct DynamicKey: CodingKey {
     init(_ name: String) { self.stringValue = name }
     init?(intValue: Int) { nil }
 
-    /// 그 자리의 키 가운데 `known` 에 없는 것들의 값.
+    /// The values of the keys at that position that are not in `known`.
     static func unknown(in decoder: Decoder, known: Set<String>) throws -> [String: JSONValue] {
         let c = try decoder.container(keyedBy: DynamicKey.self)
         var extra: [String: JSONValue] = [:]
@@ -100,7 +100,7 @@ struct DynamicKey: CodingKey {
 public struct AgentPreset: Codable, Equatable, Sendable {
     public var model: String
     public var effort: String
-    /// 이 판이 모르는 키(읽은 그대로 다시 쓴다).
+    /// Keys this version does not know (written back exactly as read).
     public var extra: [String: JSONValue] = [:]
 
     public init(model: String, effort: String) {
@@ -126,11 +126,11 @@ public struct AgentPreset: Codable, Equatable, Sendable {
 }
 
 public struct Slot: Codable, Equatable, Sendable {
-    /// 붙이고 싶을 때만 쓰는 이름. 비어 있으면 모델·effort 로 부른다.
+    /// A name used only when you want to attach one. When empty, the entry is called by its model and effort.
     public var name: String
-    /// 에이전트마다의 설정. 없는 에이전트는 그 번호에서 아무것도 하지 않는다.
+    /// Per-agent settings. An agent that is absent does nothing for that number.
     public var presets: [Agent: AgentPreset]
-    /// 이 판이 모르는 키(나중 판의 에이전트 등 — 읽은 그대로 다시 쓴다).
+    /// Keys this version does not know (agents of a later version, etc. — written back exactly as read).
     public var extra: [String: JSONValue] = [:]
 
     public var claude: AgentPreset? {
@@ -169,8 +169,8 @@ public struct Slot: Codable, Equatable, Sendable {
         self.opencode = opencode
     }
 
-    /// 파일의 키는 `name` 과 에이전트 이름(`claude`·`codex`·`grok`…)이다. 모르는 키는 쓰지는 않지만 들고 있다가 그대로 다시 쓴다
-    /// (나중 판이 쓴 파일을 읽고, 저장해도 그 판의 값이 남게).
+    /// The keys in the file are `name` and the agent names (`claude`, `codex`, `grok` …). Unknown keys are not written but are held and written back as they were
+    /// (so reading a file written by a later version and saving keeps that version's values).
     private static let known = Set(["name"] + Agent.allCases.map(\.rawValue))
 
     public init(from decoder: Decoder) throws {
@@ -196,10 +196,10 @@ public struct Slot: Codable, Equatable, Sendable {
 
     public func preset(for agent: Agent) -> AgentPreset? { presets[agent] }
 
-    /// 설정이 있는 에이전트들(정해진 순서).
+    /// Agents that have settings (in a fixed order).
     public var agents: [Agent] { Agent.allCases.filter { presets[$0] != nil } }
 
-    /// 짧은 한 줄: 에이전트 `limit` 개까지만 적고 나머지는 수로 — `Claude Code opus · high, Codex gpt-6-astra · high +4`.
+    /// A short one-liner: lists only up to `limit` agents and shows the rest as a count — `Claude Code opus · high, Codex gpt-6-astra · high +4`.
     public func summary(limit: Int = 2) -> String {
         let listed = agents.prefix(limit).compactMap { agent in presets[agent].map { "\(agent.displayName) \($0.model) · \($0.effort)" } }
         guard !listed.isEmpty else { return loc("No agents set") }
@@ -207,8 +207,8 @@ public struct Slot: Codable, Equatable, Sendable {
         return listed.joined(separator: ", ") + (more > 0 ? " +\(more)" : "")
     }
 
-    /// 메뉴에 보여 줄 한 줄. 맨 앞 세션의 에이전트를 알면 «지금 누르면 무엇이 되는가» 만 적는다(`opus · high`).
-    /// 그 에이전트의 설정이 없으면 nil — 그 번호는 지금 아무것도 하지 않는다. 에이전트를 모르면 이름이나 짧은 요약이다.
+    /// The one-liner to show in the menu. If the front session's agent is known, it shows only "what pressing it now will do" (`opus · high`).
+    /// nil if that agent has no setting — that number does nothing right now. If the agent is unknown, the name or a short summary.
     public func menuTitle(for agent: Agent?) -> String? {
         guard let agent else { return name.isEmpty ? summary() : name }
         guard let preset = presets[agent] else { return nil }
@@ -216,7 +216,7 @@ public struct Slot: Codable, Equatable, Sendable {
         return name.isEmpty ? value : "\(name) — \(value)"
     }
 
-    /// 목록에 보여 줄 한 줄: `claude opus · high  /  codex gpt-6-astra · high`, 이름이 있으면 뒤에 붙인다.
+    /// The one-liner to show in the list: `claude opus · high  /  codex gpt-6-astra · high`, with the name appended if there is one.
     public var listing: String {
         let parts = Agent.allCases.compactMap { agent in presets[agent].map { "\(agent.rawValue) \($0.model) · \($0.effort)" } }
         let body = parts.isEmpty ? loc("(no agents set)") : parts.joined(separator: "  /  ")
@@ -226,18 +226,18 @@ public struct Slot: Codable, Equatable, Sendable {
 
 public struct SlashCommandConfig: Codable, Equatable, Sendable {
     public var version: Int
-    /// 전환 뒤 「새 세션 기본값」을 전환 전 값으로 되돌린다(claude 의 /model·/effort 는 기본값까지 저장한다).
+    /// After a switch, restores the "new session default" to its value before the switch (claude's /model and /effort also save the default).
     public var keepDefaults: Bool
-    /// claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 확인 창을 띄운다(「Switch model?」·「Change effort level?」
-    /// — 대화 기록을 다시 읽는다는 안내). 참(기본)이면 그 창이 «우리가 고른 그 값»을 묻고 커서가 Yes 에 있을 때만
-    /// Enter 로 받아들인다 — 단축키를 누른 것이 이미 그 답이다(2026-10-06 결정). 거짓이면 창을 그대로 두고 사용자가 고르게 한다.
+    /// When you change the model or effort in a conversation that has just answered, claude shows a confirmation dialog ("Switch model?" and "Change effort level?"
+    /// — a notice that the conversation history will be reread). When true (default), that dialog is accepted with Enter only if it asks about "the value we chose" and the cursor is on Yes
+    /// — pressing the hotkey is already that answer (decided 2026-10-06). When false, the dialog is left as is and the user chooses.
     public var acceptSwitchPrompt: Bool
-    /// 조합 키 + `=`(올림) · `-`(내림) 으로 모델은 그대로 두고 effort 만 한 단계 바꾼다.
+    /// The modifier keys plus `=` (up) and `-` (down) change only the effort by one step and leave the model alone.
     public var effortKeys: Bool
-    /// 번호 키와 함께 누를 조합 키. `shift`·`option`·`control`·`command` 중에서.
+    /// The modifier keys pressed together with the number keys. From `shift`, `option`, `control`, `command`.
     public var modifiers: [String]
     public var slots: [Slot]
-    /// 이 판이 모르는 키(읽은 그대로 다시 쓴다).
+    /// Keys this version does not know (written back exactly as read).
     public var extra: [String: JSONValue] = [:]
 
     public static let defaultModifiers = ["option", "shift"]
@@ -253,7 +253,7 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         self.slots = slots
     }
 
-    /// 조합 키를 맥 표기 순서(⌃⌥⇧⌘)의 기호로.
+    /// The modifier keys as symbols in the Mac order (⌃⌥⇧⌘).
     public var modifierSymbols: String {
         let symbols = ["control": "⌃", "option": "⌥", "shift": "⇧", "command": "⌘"]
         return SlashCommandConfig.knownModifiers.filter(modifiers.contains).compactMap { symbols[$0] }.joined()
@@ -267,7 +267,7 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         effortKeys = try c.decodeIfPresent(Bool.self, forKey: .effortKeys) ?? true
         let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? SlashCommandConfig.defaultModifiers
         modifiers = SlashCommandConfig.knownModifiers.filter(wanted.contains)
-        // 조합 키 없이 숫자만 잡으면 터미널에 숫자를 칠 수 없게 된다. Shift 뿐이어도 같다(`!`·`@`·`#` 을 칠 수 없다).
+        // Grabbing bare digits without a modifier would make it impossible to type digits in the terminal. The same goes for Shift alone (`!`, `@`, `#` could not be typed).
         if !SlashCommandConfig.modifiersAreUsable(modifiers) { modifiers = SlashCommandConfig.defaultModifiers }
         slots = try c.decode([Slot].self, forKey: .slots)
         extra = try DynamicKey.unknown(in: decoder, known: SlashCommandConfig.known)
@@ -292,8 +292,8 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
 
     public static let maxSlots = 9
 
-    /// 단축키로 쓸 수 있는 조합인가: Control·Option·Command 가운데 하나는 있어야 한다.
-    /// 그것 없이 숫자 키를 잡으면(조합 키가 없거나 Shift 뿐이면) 터미널에서 그 글자들을 칠 수 없게 된다.
+    /// Whether it is a usable hotkey combination: at least one of Control, Option, Command is required.
+    /// Grabbing the number keys without one (no modifier, or Shift only) would make it impossible to type those characters in the terminal.
     public static func modifiersAreUsable(_ modifiers: [String]) -> Bool {
         modifiers.contains { ["control", "option", "command"].contains($0) }
     }
@@ -315,7 +315,7 @@ public struct ConfigStore: Sendable {
         self.url = url
     }
 
-    /// 기본은 `~/.config/slashcommand/presets.json`. `SLASHCOMMAND_CONFIG` 로 다른 파일을 가리킬 수 있다.
+    /// By default `~/.config/slashcommand/presets.json`. `SLASHCOMMAND_CONFIG` can point to a different file.
     public static var defaultURL: URL {
         if let override = ProcessInfo.processInfo.environment["SLASHCOMMAND_CONFIG"], !override.isEmpty {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
@@ -324,13 +324,13 @@ public struct ConfigStore: Sendable {
             .appendingPathComponent(".config/slashcommand/presets.json")
     }
 
-    /// 개명(Gear → ModelSwitch → Slash Command) 전 설정 위치들, 가까운 이름부터.
+    /// Config locations from before the renames (Gear -> ModelSwitch -> Slash Command), nearest name first.
     static var legacyURLs: [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return [".config/modelswitch/presets.json", ".config/gear/presets.json"].map(home.appendingPathComponent)
     }
 
-    /// 새 위치에 파일이 없을 때만, 옛 위치 가운데 처음으로 있는 것을 한 번 복사해 온다. 옛 파일은 그대로 둔다.
+    /// Only when the new location has no file, copies the first one that exists among the old locations, once. The old file is left as is.
     static func adoptLegacy(into url: URL, from candidates: [URL]) throws {
         guard !FileManager.default.fileExists(atPath: url.path),
               let legacy = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else { return }
@@ -339,7 +339,7 @@ public struct ConfigStore: Sendable {
         try FileManager.default.copyItem(at: legacy, to: url)
     }
 
-    /// 파일이 없으면 시작 프리셋을 만들어 저장하고 돌려준다.
+    /// If the file does not exist, creates the starter presets, saves them and returns them.
     public func load() throws -> SlashCommandConfig {
         if url == ConfigStore.defaultURL {
             try ConfigStore.adoptLegacy(into: url, from: ConfigStore.legacyURLs)
@@ -369,23 +369,23 @@ public struct ConfigStore: Sendable {
         encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
         var data = try encoder.encode(config)
         data.append(0x0A)
-        // 프리셋 파일이 링크면(설정 파일을 한곳에서 관리하는 도구들) 링크가 가리키는 파일에 쓴다 —
-        // 링크 자리에 그대로 쓰면 「새 파일로 바꿔치기」 때문에 링크가 보통 파일로 바뀐다.
+        // If the preset file is a link (tools that manage config files in one place), write to the file the link points to —
+        // writing in place of the link would turn the link into a regular file because of the "replace with a new file" step.
         try data.write(to: url.resolvingSymlinksInPath(), options: .atomic)
     }
 }
 
 public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
     public let message: String
-    /// 선택창을 닫고 입력창으로 돌아온 것까지 확인한 실패 — 아무것도 바뀌지 않았으므로 다른 방법으로 다시 해도 된다.
+    /// A failure confirmed after closing the picker and returning to the input box — nothing changed, so it is fine to try again another way.
     public var cleanlyAborted = false
-    /// 실패가 아니라 사용자의 확인을 기다리는 상태(claude 의 「Switch model?」 창이 떠 있다).
+    /// Not a failure but a state waiting for the user's confirmation (claude's "Switch model?" dialog is showing).
     public var awaitingUser = false
-    /// 실패가 아니라 바꿀 것이 없었다(이미 가장 높은 단계 등).
+    /// Not a failure; there was nothing to change (already at the highest level, etc.).
     public var nothingToDo = false
-    /// 손쉬운 사용 권한이 없어 보내지 않았다 — 앱은 그 권한을 켜는 설정 화면을 열어 준다.
+    /// Not sent because the Accessibility permission is missing — the app opens the settings screen where it can be turned on.
     public var needsAccessibility = false
-    /// 자동화 권한이 꺼져 있어 보내지 않았다 — 앱은 그 권한을 켜는 설정 화면을 열어 준다.
+    /// Not sent because the Automation permission is off — the app opens the settings screen where it can be turned on.
     public var needsAutomation = false
 
     public init(_ message: String) {

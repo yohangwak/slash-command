@@ -10,14 +10,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
-    /// Orca 에서 손쉬운 사용이 꺼져 있을 때의 안내는 실행마다 한 번만 한다.
+    /// The notice about Accessibility being off in Orca is given only once per run.
     private var nudgedOrcaAccessibility = false
-    /// 마지막으로 알린 프리셋 파일 오류 — 터미널을 오갈 때마다 같은 오류를 다시 알리지 않는다.
+    /// The last preset-file error reported — the same error is not reported again each time you switch terminals.
     private var announcedConfigError: String?
-    /// 마지막으로 기록한 단축키 상태 — 달라졌을 때만 기록한다.
+    /// The last hotkey state logged — logged only when it changes.
     private var loggedHotKeys = ""
-    /// 자동화 권한의 «마지막으로 아는» 상태(번들 id → 상태). 확인은 대상 앱이 응답하지 않으면 얼마든지 오래 걸릴 수 있어
-    /// 주 스레드 밖에서 해 두고, 메뉴는 이 값만 본다. 아직 모르는 앱은 표에 없다.
+    /// The "last known" state of the Automation permission (bundle id -> state). A check can take arbitrarily long if the target app does not respond,
+    /// so it is done off the main thread and the menu looks only at this value. An app not yet known is not in the table.
     private var automation: [String: Permissions.Automation] = [:]
     private let permissionQueue = DispatchQueue(label: "slashcommand.automation-check")
     private var checkingAutomation = false
@@ -48,18 +48,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             name: NSWorkspace.didActivateApplicationNotification, object: nil)
         refreshHotKeys()
         refreshAutomation()
-        // 처음 한 번: 손쉬운 사용이 꺼져 있으면 권한 칸이 있는 창을 먼저 보여 준다(그 뒤로는 메뉴에서 연다).
+        // The first time only: if Accessibility is off, first show the window that has the permission row (after that it is opened from the menu).
         if !Permissions.accessibility, !UserDefaults.standard.bool(forKey: "permissionsIntroShown") {
             UserDefaults.standard.set(true, forKey: "permissionsIntroShown")
             openSettings()
         } else if CommandLine.arguments.contains("--settings") {
-            // `open -a "Slash Command" --args --settings` — 설정 창을 띄운 채로 시작한다.
+            // `open -a "Slash Command" --args --settings` — starts with the settings window showing.
             openSettings()
         }
     }
 
-    /// 메뉴 막대가 없는 앱이라 이 메뉴는 보이지 않는다. 그래도 있어야 설정 창의 글 상자에서 ⌘C·⌘V·⌘A·⌘Z 와 ⌘W 가 듣는다
-    /// (글 상자는 이 단축키들을 주 메뉴에서 받는다). ⌘Q 는 일부러 넣지 않는다 — 설정 창을 닫으려다 앱을 끄면 단축키가 조용히 죽는다.
+    /// The app has no menu bar, so this menu is not visible. It must still exist for ⌘C, ⌘V, ⌘A, ⌘Z and ⌘W to work in the settings window's text fields
+    /// (text fields receive these shortcuts from the main menu). ⌘Q is deliberately left out — quitting the app while trying to close the settings window would silently kill the hotkeys.
     private func installMainMenu() {
         let main = NSMenu()
         let appItem = NSMenuItem()
@@ -87,10 +87,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.mainMenu = main
     }
 
-    // MARK: - 단축키
+    // MARK: - Hotkeys
 
-    /// 지원하는 터미널이 맨 앞일 때만 단축키를 잡는다 — 다른 앱의 같은 조합을 가로채지 않는다.
-    /// `front` 는 방금 앞으로 온 앱(알림이 알려 준 것). 알림 안에서 `frontmostApplication` 을 읽으면 아직 앞의 앱일 수 있다.
+    /// Grabs the hotkeys only while a supported terminal is frontmost — so the same combination in other apps is not intercepted.
+    /// `front` is the app that just came to the front (as the notification reported it). Reading `frontmostApplication` inside the notification may still give the previous app.
     private func refreshHotKeys(front given: String? = nil) {
         let front = given ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
         var config: SlashCommandConfig?
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 config = try store.load()
                 announcedConfigError = nil
             } catch {
-                // 파일을 못 읽으면 단축키가 조용히 죽는다 — 한 번은 화면에 알린다.
+                // If the file cannot be read, the hotkeys silently die — show it on screen once.
                 let text = "\(error)"
                 if announcedConfigError != text {
                     announcedConfigError = text
@@ -114,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let active = wanted > 0 || effortKeys
         let same = wanted == hotKeys.registeredCount && effortKeys == hotKeys.registeredEffortKeys
             && (!active || modifiers == hotKeys.registeredModifiers)
-        // 다른 앱이 쥐고 있어 못 잡은 키가 있으면, 터미널이 앞으로 올 때마다 다시 잡아 본다.
+        // If some key could not be grabbed because another app holds it, try again each time a terminal comes to the front.
         guard !same || (active && !hotKeys.failed.isEmpty) else { return }
         var state: String
         if let config, active {
@@ -133,11 +133,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func frontAppChanged(_ notification: Notification) {
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         refreshHotKeys(front: app?.bundleIdentifier)
-        // 터미널이 앞으로 올 때마다 다시 알아 둔다 — 메뉴를 열기 전에 값이 준비돼 있게.
+        // Re-learn each time a terminal comes to the front — so the value is ready before the menu is opened.
         refreshAutomation()
     }
 
-    /// 자동화 권한을 주 스레드 밖에서 다시 읽어 `automation` 에 넣는다. 앞의 확인이 끝나지 않았으면 새로 넣지 않는다.
+    /// Reads the Automation permission again off the main thread and puts it in `automation`. If the previous check has not finished, does not put in a new one.
     private func refreshAutomation() {
         guard !checkingAutomation else { return }
         let terminals = Permissions.installedAutomatedTerminals.map(\.bundleID)
@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: - 전환
+    // MARK: - Switching
 
     private enum Action {
         case preset(Int)
@@ -167,8 +167,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Ghostty · iTerm2 를 다뤄도 되는지 확인한다. 아직 묻지 않았으면 여기서 묻고 답을 기다린다(작업 스레드에서 부른다).
-    /// 허용 창이 떠 있는 동안에는 그 창이 맨 앞이다 — 허락받은 뒤 터미널이 다시 맨 앞에 오지 않으면(그사이 다른 앱으로 갔다) 보내지 않는다.
+    /// Checks whether Ghostty and iTerm2 may be driven. If the user has not been asked yet, asks here and waits for the answer (called from the worker thread).
+    /// While the permission dialog is showing, that dialog is frontmost — if after permission is granted the terminal does not come back to the front (the user went to another app meanwhile), nothing is sent.
     private func confirmAutomation(bundleID: String, appName: String, action: Action) throws {
         let asked = try AutomationConsent.ensure(bundleID: bundleID, appName: appName, willAsk: {
             DispatchQueue.main.async {
@@ -188,10 +188,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         guard let front = NSWorkspace.shared.frontmostApplication, let bundleID = front.bundleIdentifier else { return }
         let appName = front.localizedName ?? bundleID
-        // 같은 터미널 앱을 둘 띄웠을 때 «누른 그 프로세스» 로 가게, 지금 맨 앞인 pid 를 들고 간다.
+        // Carry the pid that is frontmost now, so that with two instances of the same terminal app the keys go to "the process where the key was pressed".
         let frontPID = front.processIdentifier
-        // Ghostty 화면은 접근성으로 읽는다. 권한이 없으면 «그 권한을 켜는 설정 화면» 을 바로 열어 주고 여기서 멈춘다
-        // — 사용자가 시스템 설정에서 길을 찾게 하지 않는다. (Orca 는 없어도 되지만 있으면 지금 보이는 탭을 지연 없이 안다.)
+        // Ghostty's screen is read through accessibility. Without the permission, open "the settings screen that turns it on" right away and stop here
+        // — do not make the user find their way in System Settings. (Orca works without it, but with it Orca knows the currently visible tab without delay.)
         if bundleID == Detector.ghosttyBundleID, !Permissions.accessibility {
             Log.write("failed \(action.label): no Accessibility permission — opened System Settings")
             Permissions.openAccessibility()
@@ -208,7 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let outcome = Result { () throws -> SwitchResult in
                 var made = Switcher(config: try store.load())
                 made.trace = trace
-                // claude 가 모델을 바꿀지 되물으면 알리고, 고를 때까지 기다렸다가 마무리한다.
+                // If claude asks again whether to change the model, tell the user, wait until they choose, then finish up.
                 made.onAwaitingUser = { model in
                     Log.write("awaiting confirmation \(action.label): \(model)")
                     DispatchQueue.main.async {
@@ -226,16 +226,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .effort(let up): return try made.stepEffort(up: up, on: target)
                 }
             }
-            // 알림을 먼저 띄운다 — 기본값 재확인(0.25초)은 그 뒤에 한다.
+            // Show the notification first — the re-check of the defaults (0.25 s) comes after.
             DispatchQueue.main.async {
                 switch outcome {
                 case .success(let result):
                     Log.write("applied \(action.label): \(result.summary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
                     var lines = ["\(result.target.agent.displayName) · \(result.target.host.appName) · \(result.target.label)"]
                     if !result.slotName.isEmpty { lines.append(result.slotName) }
-                    // 경고가 맨 먼저다 — 알림은 몇 줄만 보여 주므로 뒤에 두면 잘린다.
+                    // The warning goes first — the notification shows only a few lines, so anything after it is cut off.
                     if let warning = result.warning { lines.append("⚠️ \(warning)") }
-                    // Orca 는 권한 없이도 되지만, 없으면 탭을 옮긴 직후 1~2.5초 동안 옮기기 전 터미널로 갈 수 있다 — 한 번 알려 준다.
+                    // Orca works without the permission, but without it, for 1-2.5 s right after moving tabs it may go to the terminal from before the move — tell the user once.
                     if bundleID == Detector.orcaBundleID, !Permissions.accessibility, !self.nudgedOrcaAccessibility {
                         self.nudgedOrcaAccessibility = true
                         lines.append(loc("Turn on %@ from the menu bar icon to stay accurate right after switching tabs.", SettingsNames.accessibility))
@@ -245,16 +245,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     Log.write("awaiting confirmation \(action.label): \(error)")
                     self.hud.show(loc("Press Enter to confirm"), detail: "\(error)", seconds: 6)
                 case .failure(let error as SlashCommandError) where error.nothingToDo:
-                    // 바꿀 것이 없었다(이미 가장 높은 단계 등) — 실패가 아니라 안내다.
+                    // There was nothing to change (already at the highest level, etc.) — this is a notice, not a failure.
                     Log.write("unchanged \(action.label): \(error)")
                     self.hud.show("\(error)", seconds: 2.5)
                 case .failure(let error as SlashCommandError) where error.needsAccessibility:
-                    // iTerm2 는 쓰기 직전에 입력 방송이 꺼져 있는지 접근성으로 본다 — 권한이 없으면 그 설정 화면을 바로 열어 준다(아무것도 보내지 않았다).
+                    // Before writing, iTerm2 checks through accessibility whether input broadcast is off — without the permission, open that settings screen right away (nothing was sent).
                     Log.write("failed \(action.label): no Accessibility permission — opened System Settings")
                     Permissions.openAccessibility()
                     self.hud.show(loc("%@ permission needed", SettingsNames.accessibility), detail: "\(error)", seconds: 6)
                 case .failure(let error as SlashCommandError) where error.needsAutomation:
-                    // 자동화가 꺼져 있다 — 시스템은 다시 묻지 않으므로 그 설정 화면을 바로 열어 준다(아무것도 보내지 않았다).
+                    // Automation is off — the system does not ask again, so open that settings screen right away (nothing was sent).
                     Log.write("failed \(action.label): Automation is off for \(appName) — opened System Settings")
                     Permissions.openAutomation()
                     self.hud.show(loc("Automation permission needed"), detail: "\(error)", seconds: 6)
@@ -273,30 +273,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // MARK: - 메뉴
+    // MARK: - Menu
 
-    /// 메뉴를 열 때마다 하나씩 는다. 늦게 온 «맨 앞 세션» 답이 그사이 다시 연 메뉴를 고치지 않게 한다.
+    /// Increases by one each time the menu opens. Keeps a late "front session" answer from altering a menu that was opened again in the meantime.
     private var menuOpening = 0
     private var headerItem: NSMenuItem?
     private var presetItems: [(item: NSMenuItem, slot: Slot, number: Int)] = []
 
-    /// 메뉴가 알고 있는 «맨 앞 세션».
+    /// The "front session" the menu knows.
     private enum Front {
-        /// 지원하는 터미널이 맨 앞이 아니다.
+        /// A supported terminal is not frontmost.
         case unsupported
-        /// 아직 모른다 — 알아보는 중이거나(답이 오면 메뉴를 고친다), 묻지 않고는 알 수 없다.
+        /// Not known yet — it is being worked out (the menu is fixed when the answer arrives), or it cannot be known without asking.
         case checking(appName: String)
         case agent(Target)
-        /// 그 터미널에서 에이전트를 찾지 못했다.
+        /// No agent was found in that terminal.
         case none(appName: String)
     }
 
-    /// 다른 스레드가 알아낸 답을 주 스레드가 잠깐 기다렸다 받는다.
+    /// The main thread briefly waits for and receives an answer worked out by another thread.
     private final class Answer {
         private let lock = NSLock()
         private let ready = DispatchSemaphore(value: 0)
         private var value: Target??
-        /// 주 스레드가 기다리다 그만뒀다 — 답이 오면 메뉴를 고쳐야 한다. 주 스레드에서만 읽고 쓴다.
+        /// The main thread gave up waiting — if the answer arrives, the menu must be fixed. Read and written only on the main thread.
         var late = false
 
         func give(_ target: Target?) {
@@ -315,7 +315,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        // 메뉴는 «알아 둔» 권한 상태로 그린다. 다음에 열 때를 위해 뒤에서 다시 읽어 둔다.
+        // The menu is drawn from the "already known" permission state. Read it again in the background for the next time it is opened.
         refreshAutomation()
         let app = NSWorkspace.shared.frontmostApplication
         let bundleID = app?.bundleIdentifier ?? ""
@@ -327,20 +327,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         build(menu, front: frontSession(bundleID: bundleID, appName: appName, frontPID: frontPID, menu: menu))
     }
 
-    /// 맨 앞 세션의 에이전트 — 메뉴가 «지금 누르면 무엇이 되는가» 를 보여 주게 한다. 아무것도 보내지 않는다.
+    /// The front session's agent — lets the menu show "what pressing it now will do". Sends nothing.
     private func frontSession(bundleID: String, appName: String, frontPID: Int32? = nil, menu: NSMenu) -> Front {
         guard Detector.supportedBundleIDs.contains(bundleID) else { return .unsupported }
-        // 전환 중에는 그 터미널을 건드리지 않는다.
+        // During a switch, do not touch that terminal.
         guard !busy else { return .checking(appName: appName) }
         if Permissions.automatedTerminals.contains(where: { $0.bundleID == bundleID }) {
-            // Ghostty · iTerm2 는 AppleScript 로 읽고, AppleScript 는 주 스레드에서 돈다 — 여기서 바로 읽는다(보통 수십 ms, 스크립트에 시간 제한이 있다).
-            // 자동화가 허용된 것을 «알고 있을» 때만 읽는다: 메뉴를 여는 것만으로 권한 창이 뜨면 안 되고,
-            // 권한 확인 자체도 여기(주 스레드)서 하지 않는다 — 미리 알아 둔 값을 본다.
-            // 허용이 아니거나 아직 모르면 «못 찾았다» 가 아니라 «모른다» 다 — 머리말에 앱 이름만 적는다.
+            // Ghostty and iTerm2 are read with AppleScript, and AppleScript runs on the main thread — read right here (usually tens of ms; the script has a time limit).
+            // Read only when we "know" that Automation is allowed: merely opening the menu must not bring up a permission dialog,
+            // and the permission check itself is not done here (the main thread) either — look at the value learned beforehand.
+            // If it is not allowed or not yet known, that is "unknown", not "not found" — only the app name is written in the header.
             guard automation[bundleID] == .allowed else { return .checking(appName: appName) }
             return (try? Detector.target(bundleID: bundleID, appName: appName, frontPID: frontPID)).map(Front.agent) ?? .none(appName: appName)
         }
-        // Orca 는 주 스레드 밖에서 읽는다(0.1초 안팎). 0.25초 안에 오면 그대로 그리고, 늦으면 온 뒤에 메뉴를 고친다.
+        // Orca is read off the main thread (about 0.1 s). If it arrives within 0.25 s it is drawn as is; if late, the menu is fixed after it arrives.
         let answer = Answer()
         let opening = menuOpening
         detector.async { [weak self] in
@@ -402,7 +402,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         show(front)
 
-        // 손댈 것이 있을 때만 보인다. 다 괜찮으면 메뉴에 권한 이야기가 없다(상태는 설정 창에 있다).
+        // Shown only when there is something to fix. If everything is fine, the menu says nothing about permissions (the state is in the settings window).
         var problems: [NSMenuItem] = []
         if !hotKeys.failed.isEmpty {
             let keys = hotKeys.failed.map { id -> String in
@@ -432,7 +432,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item(loc("Quit Slash Command"), #selector(quit), key: "q"))
     }
 
-    /// 맨 앞 세션에 맞춰 머리말과 프리셋 줄의 글을 쓴다. 메뉴가 떠 있는 동안에도 불린다(늦게 온 답).
+    /// Writes the header and the preset-line text to match the front session. Also called while the menu is showing (a late answer).
     private func show(_ front: Front) {
         var agent: Agent?
         var usable = true
@@ -453,7 +453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 entry.item.title = title
                 entry.item.action = usable ? #selector(menuApply(_:)) : nil
             } else if let agent {
-                // 이 번호에는 그 에이전트의 설정이 없다 — 지금 눌러도 아무것도 하지 않는다.
+                // This number has no setting for that agent — pressing it now does nothing.
                 let name = entry.slot.name.isEmpty ? loc("Preset %@", entry.number) : entry.slot.name
                 entry.item.title = loc("%@ — not set for %@", name, agent.displayName)
                 entry.item.action = nil
@@ -461,11 +461,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// 개발용: 메뉴를 만들어 줄마다 글로 돌려준다. Orca 의 늦은 답도 받도록 잠깐 기다린다.
-    /// `bundleID` 를 주면 그 앱이 맨 앞인 것으로 친다(맨 앞 앱을 바꾸지 않고 확인하려는 것).
+    /// For development: builds the menu and returns it as text, one line per item. Waits briefly so that Orca's late answer is also received.
+    /// If `bundleID` is given, that app is treated as frontmost (to check without changing the frontmost app).
     func menuText(asIfFront bundleID: String? = nil) -> String {
-        // 앱을 띄우지 않고 불리므로 자동화 권한을 아직 모른다. 주 스레드 밖에서 알아보게 하고 여기서는 잠깐만 기다린다
-        // (끝나지 않으면 모르는 채로 그린다 — 메뉴와 같은 규칙).
+        // Called without launching the app, so the Automation permission is not yet known. Have it worked out off the main thread and wait only briefly here
+        // (if it does not finish, draw with it unknown — the same rule as the menu).
         refreshAutomation()
         let deadline = Date().addingTimeInterval(2)
         while checkingAutomation, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }

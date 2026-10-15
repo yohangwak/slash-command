@@ -2,22 +2,22 @@ import AppKit
 import ApplicationServices
 import Foundation
 
-// iTerm2: 맨 앞 세션은 AppleScript 로 알고(`current session of current window` 의 `unique id` · `tty`), 그 세션에 `write text … newline NO` 로
-// 바이트를 넣고 `contents` 로 화면을 읽는다. 2026-10-07 맥북(iTerm2 3.7.3)에서 재 본 것 — 바이트가 그대로 들어가고 붙여넣기 표시로 감싸지 않는다.
+// iTerm2: the frontmost session is found with AppleScript (`unique id` and `tty` of `current session of current window`), and bytes are written to that session with `write text … newline NO`
+// and the screen is read with `contents`. Re-checked on 2026-10-07 on a test Mac (iTerm2 3.7.3): the bytes arrive as they are and are not wrapped in paste markers.
 
-/// iTerm2 의 «입력 방송»(Broadcast Input) 상태.
+/// iTerm2's «Broadcast Input» state.
 ///
-/// 켜져 있으면 AppleScript `write text` 도 다른 칸(·다른 탭)에 같이 들어간다 — 2026-10-07 맥북 실측: 「모든 탭의 모든 칸에 입력 보내기」를
-/// 켠 두 칸 창에서 한 칸에 `write text` 를 했더니 다른 칸에도 같은 글이 도착했다. 다른 칸은 입력창이 보이는지 확인한 적이 없으므로
-/// 방송 중에는 보내지 않는다. 상태는 iTerm2 의 Shell ▸ Broadcast Input 메뉴 체크 표시를 접근성(AX)으로 읽는다(손쉬운 사용 권한 필요).
-/// 방송은 «창마다» 따로 켜지고 메뉴는 «맨 앞 창» 의 상태를 보여 주므로, 쓰는 세션이 맨 앞 창에 있을 때만 이 상태를 믿을 수 있다(`ITermIO` 가 확인).
+/// When on, AppleScript `write text` also goes into other panes (and tabs) — measured 2026-10-07 on a test Mac: with "Send input to all panes of all tabs"
+/// on in a two-pane window, doing `write text` to one pane delivered the same text to the other. Nothing checks that the other panes show an input box, so
+/// nothing is sent while broadcasting. The state is read from the check mark in iTerm2's Shell ▸ Broadcast Input menu through accessibility (AX) (needs the Accessibility permission).
+/// Broadcast is turned on «per window» and the menu shows the state of the «frontmost window», so the state can be trusted only when the session being written to is in the frontmost window (`ITermIO` checks).
 public enum ITermBroadcast {
     public enum State: Equatable, Sendable {
         case off
         case on(String)
-        /// 손쉬운 사용 권한이 없어 메뉴를 읽지 못했다.
+        /// The menu could not be read because the Accessibility permission is missing.
         case notTrusted
-        /// 메뉴를 못 찾았거나 체크 표시를 알아보지 못했다 — 방송이 꺼져 있다고 말할 수 없으므로 보내지 않는다.
+        /// The menu was not found or the check marks were not recognized — broadcast cannot be said to be off, so nothing is sent.
         case unknown
 
         public var allowsSending: Bool { self == .off }
@@ -28,7 +28,7 @@ public enum ITermBroadcast {
         let marked: Bool
     }
 
-    /// 메뉴 항목들로 상태를 가른다. 「현재 세션에만 입력」이 체크돼 있어야 꺼진 것이다.
+    /// Decides the state from the menu items. It is off only when "Toggle Broadcast Input to Current Session" is checked.
     static func classify(_ items: [MenuItem]) -> State {
         if let active = items.first(where: { $0.marked && $0.title.localizedCaseInsensitiveContains("All Panes") }) {
             return .on(active.title)
@@ -36,18 +36,18 @@ public enum ITermBroadcast {
         if items.contains(where: { $0.marked && $0.title.localizedCaseInsensitiveContains("Current Session Only") }) {
             return .off
         }
-        // 메뉴가 없거나, 체크된 항목이 없거나, 모르는 항목이 체크됐다(칸을 골라 묶은 방송 등) — 형식이 달라졌을 수도 있다.
+        // No menu, nothing checked, or an unknown item is checked (broadcast to a chosen group of panes, etc.) — the format may have changed.
         return .unknown
     }
 
-    /// 쓰기 직전마다 새로 읽는다 — 앞서 «꺼짐» 이었다는 기억으로 다음 쓰기를 허락하지 않는다(그 사이 켜질 수 있다).
+    /// Read afresh just before every write — the memory that it was «off» earlier does not allow the next write (it can turn on in between).
     public static func state() -> State {
         guard GhosttyScreen.trusted() else { return .notTrusted }
         guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.itermBundleID).first else { return .unknown }
         return classify(menuItems(pid: app.processIdentifier))
     }
 
-    /// 사람이 보는 줄들(`doctor`).
+    /// Lines a person reads (`doctor`).
     public static func report() -> [String] {
         guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.itermBundleID).first else { return ["iTerm2 not running"] }
         let items = GhosttyScreen.trusted() ? menuItems(pid: app.processIdentifier) : []
@@ -89,7 +89,7 @@ public enum ITermBroadcast {
     }
 }
 
-/// 세션은 `unique id` 로 지정하므로 포커스가 다른 곳으로 옮겨져도 «읽은 세션에 쓴다».
+/// A session is addressed by `unique id`, so even if focus moves elsewhere it «writes to the session that was read».
 public struct ITermIO: TerminalIO {
     public let sessionID: String
 
@@ -97,7 +97,7 @@ public struct ITermIO: TerminalIO {
         self.sessionID = sessionID
     }
 
-    /// 바이트를 AppleScript 식으로: 보통 글자는 따옴표 문자열, 제어 문자는 `(ASCII character N)` 으로 잇는다.
+    /// Bytes as AppleScript: ordinary characters become quoted strings, control characters are joined as `(ASCII character N)`.
     static func expression(for text: String) -> String {
         var parts: [String] = []
         var literal = ""
@@ -116,11 +116,11 @@ public struct ITermIO: TerminalIO {
 
     static let missing = "missing"
 
-    /// 그 세션에서 `body` 를 실행하는 스크립트. `frontWindowOnly` 면 iTerm2 의 맨 앞(현재) 창에서만 찾는다. 못 찾으면 `missing` 을 돌려준다.
-    /// `body` 는 `return` 으로 끝나야 한다.
+    /// A script that runs `body` in that session. With `frontWindowOnly` it looks only in iTerm2's frontmost (current) window. It returns `missing` if not found.
+    /// `body` must end with `return`.
     ///
-    /// 세션 id 들을 «한 번의 호출» 로 받아 어느 탭인지 찾고, 그 탭의 `session id "…"` 로 바로 짚는다. 창·탭·세션을 하나씩 돌며 id 를 물으면
-    /// 호출 수가 세션 수만큼 늘어난다(2026-10-12 집 맥 2: 세션 4개에서 화면 읽기 한 번이 200ms — 호출 하나가 15~20ms).
+    /// Takes the session ids in «one call», finds which tab each is in, and addresses it directly by that tab's `session id "…"`. Asking for ids by going through windows, tabs and sessions one by one makes
+    /// the call count grow with the number of sessions (2026-10-12 test Mac: with 4 sessions one screen read took 200ms — 15–20ms per call).
     static func script(sessionID: String, frontWindowOnly: Bool, body: String) -> String {
         let id = GhosttyIO.quoted(sessionID)
         func search(window: String, indent: String) -> String {
@@ -162,9 +162,9 @@ public struct ITermIO: TerminalIO {
     }
 
     private func write(_ bytes: String) throws {
-        // 입력 방송이 켜져 있으면 이 글이 다른 칸에도 들어간다 — 그 칸들은 확인한 적이 없으므로 보내지 않는다.
-        // 방송은 창마다 켜지고 메뉴는 맨 앞 창의 상태만 보여 준다 — 쓰는 세션이 맨 앞 창 안에 있어야 그 상태를 믿을 수 있다.
-        // 확인 → 메뉴 읽기 → «맨 앞 창에 있을 때만 쓰기» 로 감싼다: 메뉴를 읽는 사이에 창이 바뀌었으면 쓰는 스크립트가 쓰지 않는다.
+        // If input broadcast is on, this text also goes into other panes — those have never been checked, so nothing is sent.
+        // Broadcast is turned on per window and the menu shows only the frontmost window's state — the session being written to must be inside the frontmost window for that state to be trusted.
+        // Wrapped as check → read menu → «write only while in the frontmost window»: if the window changed while reading the menu, the writing script does not write.
         let notFront = SlashCommandError(loc("Not sent: the session is not in iTerm2's front window, so whether Broadcast Input is off cannot be checked."))
         guard inFrontWindow() else { throw notFront }
         switch ITermBroadcast.state() {
@@ -190,8 +190,8 @@ public struct ITermIO: TerminalIO {
     public func press(_ key: Key) throws { try write(key.bytes) }
 
     public func screen() -> [String]? {
-        // `contents` 는 스크롤백까지 준다(2026-10-07 실측: 화면 25줄에 88줄) — 화면 «맨 아래» 판정에 쓰려면 지금 화면의 줄만 남겨야 한다.
-        // 줄 수·칸 수(`rows`·`columns`)와 프로필 이름은 같은 호출에서 읽어 글과 어긋나지 않게 한다.
+        // `contents` includes scrollback (measured 2026-10-07: 88 lines for a 25-line screen) — to use it for the «bottom of the screen» decision, only the lines of the current screen must remain.
+        // Row and column counts (`rows`, `columns`) and the profile name are read in the same call so they do not disagree with the text.
         let body = "return ((rows as text) & linefeed & (columns as text) & linefeed & (profile name) & linefeed & contents)"
         let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, frontWindowOnly: false, body: body))
         guard result.ok, result.out != ITermIO.missing else { return nil }
@@ -201,13 +201,13 @@ public struct ITermIO: TerminalIO {
         return ITermIO.screenLines(from: "\(head[0])\n\(head[1])\n\(head[3])", profileIsDoubleWidth: profile)
     }
 
-    /// 지금 화면의 줄들. `profileIsDoubleWidth` 는 그 세션 프로필의 «모호한 폭 글자 2칸» 설정(모르면 nil).
+    /// The lines of the current screen. `profileIsDoubleWidth` is that session profile's «ambiguous-width characters take 2 cells» setting (nil if unknown).
     ///
-    /// - 2칸이거나 모르면: 2칸으로 센 화면(보이는 줄만 들어 있다 — 화면 밖의 줄을 화면으로 읽지 않는 쪽).
-    /// - 1칸이면: 1칸으로 센 화면. 단, 그 화면에서는 입력창이 보이는데 2칸으로 센 화면에서는 안 보이면 2칸 쪽을 돌려준다.
-    ///   프로필은 1칸이어도 그 세션만 따로 2칸으로 바꿨을 수 있고(Edit Session… — 프로필 이름으로는 알 수 없다), 그때 1칸으로 센 화면에는
-    ///   화면 밖의 입력창이 들어 있을 수 있다. 2칸으로 센 화면의 줄은 어느 설정에서든 «정말 보이는» 줄이므로, 입력을 허락하는 판정(입력창이 보인다)은
-    ///   거기서도 성립할 때만 통과한다(PR #27 리뷰). 선택창처럼 입력창이 없는 화면은 1칸 쪽 그대로다 — 꼭 맞게 들어찬 선택창의 머리말을 잃지 않는다.
+    /// - 2 cells or unknown: the screen counted at 2 cells (contains only visible lines — errs on the side of not reading off-screen lines as the screen).
+    /// - 1 cell: the screen counted at 1 cell. But if the input box is visible on that screen and not on the 2-cell screen, the 2-cell one is returned.
+    ///   The profile may say 1 cell while that one session was switched to 2 cells on its own (Edit Session… — not knowable from the profile name), and then the 1-cell screen
+    ///   may contain an off-screen input box. Lines of the 2-cell screen are «really visible» under any setting, so the decision that allows input (the input box is visible)
+    ///   passes only when it also holds there (PR #27 review). A screen with no input box, such as a picker, stays as the 1-cell one — the header of a picker that fits exactly is not lost.
     static func screenLines(from output: String, profileIsDoubleWidth: Bool?) -> [String]? {
         guard let safe = visibleLines(from: output, ambiguousIsDoubleWidth: true) else { return nil }
         guard profileIsDoubleWidth == false, let generous = visibleLines(from: output, ambiguousIsDoubleWidth: false), generous != safe else { return safe }
@@ -215,22 +215,22 @@ public struct ITermIO: TerminalIO {
         return onlyInGenerous ? safe : generous
     }
 
-    /// `"<rows>\n<columns>\n<contents>"` 에서 지금 화면의 줄들. 줄·칸 수를 못 읽으면 nil(스크롤백이 섞인 글을 현재 화면으로 쓰지 않는다).
+    /// The lines of the current screen from `"<rows>\n<columns>\n<contents>"`. nil if the row and column counts cannot be read (text mixed with scrollback is not used as the current screen).
     ///
-    /// `rows` 는 «물리적인» 행 수인데 `contents` 는 글줄 단위라, 긴 줄이 접혀 여러 행을 차지할 수 있다(합쳐서 줄 수가 적다).
-    /// 그래서 맨 아래에서부터 줄마다 «차지하는 행 수»(폭 ÷ 칸 수, 올림)를 더해 `rows` 를 채울 때까지만 가져온다.
+    /// `rows` is the «physical» row count but `contents` is in units of text lines, so a long line may wrap and take several rows (so there are fewer lines in total).
+    /// So, from the bottom, add up each line's «rows taken» (width ÷ column count, rounded up) and take lines only until `rows` is filled.
     ///
-    /// 폭은 그 세션의 프로필대로 세야 한다 — 어느 쪽으로 틀려도 탈이 난다(둘 다 PR #27 리뷰):
-    /// - 많이 세면: 칸 수에 꼭 맞는 줄(`› 1. …` · 안내 줄 · claude 의 구분선)이 2행으로 세어져 «보이는» 윗줄을 버린다. 11줄짜리 칸에서 codex 선택창의
-    ///   머리말이 잘려 선택창을 못 알아보고 열어 둔 채 끝났다(2026-10-12 집 맥 2 실측).
-    /// - 적게 세면: 「Ambiguous characters are double-width」 를 켠 프로필에서 화면 밖(스크롤백)의 입력창이 화면으로 읽혀 입력을 허락한다.
-    /// 그래서 `ambiguousIsDoubleWidth` 를 프로필에서 읽어 오고(`ITermProfile`), 모르면 2칸으로 센다(보이지 않는 줄을 화면으로 읽지 않는 쪽).
+    /// Width must be counted according to that session's profile — a miscount either way causes trouble (both from the PR #27 review):
+    /// - Counting too wide: a line that exactly fits the column count (`› 1. …`, hint line, claude's separator) is counted as 2 rows and drops a «visible» upper line. In an 11-line pane the codex picker's
+    ///   header was cut off, so the picker was not recognized and was left open (measured 2026-10-12 on a test Mac).
+    /// - Counting too narrow: with the "Ambiguous characters are double-width" profile on, an input box off screen (in scrollback) is read as on screen and input is allowed.
+    /// So `ambiguousIsDoubleWidth` is read from the profile (`ITermProfile`), and counted at 2 cells when unknown (errs on the side of not reading invisible lines as the screen).
     static func visibleLines(from output: String, ambiguousIsDoubleWidth: Bool) -> [String]? {
         let text = output.replacingOccurrences(of: "\r", with: "\n")
         let head = text.split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false)
         guard head.count == 3, let rows = Int(head[0]), rows > 0, let columns = Int(head[1]), columns > 0 else { return nil }
         var lines = String(head[2]).components(separatedBy: "\n")
-        // 글 끝의 줄바꿈이 만드는 마지막 빈 원소는 화면 줄이 아니다.
+        // The last empty element produced by a trailing newline is not a screen line.
         if lines.last == "" { lines.removeLast() }
         var used = 0
         var kept: [String] = []
@@ -242,19 +242,19 @@ public struct ITermIO: TerminalIO {
         return kept.reversed()
     }
 
-    /// 터미널 칸 수로 센 폭(`CharacterWidth` 의 표): 넓은 글자 2칸, 결합 문자 0칸, «모호한 폭» 글자(`─` · `·` · `●` …)는 프로필 설정에 따라 1칸 또는 2칸,
-    /// 나머지는 1칸 — `›` · `❯` 는 모호한 폭이 아니라서 그 설정을 켜도 1칸이다(PR #27 세 번째 리뷰: 전부 2칸으로 세면 꼭 맞는 커서 행이 2행이 된다).
+    /// Width in terminal cells (the `CharacterWidth` table): wide characters 2 cells, combining characters 0, «ambiguous-width» characters (`─`, `·`, `●` …) 1 or 2 cells depending on the profile setting,
+    /// everything else 1 cell — `›` and `❯` are not ambiguous-width, so they stay 1 cell even with that setting on (PR #27 third review: counting everything as 2 cells makes an exactly fitting cursor row 2 rows).
     static func displayWidth(_ text: String, ambiguousIsDoubleWidth: Bool) -> Int {
         CharacterWidth.cells(text, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth)
     }
 }
 
-/// iTerm2 프로필의 「Ambiguous characters are double-width」(Profiles ▸ Text). iTerm2 의 설정 파일과 DynamicProfiles 폴더에서 읽는다.
+/// iTerm2 profile setting "Ambiguous characters are double-width" (Profiles ▸ Text). Read from iTerm2's settings file and the DynamicProfiles folder.
 enum ITermProfile {
     static let key = "Ambiguous Double Width"
 
-    /// 그 이름의 프로필이 모호한 폭 글자를 2칸으로 그리는가. 프로필을 못 찾거나 같은 이름의 프로필들이 서로 다르면 nil.
-    /// 동적 프로필이 그 값을 적지 않았으면 부모 프로필(`Dynamic Profile Parent Name`, 없으면 기본 프로필)의 값을 따른다.
+    /// Whether the profile with that name draws ambiguous-width characters in 2 cells. nil if the profile is not found or profiles with the same name differ from each other.
+    /// If a dynamic profile does not write the value, it follows the parent profile (`Dynamic Profile Parent Name`, or the default profile if none).
     static func ambiguousIsDoubleWidth(named name: String, in store: Store) -> Bool? {
         let found = store.profiles.filter { $0["Name"] as? String == name }
         let values = Set(found.map { value(of: $0, in: store, depth: 0) })
@@ -265,11 +265,11 @@ enum ITermProfile {
     private static func value(of profile: [String: Any], in store: Store, depth: Int) -> Bool? {
         if let own = profile[key] as? Bool { return own }
         if let own = profile[key] as? NSNumber { return own.boolValue }
-        // 설정 파일의 보통 프로필은 그 키가 없으면 꺼진 것이다. 동적 프로필은 적지 않은 값을 부모에게서 물려받는다.
+        // An ordinary profile in the settings file is off when it lacks the key. A dynamic profile inherits unwritten values from its parent.
         guard profile["__dynamic"] as? Bool == true else { return false }
         guard depth < 4 else { return nil }
-        // iTerm2 는 부모를 GUID 로 먼저 찾고, 못 찾으면 이름으로 찾는다(v3.7.3 `prototypeForDynamicProfile` — PR #27 세 번째 리뷰).
-        // 둘 다 적지 않았으면 기본 프로필이다. 부모를 적었는데 못 찾으면 모른다고 답한다(iTerm2 는 기본 프로필로 가지만, 틀릴 수 있는 답보다 2칸 쪽).
+        // iTerm2 looks up the parent by GUID first, then by name (v3.7.3 `prototypeForDynamicProfile` — PR #27 third review).
+        // If neither is written, it is the default profile. If a parent is written but not found, the answer is unknown (iTerm2 falls back to the default profile, but the 2-cell side beats an answer that may be wrong).
         let parentGUID = profile["Dynamic Profile Parent GUID"] as? String
         let parentName = profile["Dynamic Profile Parent Name"] as? String
         var parent: [String: Any]?
@@ -277,7 +277,7 @@ enum ITermProfile {
         if parent == nil, let parentName {
             let named = store.profiles.filter { $0["Name"] as? String == parentName }
             let values = Set(named.map { value(of: $0, in: store, depth: depth + 1) })
-            // 같은 이름의 부모가 여럿이면 값이 같을 때만 쓴다.
+            // If several parents share the name, use the value only when they agree.
             return !named.isEmpty && values.count == 1 ? values.first! : nil
         }
         if parent == nil, parentGUID == nil, parentName == nil, let defaultGUID = store.defaultGUID {
@@ -291,7 +291,7 @@ enum ITermProfile {
         var defaultGUID: String?
     }
 
-    /// 설정 파일의 프로필들과 DynamicProfiles 폴더의 프로필들(뒤의 것에는 `__dynamic` 표지를 붙인다).
+    /// Profiles in the settings file and profiles in the DynamicProfiles folder (the latter get a `__dynamic` marker).
     static func all() -> Store {
         let domain = Detector.itermBundleID as CFString
         CFPreferencesAppSynchronize(domain)
@@ -305,7 +305,7 @@ enum ITermProfile {
         return store
     }
 
-    /// 동적 프로필 파일(JSON 또는 plist)의 `Profiles`.
+    /// `Profiles` of a dynamic profile file (JSON or plist).
     static func dynamicProfiles(in data: Data) -> [[String: Any]] {
         let object = (try? JSONSerialization.jsonObject(with: data)) ?? (try? PropertyListSerialization.propertyList(from: data, format: nil))
         let profiles = (object as? [String: Any])?["Profiles"] as? [[String: Any]] ?? []
@@ -316,14 +316,14 @@ enum ITermProfile {
 extension Detector {
     public static let itermBundleID = "com.googlecode.iterm2"
 
-    /// `"<unique id>\n<tty>\n<name>"` → (id, tty, name). 창이 없으면(빈 글) nil.
+    /// `"<unique id>\n<tty>\n<name>"` → (id, tty, name). nil if there is no window (empty text).
     static func itermSession(from output: String) -> (id: String, tty: String, name: String)? {
         let parts = output.split(separator: "\n", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
         guard parts.count == 3, !parts[0].isEmpty else { return nil }
         return (parts[0], parts[1], parts[2])
     }
 
-    /// iTerm2 의 맨 앞 창이 포커스한 세션. 에이전트는 그 세션의 tty 에서 도는 프로세스로 가리고, 거기서 tmux 가 돌면 그 칸으로 들어간다.
+    /// The session focused in iTerm2's frontmost window. The agent is picked out by the process running on that session's tty, and if tmux runs there, it goes into that pane.
     public static func iterm() throws -> Target {
         let script = """
         tell application "iTerm2"

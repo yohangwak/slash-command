@@ -1,13 +1,13 @@
 import Foundation
 
-/// 에이전트(claude·codex)의 판을 알아내고, 우리가 화면 문구를 «실제로 본» 판인지 대조한다.
+/// Works out the version of an agent (claude, codex) and checks whether it is a version whose on-screen text we have "actually seen".
 ///
-/// 전환은 에이전트가 그리는 문구(`Select model` · `Set model to` 등)에 기댄다. 판이 바뀌어 문구가 달라지면 화면을 못 알아봐서
-/// 아무것도 보내지 않고 멈춘다(안전한 쪽) — 그래도 «왜 안 되는지» 를 `doctor` 가 먼저 말해 줄 수 있어야 한다.
+/// Switching relies on the text the agent draws (`Select model`, `Set model to`, and so on). If a version changes that text, the screen is not recognized and
+/// nothing is sent; it stops (the safe side). Even so, `doctor` should be able to say "why it does not work" first.
 public enum AgentVersions {
-    /// 선택창 문구·키 동작을 실제 세션에서 확인한 판(docs/agents.md 의 표).
-    /// 목록에 없다고 동작하지 않는다는 뜻은 아니다 — 확인하지 못했다는 뜻이다.
-    /// 실행 중인 프로세스에서 판을 읽지 못했을 때의 표시.
+    /// Versions whose picker text and key behavior were checked in a real session (the table in docs/agents.md).
+    /// Not being in the list does not mean it does not work; it means it was not checked.
+    /// What is shown when the version could not be read from the running process.
     static var unknown: String { loc("unknown") }
 
     public static let tested: [Agent: Set<String>] = [
@@ -21,9 +21,9 @@ public enum AgentVersions {
 
     public struct Report: Equatable, Sendable {
         public let agent: Agent
-        /// 설치된 실행 파일이 말하는 판. 못 알아냈으면 nil.
+        /// The version the installed executable reports. nil if it could not be determined.
         public let installed: String?
-        /// 지금 터미널에서 도는 같은 종류 프로세스들의 판(오래된 세션은 업데이트 전 판일 수 있다).
+        /// Versions of processes of the same kind now running in terminals (an old session may be a pre-update version).
         public let running: [String]
 
         public var untested: [String] {
@@ -31,7 +31,7 @@ public enum AgentVersions {
             return Array(Set(([installed].compactMap { $0 }) + running.filter { $0 != AgentVersions.unknown }).subtracting(known)).sorted()
         }
 
-        /// 판을 읽지 못한 항목 — 「확인한 판」이라고 말할 근거가 없다.
+        /// An item whose version could not be read: there is no basis to call it a "checked version".
         public var unreadable: [String] {
             var result: [String] = []
             if installed == nil { result.append(loc("installed %@", agent.rawValue)) }
@@ -60,7 +60,7 @@ public enum AgentVersions {
         Report(agent: agent, installed: installed(agent), running: running(agent))
     }
 
-    // MARK: - 설치된 판
+    // MARK: - Installed version
 
     public static func installed(_ agent: Agent) -> String? {
         guard let exe = Proc.locate(agent.executable) else { return nil }
@@ -69,12 +69,12 @@ public enum AgentVersions {
         return parse(versionOutput: result.out)
     }
 
-    /// `2.1.291 (Claude Code)` · `codex-cli 0.160.1` 처럼 숫자.숫자.숫자 꼴의 첫 토큰.
+    /// The first token shaped like number.number.number, as in `2.1.291 (Claude Code)` · `codex-cli 0.160.1`.
     static func parse(versionOutput: String) -> String? {
         for token in versionOutput.split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" }) {
             let text = token.trimmingCharacters(in: CharacterSet(charactersIn: "v()"))
             if isVersion(text) { return text }
-            // `2026.10.01-14929f9`(cursor-agent)처럼 뒤에 빌드 표시가 붙은 판.
+            // A version with a build suffix after it, like `2026.10.01-14929f9` (cursor-agent).
             if text.first?.isNumber == true, let tagged = release(from: text) { return tagged }
         }
         return nil
@@ -85,7 +85,7 @@ public enum AgentVersions {
         return parts.count == 3 && parts.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
     }
 
-    // MARK: - 실행 중인 판
+    // MARK: - Running version
 
     public static func running(_ agent: Agent) -> [String] {
         let table = ProcessTable.snapshot()
@@ -99,7 +99,7 @@ public enum AgentVersions {
                 return fields.count == 2 && fields[0] != "??" ? (String(fields[1]), "") : nil
             } : []
         }
-        // 에이전트인데 판을 못 읽은 프로세스는 «알 수 없음» 으로 센다 — 「없음」으로 보이면 안 된다.
+        // A process that is an agent but whose version could not be read counts as "unknown"; it must not look like "none".
         let versions = found.compactMap { entry -> String? in
             guard AgentProcesses.agent(forCommandLine: entry.commandLine) == agent else { return nil }
             return version(inCommandLine: entry.commandLine) ?? version(inCommandLine: entry.executable) ?? unknown
@@ -107,18 +107,18 @@ public enum AgentVersions {
         return Array(Set(versions)).sorted()
     }
 
-    /// 실행 파일 경로에 판이 들어 있는 설치 꼴: claude `…/claude/versions/2.1.289` · codex `…/releases/0.160.0/bin/codex`.
+    /// Install layouts whose executable path contains the version: claude `…/claude/versions/2.1.289` · codex `…/releases/0.160.0/bin/codex`.
     static func version(inCommandLine commandLine: String) -> String? {
         guard let first = commandLine.split(separator: " ").first else { return nil }
         let components = first.split(separator: "/").map(String.init)
         for (index, component) in components.enumerated() where component == "versions" || component == "releases" {
-            // codex 의 설치 폴더는 `0.160.1-aarch64-apple-darwin` 처럼 플랫폼이 붙기도 한다.
-            // 플랫폼만 떼고, 시험판 표시(`0.160.0-alpha.6`)는 남긴다 — 확인한 안정판으로 오인하면 안 된다.
+            // codex's install folder can also carry a platform, like `0.160.1-aarch64-apple-darwin`.
+            // Strip only the platform and keep the prerelease marker (`0.160.0-alpha.6`): it must not be mistaken for a checked stable version.
             guard index + 1 < components.count, let found = release(from: components[index + 1]) else { continue }
             return found
         }
-        // Homebrew 로 깐 꼴: `…/Caskroom/cursor-cli/2026.10.01-e373342/…` · `…/Cellar/opencode/2.0.25/…` — 이름 다음 칸이 판이다.
-        // 에이전트를 돌리는 실행기(`…/Cellar/node/26.8.2/bin/node`)의 판은 에이전트의 판이 아니다.
+        // Layout installed with Homebrew: `…/Caskroom/cursor-cli/2026.10.01-e373342/…` · `…/Cellar/opencode/2.0.25/…`. The segment after the name is the version.
+        // The version of a runtime that runs the agent (`…/Cellar/node/26.8.2/bin/node`) is not the agent's version.
         for (index, component) in components.enumerated() where component == "Caskroom" || component == "Cellar" {
             guard index + 2 < components.count, let found = release(from: components[index + 2]) else { continue }
             let package = components[index + 1].split(separator: "@").first.map(String.init) ?? ""
@@ -128,7 +128,7 @@ public enum AgentVersions {
         return nil
     }
 
-    /// 폴더 이름에서 판을 뽑는다: `0.160.1` · `0.160.1-aarch64-apple-darwin` → `0.160.1`, `0.160.0-alpha.6-aarch64-apple-darwin` → `0.160.0-alpha.6`.
+    /// Extracts the version from a folder name: `0.160.1` · `0.160.1-aarch64-apple-darwin` → `0.160.1`, `0.160.0-alpha.6-aarch64-apple-darwin` → `0.160.0-alpha.6`.
     static func release(from folder: String) -> String? {
         var name = folder
         for platform in ["-aarch64-", "-x86_64-"] {

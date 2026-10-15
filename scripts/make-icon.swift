@@ -1,6 +1,6 @@
-// 앱 아이콘을 그려 scripts/AppIcon.icns 로 만든다:  swift scripts/make-icon.swift
-// 키 하나에 슬래시 — 키를 누르면 슬래시 명령이 간다. 메뉴 막대 아이콘(StatusIcon.swift)과 같은 그림이다.
-// `swift scripts/make-icon.swift --preview 파일.png` 는 1024 크기 한 장만 그 파일로 낸다(icns 는 건드리지 않는다).
+// Draws the app icon and builds scripts/AppIcon.icns:  swift scripts/make-icon.swift
+// A slash on a key: pressing the key sends a slash command. The same picture as the menu bar icon (StatusIcon.swift).
+// `swift scripts/make-icon.swift --preview file.png` writes only one 1024-size image to that file (the icns is not touched).
 import AppKit
 
 func draw(size: CGFloat) -> NSBitmapImageRep {
@@ -37,16 +37,16 @@ func draw(size: CGFloat) -> NSBitmapImageRep {
         context.restoreGState()
     }
 
-    // 바탕: 맥 아이콘 격자(1024 중 824, 모서리 반지름 185)
+    // Background: the Mac icon grid (824 of 1024, corner radius 185)
     let plate = rounded(100, 100, 824, 824, 185)
     shadowed(plate, offset: 10, blur: 24, alpha: 0.35, color: color(0.10, 0.11, 0.16))
     fill(plate, from: color(0.17, 0.19, 0.29), to: color(0.07, 0.08, 0.12))
 
-    // 작은 크기(메뉴·목록의 16~32pt)에서는 키의 옆면을 빼고 윗면과 슬래시를 키운다 — 뭉개지지 않게.
+    // At small sizes (16-32pt in menus and lists) drop the key's side face and enlarge the top face and the slash, so they do not blur together.
     let small = size <= 64
     let face = small ? rounded(212, 212, 600, 600, 120) : rounded(262, 318, 500, 480, 92)
     if !small {
-        // 키의 몸통(옆면): 윗면보다 넓고 아래로 길다.
+        // The key body (side face): wider than the top face and extends down.
         let body = rounded(222, 232, 580, 600, 124)
         shadowed(body, offset: 18, blur: 36, alpha: 0.55, color: color(0.09, 0.10, 0.15))
         fill(body, from: color(0.15, 0.17, 0.26), to: color(0.10, 0.11, 0.17))
@@ -59,7 +59,7 @@ func draw(size: CGFloat) -> NSBitmapImageRep {
     context.strokePath()
     context.restoreGState()
 
-    // 슬래시
+    // Slash
     let center = CGPoint(x: 512 * unit, y: (small ? 512 : 558) * unit)
     let half = CGSize(width: (small ? 92 : 74) * unit, height: (small ? 190 : 156) * unit)
     let line = CGMutablePath()
@@ -94,5 +94,5 @@ tool.arguments = ["-c", "icns", "-o", output.path, iconset.path]
 try tool.run()
 tool.waitUntilExit()
 try? FileManager.default.removeItem(at: iconset)
-print(tool.terminationStatus == 0 ? "만듦: \(output.path)" : "iconutil 실패")
+print(tool.terminationStatus == 0 ? "Created: \(output.path)" : "iconutil failed")
 exit(tool.terminationStatus)

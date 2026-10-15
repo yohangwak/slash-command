@@ -1,10 +1,10 @@
 import Foundation
 
-// tmux · kitty · WezTerm 에 쓰고 읽는 연결. 셋 다 2026-10-07 맥북에서 재 본 것이다(tmux 3.7c · kitty 0.49.2 · WezTerm 20240203):
-// 바이트가 그대로 들어가는지(붙여넣기 감싸기 없이), 화면이 얼마나 빨리 읽히는지, 없는 대상에 쓰면 어떻게 되는지.
+// Connections that write to and read from tmux · kitty · WezTerm. All three were measured on 2026-10-07 on a test Mac (tmux 3.7c · kitty 0.49.2 · WezTerm 20240203):
+// whether bytes arrive unchanged (without bracketed-paste wrapping), how fast the screen can be read, and what happens when writing to a target that does not exist.
 
-/// tmux: `send-keys -H` 로 바이트를 16진수로 넣고 `capture-pane -p` 로 화면을 읽는다.
-/// 실측: 쓰기 7ms, 쓴 글이 화면에 보이기까지 13~40ms, 없는 pane 에 쓰면 실패(종료 코드 1).
+/// tmux: puts bytes in as hex with `send-keys -H` and reads the screen with `capture-pane -p`.
+/// Measured: write 7 ms, 13-40 ms until the written text shows on screen, writing to a missing pane fails (exit code 1).
 public struct TmuxIO: TerminalIO {
     public let tmux: String
     public let socket: String?
@@ -16,13 +16,13 @@ public struct TmuxIO: TerminalIO {
 
     static let synchronizedMark = "SLASHCOMMAND-PANES-SYNCHRONIZED"
 
-    /// tmux 명령 글 안에 넣을 대상 이름(세션 이름에 빈칸·따옴표가 있을 수 있다).
+    /// The target name to put inside a tmux command string (a session name can contain blanks and quotes).
     static func quoted(_ text: String) -> String {
         "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// 그 칸에 바이트를 넣는 tmux 인자. 🔴 그 창의 `synchronize-panes` 가 켜져 있으면 `send-keys -t <칸>` 은 대상을 적었어도 «다른 칸들에도»
-    /// 같은 글을 넣는다(2026-10-12 실측 — PR #25 리뷰). 확인과 쓰기를 tmux 의 한 명령(`if-shell -F`)으로 묶어, 켜져 있으면 쓰지 않고 표지를 찍는다.
+    /// The tmux arguments that put bytes into that pane. 🔴 If that window has `synchronize-panes` on, `send-keys -t <pane>` also puts the same text into "the other panes"
+    /// even though a target is given (measured 2026-10-12, PR #25 review). Check and write are combined in one tmux command (`if-shell -F`); if it is on, nothing is written and a marker is printed.
     static func sendArguments(pane: String, bytes: String) -> [String] {
         let hex = Array(bytes.utf8).map { String(format: "%02x", $0) }.joined(separator: " ")
         return ["if-shell", "-F", "-t", pane, "#{pane_synchronized}",
@@ -48,9 +48,9 @@ public struct TmuxIO: TerminalIO {
     }
 }
 
-/// kitty: 원격 제어(`kitty @ send-text` · `get-text`). 사용자가 kitty 설정에서 원격 제어를 켜 둬야 한다.
-/// 실측: 쓰기 26ms, 화면에 보이기까지 약 50ms. 🔴 없는 창에 `send-text` 를 해도 성공(종료 코드 0)을 돌려준다
-/// — 그래서 쓰기 전에 그 창이 «있음»을 먼저 확인한다.
+/// kitty: remote control (`kitty @ send-text` · `get-text`). The user must have turned on remote control in the kitty settings.
+/// Measured: write 26 ms, about 50 ms until it shows on screen. 🔴 `send-text` to a missing window still returns success (exit code 0),
+/// so first check that the window "exists" before writing.
 public struct KittyIO: TerminalIO {
     public let kitty: String
     public let socket: String
@@ -85,10 +85,10 @@ public struct KittyIO: TerminalIO {
 }
 
 /// WezTerm: `wezterm cli send-text --no-paste` · `get-text`.
-/// 실측: 쓰기 15ms, 화면에 보이기까지 약 23ms, 없는 pane 은 실패. 🔴 `--no-paste` 가 없으면 글이 붙여넣기 표시로 감싸여 들어간다.
+/// Measured: write 15 ms, about 23 ms until it shows on screen, a missing pane fails. 🔴 Without `--no-paste` the text goes in wrapped in paste markers.
 public struct WezTermIO: TerminalIO {
     public let wezterm: String
-    /// 그 GUI 의 mux 소켓. 대상을 찾을 때 쓴 것과 같은 GUI 에 쓰고 읽는다.
+    /// The mux socket of that GUI. Writes and reads go to the same GUI that was used to find the target.
     public var socket: String?
     public let pane: String
 

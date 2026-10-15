@@ -20,7 +20,13 @@ It works with **Claude Code, Codex, Grok, Cursor Agent, Antigravity and OpenCode
 
 Requires macOS 13 or later.
 
-1. Download `Slash-Command.zip` from the [latest release](https://github.com/yohangwak/slash-command/releases/latest), unzip it, and move **Slash Command** to your Applications folder.
+1. Install it with [Homebrew](https://brew.sh):
+
+   ```sh
+   brew install --cask yohangwak/tap/slash-command
+   ```
+
+   Or download `Slash-Command.zip` from the [latest release](https://github.com/yohangwak/slash-command/releases/latest), unzip it, and move **Slash Command** to your Applications folder.
 2. Open it. A `/` key icon appears in the menu bar.
 3. Open **Settings…** from that icon and use the **Permissions** box at the top. Its buttons open the right pane of System Settings for you.
 
@@ -76,7 +82,7 @@ A preset number is an intent. Each preset holds one entry per agent, and a hotke
 
 ## Command line
 
-The app ships a command line tool with the same switching logic. It lives inside the app bundle, so link it once to call it as `slashcommand`:
+The app ships a command line tool with the same switching logic. Homebrew links it as `slashcommand` for you. If you installed from the zip, the tool lives inside the app bundle, so link it once:
 
 ```sh
 sudo mkdir -p /usr/local/bin

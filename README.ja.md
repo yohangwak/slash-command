@@ -20,7 +20,13 @@ Slash Command は macOS のメニューバーアプリです。ターミナル�
 
 macOS 13 以降が必要です。
 
-1. [最新リリース](https://github.com/yohangwak/slash-command/releases/latest)から `Slash-Command.zip` をダウンロードして展開し、**Slash Command** を「アプリケーション」フォルダに移動します。
+1. [Homebrew](https://brew.sh) でインストールします。
+
+   ```sh
+   brew install --cask yohangwak/tap/slash-command
+   ```
+
+   または、[最新リリース](https://github.com/yohangwak/slash-command/releases/latest)から `Slash-Command.zip` をダウンロードして展開し、**Slash Command** を「アプリケーション」フォルダに移動します。
 2. 起動すると、メニューバーに `/` キーのアイコンが表示されます。
 3. そのアイコンから **設定…** を開き、上部の **権限** ボックスを使います。ボタンを押すと、システム設定の該当のパネルが開きます。
 
@@ -76,7 +82,7 @@ Swift ツールチェーン(Xcode または Command Line Tools)が必要です�
 
 ## コマンドライン
 
-アプリには、同じ切り替えロジックを使うコマンドラインツールが付属しています。ツールはアプリバンドルの中にあるので、`slashcommand` として呼び出すには一度リンクを作成します。
+アプリには、同じ切り替えロジックを使うコマンドラインツールが付属しています。Homebrew でインストールした場合は、`slashcommand` としてそのまま呼び出せます。zip からインストールした場合、ツールはアプリバンドルの中にあるので、一度リンクを作成します。
 
 ```sh
 sudo mkdir -p /usr/local/bin

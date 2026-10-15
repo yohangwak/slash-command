@@ -1,6 +1,6 @@
 import Foundation
 
-/// `~/Library/Logs/SlashCommand/slashcommand.log` 에 한 줄씩 남긴다. 무엇을 눌렀고 어떻게 끝났는지 나중에 확인하기 위한 것.
+/// Appends one line at a time to `~/Library/Logs/SlashCommand/slashcommand.log`, so you can check later what was pressed and how it ended.
 enum Log {
     private static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Logs/SlashCommand/slashcommand.log")
@@ -11,7 +11,7 @@ enum Log {
         return formatter
     }()
 
-    /// 이 크기를 넘으면 지금 파일을 `slashcommand.log.1` 로 넘기고 새로 쓴다(앞의 `.1` 은 버린다) — 기록이 끝없이 자라지 않게.
+    /// Past this size the current file is moved to `slashcommand.log.1` and a new one is started (the previous `.1` is discarded), so the log does not grow without bound.
     private static let limit = 2_000_000
 
     static func write(_ message: String) {

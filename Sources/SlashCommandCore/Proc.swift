@@ -10,7 +10,7 @@ public struct ProcResult: Sendable {
 }
 
 public enum Proc {
-    /// 자식 프로세스를 실행하고 끝날 때까지 기다린다. 시간 초과면 종료시키고 `timedOut` 을 세운다.
+    /// Runs a child process and waits for it to finish. On timeout it terminates the child and sets `timedOut`.
     public static func run(_ exe: String,
                            _ args: [String],
                            env: [String: String]? = nil,
@@ -32,10 +32,10 @@ public enum Proc {
         let group = DispatchGroup()
         let queue = DispatchQueue(label: "slashcommand.proc", attributes: .concurrent)
 
-        // 끝난 것은 `terminationHandler` 로 안다. `waitUntilExit()` 는 그 스레드의 런루프를 돌며 기다리는데, 오래 떠 있는 앱의
-        // 작업 스레드에서는 자식이 끝난 뒤에도 깨어나지 않을 때가 있다(2026-10-12 집 맥 2: `wezterm cli` 가 일을 마쳤는데
-        // 5초 제한까지 기다리다 «읽지 못했다» 로 끝났고, 표본을 뜨니 자식 없이 `waitUntilExit` 에 멈춘 스레드가 남아 있었다).
-        // 런루프를 돌지 않으므로 호출 하나도 약 65ms 에서 자식이 실제로 쓴 시간으로 줄어든다.
+        // Completion is learned through `terminationHandler`. `waitUntilExit()` waits by spinning that thread's run loop, and on the worker threads of a long-running app
+        // it sometimes does not wake up even after the child has finished (2026-10-12 on a test Mac: `wezterm cli` finished its work but
+        // we waited until the 5 s limit and ended with "could not read"; a sample showed a thread stuck in `waitUntilExit` with no child left).
+        // Since the run loop is not spun, even a single call drops from about 65 ms to the time the child actually took.
         let done = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in done.signal() }
 
@@ -45,7 +45,7 @@ public enum Proc {
             return ProcResult(status: -1, out: "", err: "\(exe): \(error.localizedDescription)", timedOut: false)
         }
 
-        // 파이프 버퍼가 차서 자식이 멈추지 않도록 두 스트림을 동시에 비운다.
+        // Drain both streams at the same time so the child does not stall on a full pipe buffer.
         group.enter()
         queue.async {
             outData = outPipe.fileHandleForReading.readDataToEndOfFile()
@@ -61,7 +61,7 @@ public enum Proc {
         if !waitForExit(process, done, seconds: timeout) {
             timedOut = true
             process.terminate()
-            // SIGTERM 을 무시하면 강제로 끝낸다 — 파이프가 닫혀야 아래의 읽기가 끝난다.
+            // If it ignores SIGTERM, kill it forcibly: the pipes must close for the reads below to finish.
             if !waitForExit(process, done, seconds: 2) {
                 kill(process.processIdentifier, SIGKILL)
                 _ = waitForExit(process, done, seconds: 1)
@@ -69,14 +69,14 @@ public enum Proc {
         }
         group.wait()
 
-        // 아직 살아 있는 프로세스의 `terminationStatus` 를 읽으면 예외가 난다.
+        // Reading `terminationStatus` of a process that is still alive raises an exception.
         return ProcResult(status: process.isRunning ? -1 : process.terminationStatus,
                           out: String(decoding: outData, as: UTF8.self),
                           err: String(decoding: errData, as: UTF8.self),
                           timedOut: timedOut)
     }
 
-    /// 끝났다는 신호를 `seconds` 까지 기다린다. 신호를 놓쳐도 멈추지 않게 짧게 끊어 `isRunning` 도 같이 본다.
+    /// Waits up to `seconds` for the signal that it finished. In case the signal is missed it does not hang: it waits in short slices and also checks `isRunning`.
     private static func waitForExit(_ process: Process, _ done: DispatchSemaphore, seconds: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(seconds)
         while true {
@@ -87,7 +87,7 @@ public enum Proc {
         }
     }
 
-    /// GUI 앱은 로그인 셸의 PATH 를 물려받지 않으므로 흔한 설치 위치를 직접 찾는다.
+    /// GUI apps do not inherit the login shell's PATH, so look in the usual install locations directly.
     public static func locate(_ name: String, extra: [String] = []) -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         var dirs = ["/usr/local/bin", "/opt/homebrew/bin", "\(home)/.local/bin", "/usr/bin", "/bin"] + extra

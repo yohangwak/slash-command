@@ -1,21 +1,21 @@
 import AppKit
 import ApplicationServices
 
-/// Ghostty 는 터미널 화면 글자를 접근성(AX) 텍스트 영역으로 내준다. 읽으려면 「손쉬운 사용」 권한이 필요하다.
+/// Ghostty exposes the terminal screen text as an accessibility (AX) text area. Reading it needs the Accessibility permission.
 public enum GhosttyScreen {
     public static func trusted(prompt: Bool = false) -> Bool {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
     }
 
-    /// Ghostty 가 화면 글자를 다시 만들지 않고 돌려주는 시간(0.5초)에 여유를 더한 값.
+    /// The time (0.5 s) during which Ghostty returns the screen text without rebuilding it, plus some margin.
     public static let cacheMs = 520
 
     private static let clock = NSLock()
     nonisolated(unsafe) private static var lastFetch: DispatchTime?
 
-    /// 지금 읽으면 새 화면이 나오도록, 우리가 마지막으로 읽은 뒤 `cacheMs` 가 지날 때까지 기다린다.
-    /// 이 프로세스가 아직 읽은 적이 없으면 누가 방금 읽었는지 알 수 없으므로 한 번은 다 기다린다.
+    /// Waits until `cacheMs` has passed since our last read, so that reading now gives a fresh screen.
+    /// If this process has never read yet, it cannot know whether someone just read, so it waits the full time once.
     public static func waitUntilFresh() {
         clock.lock()
         let last = lastFetch
@@ -25,13 +25,13 @@ public enum GhosttyScreen {
             let since = Double(DispatchTime.now().uptimeNanoseconds - last.uptimeNanoseconds) / 1_000_000_000
             wait -= since
         } else {
-            // 한 번 읽어 Ghostty 의 보관 시각을 지금으로 맞춰 놓고 그만큼 기다린다.
+            // Read once to set Ghostty's cache time to now, then wait that long.
             _ = lines()
         }
         if wait > 0 { Thread.sleep(forTimeInterval: wait) }
     }
 
-    /// 포커스가 있는 터미널의 화면 줄들. 권한이 없거나 못 찾으면 nil.
+    /// The lines of the focused terminal's screen. nil if there is no permission or it was not found.
     public static func lines() -> [String]? {
         clock.lock()
         lastFetch = .now()
