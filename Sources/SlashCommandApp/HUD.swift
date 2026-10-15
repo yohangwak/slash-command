@@ -1,12 +1,12 @@
 import AppKit
 
-/// 화면 아래쪽 가운데에 잠깐 뜨는 알림. 포커스를 가져가지 않는다.
+/// A notice that appears briefly at the bottom center of the screen. It does not take focus.
 final class HUD {
     private let panel: NSPanel
     private let title = NSTextField(labelWithString: "")
     private let detail = NSTextField(labelWithString: "")
     private var hideWork: DispatchWorkItem?
-    /// `show` 마다 하나씩 는다. 앞 알림이 사라지는 중에 새 알림이 뜨면, 앞 알림의 마무리가 새 알림을 치우지 않게 한다.
+    /// Incremented on every `show`. If a new notice appears while the previous one is fading out, this keeps the previous one's cleanup from removing the new one.
     private var shown = 0
 
     init() {
@@ -54,7 +54,7 @@ final class HUD {
         panel.contentView = background
     }
 
-    /// `seconds` 가 nil 이면 다음 `show` 까지 떠 있다.
+    /// If `seconds` is nil, it stays up until the next `show`.
     func show(_ titleText: String, detail detailText: String = "", seconds: TimeInterval? = 1.6) {
         hideWork?.cancel()
         shown += 1

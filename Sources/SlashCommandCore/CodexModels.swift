@@ -1,6 +1,6 @@
 import Foundation
 
-/// codex 가 내려받아 둔 모델 목록(`~/.codex/models_cache.json`). `/model` 선택창의 행 순서가 여기서 나온다.
+/// The model list codex has downloaded (`~/.codex/models_cache.json`). The row order of the `/model` picker comes from here.
 public struct CodexModels: Sendable {
     public struct Model: Decodable, Sendable, Equatable {
         public let slug: String
@@ -40,7 +40,7 @@ public struct CodexModels: Sendable {
 
     private struct Cache: Decodable { let models: [Model] }
 
-    /// 선택창에 보이는 순서(숨김 제외, priority 오름차순).
+    /// The order shown in the picker (hidden ones excluded, priority ascending).
     public let listed: [Model]
 
     public init(models: [Model]) {
@@ -68,20 +68,20 @@ public struct CodexModels: Sendable {
         }
     }
 
-    /// effort 값이 선택창에 표시되는 이름.
+    /// The name under which an effort value is shown in the picker.
     static let effortLabels = ["none": "None", "minimal": "Minimal", "low": "Low", "medium": "Medium",
                                "high": "High", "xhigh": "Extra high", "max": "Max", "ultra": "Ultra"]
 
     public struct Selection: Equatable, Sendable {
-        /// 모델 목록에서 누를 숫자(1부터).
+        /// The number to press in the model list (from 1).
         public let modelIndex: Int
-        /// effort 목록 머리말에 나오는 모델 이름.
+        /// The model name shown in the header of the effort list.
         public let displayName: String?
-        /// effort 목록에서 찾을 행 이름.
+        /// The row name to look for in the effort list.
         public let effortLabel: String
     }
 
-    /// 선택창에서 고를 모델 번호와 effort 행 이름.
+    /// The model number and effort row name to pick in the picker.
     public func selection(of preset: AgentPreset) throws -> Selection {
         guard let offset = listed.firstIndex(where: { $0.slug == preset.model }) else {
             let known = listed.map(\.slug).joined(separator: ", ")

@@ -3,7 +3,7 @@ import ServiceManagement
 import SlashCommandCore
 import SwiftUI
 
-/// 에이전트마다 고를 수 있는 모델·effort 목록. 편집 화면의 제안일 뿐이다 — 모델은 직접 쳐 넣어도 된다.
+/// The models and efforts selectable for each agent. Only suggestions for the edit window; a model can also be typed in.
 struct AgentCatalog {
     let codexModels: [String]
     let grokModels: [String]
@@ -12,7 +12,7 @@ struct AgentCatalog {
     static let cursorModels = ["Grok 4.7", "Claude Opus 5.5", "Claude Fable 5.1", "GPT-5.6 Sol", "Composer 2.5"]
     static let antigravityModels = ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro", "Claude Opus 5.5", "Claude Sonnet 5.5"]
 
-    /// codex·grok 의 목록은 그 도구들이 디스크에 둔 것을 읽는다(없으면 빈 목록).
+    /// The codex and grok lists are read from what those tools keep on disk (empty if there is none).
     static func load() -> AgentCatalog {
         AgentCatalog(codexModels: (try? CodexModels.load().listed.map(\.slug)) ?? [],
                      grokModels: GrokModels.load().models.map(\.id))
@@ -39,18 +39,18 @@ struct AgentCatalog {
         }
     }
 
-    /// 프리셋에 에이전트를 새로 넣을 때의 첫 값.
+    /// The first value when an agent is newly added to a preset.
     func starter(for agent: Agent) -> AgentPreset {
         AgentPreset(model: agent == .claude ? "opus" : models(for: agent).first ?? "", effort: "high")
     }
 }
 
-/// 편집 화면용 프리셋 한 개.
+/// One preset for the edit window.
 struct EditableSlot: Identifiable {
     let id = UUID()
     var name: String
     var presets: [Agent: AgentPreset]
-    /// 편집 화면이 모르는 키 — 저장할 때 그대로 돌려준다.
+    /// Keys the edit window does not know; they are handed back unchanged on save.
     private let extra: [String: JSONValue]
 
     init(_ slot: Slot) {
@@ -59,7 +59,7 @@ struct EditableSlot: Identifiable {
         extra = slot.extra
     }
 
-    /// 저장할 모양: 이름과 모델의 앞뒤 빈칸을 뗀다.
+    /// The shape to save: leading and trailing blanks are trimmed from the name and model.
     var slot: Slot {
         var made = Slot(name: name.trimmingCharacters(in: .whitespaces))
         made.extra = extra
@@ -74,7 +74,7 @@ struct EditableSlot: Identifiable {
 
 final class SettingsModel: ObservableObject {
     @Published var slots: [EditableSlot] = []
-    /// 펼쳐 놓은 프리셋들.
+    /// The presets, laid out for display.
     @Published var expanded: Set<UUID> = []
     @Published var keepDefaults = true
     @Published var acceptSwitchPrompt = true
@@ -82,14 +82,14 @@ final class SettingsModel: ObservableObject {
     @Published var modifiers: Set<String> = Set(SlashCommandConfig.defaultModifiers)
     @Published var message = ""
     @Published var messageIsError = false
-    /// 프리셋 파일을 읽지 못했을 때의 사유. 이때는 저장을 막는다 — 빈 화면을 저장하면 그 파일을 덮어쓴다.
+    /// Why the preset file could not be read. Saving is blocked in that case: saving an empty screen would overwrite that file.
     @Published var loadError: String?
     @Published var launchAtLogin = false
 
     let store: ConfigStore
     let onSaved: () -> Void
     let catalog: AgentCatalog
-    /// 디스크에 있는 내용. 화면의 내용과 다르면 «저장하지 않은 변경» 이다.
+    /// What is on disk. If it differs from the screen, there are "unsaved changes".
     private var saved: SlashCommandConfig?
 
     init(store: ConfigStore, catalog: AgentCatalog = .load(), onSaved: @escaping () -> Void) {
@@ -103,7 +103,7 @@ final class SettingsModel: ObservableObject {
         SlashCommandConfig(modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains), slots: []).modifierSymbols
     }
 
-    /// 화면의 내용으로 만든 설정. 편집 화면이 모르는 값(`version` 과 이 판이 모르는 키)은 읽은 것을 그대로 둔다.
+    /// The settings built from the screen. Values the edit window does not know (`version` and keys this version does not know) keep what was read.
     var draft: SlashCommandConfig {
         var made = SlashCommandConfig(version: saved?.version ?? 1,
                                       keepDefaults: keepDefaults,
@@ -158,7 +158,7 @@ final class SettingsModel: ObservableObject {
         expanded.remove(id)
     }
 
-    /// 그 프리셋을 가리키는 바인딩. 지운 뒤에 늦게 온 갱신은 버린다(자리 번호로 묶으면 지울 때 범위를 벗어난다).
+    /// The binding that points at that preset. Updates that arrive late after a delete are dropped (binding by position would go out of range on delete).
     func binding(for id: UUID, fallback: EditableSlot) -> Binding<EditableSlot> {
         Binding(get: { [weak self] in self?.slots.first { $0.id == id } ?? fallback },
                 set: { [weak self] value in
@@ -193,7 +193,7 @@ final class SettingsModel: ObservableObject {
         }
     }
 
-    // MARK: 로그인할 때 실행
+    // MARK: Launch at login
 
     func refreshLaunchAtLogin() {
         launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -209,9 +209,9 @@ final class SettingsModel: ObservableObject {
     }
 }
 
-/// 로그인할 때 실행. 메뉴·편집 화면·명령줄이 같은 규칙을 쓴다.
+/// Launch at login. The menu, the edit window and the command line use the same rules.
 enum LoginItem {
-    /// «승인 대기» 도 등록된 상태다 — 다시 등록해도 달라지지 않으므로 그때는 시스템 설정의 로그인 항목 화면을 연다.
+    /// "Awaiting approval" also counts as registered. Registering again changes nothing, so in that case it opens the Login Items pane of System Settings.
     static func set(_ on: Bool) throws {
         let service = SMAppService.mainApp
         if on {
@@ -322,7 +322,7 @@ struct SettingsView: View {
         }
     }
 
-    /// 스위치의 이름과 그 아래의 설명.
+    /// The name of the switch and the description under it.
     private func described(_ title: String, _ detail: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -363,7 +363,7 @@ struct SettingsView: View {
     }
 }
 
-/// 단축키를 키 모양으로 보여 준다(`⌥⇧1`).
+/// Shows a hotkey as key glyphs (`⌥⇧1`).
 private struct KeyBadge: View {
     let text: String
 
@@ -378,7 +378,7 @@ private struct KeyBadge: View {
     }
 }
 
-/// 프리셋 한 개. 접혀 있으면 한 줄(단축키 · 이름 또는 요약), 펼치면 에이전트별 모델과 effort.
+/// One preset. Collapsed it is one line (hotkey · name or summary); expanded it shows the model and effort per agent.
 private struct PresetRow: View {
     let shortcut: String
     @Binding var slot: EditableSlot
@@ -389,7 +389,7 @@ private struct PresetRow: View {
     private var agents: [Agent] { Agent.allCases.filter { slot.presets[$0] != nil } }
     private var missing: [Agent] { Agent.allCases.filter { slot.presets[$0] == nil } }
 
-    /// 접힌 줄의 요약: `Claude Code opus · Codex gpt-6-astra · …`
+    /// Summary of the collapsed line: `Claude Code opus · Codex gpt-6-astra · …`
     private var summary: String {
         let parts = agents.compactMap { agent in slot.presets[agent].map { "\(agent.displayName) \($0.model)" } }
         return parts.isEmpty ? loc("No agents set") : parts.joined(separator: "  ·  ")
@@ -478,7 +478,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         model = SettingsModel(store: store, onSaved: onSaved)
     }
 
-    /// 창이 닫히면 권한 상태를 다시 읽는 것을 멈춘다.
+    /// When the window closes, stop re-reading the permission state.
     func windowWillClose(_ notification: Notification) {
         permissions.stop()
     }
@@ -490,7 +490,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
             window.delegate = self
-            // 너비는 고정하고 높이만 바꿀 수 있게 한다. 처음 높이는 화면에 맞춘다.
+            // Fix the width and let only the height change. The initial height fits the screen.
             let height = min(720, (NSScreen.main?.visibleFrame.height ?? 800) - 80)
             window.setContentSize(NSSize(width: 620, height: height))
             window.contentMinSize = NSSize(width: 620, height: 420)
@@ -498,7 +498,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             window.center()
             self.window = window
         }
-        // 저장하지 않은 편집이 있으면 그대로 둔다 — 창을 다시 불러냈다고 지우지 않는다.
+        // If there are unsaved edits, leave them: bringing the window up again does not erase them.
         if model.isDirty { model.refreshLaunchAtLogin() } else { model.reload() }
         permissions.start()
         NSApp.activate(ignoringOtherApps: true)

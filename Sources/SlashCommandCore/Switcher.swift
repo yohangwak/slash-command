@@ -4,21 +4,21 @@ public struct SwitchResult: Equatable, Sendable {
     public let target: Target
     public let slotName: String
     public let preset: AgentPreset
-    /// 기본값을 되돌리지 못했을 때의 사유. 전환 자체는 성공했다.
+    /// The reason the default could not be put back. The switch itself succeeded.
     public let warning: String?
-    /// 에이전트가 화면에 알려 준 결과(예: "Set model to Sonnet 5.5"). 보냈다는 사실이 아니라 바뀌었다는 확인.
+    /// The result the agent showed on screen (e.g. "Set model to Sonnet 5.5"): a confirmation that it changed, not just that we sent it.
     public let confirmations: [String]
-    /// 늦게 오는 기본값 쓰기를 한 번 더 확인해야 할 때의 전환 전 파일 내용(`Switcher.verifyRestore`).
+    /// The pre-switch file content, when a late write of the default must be checked once more (`Switcher.verifyRestore`).
     public let pendingRestore: Data?
 
-    /// 알림 제목. 에이전트가 화면에 알려 준 이름이 있으면 그것을("Opus 5.5 · high"), 없으면 프리셋 값을("opus · high") 쓴다.
+    /// The notification title. Uses the name the agent showed on screen if there is one ("Opus 5.5 · high"), otherwise the preset's values ("opus · high").
     public var summary: String {
         var model: String?
         var effort: String?
         var effortKnown = true
         for line in confirmations {
             if line.hasPrefix("Effort not supported") { effortKnown = false; continue }
-            // 작업 중 알림 줄은 폭에 맞춰 잘려 온다("… Opus 5.5 and") — 꼬리가 어디서 끊겼든 떼어 낸다.
+            // The notice line shown while working arrives cut to the width ("… Opus 5.5 and"); strip the tail wherever it was cut.
             let text = line.trimmingCharacters(in: .whitespaces) + " "
             func head(_ text: Substring, cuts: [String]) -> String {
                 var out = String(text)
@@ -26,16 +26,16 @@ public struct SwitchResult: Equatable, Sendable {
                 return out.trimmingCharacters(in: .whitespaces)
             }
             if text.hasPrefix("Set model to ") {
-                // "Set model to Opus 5.5 for this session only with xhigh effort" (선택창)
-                // "Set model to Opus 5.5 and saved as your default for new sessions" (명령)
+                // "Set model to Opus 5.5 for this session only with xhigh effort" (picker)
+                // "Set model to Opus 5.5 and saved as your default for new sessions" (command)
                 let rest = text.dropFirst("Set model to ".count)
                 model = head(rest, cuts: [" for this session", " and ", " with ", " ("])
-                // effort 가 그대로면 claude 는 effort 를 말하지 않는다 — 그때는 선택창에서 맞춘 값(프리셋)이 맞다.
+                // If effort is unchanged, claude does not mention effort; then the value set in the picker (the preset) is right.
                 if let with = rest.range(of: " with "), let end = rest[with.upperBound...].range(of: " effort") {
                     effort = String(rest[with.upperBound..<end.lowerBound])
                 }
             } else if text.hasPrefix("Kept model as ") {
-                // 모델도 effort 도 이미 그 값이었다.
+                // Both the model and the effort were already those values.
                 model = head(text.dropFirst("Kept model as ".count), cuts: [" with ", " ("])
             } else if text.hasPrefix("Set effort level to ") {
                 effort = head(text.dropFirst("Set effort level to ".count), cuts: [" (", ":"])
@@ -69,7 +69,7 @@ public struct SwitchResult: Equatable, Sendable {
         return "\(name) · \(nonEmpty(effort) ?? preset.effort)"
     }
 
-    /// 에이전트가 결과를 화면으로 확인해 줬는가(`summary` 가 보낸 값이 아니라 확인된 값인가).
+    /// Whether the agent confirmed the result on screen (`summary` is a confirmed value, not the value we sent).
     public var confirmed: Bool { !confirmations.isEmpty }
 
     private func nonEmpty(_ text: String?) -> String? {
@@ -77,7 +77,7 @@ public struct SwitchResult: Equatable, Sendable {
     }
 }
 
-/// 단계별 소요 시간을 모은다(`slashcommand apply --trace`, 앱 기록). 측정 전에는 원인을 단정하지 않기 위한 것.
+/// Collects the time of each step (`slashcommand apply --trace`, app log). Meant to avoid asserting a cause before measuring.
 public final class Trace: @unchecked Sendable {
     public private(set) var events: [(label: String, ms: Int)] = []
     private let start = DispatchTime.now()
@@ -85,7 +85,7 @@ public final class Trace: @unchecked Sendable {
 
     public init() {}
 
-    /// 직전 기록 이후 흐른 시간을 `label` 로 남긴다.
+    /// Records the time elapsed since the previous record under `label`.
     public func mark(_ label: String) {
         let now = DispatchTime.now()
         events.append((label, Int((now.uptimeNanoseconds - last.uptimeNanoseconds) / 1_000_000)))
@@ -99,7 +99,7 @@ public final class Trace: @unchecked Sendable {
     }
 }
 
-/// 터미널 호출마다 시간을 재는 감싸개.
+/// A wrapper that times each terminal call.
 struct TracingIO: TerminalIO {
     let base: TerminalIO
     let trace: Trace
@@ -115,8 +115,8 @@ struct TracingIO: TerminalIO {
 
 public struct Switcher {
     public var trace: Trace?
-    /// claude 가 「Switch model?」을 묻고 있고 우리가 답하지 않기로 했을 때 불린다(인자는 모델 이름).
-    /// 그 뒤로도 사용자가 고를 때까지 기다렸다가 나머지를 마무리한다.
+    /// Called when claude is asking "Switch model?" and we decided not to answer (the argument is the model name).
+    /// After that, it waits until the user chooses and then finishes the rest.
     public var onAwaitingUser: ((String) -> Void)?
     public var config: SlashCommandConfig
     public var claudeDefaults: ClaudeDefaults
@@ -125,7 +125,7 @@ public struct Switcher {
     public var grokDefaults: GrokDefaults
     public var cursorDefaults: CursorDefaults
     public var antigravityDefaults: AntigravityDefaults
-    /// nil(기본)이면 전환할 때마다 «그 세션이 쓰는» 상태 폴더를 찾는다(`OpenCodeDefaults.resolve`).
+    /// If nil (the default), finds the state folder «that session uses» each time it switches (`OpenCodeDefaults.resolve`).
     public var opencodeDefaults: OpenCodeDefaults?
     public var makeIO: (Target) throws -> TerminalIO
     public var sleep: (Int) -> Void
@@ -154,7 +154,7 @@ public struct Switcher {
 
     private func openCodeDefaults(for target: Target) throws -> OpenCodeDefaults {
         if let opencodeDefaults { return opencodeDefaults }
-        // 기본값을 지키지 않기로 했으면 어느 파일인지 알 필요가 없다.
+        // If we are not protecting the defaults, we do not need to know which file it is.
         guard config.keepDefaults else { return OpenCodeDefaults() }
         var handle: String?
         if case .orca(let orca) = target.host { handle = orca }
@@ -168,7 +168,7 @@ public struct Switcher {
             return GhosttyIO(terminalID: terminalID)
         case .orca(let handle):
             let io = OrcaIO(orca: Proc.locate("orca"), handle: handle)
-            // 시험용: Orca 세션에서 화면이 늦게 따라오는 터미널(Ghostty)의 경로를 태운다.
+            // For testing: exercises the path of terminals whose screen lags behind (Ghostty) in an Orca session.
             if let lag = ProcessInfo.processInfo.environment["SLASHCOMMAND_SCREEN_LAG_MS"].flatMap(Int.init), lag > 0 {
                 return LaggingIO(base: io, lagMs: lag)
             }
@@ -206,11 +206,11 @@ public struct Switcher {
         public let slot: Slot
         public let preset: AgentPreset
         public let steps: [Step]
-        /// `steps` 가 선택창을 닫고 깨끗이 물러났을 때 대신 쓸 단계. 새 세션 기본값을 건드리므로 실행 뒤 되돌려야 한다.
+        /// The steps to use instead when `steps` closed the picker and backed out cleanly. They touch the new-session default, so it must be put back after running.
         public let fallback: [Step]?
     }
 
-    /// `slot`(1부터)번 프리셋의 그 에이전트 설정.
+    /// The agent's settings for preset number `slot` (1-based).
     public func preset(slot: Int, agent: Agent) throws -> AgentPreset {
         guard slot >= 1, slot <= config.slots.count else {
             throw SlashCommandError(loc("There is no preset %@ (there are %@).", slot, config.slots.count))
@@ -221,13 +221,13 @@ public struct Switcher {
         return preset
     }
 
-    /// `slot` 은 1부터.
+    /// `slot` is 1-based.
     public func plan(slot: Int, agent: Agent) throws -> Planned {
         let preset = try preset(slot: slot, agent: agent)
         let chosen = config.slots[slot - 1]
         switch agent {
         case .claude:
-            // 선택창에서 「이 세션만」으로 확정하면 기본값을 건드리지 않는다. 선택창에 그 모델 행이 없을 때만 명령으로 한다.
+            // Confirming with "this session only" in the picker does not touch the defaults. Use commands only when the picker has no row for that model.
             let picker = Plans.claudePicker(modelLabel: ClaudeModels.rowLabel(preset.model), effort: preset.effort,
                                             saveAsDefault: !config.keepDefaults, acceptSwitch: config.acceptSwitchPrompt)
             return Planned(slot: chosen, preset: preset, steps: picker,
@@ -238,15 +238,15 @@ public struct Switcher {
                                     effortLabel: selection.effortLabel)
             return Planned(slot: chosen, preset: preset, steps: steps, fallback: nil)
         case .grok, .cursor, .antigravity, .opencode:
-            // 이 에이전트들은 단계 목록이 아니라 전용 드라이버(`GrokDriver`·`CursorDriver`·`AntigravityDriver`)가 화면을 보며 진행한다.
+            // These agents are driven by their own drivers (`GrokDriver`, `CursorDriver`, `AntigravityDriver`) that watch the screen, not by a step list.
             return Planned(slot: chosen, preset: preset, steps: [], fallback: nil)
         }
     }
 
-    /// 입력창이 보일 때만 보낸다 — 권한 확인 창 같은 것이 떠 있으면 우리가 보낸 Enter 가 그 창을 승인해 버린다.
-    /// 화면과 초안은 한 번에 읽는다.
+    /// Send only when the input box is visible: if something like a permission prompt is up, the Enter we send would approve it.
+    /// The screen and the draft are read at once.
     private func readyScreen(_ io: TerminalIO, target: Target) throws -> ScreenSnapshot {
-        // 낡은 화면으로 판단하면 방금 뜬 창을 못 본다 — 반드시 지금 화면으로 본다.
+        // Judging from a stale screen would miss a window that just appeared; always look at the screen as it is now.
         guard let screen = io.freshSnapshot() else {
             throw SlashCommandError(Switcher.unreadable(target.host))
         }
@@ -256,7 +256,7 @@ public struct Switcher {
         return screen
     }
 
-    /// `deferFinalCheck` 가 참이면 기본값을 한 번만 되돌리고 돌아온다 — 호출한 쪽이 알림을 띄운 뒤 `verifyRestore` 를 부른다.
+    /// If `deferFinalCheck` is true, puts the default back only once and returns; the caller shows the notification and then calls `verifyRestore`.
     public func apply(slot: Int, to target: Target, deferFinalCheck: Bool = false) throws -> SwitchResult {
         trace?.mark("ready")
         let planned = try plan(slot: slot, agent: target.agent)
@@ -286,15 +286,15 @@ public struct Switcher {
                                 warning: warning, confirmations: confirmations, pendingRestore: nil)
         }
         let first = try readyScreen(io, target: target)
-        // codex 는 쓰던 글을 한 줄까지만 치웠다 되돌릴 수 있다. 여러 줄이면 남은 줄이 명령과 섞이므로 손대지 않는다.
+        // codex can clear and restore the text being typed only up to one line. With several lines the remaining lines would mix with the command, so leave it alone.
         if target.agent == .codex, let draft = first.draft, draft.contains("\n") {
             throw SlashCommandError(loc("Not switched: there is a multi-line draft in the Codex input box. Send or clear it, then press again."))
         }
 
         let traced = trace
         let timedSleep: (Int) -> Void = { ms in self.sleep(ms); traced?.mark("wait(\(ms))") }
-        // 화면이 늦게 따라오는 터미널(Ghostty)에서 claude 선택창은 단계마다 0.5초씩 걸린다(실측 2.4~3.8초).
-        // 거기서는 화면 대신 기본값 파일이 바뀌는 것을 신호로 삼는 명령 방식이 빠르다.
+        // In a terminal whose screen lags behind (Ghostty), the claude picker takes 0.5 seconds per step (measured 2.4 to 3.8 seconds).
+        // There, the command approach, which uses the defaults file changing as the signal instead of the screen, is faster.
         if target.agent == .claude, io.screenLagMs > 0, planned.fallback != nil {
             return try applyCommands(planned, io: io, target: target, screen: first, sleep: timedSleep, deferFinalCheck: deferFinalCheck)
         }
@@ -303,19 +303,19 @@ public struct Switcher {
             var runner = Runner(io: io, sleep: timedSleep, initial: first)
             runner.onAwaitingUser = { model in asked = true; self.onAwaitingUser?(model) }
             let confirmations = try runner.run(planned.steps)
-            // 확인 창에서 「No, go back」을 고르면 claude 는 "Kept model as …" 만 남긴다.
+            // If "No, go back" is chosen in the confirmation dialog, claude leaves only "Kept model as …".
             if asked, !confirmations.contains(where: { $0.hasPrefix("Set model to") }) { throw Runner.declined() }
             return SwitchResult(target: target, slotName: planned.slot.name, preset: planned.preset,
                                 warning: nil, confirmations: confirmations, pendingRestore: nil)
         } catch let error as SlashCommandError where error.cleanlyAborted && planned.fallback != nil {
-            // 선택창을 닫고 입력창으로 돌아왔다. 아무것도 바뀌지 않았으니 명령으로 다시 한다.
+            // The picker closed and we are back at the input box. Nothing changed, so do it again with commands.
             trace?.mark("command instead of picker (\(error.message))")
         }
         return try applyCommands(planned, io: io, target: target, screen: try readyScreen(io, target: target),
                                  sleep: timedSleep, deferFinalCheck: deferFinalCheck)
     }
 
-    /// 모델은 그대로 두고 effort 만 한 단계 올리거나 내린다.
+    /// Leaves the model alone and moves only effort up or down by one step.
     public func stepEffort(up: Bool, on target: Target) throws -> SwitchResult {
         trace?.mark("ready")
         let raw = try makeIO(target)
@@ -347,7 +347,7 @@ public struct Switcher {
         let preset: AgentPreset
         switch target.agent {
         case .claude:
-            // 지금 모델과 effort 는 선택창을 열어야 안다 — 열고, 한 칸 옮기고, 이 세션만으로 확정한다.
+            // The current model and effort are only known by opening the picker: open it, move one step, and confirm with "this session only".
             steps = Plans.claudeEffortStep(up: up, saveAsDefault: !config.keepDefaults, acceptSwitch: config.acceptSwitchPrompt)
             preset = AgentPreset(model: "claude", effort: up ? loc("one level up") : loc("one level down"))
         case .codex:
@@ -357,7 +357,7 @@ public struct Switcher {
             steps = Plans.codexEffortStep(up: up)
             preset = AgentPreset(model: "codex", effort: up ? loc("one level up") : loc("one level down"))
         case .grok, .cursor, .antigravity, .opencode:
-            return try stepEffort(up: up, on: target)   // 위에서 처리했다(도달하지 않는다)
+            return try stepEffort(up: up, on: target)   // handled above (not reached)
         }
         var runner = Runner(io: io, sleep: timedSleep, initial: first)
         runner.onAwaitingUser = onAwaitingUser
@@ -366,7 +366,7 @@ public struct Switcher {
                             warning: nil, confirmations: confirmations, pendingRestore: nil)
     }
 
-    /// claude 의 `/model X`·`/effort Y` 명령으로 전환한다. 둘 다 새 세션 기본값까지 바꾸므로 전환 전 값으로 되돌린다.
+    /// Switches with claude's `/model X` and `/effort Y` commands. Both also change the new-session default, so it is put back to its pre-switch value.
     private func applyCommands(_ planned: Planned, io: TerminalIO, target: Target, screen: ScreenSnapshot,
                                sleep timedSleep: @escaping (Int) -> Void, deferFinalCheck: Bool) throws -> SwitchResult {
         let before = config.keepDefaults ? claudeDefaults.snapshot() : nil
@@ -376,12 +376,12 @@ public struct Switcher {
         do {
             confirmations = try runner.run(planned.fallback ?? [])
         } catch var error as SlashCommandError where error.awaitingUser {
-            // 기다리는 동안 답이 없었다. 나중에 Yes 를 고르면 claude 가 그때 기본값을 쓰고, 우리는 이미 손을 뗀 뒤다 — 있는 그대로 알린다.
+            // No reply came while waiting. If Yes is chosen later, claude writes the default then, and we have already let go; report it as it is.
             error = SlashCommandError(error.message + " " + loc("If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)."))
             error.awaitingUser = true
             throw error
         } catch {
-            // 도중에 멈췄어도 앞 명령은 이미 기본값을 바꿨을 수 있다 — 되돌리고 나서 실패를 알린다.
+            // Even if it stopped midway, an earlier command may already have changed the default; put it back and then report the failure.
             if let before {
                 timedSleep(300)
                 _ = claudeDefaults.restore(to: before)
@@ -393,7 +393,7 @@ public struct Switcher {
         var warning: String?
         var pending: Data?
         if let before {
-            // 마지막 명령의 결과 줄을 확인했으니 파일은 이미 써졌다. 바로 되돌리고, 늦게 오는 쓰기에 대비해 한 번 더 본다.
+            // The result line of the last command was confirmed, so the file has already been written. Put it back right away and look once more to guard against a late write.
             if case .failed(let reason) = claudeDefaults.restore(to: before) {
                 warning = loc("Could not put back the default for new sessions: %@", reason)
             }
@@ -408,7 +408,7 @@ public struct Switcher {
                             warning: warning, confirmations: confirmations, pendingRestore: pending)
     }
 
-    /// 잠깐 기다린 뒤 기본값이 원래대로인지 다시 보고, 아니면 되돌린다. 되돌리지 못하면 사유를 돌려준다.
+    /// Waits a moment, checks again that the default is as it was, and puts it back if not. Returns the reason if it cannot be put back.
     public func verifyRestore(_ before: Data) -> String? {
         sleep(250)
         trace?.mark("wait(250)")
@@ -419,20 +419,20 @@ public struct Switcher {
     }
 }
 
-/// 단계 목록을 터미널에 실행한다.
+/// Runs a list of steps on the terminal.
 public struct Runner {
     public let io: TerminalIO
     public let sleep: (Int) -> Void
-    /// 외부 신호(claude 기본값 파일의 수정 시각). 없으면 화면만 본다.
+    /// An external signal (the modification time of claude's defaults file). If nil, only the screen is used.
     public let stamp: (() -> Int64?)?
-    /// 실행 전 화면. 쓰던 글과, 이미 떠 있던 결과 줄을 여기서 안다.
+    /// The screen before running. The text being typed and any result lines already showing are known from here.
     public let initial: ScreenSnapshot?
 
-    /// claude 의 「Switch model?」 창에 우리가 답하지 않을 때 불린다. 사용자가 고를 때까지 `awaitUserMs` 동안 기다린다.
+    /// Called when we do not answer claude's "Switch model?" dialog. Waits for `awaitUserMs` for the user to choose.
     public var onAwaitingUser: ((String) -> Void)?
     static let awaitUserMs = 20_000
 
-    /// 화면을 마지막으로 읽은 뒤 흐른 시간. 화면이 늦게 따라오는 터미널에서 「지금 읽으면 새 화면인가」를 아는 데 쓴다.
+    /// Time elapsed since the screen was last read. Used to know whether "reading now gives a fresh screen" in terminals whose screen lags behind.
     private final class ReadClock {
         var last = DispatchTime.now()
         var slept = 0
@@ -451,7 +451,7 @@ public struct Runner {
         self.initial = initial
     }
 
-    /// 낡지 않은 화면을 읽는다: 마지막으로 읽은 뒤 터미널의 지연 시간이 지날 때까지 기다렸다 읽는다.
+    /// Reads a screen that is not stale: waits until the terminal's lag has passed since the last read, then reads.
     private func freshSnapshot() -> ScreenSnapshot? {
         let remaining = io.screenLagMs - clock.elapsedMs()
         if remaining > 0 { sleep(remaining) }
@@ -459,19 +459,19 @@ public struct Runner {
         return io.snapshot()
     }
 
-    /// 돌려주는 값은 `expectResult` 가 본 결과 줄들.
+    /// The returned values are the result lines that `expectResult` saw.
     @discardableResult
     public func run(_ steps: [Step]) throws -> [String] {
         var armedStamp: Int64?
         var armedLines: [String] = []
-        // 마지막으로 본 화면. `arm` 이 이것을 「명령 전 상태」로 잡는다.
+        // The screen seen last. `arm` takes this as the "state before the command".
         var seenLines = initial?.lines ?? []
         var confirmations: [String] = []
-        // 화면을 보지 않고(기본값 파일 신호만으로) 넘어간 결과들 — 끝나고 화면에서 문구를 찾는다.
+        // Results that were passed without looking at the screen (by the defaults file signal alone); after the end, look for their phrase on the screen.
         var unseen: [(prefix: String, command: String?)] = []
-        // 마지막으로 친 명령 줄("/model sonnet"). 끝에 화면에서 그 명령과 답을 찾는 데 쓴다.
+        // The command line typed last ("/model sonnet"). Used at the end to find that command and its reply on the screen.
         var typedCommand: String?
-        // `stepEffort` 가 옮겨 놓은 단계. 확인 창이 «그 단계»를 물을 때만 받아들이는 데 쓴다.
+        // The step `stepEffort` moved to. Used to accept a confirmation dialog only when it asks about «that step».
         var stepped: String?
         func wanted(_ values: [String]) -> [String] {
             values.compactMap { $0 == Step.steppedEffort ? stepped : $0 }
@@ -497,8 +497,8 @@ public struct Runner {
                     return (header.map { open.header.hasPrefix($0) } ?? true) && (footer.map { open.footer.contains($0) } ?? true)
                 }
                 if !shown {
-                    // 창이 낮으면 선택창의 맨 아래 안내 줄이 잘려, 열려 있는데도 알아보지 못한다. 머리말과 커서 행이 보이면 그 선택창이다 —
-                    // 열어 둔 채 끝내지 않고 닫는다(전에는 «열리지 않았다» 고 하고 선택창을 남겼다 — 2026-10-12 실측).
+                    // If the window is low, the picker's bottom hint line is cut off and we cannot recognize it although it is open. If the header and the cursor row are visible, it is that picker:
+                    // close it instead of ending with it left open (before, it said "did not open" and left the picker; measured 2026-10-12).
                     if let header, let lines = io.screen(), Picker.clipped(lines, header: header) {
                         try io.press(.escape)
                         _ = try poll(timeoutMs: 1500) { !Picker.clipped($0, header: header) }
@@ -550,7 +550,7 @@ public struct Runner {
                 switch try stepEffort(up: up, timeoutMs: timeoutMs) {
                 case .moved(let level):
                     stepped = level
-                    // 선택창이 닫힌 뒤의 결과 줄에 effort 가 안 나오는 경우에 대비해 여기서 본 값을 남긴다.
+                    // Record the value seen here, in case the result line after the picker closes does not show the effort.
                     confirmations.append("Set effort level to \(level)")
                 case .stopped(let reason, let atEdge):
                     var error = try aborted(abort, reason)
@@ -568,7 +568,7 @@ public struct Runner {
                 case .ready:
                     break
                 case .declined:
-                    // 「No, go back」은 선택창으로 되돌아간다 — 선택창을 닫고, 바꾸지 않았다고 알린다.
+                    // "No, go back" returns to the picker: close the picker and report that nothing was changed.
                     _ = try? run(abort)
                     throw Runner.declined()
                 case .timedOut:
@@ -591,8 +591,8 @@ public struct Runner {
             }
         }
         if !unseen.isEmpty {
-            // 기본값 파일은 다른 claude 세션도 쓴다 — 파일이 바뀐 것만으로는 «우리 명령»이 실행됐다고 할 수 없다.
-            // 끝에 새 화면을 한 번 읽어, 이번에 생긴 결과 줄이 «보일 때만» 성공으로 친다.
+            // Other claude sessions also write the defaults file, so the file changing alone does not prove «our command» ran.
+            // Read a fresh screen once at the end and count it as success only if the result line made this time is «visible».
             guard let snap = freshSnapshot() else { throw SlashCommandError(loc("Could not read the terminal screen, so the result could not be checked.")) }
             let before = initial?.lines ?? []
             for (prefix, command) in unseen {
@@ -600,7 +600,7 @@ public struct Runner {
                 if Runner.isNew(now, since: ClaudeScreen.results(before, prefix: prefix)), let found = now.last {
                     confirmations.append(found)
                 } else if let command, let reply = ClaudeScreen.reply(toCommand: command, in: snap.lines), reply.hasPrefix(prefix) {
-                    // 같은 전환을 되풀이해 줄 수가 그대로여도, 우리가 친 그 명령 아래에 그 답이 있다.
+                    // Even if the same switch is repeated and the number of lines is unchanged, that reply is below the command we typed.
                     confirmations.append(reply)
                 } else {
                     throw SlashCommandError(loc("The command was sent, but Claude Code's result line (%@ …) is not on screen. Check on screen whether it changed.", prefix))
@@ -610,11 +610,11 @@ public struct Runner {
         return confirmations
     }
 
-    /// 화면이 늦게 따라오는 터미널(Ghostty)용: 명령이 실행되면 claude 가 기본값 파일을 다시 쓰는 것을 신호로 삼는다.
-    /// 화면은 낡지 않았을 때만 읽어, 확인 창이 떴는지와 claude 가 거절했는지를 본다.
+    /// For terminals whose screen lags behind (Ghostty): uses claude rewriting the defaults file when a command runs as the signal.
+    /// The screen is read only when it is not stale, to see whether a confirmation dialog appeared and whether claude refused.
     ///
-    /// 돌려주는 값: 파일 신호로 넘어갔으면 nil(결과 문구는 아직 못 봤다), 화면에서 새 결과 줄을 봤으면 그 줄.
-    /// 파일을 다시 쓰지 않는 명령도 있다 — `/effort max` 는 이 세션에만 적용되고 기본값 파일은 그대로다(2.1.283 실측).
+    /// Return value: nil if we passed on the file signal (the result phrase has not been seen yet), or the line if a new result line was seen on the screen.
+    /// Some commands do not rewrite the file: `/effort max` applies only to this session and leaves the defaults file as it is (measured on 2.1.283).
     private func waitForStamp(prefix: String, command: String?, acceptSwitchTo: [String], armedStamp: Int64?, armedLines: [String],
                               timeoutMs: Int, failure: String) throws -> String? {
         let started = DispatchTime.now()
@@ -622,13 +622,13 @@ public struct Runner {
         var accepted = false
         let repliedBefore = ClaudeScreen.commandReply(armedLines, command: command)
         let matchedBefore = ClaudeScreen.results(armedLines, prefix: prefix)
-        // 확인 창이 떠서 사용자의 선택을 기다리는 중이면 그 모델 이름. 창이 사라진 시각도 본다.
+        // If a confirmation dialog is up and waiting for the user's choice, the model name. Also watches when the dialog went away.
         var awaiting: String?
         var goneAt: Int?
         var deadline = timeoutMs
         while true {
             if (stamp?() ?? nil) != armedStamp {
-                // 파일을 쓴 직후에 claude 가 쓰던 글을 입력창에 되돌린다. 다음 Ctrl+S 가 그것과 겹치지 않게 잠깐 둔다.
+                // Right after writing the file, claude puts the text being typed back in the input box. Wait briefly so the next Ctrl+S does not overlap with it.
                 sleep(120)
                 clock.slept += 120
                 return nil
@@ -637,7 +637,7 @@ public struct Runner {
             if clock.elapsedMs() >= io.screenLagMs {
                 guard let snap = io.snapshot() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
                 clock.reset()
-                // 파일은 안 바뀌었지만 화면에 이번 명령의 결과가 새로 떴다.
+                // The file did not change, but this command's result newly appeared on screen.
                 let matched = ClaudeScreen.results(snap.lines, prefix: prefix)
                 if Runner.isNew(matched, since: matchedBefore), Readiness.claudePromptVisible(snap.lines), let seen = matched.last {
                     return seen
@@ -652,7 +652,7 @@ public struct Runner {
                     awaiting = asking
                     goneAt = nil
                 } else if awaiting != nil {
-                    // 창이 사라졌다. Yes 였으면 곧 파일이 바뀐다. 조금 기다려도 안 바뀌면 No 였다.
+                    // The dialog went away. If it was Yes, the file will change soon. If it does not change after a short wait, it was No.
                     if let gone = goneAt, elapsed - gone >= 700 { throw Runner.declined() }
                     goneAt = goneAt ?? elapsed
                 }
@@ -664,29 +664,29 @@ public struct Runner {
         }
     }
 
-    /// 명령 바로 아래에 붙은, 우리가 기다리던 것이 아닌 답.
+    /// A reply directly below the command that is not what we were waiting for.
     static func refused(_ reply: String) -> SlashCommandError {
-        // 확인 창에서 취소하면 claude 는 "Kept model as …" 라고 남긴다 — 거절이 아니라 사용자의 선택이다.
+        // Cancelling in the confirmation dialog makes claude leave "Kept model as …": that is the user's choice, not a refusal.
         if reply.hasPrefix("Kept model as") { return declined() }
         return SlashCommandError(loc("Claude Code did not accept it: %@", reply.prefix(120)))
     }
 
-    /// 사용자가 확인 창에서 「No, go back」을 골랐다.
+    /// The user chose "No, go back" in the confirmation dialog.
     static func declined() -> SlashCommandError {
         var error = SlashCommandError(loc("Nothing was changed: the confirmation was cancelled."))
         error.nothingToDo = true
         return error
     }
 
-    /// claude 가 모델을 바꿀지 묻고 있다 — 우리는 답하지 않고 사용자에게 넘긴다.
+    /// claude is asking whether to change the model; we do not answer and hand it to the user.
     static func awaitingSwitch(_ model: String) -> SlashCommandError {
         var error = SlashCommandError(loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation). Press Enter to switch.", model))
         error.awaitingUser = true
         return error
     }
 
-    /// claude 의 확인 창이 «우리가 고른 그 값»(모델 이름이나 effort 단계)으로 바꾸겠느냐고 묻고 있으면 Enter 로 받아들인다.
-    /// 그 창이 아니거나 값이 다르면 아무것도 보내지 않는다.
+    /// If claude's confirmation dialog is asking to switch to «the value we chose» (the model name or effort step), accept it with Enter.
+    /// If it is not that dialog or the value differs, send nothing.
     private func acceptSwitch(_ lines: [String], to wanted: [String]) throws -> Bool {
         guard !wanted.isEmpty, let asked = ClaudeScreen.switchPrompt(lines) else { return false }
         let row = Picker.Row(number: 1, label: asked, selected: true, current: false)
@@ -700,11 +700,11 @@ public struct Runner {
         let started = DispatchTime.now()
         var simulated = 0
         var accepted = false
-        // 같은 문구가 명령 전부터 화면에 있었으면, 그 줄이 «새로 생겼거나» 기본값 파일이 «변했을» 때만 이번 명령의 결과로 친다.
+        // If the same phrase was on screen from before the command, count it as this command's result only when that line is «new» or the defaults file «changed».
         let matchedBefore = ClaudeScreen.results(armedLines, prefix: prefix)
         let repliedBefore = ClaudeScreen.commandReply(armedLines, command: command)
         let saidBefore = ClaudeScreen.lastResult(armedLines)
-        // 초안을 따로 주는 터미널(Orca)은 그 값을, 아니면 화면의 입력창 줄을 본다.
+        // A terminal that gives the draft separately (Orca) uses that value; otherwise look at the input box line on the screen.
         func draft(_ snap: ScreenSnapshot) -> String {
             snap.draft ?? ClaudeScreen.promptText(snap.lines) ?? ""
         }
@@ -719,14 +719,14 @@ public struct Runner {
             let stampChanged = stamp != nil && (stamp?() ?? nil) != armedStamp
             let matched = ClaudeScreen.results(snap.lines, prefix: prefix)
             let fresh = matchedBefore.isEmpty || stampChanged || Runner.isNew(matched, since: matchedBefore)
-            // 입력창이 다시 «보임» — 다음 명령의 Enter 가 그 사이 뜬 확인 창을 누르지 않게 한다.
+            // The input box is «visible» again, so the next command's Enter does not press a confirmation dialog that came up in between.
             let promptBack = Readiness.claudePromptVisible(snap.lines)
-            // 쓰던 글이 있었으면 그것이 입력창에 «돌아왔음». 그 사이 사용자가 더 쳤을 수 있어 같은지는 따지지 않는다.
+            // If there was text being typed, it «came back» in the input box. The user may have typed more meanwhile, so whether it is the same is not checked.
             let draftBack = draftBefore.isEmpty || !draft(snap).isEmpty
             if let result = matched.last, fresh, promptBack, draftBack {
                 return (result, snap.lines)
             }
-            // 명령 바로 아래에 다른 답이 붙었으면(예: Model 'x' not found) 기다릴 것 없이 그 말로 끝낸다.
+            // If a different reply appears directly below the command (e.g. Model 'x' not found), finish with that instead of waiting.
             if promptBack, command != nil, let reply = ClaudeScreen.commandReply(snap.lines, command: command),
                reply != repliedBefore, !reply.hasPrefix(prefix) {
                 throw Runner.refused(reply)
@@ -737,13 +737,13 @@ public struct Runner {
                 awaiting = asking
                 goneAt = nil
             } else if awaiting != nil {
-                // 창이 사라졌는데 결과가 안 온다 — 「No, go back」이었다.
+                // The dialog went away yet no result came: it was "No, go back".
                 if let gone = goneAt, elapsed - gone >= 700 { throw Runner.declined() }
                 goneAt = goneAt ?? elapsed
             }
             if elapsed >= deadline, let awaiting { throw Runner.awaitingSwitch(awaiting) }
             if elapsed >= deadline {
-                // claude 가 새로 뭐라고 했으면(예: Model 'x' not found) 그 말을 붙인다.
+                // If claude said something new (e.g. Model 'x' not found), append it.
                 let said = ClaudeScreen.lastResult(snap.lines)
                 let detail = said.flatMap { $0 != saidBefore ? " (claude: \($0.prefix(80)))" : nil } ?? ""
                 throw SlashCommandError(failure + detail)
@@ -761,15 +761,15 @@ public struct Runner {
         }
     }
 
-    /// 그 줄들 가운데 `needle` 이 있는가. 좁은 칸에서는 한 줄이 둘로 접힌다(38칸의 codex: `/model  choose what model and` / `reasoning effort to use`
-    /// — 2026-10-12 iTerm2 의 나뉜 칸에서 실측) — 이웃한 두 줄을 이은 글에서도 찾는다.
+    /// Whether `needle` is in those lines. In a narrow pane one line wraps into two (codex at 38 columns: `/model  choose what model and` / `reasoning effort to use`
+    /// — measured in a split pane of iTerm2 on 2026-10-12); also look in the text made by joining two neighboring lines.
     static func contains(_ needle: String, in lines: [String]) -> Bool {
         if lines.contains(where: { $0.contains(needle) }) { return true }
         func words(_ text: String) -> String { text.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ") }
         return zip(lines, lines.dropFirst()).contains { words($0 + " " + $1).contains(needle) }
     }
 
-    /// 화면이 `condition` 을 만족할 때까지 다시 읽는다. 시간 안에 만족하면 참.
+    /// Re-reads the screen until it satisfies `condition`. True if it does within the time.
     private func poll(timeoutMs: Int, _ condition: ([String]) -> Bool) throws -> Bool {
         let started = DispatchTime.now()
         var simulated = 0
@@ -783,12 +783,12 @@ public struct Runner {
         }
     }
 
-    /// 화면 읽기는 싸다(Orca 1ms 안쪽). 짧게 자주 본다.
+    /// Reading the screen is cheap (under 1ms with Orca). Look often and briefly.
     static let pollMs = 30
 
-    // MARK: 선택창
+    // MARK: picker
 
-    /// 정리 단계를 실행하고, 선택창이 닫혀 입력창으로 돌아온 것을 확인했으면 「깨끗이 물러난」 실패로 표시한다.
+    /// Runs the cleanup steps and, if the picker closed and we are back at the input box, marks the failure as one that «backed out cleanly».
     private func aborted(_ abort: [Step], _ failure: String) throws -> SlashCommandError {
         _ = try? run(abort)
         var error = SlashCommandError(failure)
@@ -799,9 +799,9 @@ public struct Runner {
         return error
     }
 
-    /// `label` 행에 커서를 둔다. 성공하면 참.
+    /// Puts the cursor on the `label` row. True on success.
     private func selectRow(label: String, via: String?, timeoutMs: Int) throws -> Bool {
-        // 목록이 그려질 때까지만 기다린다. 그려졌는데 그 행이 없으면 더 기다려도 생기지 않는다.
+        // Wait only until the list is drawn. If it is drawn and the row is not there, waiting longer will not make it appear.
         var rows: [Picker.Row] = []
         guard try poll(timeoutMs: timeoutMs, { lines in
             rows = Picker.rows(lines)
@@ -809,8 +809,8 @@ public struct Runner {
         }) else { return false }
         let found = Picker.index(of: label, in: rows) != nil
         guard found || (via.map { Picker.index(of: $0, in: rows) != nil } ?? false) else {
-            // 창이 낮으면 행이 한두 개만 보이고 나머지는 `… +9 models` 로 접힌다(2026-10-11 실측, 90×14 의 claude) —
-            // 커서를 한 칸씩 옮겨 그 행을 찾는다. 못 찾으면 전처럼 실패다(그러면 명령 방식으로 간다).
+            // In a low window only one or two rows show and the rest are folded into `… +9 models` (measured 2026-10-11, claude at 90×14);
+            // move the cursor one row at a time to find the row. If it is not found it is a failure as before (then the command approach is used).
             guard via == nil, let lines = io.screen(), Picker.hasHiddenRows(lines), try scroll(to: label, timeoutMs: timeoutMs) else { return false }
             return try moveCursor(to: label, timeoutMs: timeoutMs)
         }
@@ -823,10 +823,10 @@ public struct Runner {
         return try moveCursor(to: label, timeoutMs: timeoutMs)
     }
 
-    /// 접혀서 보이지 않는 행을 찾는다: 커서를 맨 위(1번)로 올린 뒤 한 칸씩 내려가며 그 행이 화면에 나타나는지 본다.
-    /// 위에서부터 보는 이유: 이름은 앞머리로 맞추므로("opus" → `Opus 5.5`) 같은 앞머리의 행이 여럿이다 — 높은 창에서 고르는 것은 그중 맨 위다.
-    /// (2026-10-11 실측: 지금 자리에서 아래로만 찾았더니 `Opus 5.5` 대신 그 아래의 `Opus 5` 를 골랐다.)
-    /// 맨 위에 닿지 못하면 찾지 않는다. 고르는 키(Enter·s)는 보내지 않는다.
+    /// Finds a row that is folded out of view: raises the cursor to the top (number 1), then goes down one row at a time to see whether the row appears on screen.
+    /// Why from the top: names are matched by their beginning ("opus" → `Opus 5.5`), so several rows share the same beginning; the one picked in a tall window is the topmost of them.
+    /// (Measured 2026-10-11: searching only downward from the current position picked the `Opus 5` below instead of `Opus 5.5`.)
+    /// If it cannot reach the top, it does not search. It never sends the picking keys (Enter, s).
     private func scroll(to label: String, timeoutMs: Int) throws -> Bool {
         func cursor(_ lines: [String]) -> Int? { Picker.rows(lines).first(where: \.selected)?.number }
         func step(_ key: Key, from number: Int) throws -> Bool {
@@ -852,7 +852,7 @@ public struct Runner {
         return false
     }
 
-    /// 커서가 `label` 행에 올 때까지: 화면에서 커서 행을 읽고, 차이만큼 위·아래를 보내고, 커서가 «도착함»을 본다.
+    /// Until the cursor is on the `label` row: read the cursor row from the screen, send up or down by the difference, and see that the cursor «has arrived».
     private func moveCursor(to label: String, timeoutMs: Int) throws -> Bool {
         for _ in 0..<4 {
             guard let lines = io.screen() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
@@ -862,7 +862,7 @@ public struct Runner {
             if target == cursor { return true }
             let key = target > cursor ? Key.down : Key.up
             try io.type(String(repeating: key.bytes, count: abs(target - cursor)))
-            // 화면이 따라오기 전에 다시 계산하면 두 번 움직인다 — 도착을 보고 넘어간다.
+            // Recalculating before the screen catches up would move twice; move on after seeing it arrive.
             let arrived = try poll(timeoutMs: min(timeoutMs, 1000)) { lines in
                 let now = Picker.rows(lines)
                 guard let wanted = Picker.index(of: label, in: now) else { return false }
@@ -875,14 +875,14 @@ public struct Runner {
 
     enum EffortOutcome {
         case set
-        /// effort 가 없는 모델(Haiku). 화면의 안내 줄을 그대로 들고 온다.
+        /// A model with no effort (Haiku). Carries the hint line on the screen as it is.
         case unsupported(String)
         case failed
     }
 
-    /// claude 선택창의 effort 줄을 `level` 로 맞춘다. ←/→ 한 번에 한 단계.
-    /// 끝에서 반대쪽으로 도는 판(2.1.289)도 있고 돌지 않는 판(2.1.296 — 2026-10-13 실측: `xhigh` 에서 `high` 로 가려고 → 만 누르다
-    /// `max` 에서 멈춰 실패했다)도 있다. 그래서 가야 할 쪽으로 먼저 가고, 거기서 막히면 반대쪽으로 끝까지 가 본다.
+    /// Sets the effort line of the claude picker to `level`. One step per ←/→.
+    /// Some versions wrap from the end to the other end (2.1.289) and some do not (2.1.296; measured 2026-10-13: going from `xhigh` to `high` it pressed only → and
+    /// stopped at `max`, which failed). So go first toward where it should go, and if blocked there, go all the way to the other direction.
     private func setEffort(_ level: String, timeoutMs: Int) throws -> EffortOutcome {
         var current: String?
         var note: String?
@@ -895,12 +895,12 @@ public struct Runner {
         if current == nil, let note { return .unsupported(note.drop(while: { !$0.isLetter }).description) }
         let wanted = level.lowercased()
         enum Walk { case reached, blocked, lost }
-        /// 한쪽으로 한 칸씩 간다. 더 움직이지 않으면(끝) `blocked`. effort 줄이 화면에서 사라지면 `lost` — 선택창이 닫혔거나
-        /// 다른 창으로 바뀐 것이므로 그 뒤로는 화살표를 더 보내지 않는다(쓰던 글의 커서나 다른 창의 선택이 움직인다).
+        /// Goes one step at a time in one direction. `blocked` if it no longer moves (the end). `lost` if the effort line disappears from the screen: the picker closed or
+        /// changed to another dialog, so no more arrows are sent after that (they would move the cursor in the text being typed or a selection in another dialog).
         func walk(_ key: Key) throws -> Walk {
             var presses = 0
             while let now = current, now != wanted {
-                guard presses < 8 else { return .blocked }   // 한 바퀴를 돌아도 없으면 그 모델에 없는 단계다
+                guard presses < 8 else { return .blocked }   // if it is not found after a full cycle, the model does not have that step
                 try io.press(key)
                 presses += 1
                 var seen: String?
@@ -926,11 +926,11 @@ public struct Runner {
 
     enum StepOutcome {
         case moved(String)
-        /// 바꾸지 않았다. `atEdge` 면 이미 끝 단계라 바꿀 것이 없었던 것이다.
+        /// Nothing was changed. If `atEdge`, it was already at the end step so there was nothing to change.
         case stopped(String, atEdge: Bool = false)
     }
 
-    /// claude 선택창의 effort 를 한 칸 옮긴다. 끝에서 누르면 반대쪽 끝으로 돌기 때문에, 끝이면 누르지 않는다.
+    /// Moves the effort of the claude picker by one row. At the end, pressing wraps to the other end, so it is not pressed at the end.
     private func stepEffort(up: Bool, timeoutMs: Int) throws -> StepOutcome {
         var current: String?
         var unsupported = false
@@ -952,7 +952,7 @@ public struct Runner {
             return after != nil && after != now
         }
         guard moved, let after else { return .stopped(loc("The effort in the Claude Code picker did not move.")) }
-        // 단계가 적은 모델에서는 우리가 아는 끝보다 먼저 돈다. 반대쪽으로 넘어갔으면 되돌리고 끝이라고 알린다.
+        // In a model with few steps it wraps earlier than the end we know. If it crossed to the other side, put it back and report that it is the end.
         if let from = order.firstIndex(of: now), let to = order.firstIndex(of: after), (to > from) != up {
             try io.press(up ? .left : .right)
             _ = try poll(timeoutMs: min(timeoutMs, 1000)) { Picker.claudeEffort($0) == now }
@@ -961,8 +961,8 @@ public struct Runner {
         return .moved(after)
     }
 
-    /// codex effort 목록에서 `(current)` 행의 바로 위(effort 내림)·아래(effort 올림) 행에 커서를 둔다.
-    /// 목록은 Low … Extra high 다음에 「More reasoning…」이 있고, 그 아래 목록에 Max · Ultra 가 있다.
+    /// In the codex effort list, puts the cursor on the row directly above the `(current)` row (effort down) or below it (effort up).
+    /// The list has "More reasoning…" after Low … Extra high, and Max · Ultra are in the list below it.
     private func stepRow(up: Bool, timeoutMs: Int) throws -> StepOutcome {
         let more = "More reasoning"
         func edge(_ label: String) -> StepOutcome {
@@ -979,7 +979,7 @@ public struct Runner {
         let plain = rows.indices.filter { $0 != moreIndex }
 
         if current != moreIndex {
-            // 지금 값이 이 목록(Low … Extra high)에 있다.
+            // The current value is in this list (Low … Extra high).
             guard let at = plain.firstIndex(of: current) else { return .stopped(loc("Could not read the Codex effort list.")) }
             if !up {
                 guard at > 0 else { return edge(rows[current].label) }
@@ -988,7 +988,7 @@ public struct Runner {
             if at + 1 < plain.count {
                 return try moveCursor(to: rows[plain[at + 1]].label, timeoutMs: timeoutMs) ? .moved(rows[plain[at + 1]].label) : .stopped(loc("Could not move the cursor in the Codex effort list."))
             }
-            // 이 목록의 마지막이다 — 다음 단계는 More reasoning… 아래의 첫 행이다.
+            // This is the last of this list; the next step is the first row below More reasoning….
             guard moreIndex != nil else { return edge(rows[current].label) }
             guard try moveCursor(to: more, timeoutMs: timeoutMs) else { return .stopped(loc("Could not move the cursor in the Codex effort list.")) }
             try io.press(.enter)
@@ -1000,7 +1000,7 @@ public struct Runner {
             return try moveCursor(to: first.label, timeoutMs: timeoutMs) ? .moved(first.label) : .stopped(loc("Could not move the cursor in the Codex effort list."))
         }
 
-        // 지금 값이 More reasoning… 아래(Max · Ultra)에 있다.
+        // The current value is below More reasoning… (Max · Ultra).
         guard try moveCursor(to: more, timeoutMs: timeoutMs) else { return .stopped(loc("Could not move the cursor in the Codex effort list.")) }
         try io.press(.enter)
         var inner: [Picker.Row] = []
@@ -1015,7 +1015,7 @@ public struct Runner {
         if at > 0 {
             return try moveCursor(to: inner[at - 1].label, timeoutMs: timeoutMs) ? .moved(inner[at - 1].label) : .stopped(loc("Could not move the cursor in the Codex effort list."))
         }
-        // 아래 목록의 첫 행이다 — 한 단계 아래는 바깥 목록의 마지막 행(Extra high)이다.
+        // This is the first row of the lower list; one step down is the last row of the outer list (Extra high).
         guard let last = plain.last else { return edge(inner[at].label) }
         try io.press(.escape)
         guard try poll(timeoutMs: timeoutMs, { Picker.open($0)?.header.hasPrefix("Select Reasoning Level") == true }) else {
@@ -1024,7 +1024,7 @@ public struct Runner {
         return try moveCursor(to: rows[last].label, timeoutMs: timeoutMs) ? .moved(rows[last].label) : .stopped(loc("Could not move the cursor in the Codex effort list."))
     }
 
-    /// 선택창이 닫히고 입력창이 다시 보일 때까지 기다린다.
+    /// Waits until the picker closes and the input box is visible again.
     enum InputOutcome { case ready, declined, timedOut }
 
     private func waitForInput(agent: Agent, acceptSwitchTo: [String], timeoutMs: Int) throws -> InputOutcome {
@@ -1042,14 +1042,14 @@ public struct Runner {
             let draftBack = draftBefore.isEmpty || !draft(snap).isEmpty
             if !Picker.isOpen(snap.lines), Readiness.inputVisible(agent: agent, screen: snap.lines), draftBack { return .ready }
             if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }
-            // 받아들이지 않기로 한 확인 창이면 사용자에게 알리고, 고를 때까지 기다린다.
+            // If it is a confirmation dialog we decided not to accept, tell the user and wait until they choose.
             let asking = ClaudeScreen.switchPrompt(snap.lines)
             if !accepted, !awaiting, let asking {
                 awaiting = true
                 onAwaitingUser?(asking)
                 deadline = Runner.awaitUserMs
             }
-            // 확인 창이 사라지고 선택창이 다시 보이면 사용자가 「No, go back」을 고른 것이다.
+            // If the confirmation dialog went away and the picker is visible again, the user chose "No, go back".
             if awaiting, asking == nil, Picker.isOpen(snap.lines) { return .declined }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= deadline { return .timedOut }
@@ -1058,14 +1058,14 @@ public struct Runner {
         }
     }
 
-    /// 선택창이 보이는 동안만 Esc 를 누른다. 누를 때마다 화면을 다시 읽는다.
+    /// Presses Esc only while the picker is visible. Re-reads the screen after each press.
     private func closePicker() throws {
         for _ in 0..<4 {
             guard let lines = io.screen() else { return }
             let before = Picker.rows(lines)
             if before.isEmpty {
-                // 맨 아래 안내 줄이 잘린 선택창도 선택창이다: 낮은 창에서 effort 설명이 길어지면(`Max` 는 두 줄이 더 붙는다) 안내 줄이
-                // 화면 밖으로 밀린다(2026-10-13 실측: 16줄 창에서 그렇게 선택창을 열어 둔 채 끝났다). 머리말과 커서 행이 보이면 닫는다.
+                // A picker with its bottom hint line cut off is also a picker: in a low window, when the effort description gets long (`Max` adds two more lines), the hint line
+                // is pushed off the screen (measured 2026-10-13: in a 16-line window we ended with a picker left open that way). If the header and cursor row are visible, close it.
                 guard let header = Picker.headers.first(where: { Picker.clipped(lines, header: $0) }) else { return }
                 try io.press(.escape)
                 _ = try poll(timeoutMs: 800) { !Picker.clipped($0, header: header) }
@@ -1076,7 +1076,7 @@ public struct Runner {
         }
     }
 
-    /// 화면에서 `prefix` 로 시작하는 줄들(위에서 아래). 줄 머리의 `•`(codex)·`⎿`(claude) 는 뗀다.
+    /// Lines on screen starting with `prefix` (top to bottom). The leading `•` (codex) or `⎿` (claude) is stripped.
     static func matching(_ lines: [String], prefix: String) -> [String] {
         lines.compactMap { line in
             var text = line.trimmingCharacters(in: .whitespaces)
@@ -1085,7 +1085,7 @@ public struct Runner {
         }
     }
 
-    /// `before` 이후에 줄이 새로 생겼는가: 개수가 늘었거나 마지막 줄이 달라졌다.
+    /// Whether a line is new since `before`: the count increased or the last line differs.
     static func isNew(_ now: [String], since before: [String]) -> Bool {
         !now.isEmpty && (now.count > before.count || now.last != before.last)
     }

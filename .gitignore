@@ -1,7 +1,7 @@
-# Claude Code 내장 워크트리
+# Claude Code built-in worktrees
 .claude/worktrees/
 
-# 비밀값 — 예시 파일만 올린다
+# Secrets: only the example file is committed
 .env*
 !.env.example
 

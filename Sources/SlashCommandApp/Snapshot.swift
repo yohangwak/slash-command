@@ -2,15 +2,15 @@ import AppKit
 import SlashCommandCore
 import SwiftUI
 
-/// 개발용: 설정 창의 내용을 화면에 띄우지 않고 그림 파일로 낸다.
-/// 화면 녹화 권한 없이 배치와 번역(`SLASHCOMMAND_LANG=ja` 처럼)을 눈으로 확인하려는 것이다. 아무것도 저장하지 않는다.
+/// For development: writes the contents of the settings window to an image file without showing it on screen.
+/// It is for checking layout and translations (such as `SLASHCOMMAND_LANG=ja`) by eye without the Screen Recording permission. It saves nothing else.
 enum SettingsSnapshot {
     static func write(to url: URL, height: Double, dark: Bool, expandFirst: Bool) -> Bool {
         let model = SettingsModel(store: ConfigStore(), onSaved: {})
         model.expanded = expandFirst ? Set(model.slots.prefix(1).map(\.id)) : []
         let permissions = PermissionsModel()
         permissions.refresh()
-        // 오른쪽에서 왼쪽으로 쓰는 언어는 실제 앱에서 시스템이 방향을 뒤집는다. 여기서는 직접 맞춘다.
+        // In the real app the system flips the layout for right-to-left languages. Here we match it by hand.
         let direction: LayoutDirection = Locale.Language(identifier: L10n.language).characterDirection == .rightToLeft ? .rightToLeft : .leftToRight
         let view = SettingsView(model: model, permissions: permissions).environment(\.layoutDirection, direction)
         let hosting = NSHostingView(rootView: view)
@@ -21,7 +21,7 @@ enum SettingsSnapshot {
         window.contentView = hosting
         window.setFrame(frame, display: true)
         window.orderFrontRegardless()
-        // 자동화 권한 확인과 SwiftUI 의 첫 배치가 끝나기를 잠깐 기다린다.
+        // Wait briefly for the Automation permission check and SwiftUI's first layout to finish.
         RunLoop.current.run(until: Date().addingTimeInterval(1.0))
         hosting.layoutSubtreeIfNeeded()
         guard let image = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { return false }

@@ -11,7 +11,7 @@ public enum Key: Equatable, Sendable {
     case tab
     case ctrl(Character)
 
-    /// pty 에 그대로 쓰는 바이트.
+    /// The bytes written to the pty as-is.
     public var bytes: String {
         switch self {
         case .enter: return "\r"
@@ -33,51 +33,51 @@ public enum Step: Equatable, Sendable {
     case text(String)
     case key(Key)
     case wait(ms: Int)
-    /// 화면에 `needle` 이 «있음»을 확인한다. 시간 안에 안 보이면 `abort` 를 실행하고 `failure` 로 중단한다.
-    /// `bottom` 을 주면 화면의 마지막 그 몇 줄 안에 있어야 한다 — 대화 내용에 같은 글이 있을 수 있다.
+    /// Confirms that `needle` is «present» on screen. If it does not appear in time, runs `abort` and stops with `failure`.
+    /// If `bottom` is given, it must be within that many last lines of the screen, since the same text may appear in the conversation.
     case expect(needle: String, bottom: Int? = nil, timeoutMs: Int, abort: [Step], failure: String)
-    /// 화면 맨 아래에 우리 선택창이 «떠 있음»을 확인한다: 머리말이 `header` 로 시작하고 안내 줄에 `footer` 가 있다(준 것만 본다).
+    /// Confirms that our picker is «open» at the bottom of the screen: the header starts with `header` and the hint line contains `footer` (only the ones given are checked).
     case expectPicker(header: String?, footer: String?, timeoutMs: Int, abort: [Step], failure: String)
-    /// 명령을 보내기 직전의 상태(화면, claude 기본값 파일의 수정 시각)를 기준으로 잡는다.
-    /// 뒤의 `expectResult`·`capture` 가 «이번 명령의» 결과인지 가리는 데 쓴다.
+    /// Takes a baseline from the state just before a command is sent (the screen, the modification time of claude's defaults file).
+    /// Used to tell whether the later `expectResult` and `capture` belong to «this command».
     case arm
-    /// `prefix` 로 시작하는 결과 줄이 있고 입력창이 다시 «보임»을 확인한다.
-    /// 같은 문구가 기준에 이미 있었으면 그 줄이 «새로 생겼거나» 기본값 파일이 «변했을» 때만 인정한다. 쓰던 글이 있었으면 그것이 «돌아왔음»도 본다
-    /// — 그래야 다음 Ctrl+S 가 복원과 겹치지 않는다.
-    /// `command`("/model") 를 주면, 그 명령 바로 아래에 다른 답이 붙었을 때(예: Model 'x' not found) 기다리지 않고 그 말로 끝낸다.
+    /// Confirms that a result line starting with `prefix` exists and the input box is «visible» again.
+    /// If the same phrase was already in the baseline, it is accepted only when that line is «new» or the defaults file «changed». If there was text being typed, it also checks that it «came back»
+    /// so that the next Ctrl+S does not overlap with the restore.
+    /// If `command` ("/model") is given and a different reply appears directly below that command (e.g. Model 'x' not found), it finishes with that reply instead of waiting.
     case expectResult(prefix: String, command: String? = nil, acceptSwitchTo: [String] = [], timeoutMs: Int, failure: String)
-    /// codex 선택창에서 `label` 행에 커서를 «둔다». 화면에서 커서(`›`)가 어느 행에 있는지 읽고 그만큼만 움직인 뒤 다시 읽어 확인한다.
-    /// 그 행이 없고 `via` 행이 있으면(예: More reasoning…) 그 하위 목록으로 들어가서 찾는다.
+    /// In the codex picker, «puts» the cursor on the `label` row. Reads which row the cursor (`›`) is on, moves only that far, then reads again to confirm.
+    /// If that row does not exist and a `via` row does (e.g. More reasoning…), enters that sub-list and looks there.
     case selectRow(label: String, via: String?, timeoutMs: Int, abort: [Step], failure: String)
-    /// claude 선택창의 effort 줄이 `level` 이 «될 때까지» → 를 한 번씩 누르고 그때마다 다시 읽는다(끝에서 처음으로 돈다).
-    /// effort 를 지원하지 않는 모델이면 그냥 넘어간다.
+    /// Presses → once at a time and re-reads each time, until the effort line of the claude picker «becomes» `level` (it wraps from the end to the start).
+    /// Skipped if the model does not support effort.
     case setEffort(level: String, timeoutMs: Int, abort: [Step], failure: String)
-    /// claude 선택창의 커서가 「지금 쓰는 모델」(`✔`) 행에 있음을 확인한다 — effort 만 바꿀 때 모델이 따라 바뀌지 않게 한다.
+    /// Confirms that the cursor of the claude picker is on the row of "the model in use" (`✔`), so that changing only effort does not change the model too.
     case expectCurrentRow(abort: [Step], failure: String)
-    /// claude 선택창의 effort 를 한 단계 올리거나 내린다. 이미 끝이면 아무것도 바꾸지 않고 그렇게 알린다.
+    /// Raises or lowers the effort of the claude picker by one step. If it is already at the end, changes nothing and reports that.
     case stepEffort(up: Bool, timeoutMs: Int, abort: [Step])
-    /// codex effort 목록에서 지금 값(`(current)`)의 바로 위·아래 행에 커서를 둔다. Max·Ultra 는 More reasoning… 아래에 있다.
+    /// In the codex effort list, puts the cursor on the row directly above or below the current value (`(current)`). Max and Ultra are under More reasoning….
     case stepRow(up: Bool, timeoutMs: Int, abort: [Step])
-    /// 선택창이 닫히고 그 에이전트의 입력창이 다시 «보임»을 확인한다. claude 는 쓰던 글이 돌아온 것까지 본다.
+    /// Confirms that the picker has closed and that agent's input box is «visible» again. For claude, also checks that the text being typed came back.
     ///
-    /// claude 는 방금 응답한 대화에서 모델이나 effort 를 바꾸면 확인 창을 띄운다(「Switch model?」·「Change effort level?」
-    /// — 대화 기록을 다시 읽는다는 안내). 기본은 그 창에 아무것도 보내지 않고 사용자가 고르게 한다.
-    /// `acceptSwitchTo` 가 있으면(설정에서 켰을 때) 그 창이 «이 값들 중 하나로» 바꾸겠느냐고 묻고 커서가 Yes 에 있을 때만
-    /// Enter 로 받아들인다. `Step.steppedEffort` 는 「방금 `stepEffort` 가 옮겨 놓은 단계」를 뜻한다.
+    /// When model or effort is changed in a conversation claude has just answered, it shows a confirmation dialog ("Switch model?" · "Change effort level?"
+    /// — a notice that the conversation history will be re-read). By default nothing is sent to that dialog and the user decides.
+    /// If `acceptSwitchTo` is set (when turned on in settings), it is accepted with Enter only when the dialog asks to switch to «one of these values» and the cursor is on Yes.
+    /// `Step.steppedEffort` means "the step that `stepEffort` just moved to".
     case expectInput(agent: Agent, acceptSwitchTo: [String] = [], timeoutMs: Int, abort: [Step], failure: String)
 
     public static let steppedEffort = "{stepped-effort}"
-    /// 선택창이 «보이는 동안만» Esc 로 닫는다. 선택창이 없으면 아무것도 보내지 않는다 — 작업 중인 codex 에 Esc 는 작업 중단이다.
+    /// Closes with Esc only «while the picker is visible». If there is no picker, nothing is sent: Esc on a working codex interrupts the work.
     case closePicker
-    /// 방금 끝난 전환의 결과 문구를 남긴다(없으면 넘어간다).
-    /// `afterCommand` 를 주면(claude) 그 명령 아래의 답이나 입력창 위 알림 줄에서, 아니면(codex) 화면의 마지막 그런 줄에서 찾는다.
+    /// Records the result phrase of the switch that just finished (skipped if there is none).
+    /// If `afterCommand` is given (claude), looks in the reply below that command or the notice line above the input box; otherwise (codex), in the last such line on screen.
     case capture(prefixes: [String], afterCommand: String? = nil)
 }
 
 public enum Launch {
-    /// `--model` 이 화면 이름이 아니라 id 를 받는 에이전트가 «이름 → id» 를 알아내려고 부르는 명령. 그 출력을 `resolve` 에 넘긴다.
-    /// (2026-10-11 실측: `agy models` 는 `id<빈칸>이름 (Effort)` 줄들, `opencode models --verbose` 는 `제공자/id` 줄과 그 모델의 JSON,
-    /// `cursor-agent models` 는 `id - 이름 [컨텍스트] [Effort] [Fast]` 줄들.)
+    /// The command an agent whose `--model` takes an id, not a screen name, runs to find out «name → id». Its output is passed to `resolve`.
+    /// (Measured 2026-10-11: `agy models` prints lines of `id<space>name (Effort)`, `opencode models --verbose` prints a `provider/id` line followed by that model's JSON,
+    /// `cursor-agent models` prints lines of `id - name [context] [Effort] [Fast]`.)
     public static func listing(agent: Agent) -> [String]? {
         switch agent {
         case .antigravity: return ["agy", "models"]
@@ -87,28 +87,28 @@ public enum Launch {
         }
     }
 
-    /// 여는 옵션으로 준 모델을 «새 세션 기본값» 으로도 저장하는 에이전트 — 열고 나서 기본값을 되돌려야 한다.
-    /// (2026-10-11 실측, cursor-agent 2026.10.01: `--model grok-4.7-high` 로 열면 `cli-config.json` 의 기본 모델이 그 모델이 된다.
-    /// agy 는 `--model` 로 열어도 기본값 파일이 그대로였다.)
+    /// Agents that also save the model given as a launch option as the «new-session default»; the default must be restored after launching.
+    /// (Measured 2026-10-11, cursor-agent 2026.10.01: launching with `--model grok-4.7-high` makes that model the default model in `cli-config.json`.
+    /// agy left its defaults file unchanged even when launched with `--model`.)
     public static func savesLaunchModelAsDefault(agent: Agent) -> Bool { agent == .cursor }
 
-    /// opencode 의 도움말에 여는 옵션 `--model` 이 있는가. 2.0.25 에는 없다(`run` 하위 명령에만 있다) — 1.18.35 에는 있었다.
+    /// Whether opencode's help lists the launch option `--model`. 2.0.25 does not have it (only the `run` subcommand does); 1.18.35 did.
     public static func openCodeTakesModel(help: String) -> Bool {
-        // 하위 명령 목록보다 앞의 «옵션» 부분에서만 찾는다: 하위 명령의 설명에 같은 글자가 나와도 여는 옵션은 아니다.
+        // Look only in the «options» part before the subcommand list: the same text in a subcommand's description is not a launch option.
         let options = help.components(separatedBy: "SUBCOMMANDS").first ?? help
         return options.range(of: #"(^|\s)--model\b"#, options: .regularExpression) != nil
     }
 
-    /// 이 프로세스가 도는 터미널(환경변수로 안다) — 세션을 연 뒤 «그 터미널에서» 전환을 이어서 돌릴 때 쓴다.
-    /// 안쪽부터 본다: tmux 칸 안이면 바깥 터미널이 무엇이든 그 칸이다. Ghostty 는 터미널을 가리키는 환경변수가 없어 여기서는 nil.
+    /// The terminal this process runs in (known from environment variables); used to continue the switch «in that terminal» after a session is opened.
+    /// Looks from the innermost: inside a tmux pane, that pane is it, whatever the outer terminal is. Ghostty has no environment variable that points to the terminal, so nil here.
     public static func currentTerminal(environment: [String: String]) -> TerminalHost? {
         func value(_ name: String) -> String? { environment[name].flatMap { $0.isEmpty ? nil : $0 } }
-        // TMUX = `<소켓 경로>,<서버 pid>,<세션>`.
+        // TMUX = `<socket path>,<server pid>,<session>`.
         if let tmux = value("TMUX"), let pane = value("TMUX_PANE"), let socket = tmux.split(separator: ",").first, socket.hasPrefix("/") {
             return .tmux(socket: String(socket), pane: pane)
         }
         if let handle = value("ORCA_TERMINAL_HANDLE") { return .orca(handle: handle) }
-        // ITERM_SESSION_ID = `w0t1p0:<세션 unique id>`.
+        // ITERM_SESSION_ID = `w0t1p0:<session unique id>`.
         if let session = value("ITERM_SESSION_ID"), let id = session.split(separator: ":").last, session.contains(":"), !id.isEmpty {
             return .iterm(sessionID: String(id))
         }
@@ -117,7 +117,7 @@ public enum Launch {
         return nil
     }
 
-    /// 그 터미널을 명령줄의 대상 인자로(`explicitTarget` 이 읽는 꼴).
+    /// That terminal as the target argument of the command line (the form `explicitTarget` reads).
     public static func targetArguments(host: TerminalHost, agent: Agent) -> [String] {
         let named = ["--agent", agent.rawValue]
         switch host {
@@ -131,9 +131,9 @@ public enum Launch {
     }
 
     public struct Resolved: Equatable, Sendable {
-        /// `--model` 에 넘길 값.
+        /// The value to pass to `--model`.
         public let model: String
-        /// 그대로는 다 맞추지 못한 것이 있을 때의 안내(예: opencode 는 variant 를 여는 옵션이 없다).
+        /// A notice when not everything could be matched as is (e.g. opencode has no launch option for the variant).
         public let note: String?
     }
 
@@ -141,11 +141,11 @@ public enum Launch {
         String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
     }
 
-    /// opencode 가 화면에 쓰는 «제공자 이름» 표(제공자 id → 이름).
-    /// 화면의 이름은 id 가 아니다: `opencode` 는 «OpenCode Zen», `google-vertex` 는 «Vertex» 로 보인다(2026-10-11 확인).
-    /// 두 곳에서 읽는다 — `cache`: opencode 의 모델 캐시(`models.json`, models.dev 의 사본. 최상위가 제공자 id → `name`),
-    /// `config`: `opencode debug config` 가 내는 «적용된 설정»(직접 넣은 제공자는 `provider.<id>.name` 에 이름이 있다). 설정이 캐시를 이긴다.
-    /// 값(키·주소 등)은 읽지 않고 이름만 꺼낸다.
+    /// The table of «provider names» opencode shows on screen (provider id → name).
+    /// The name on screen is not the id: `opencode` shows as «OpenCode Zen» and `google-vertex` as «Vertex» (confirmed 2026-10-11).
+    /// Read from two places: `cache`: opencode's model cache (`models.json`, a copy of models.dev; top level is provider id → `name`),
+    /// `config`: the «applied configuration» that `opencode debug config` prints (for a provider added by hand the name is in `provider.<id>.name`). The configuration wins over the cache.
+    /// Only names are taken; values (keys, addresses and so on) are not read.
     public static func openCodeProviderNames(cache: Data?, config: Data? = nil) -> [String: String] {
         var names: [String: String] = [:]
         func take(_ providers: Any?) {
@@ -159,19 +159,19 @@ public enum Launch {
         return names
     }
 
-    /// 그 캐시 파일의 자리(`XDG_CACHE_HOME` 을 따른다).
+    /// The location of that cache file (follows `XDG_CACHE_HOME`).
     public static var openCodeModelsCache: URL {
         let base = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache")
         return base.appendingPathComponent("opencode/models.json")
     }
 
-    /// 프리셋의 화면 이름(과 effort)에 해당하는 모델 id 를 `listing` 명령의 출력에서 찾는다.
-    /// `providerNames` 는 opencode 의 제공자 이름 표 — 없으면 제공자 id 로만 맞춰 본다(이름이 id 와 같은 제공자만 풀린다).
+    /// Finds the model id for the preset's screen name (and effort) in the output of the `listing` command.
+    /// `providerNames` is opencode's provider name table; without it, matching uses only the provider id (only providers whose name equals the id resolve).
     public static func resolve(agent: Agent, preset: AgentPreset, listing output: String, providerNames: [String: String] = [:]) throws -> Resolved {
         switch agent {
         case .antigravity:
-            // `gemini-3.8-flash-high   Gemini 3.8 Flash (High)` — effort 가 id 에 들어 있다.
+            // `gemini-3.8-flash-high   Gemini 3.8 Flash (High)`: the effort is part of the id.
             var rows: [(id: String, name: String, effort: String?)] = []
             for line in output.split(separator: "\n") {
                 let parts = line.split(maxSplits: 1, whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
@@ -192,8 +192,8 @@ public enum Launch {
             let available = named.compactMap(\.effort).joined(separator: ", ")
             throw SlashCommandError(loc("Antigravity '%@' has no effort '%@' (%@).", preset.model, preset.effort, available))
         case .opencode:
-            // `opencode-go/glm-5.3-flash` 줄 다음에 그 모델의 JSON(`name`·`providerID`·`variants`).
-            // 프리셋의 이름은 화면에 보이는 «모델 이름 + 제공자» 다(`GLM-5.3-Flash OpenCode Go`).
+            // `opencode-go/glm-5.3-flash` line followed by that model's JSON (`name`, `providerID`, `variants`).
+            // The preset's name is the «model name + provider» shown on screen (`GLM-5.3-Flash OpenCode Go`).
             var rows: [(id: String, name: String, provider: String, variants: [String])] = []
             let lines = output.components(separatedBy: "\n")
             var index = 0
@@ -213,30 +213,30 @@ public enum Launch {
                 rows.append((id, name, provider, ((object["variants"] as? [String: Any]) ?? [:]).keys.sorted()))
             }
             let wanted = key(preset.model)
-            // 제공자는 화면에 «이름» 으로 보인다. 이름 표에 없는 제공자(직접 넣은 제공자 등)는 id 로 맞춰 본다.
+            // The provider is shown on screen by «name». A provider not in the name table (for example one added by hand) is matched by id.
             var found = rows.filter { row in
                 [providerNames[row.provider], row.provider].compactMap { $0 }.contains { key(row.name) + key($0) == wanted }
             }
             if found.isEmpty {
-                // 제공자를 적지 않은 이름은 그 이름의 모델이 하나뿐일 때만 받는다.
+                // A name without a provider is accepted only when exactly one model has that name.
                 let byName = rows.filter { key($0.name) == wanted }
                 if byName.count == 1 { found = byName }
             }
             guard let row = found.first else { throw SlashCommandError(loc("'%@' is not in the OpenCode model list.", preset.model)) }
-            // opencode 는 그 모델이 마지막으로 쓴 variant 를 다시 불러온다 — `--model` 만으로는 variant 를 정할 수 없다.
-            // 프리셋이 Default 여도 마찬가지라(앞서 high 로 썼으면 high 로 열린다) 늘 알린다.
+            // opencode reloads the variant the model used last; `--model` alone cannot set the variant.
+            // This holds even if the preset is Default (if it was last used with high, it opens with high), so the note is always given.
             let note = loc("OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'.", preset.effort)
             return Resolved(model: row.id, note: note)
         case .cursor:
             let rows = cursorRows(listing: output)
             let named = rows.filter { key($0.name) == key(preset.model) }
             guard !named.isEmpty else { throw SlashCommandError(loc("'%@' is not in the Cursor model list.", preset.model)) }
-            // 같은 이름·effort 에 Thinking 을 켠 것과 끈 것이 따로 있다 — 표시가 없는 쪽(그 모델의 기본 상태)을 먼저 고른다.
+            // There are separate entries with Thinking on and off for the same name and effort; pick the one without a mark (the model's default state) first.
             func pick(_ candidates: [CursorRow]) -> CursorRow? { candidates.first { !$0.marked } ?? candidates.first }
             if let row = pick(named.filter { row in row.effort.map { CursorScreen.effortMatches(preset.effort, label: $0) } ?? false }) {
                 return Resolved(model: row.id, note: nil)
             }
-            // effort 가 아예 없는 모델(`Auto` · `Composer 2.5`)은 모델만 맞춘다.
+            // A model with no effort at all (`Auto` · `Composer 2.5`) is matched by model only.
             if named.allSatisfy({ $0.effort == nil }), let row = pick(named) { return Resolved(model: row.id, note: nil) }
             var available: [String] = []
             for effort in named.compactMap(\.effort) where !available.contains(effort) { available.append(effort) }
@@ -249,16 +249,16 @@ public enum Launch {
     struct CursorRow: Equatable {
         let id: String
         let name: String
-        /// 화면 라벨(`Extra High`)이거나, 라벨이 없는 줄이면 id 의 끝에서 읽은 값(`xhigh`).
+        /// The screen label (`Extra High`), or, for a line without a label, the value read from the end of the id (`xhigh`).
         let effort: String?
-        /// 이름 뒤에 `Thinking` · `No Thinking` 이 붙은 줄 — 그 모델의 기본 상태가 아닌 쪽이다.
+        /// A line with `Thinking` or `No Thinking` after the name; this is the side that is not the model's default state.
         let marked: Bool
     }
 
-    /// `cursor-agent models` 의 줄들: `grok-4.7-high - Grok 4.7  High` · `claude-opus-5-5-medium - Claude Opus 5.5 1M` · `auto - Auto (default)`.
-    /// 이름 뒤에 컨텍스트(`1M`) · effort · `Thinking`/`No Thinking` · `Fast` · 꼬리표(`(NO ZDR)`)가 붙는다.
-    /// effort 라벨이 없는 줄은 그 모델의 «기본» effort 인데 모델마다 다르다(`claude-opus-5-5-medium` 은 Medium, `claude-opus-5-high` 는 High) —
-    /// 그래서 라벨이 없으면 id 의 끝에서 읽는다. `Fast` 줄은 버린다: 프리셋에는 그 스위치가 없다.
+    /// Lines of `cursor-agent models`: `grok-4.7-high - Grok 4.7  High` · `claude-opus-5-5-medium - Claude Opus 5.5 1M` · `auto - Auto (default)`.
+    /// After the name come the context (`1M`) · effort · `Thinking`/`No Thinking` · `Fast` · a tag (`(NO ZDR)`).
+    /// A line without an effort label means the model's «default» effort, which differs per model (`claude-opus-5-5-medium` is Medium, `claude-opus-5-high` is High) —
+    /// so without a label it is read from the end of the id. `Fast` lines are dropped: presets have no such switch.
     static func cursorRows(listing output: String) -> [CursorRow] {
         let labels: [[String]] = [["Extra", "High"], ["High"], ["Medium"], ["Low"], ["Max"], ["None"], ["Minimal"]]
         var rows: [CursorRow] = []
@@ -266,7 +266,7 @@ public enum Launch {
             guard let cut = line.range(of: " - ") else { continue }
             let id = line[..<cut.lowerBound].trimmingCharacters(in: .whitespaces)
             guard !id.isEmpty, !id.contains(" ") else { continue }
-            // 줄 끝에 폭 없는 글자가 붙기도 하고(`Fast` 뒤) 낱말 사이가 두 칸이기도 하다.
+            // Zero-width characters may be attached at the end of a line (after `Fast`) and words may be separated by two spaces.
             var text = String(String.UnicodeScalarView(line[cut.upperBound...].unicodeScalars.filter { !(0x200B...0x200D).contains($0.value) && $0.value != 0xFEFF }))
             while let tag = text.range(of: #"\s*\([^)]*\)\s*$"#, options: .regularExpression) { text.removeSubrange(tag) }
             var words = text.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
@@ -290,7 +290,7 @@ public enum Launch {
         return rows
     }
 
-    /// id 끝의 effort: `claude-opus-5-thinking-high` → `high`, `gpt-5.5-extra-high` → `xhigh`, `gpt-5.3-codex` → 없음.
+    /// The effort at the end of the id: `claude-opus-5-thinking-high` → `high`, `gpt-5.5-extra-high` → `xhigh`, `gpt-5.3-codex` → none.
     static func cursorEffort(inID id: String) -> String? {
         let parts = id.lowercased().split(separator: "-").map(String.init).filter { $0 != "fast" && $0 != "thinking" }
         guard let last = parts.last, parts.count > 1 else { return nil }
@@ -298,8 +298,8 @@ public enum Launch {
         return ["low", "medium", "high", "xhigh", "max", "none", "minimal"].contains(last) ? last : nil
     }
 
-    /// 그 프리셋으로 «새 세션»을 여는 명령줄. 둘 다 이 세션에만 적용되는 옵션이라 기본값은 바뀌지 않는다.
-    /// `model` 은 `resolve` 가 푼 id(antigravity · opencode · cursor). cursor 는 `--model` 로 연 모델을 기본값으로도 저장한다 — `savesLaunchModelAsDefault`.
+    /// The command line that opens a «new session» with that preset. Both options apply only to this session, so the defaults do not change.
+    /// `model` is the id that `resolve` produced (antigravity · opencode · cursor). cursor also saves a model opened with `--model` as the default — `savesLaunchModelAsDefault`.
     public static func command(agent: Agent, preset: AgentPreset, model: String? = nil, extra: [String] = []) -> [String] {
         switch agent {
         case .claude:
@@ -309,24 +309,24 @@ public enum Launch {
         case .grok:
             return ["grok", "-m", preset.model, "--reasoning-effort", preset.effort] + extra
         case .antigravity, .opencode, .cursor:
-            // `--model` 이 화면 이름이 아니라 id 를 받는다 — `resolve` 로 푼 id 가 있을 때만 넘긴다(화면 이름을 그대로 넘기면 틀린 값이다).
+            // `--model` takes an id, not a screen name; pass it only when there is an id resolved by `resolve` (passing the screen name as is would be a wrong value).
             return [agent.executable] + (model.map { ["--model", $0] } ?? []) + extra
         }
     }
 }
 
 public enum Plans {
-    /// claude: `/model` 선택창에서 모델 행과 effort 를 맞추고 확정한다.
+    /// claude: sets the model row and effort in the `/model` picker and confirms.
     ///
-    /// 선택창에는 「이 세션만」(`s`) 확정이 있다(2.1.289 실측: 기본값 파일이 바뀌지 않는다). `/model X`·`/effort Y` 는
-    /// 새 세션 기본값까지 바꾸므로 되돌려야 하지만, 이 방식은 기본값을 아예 건드리지 않는다.
-    /// `saveAsDefault` 가 참이면 Enter 로 확정해 기본값으로도 저장한다.
+    /// The picker has a "this session only" (`s`) confirm (measured on 2.1.289: the defaults file does not change). `/model X` and `/effort Y`
+    /// also change the new-session default and so would have to be undone, but this approach does not touch the defaults at all.
+    /// If `saveAsDefault` is true, confirms with Enter, which also saves it as the default.
     public static func claudePicker(modelLabel: String, effort: String, saveAsDefault: Bool, acceptSwitch: Bool = false) -> [Step] {
         let footer = "s to use this session only"
         return [
-            // Ctrl+S 로 쓰던 글을 보관하고 선택창을 연다. 선택창이 닫히면(확정이든 Esc 든) claude 가 글을 되돌린다.
+            // Ctrl+S stashes the text being typed and opens the picker. When the picker closes (confirm or Esc), claude puts the text back.
             .text("\u{13}/model\r"),
-            // 여기서 실패하면 화면에 뭐가 떠 있는지 모른다 — 아무 키도 더 보내지 않는다.
+            // If this fails we do not know what is on screen, so no more keys are sent.
             .expectPicker(header: "Select model", footer: footer, timeoutMs: 3000, abort: [],
                           failure: loc("The Claude Code model picker did not open.")),
             .selectRow(label: modelLabel, via: nil, timeoutMs: 2000, abort: [.closePicker],
@@ -343,10 +343,10 @@ public enum Plans {
         ]
     }
 
-    /// codex: 모델은 그대로 두고 effort 만 한 단계 옮긴다.
+    /// codex: leaves the model alone and moves only effort by one step.
     ///
-    /// 지금 값은 선택창의 `(current)` 표시로 안다. 입력창 아래 상태 줄도 값을 보여 주지만, max·ultra 로 바꾼 직후
-    /// 한동안 옛 값을 보여 줘서(0.160.0 실측) 연달아 누르면 엉뚱한 단계로 간다.
+    /// The current value is known from the `(current)` mark in the picker. The status line below the input box also shows the value, but right after switching to max or ultra
+    /// it shows the old value for a while (measured on 0.160.0), so pressing in quick succession goes to a wrong step.
     public static func codexEffortStep(up: Bool) -> [Step] {
         let restoreDraft: [Step] = [.text("\u{19}\u{7F}")]
         let leave: [Step] = [.closePicker] + restoreDraft
@@ -359,7 +359,7 @@ public enum Plans {
             .key(.enter),
             .expectPicker(header: "Select Model and Effort", footer: nil, timeoutMs: 4000, abort: leave,
                           failure: loc("The Codex model picker did not open.")),
-            // 모델 목록의 커서는 지금 모델에서 시작한다. 그 행이 맞을 때만 Enter 로 들어간다.
+            // The cursor of the model list starts at the current model. Enter only when that row is right.
             .expectCurrentRow(abort: leave, failure: loc("Nothing was changed: the Codex model picker's cursor is not on the current model.")),
             .key(.enter),
             .expectPicker(header: "Select Reasoning Level", footer: nil, timeoutMs: 4000, abort: leave,
@@ -375,7 +375,7 @@ public enum Plans {
         ] + restoreDraft
     }
 
-    /// claude: 모델은 그대로 두고 effort 만 한 단계 옮긴다. 같은 선택창에서 → · ← 한 번이다.
+    /// claude: leaves the model alone and moves only effort by one step. One → or ← in the same picker.
     public static func claudeEffortStep(up: Bool, saveAsDefault: Bool, acceptSwitch: Bool = false) -> [Step] {
         let footer = "s to use this session only"
         return [
@@ -395,12 +395,12 @@ public enum Plans {
         ]
     }
 
-    /// claude: 쓰던 글을 임시 보관(Ctrl+S)하고 `/model`·`/effort` 를 차례로 실행한다(선택창을 읽지 못할 때의 대안).
-    /// 명령이 끝나면 claude 가 보관한 글을 되돌리므로 두 번째 명령 앞에서 다시 보관한다.
+    /// claude: stashes the text being typed (Ctrl+S) and runs `/model` and `/effort` one after the other (an alternative when the picker cannot be read).
+    /// When a command finishes, claude puts the stashed text back, so it is stashed again before the second command.
     public static func claude(_ preset: AgentPreset, acceptSwitch: Bool = false) -> [Step] {
         [
-            // Ctrl+S 와 명령과 Enter 를 한 번에 쓴다(2026-10-06 실측: 한 덩이여도 글이 보관·복원되고 명령이 실행된다).
-            // 고정 대기 대신 결과 줄이 «보임»을 확인하고 다음으로 간다 — 응답은 0.2초 안에 온다.
+            // Ctrl+S, the command and Enter are written in one go (measured 2026-10-06: even as one chunk the text is stashed and restored and the command runs).
+            // Instead of a fixed wait, confirms the result line is «visible» and moves on; the response comes within 0.2 seconds.
             .arm,
             .text("\u{13}/model \(preset.model)\r"),
             .expectResult(prefix: "Set model to", command: "/model", acceptSwitchTo: acceptSwitch ? [ClaudeModels.rowLabel(preset.model)] : [], timeoutMs: 3000,
@@ -412,16 +412,16 @@ public enum Plans {
         ]
     }
 
-    /// codex: `/model` 선택창을 키로 조작한다. `s` 로 확정해 이 세션에만 적용한다(기본값을 건드리지 않는다).
+    /// codex: operates the `/model` picker with keys. Confirms with `s` so it applies to this session only (the defaults are not touched).
     ///
-    /// effort 목록의 처음 커서 위치는 상황마다 다르다(현재 모델이면 현재 effort, 아니면 그 모델 기본값).
-    /// 그래서 화면에서 커서 행을 읽고 목표 행까지만 움직인다. 숫자 키로 고르면 기본값까지 저장되므로 쓰지 않는다.
+    /// Where the cursor starts in the effort list varies (the current effort if it is the current model, otherwise that model's default).
+    /// So the cursor row is read from the screen and moved only to the target row. Choosing with a number key also saves the default, so it is not used.
     public static func codex(modelIndex: Int, displayName: String?, effortLabel: String) -> [Step] {
         let restoreDraft: [Step] = [.text("\u{19}\u{7F}")]   // Ctrl+Y, Backspace
         let leave: [Step] = [.closePicker] + restoreDraft
         return [
-            // 쓰던 글 한 줄을 kill 버퍼로 옮긴다(Ctrl+E, 공백, Ctrl+A, Ctrl+K).
-            // 공백을 붙여 두면 빈 입력창에서도 Ctrl+Y 가 옛 내용을 꺼내지 않는다.
+            // Move the one line being typed into the kill buffer (Ctrl+E, space, Ctrl+A, Ctrl+K).
+            // With a space attached, Ctrl+Y does not pull out old content even from an empty input box.
             .text("\u{05} \u{01}\u{0B}/model"),
             .expect(needle: "choose what model and reasoning effort", bottom: 5,
                     timeoutMs: 2500,
@@ -431,7 +431,7 @@ public enum Plans {
             .expectPicker(header: "Select Model and Effort", footer: nil, timeoutMs: 4000, abort: leave,
                           failure: loc("The Codex model picker did not open.")),
             .text(String(modelIndex)),
-            // 머리말에 모델 이름이 나온다 — 숫자 키가 의도한 모델을 골랐는지까지 본다.
+            // The model name appears in the header; this also checks that the number key chose the intended model.
             .expectPicker(header: "Select Reasoning Level" + (displayName.map { " for \($0)" } ?? ""), footer: nil,
                           timeoutMs: 4000, abort: leave,
                           failure: loc("The Codex effort list did not open (a different model may have been selected).")),
@@ -443,7 +443,7 @@ public enum Plans {
                           failure: loc("Not switched: the Codex picker has no \"this session only\" (s) choice.")),
             .arm,
             .text("s"),
-            // 여기서 실패하면 화면에 뭐가 떠 있는지 모른다 — 선택창이면 닫되, 쓰던 글을 되돌리는 키는 보내지 않는다.
+            // If this fails we do not know what is on screen: close it if it is a picker, but do not send the key that restores the text being typed.
             .expectInput(agent: .codex, timeoutMs: 3000, abort: [.closePicker],
                             failure: loc("Stopped: the Codex input box did not come back. If you had text there, Ctrl+Y brings it back.")),
             .capture(prefixes: ["Model changed to"]),

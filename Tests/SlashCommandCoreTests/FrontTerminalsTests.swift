@@ -1,9 +1,9 @@
 import XCTest
 @testable import SlashCommandCore
 
-/// 맨 앞 세션 찾기(WezTerm · kitty · 그 안의 tmux). JSON 은 2026-10-12 집 맥 2 에서 받은 것을 줄인 것이다.
+/// Finding the frontmost session (WezTerm, kitty, and tmux inside them). The JSON is a trimmed copy of what was captured on a test Mac on 2026-10-12.
 final class FrontTerminalsTests: XCTestCase {
-    /// `foreground` 가 false 면 그 터미널의 앞 작업이 아니다(Ctrl-Z · `tmux suspend-client` 로 멈춰 둔 것).
+    /// If `foreground` is false it is not that terminal's foreground job (suspended with Ctrl-Z or `tmux suspend-client`).
     private func entry(_ pid: Int32, parent: Int32 = 1, device: UInt32, foreground: Bool = true, _ arguments: String...) -> ProcessTable.Entry {
         ProcessTable.Entry(pid: pid, parent: parent, hasTerminal: true, terminalDevice: device,
                            processGroup: pid, foregroundGroup: foreground ? pid : pid + 1000,
@@ -28,21 +28,21 @@ final class FrontTerminalsTests: XCTestCase {
         let pane = WezTermFront.focusedPane(clients: wezClients([(1667, 1, 3)]), panes: Data(wezPanes.utf8), frontPID: 1667)
         XCTAssertEqual(pane, WezTermFront.Pane(id: "1", tty: "/dev/ttys006", title: "Repos"))
         XCTAssertEqual(WezTermFront.focusedPane(clients: wezClients([(1667, 0, 3)]), panes: Data(wezPanes.utf8), frontPID: nil)?.tty, "/dev/ttys000",
-                       "맨 앞 GUI 를 모를 때는 클라이언트가 하나뿐일 때만")
+                       "Without knowing the frontmost GUI, only when there is a single client")
     }
 
     func testWezTermTakesTheFrontmostGUINotTheLastTypedIn() {
-        // GUI 둘이 한 mux 를 같이 쓴다. A 에 글자를 치고 B 로 포커스만 옮기면 A 의 idle 이 더 짧다 — 맨 앞은 B 다(PR #25 리뷰).
+        // Two GUIs share one mux. Type in A, then move only the focus to B: A's idle is shorter, but the frontmost is B (PR #25 review).
         let clients = wezClients([(100, 0, 2), (200, 1, 900)])
         XCTAssertEqual(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: 200)?.id, "1")
         XCTAssertEqual(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: 100)?.id, "0")
-        XCTAssertNil(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: nil), "어느 GUI 가 맨 앞인지 모르면 고르지 않는다")
-        XCTAssertNil(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: 300), "맨 앞 GUI 의 클라이언트가 목록에 없다")
+        XCTAssertNil(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: nil), "Does not pick when it does not know which GUI is in front")
+        XCTAssertNil(WezTermFront.focusedPane(clients: clients, panes: Data(wezPanes.utf8), frontPID: 300), "The frontmost GUI's client is not in the list")
     }
 
     func testWezTermWithNothingToGoOn() {
-        XCTAssertNil(WezTermFront.focusedPane(clients: wezClients([(1, 7, 1)]), panes: Data(wezPanes.utf8), frontPID: 1), "목록에 없는 pane")
-        XCTAssertNil(WezTermFront.focusedPane(clients: wezClients([(1, nil, 1)]), panes: Data(wezPanes.utf8), frontPID: 1), "포커스 pane 을 모른다")
+        XCTAssertNil(WezTermFront.focusedPane(clients: wezClients([(1, 7, 1)]), panes: Data(wezPanes.utf8), frontPID: 1), "A pane not in the list")
+        XCTAssertNil(WezTermFront.focusedPane(clients: wezClients([(1, nil, 1)]), panes: Data(wezPanes.utf8), frontPID: 1), "Does not know the focused pane")
         XCTAssertNil(WezTermFront.focusedPane(clients: Data("[]".utf8), panes: Data(wezPanes.utf8), frontPID: nil))
         XCTAssertNil(WezTermFront.focusedPane(clients: Data("not json".utf8), panes: Data(wezPanes.utf8), frontPID: nil))
     }
@@ -54,7 +54,7 @@ final class FrontTerminalsTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data().write(to: folder.appendingPathComponent("gui-sock-1667"))
         XCTAssertEqual(WezTermFront.socket(ofGUI: 1667, home: home), folder.appendingPathComponent("gui-sock-1667").path)
-        XCTAssertNil(WezTermFront.socket(ofGUI: 9, home: home), "그 GUI 의 소켓이 없으면 wezterm cli 의 기본대로")
+        XCTAssertNil(WezTermFront.socket(ofGUI: 9, home: home), "Without that GUI's socket, wezterm cli's default")
         XCTAssertNil(WezTermFront.socket(ofGUI: nil, home: home))
         XCTAssertNil(WezTermFront.environment(socket: nil))
         XCTAssertEqual(WezTermFront.environment(socket: "/x/gui-sock-1")?["WEZTERM_UNIX_SOCKET"], "/x/gui-sock-1")
@@ -63,16 +63,16 @@ final class FrontTerminalsTests: XCTestCase {
     // MARK: kitty
 
     func testKittyBoundSockets() {
-        // 2026-10-12 집 맥 2: `lsof -a -p <pid> -U -Fn`. 원격 제어를 켠 kitty 와 켜지 않은 kitty.
+        // 2026-10-12 test Mac: `lsof -a -p <pid> -U -Fn`. A kitty with remote control on and one without.
         XCTAssertEqual(KittyFront.boundSockets(lsofOutput: "p33356\nf4\nn->0xd1dda1117d7f9d95\nf9\nn/tmp/sc-kitty\n"), ["unix:/tmp/sc-kitty"])
-        XCTAssertEqual(KittyFront.boundSockets(lsofOutput: "p2111\nf4\nn->0xd1dda1117d7f9d95\n"), [], "이름 없는 소켓뿐 — 원격 제어가 꺼져 있다")
+        XCTAssertEqual(KittyFront.boundSockets(lsofOutput: "p2111\nf4\nn->0xd1dda1117d7f9d95\n"), [], "Only unnamed sockets — remote control is off")
         XCTAssertEqual(KittyFront.boundSockets(lsofOutput: "p7\nf9\nn/Users/me/kitty.sock\nf10\nn/Users/me/kitty.sock\nf11\nn/private/tmp/kitty-7\n"),
-                       ["unix:/Users/me/kitty.sock", "unix:/private/tmp/kitty-7"], "설정이 어디에 있든, 실제로 열린 주소")
+                       ["unix:/Users/me/kitty.sock", "unix:/private/tmp/kitty-7"], "The address actually open, wherever the config is")
         XCTAssertEqual(KittyFront.boundSockets(lsofOutput: ""), [])
     }
 
     private func kittyLS(focusedOS: [Bool], focusedTab: Int = 0) -> Data {
-        // 실제 출력의 `env`(그 창의 환경변수 전체)는 넣지 않았다.
+        // The real output's `env` (the window's whole environment) is not included.
         let windows = focusedOS.enumerated().map { index, focused -> String in
             let base = index * 10
             return """
@@ -95,8 +95,8 @@ final class FrontTerminalsTests: XCTestCase {
 
     func testKittyWithSeveralOSWindows() {
         XCTAssertEqual(KittyFront.focusedWindow(ls: kittyLS(focusedOS: [false, true]))?.id, "11")
-        XCTAssertNil(KittyFront.focusedWindow(ls: kittyLS(focusedOS: [false, false])), "어느 창이 맨 앞인지 모른다")
-        XCTAssertEqual(KittyFront.focusedWindow(ls: kittyLS(focusedOS: [false]))?.id, "1", "창이 하나뿐이면 kitty 가 뒤에 있어도 그 창이다")
+        XCTAssertNil(KittyFront.focusedWindow(ls: kittyLS(focusedOS: [false, false])), "Does not know which window is in front")
+        XCTAssertEqual(KittyFront.focusedWindow(ls: kittyLS(focusedOS: [false]))?.id, "1", "With a single window, it is that window even if kitty is behind")
         XCTAssertNil(KittyFront.focusedWindow(ls: Data("{}".utf8)))
     }
 
@@ -116,8 +116,8 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertEqual(TmuxFront.socket(clientArguments: ["tmux", "-L", "scfront", "new", "-s", "sc"]), "scfront")
         XCTAssertEqual(TmuxFront.socket(clientArguments: ["/opt/homebrew/bin/tmux", "-Lscfront", "attach"]), "scfront")
         XCTAssertEqual(TmuxFront.socket(clientArguments: ["tmux", "-u", "-S", "/tmp/my.sock", "attach"]), "/tmp/my.sock")
-        XCTAssertEqual(TmuxFront.socket(clientArguments: ["tmux", "-f", "/tmp/-L.conf", "-L", "two"]), "two", "다른 옵션의 값은 건너뛴다")
-        XCTAssertNil(TmuxFront.socket(clientArguments: ["tmux", "new", "-s", "x", "-L"]), "명령 뒤의 것은 tmux 의 옵션이 아니다")
+        XCTAssertEqual(TmuxFront.socket(clientArguments: ["tmux", "-f", "/tmp/-L.conf", "-L", "two"]), "two", "Skips the values of other options")
+        XCTAssertNil(TmuxFront.socket(clientArguments: ["tmux", "new", "-s", "x", "-L"]), "What follows the command is not a tmux option")
     }
 
     func testTmuxSocketArguments() {
@@ -127,7 +127,7 @@ final class FrontTerminalsTests: XCTestCase {
     }
 
     func testTmuxWriteRefusesSynchronizedPanes() {
-        // 확인(`#{pane_synchronized}`)과 쓰기가 tmux 의 한 명령이다 — 켜져 있으면 쓰지 않고 표지를 찍는다.
+        // The check (`#{pane_synchronized}`) and the write are one tmux command — when it is on, it does not write and prints a marker.
         let arguments = TmuxIO.sendArguments(pane: "%5", bytes: "/m\r")
         XCTAssertEqual(arguments, ["if-shell", "-F", "-t", "%5", "#{pane_synchronized}",
                                    "display-message -p \(TmuxIO.synchronizedMark)", "send-keys -t '%5' -H 2f 6d 0d"])
@@ -135,14 +135,14 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertEqual(TmuxIO.quoted("it's"), "'it'\\''s'")
     }
 
-    // MARK: 그 터미널의 프로세스
+    // MARK: Processes in that terminal
 
     func testAgentOnATerminal() {
         let shell = entry(10, device: 7, "-zsh")
         let claude = entry(11, parent: 10, device: 7, "claude")
         let inner = entry(12, parent: 11, device: 7, "codex", "exec", "x")
         let parents: [Int32: Int32] = [10: 1, 11: 10, 12: 11]
-        XCTAssertEqual(TTYProcesses.agent(in: [shell, claude, inner], parents: parents), .claude, "에이전트가 띄운 에이전트는 세지 않는다")
+        XCTAssertEqual(TTYProcesses.agent(in: [shell, claude, inner], parents: parents), .claude, "An agent started by an agent is not counted")
         XCTAssertNil(TTYProcesses.agent(in: [shell], parents: parents))
         XCTAssertTrue(TTYProcesses.isTmuxClient(entry(20, device: 7, "/opt/homebrew/bin/tmux", "-L", "x", "attach")))
         XCTAssertFalse(TTYProcesses.isTmuxClient(claude))
@@ -153,48 +153,48 @@ final class FrontTerminalsTests: XCTestCase {
             [entry(10, device: 7, "-zsh"), entry(11, parent: 10, device: 7, "codex"), entry(30, device: 9, "-zsh"), entry(31, parent: 30, device: 9, "claude")],
             [10: 1, 11: 10, 30: 1, 31: 30])
         let target = try Detector.session(host: .wezterm(socket: nil, pane: "1"), appName: "WezTerm", label: "Repos", table: table, device: 7)
-        XCTAssertEqual(target, Target(host: .wezterm(socket: nil, pane: "1"), agent: .codex, label: "Repos"), "다른 터미널의 에이전트는 보지 않는다")
+        XCTAssertEqual(target, Target(host: .wezterm(socket: nil, pane: "1"), agent: .codex, label: "Repos"), "Agents in other terminals are ignored")
         XCTAssertThrowsError(try Detector.session(host: .wezterm(socket: nil, pane: "2"), appName: "WezTerm", label: "zsh", table: table, device: 8))
     }
 
     func testSuspendedTmuxClientIsNotTheSessionInFront() throws {
-        // `tmux suspend-client`(또는 Ctrl-Z): 클라이언트는 그 tty 에 남아 있지만 화면에는 셸이 보인다. 그 뒤의 tmux 칸으로 들어가지 않는다(PR #25 리뷰).
+        // `tmux suspend-client` (or Ctrl-Z): the client stays on that tty but the screen shows a shell. Do not go into the tmux pane behind it (PR #25 review).
         let suspended = entry(21, parent: 20, device: 7, foreground: false, "tmux", "-L", "x", "attach")
         let shellOnly: (entries: [ProcessTable.Entry], parents: [Int32: Int32]) = ([entry(20, device: 7, "-zsh"), suspended], [20: 1, 21: 20])
         XCTAssertThrowsError(try Detector.session(host: .wezterm(socket: nil, pane: "0"), appName: "WezTerm", label: "zsh", table: shellOnly, device: 7)) { error in
             XCTAssertEqual((error as? SlashCommandError)?.message,
                            loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", "zsh"))
         }
-        // 멈춰 둔 뒤 그 셸에서 에이전트를 띄웠으면, 보이는 것은 그 에이전트다 — 바깥 터미널이 대상이다.
+        // If an agent was started in that shell after suspending, what is visible is that agent — the outer terminal is the target.
         let withAgent: (entries: [ProcessTable.Entry], parents: [Int32: Int32]) = (shellOnly.entries + [entry(22, parent: 20, device: 7, "claude")], [20: 1, 21: 20, 22: 20])
         XCTAssertEqual(try Detector.session(host: .wezterm(socket: nil, pane: "0"), appName: "WezTerm", label: "zsh", table: withAgent, device: 7).host,
                        .wezterm(socket: nil, pane: "0"))
     }
 
-    // MARK: 낮은 창의 잘린 선택창
+    // MARK: Clipped picker in a short window
 
     struct Fixture: Decodable { let tail: [String] }
 
     func testPickerWhoseHintRowIsCutOff() throws {
-        // 2026-10-12 집 맥 2, 11줄짜리 tmux 칸의 claude 2.1.295: 선택창의 맨 아래 안내 줄이 그려지지 않는다.
+        // 2026-10-12 test Mac, claude 2.1.295 in an 11-line tmux pane: the hint line at the bottom of the picker is not drawn.
         let url = try XCTUnwrap(Bundle.module.url(forResource: "claude-picker-clipped", withExtension: "json", subdirectory: "Fixtures"))
         let lines = try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tail
-        XCTAssertNil(Picker.open(lines), "안내 줄이 없어 열린 선택창으로는 읽히지 않는다")
+        XCTAssertNil(Picker.open(lines), "Without the hint line it is not read as an open picker")
         XCTAssertTrue(Picker.clipped(lines, header: "Select model"))
-        XCTAssertFalse(Picker.clipped(lines, header: "Select Model and Effort"), "다른 선택창의 머리말")
-        XCTAssertFalse(Picker.clipped(["  Select model", "  some text", "❯ "], header: "Select model"), "커서가 놓인 행이 없다")
+        XCTAssertFalse(Picker.clipped(lines, header: "Select Model and Effort"), "Header of a different picker")
+        XCTAssertFalse(Picker.clipped(["  Select model", "  some text", "❯ "], header: "Select model"), "No row has the cursor")
         let whole = lines + ["   Enter to set as default · s to use this session only · Esc to cancel"]
         XCTAssertNotNil(Picker.open(whole))
-        XCTAssertFalse(Picker.clipped(whole, header: "Select model"), "안내 줄이 보이면 잘린 것이 아니다")
+        XCTAssertFalse(Picker.clipped(whole, header: "Select model"), "If the hint line is visible it is not clipped")
     }
 
     func testTerminalDevice() {
-        XCTAssertNotNil(TTYProcesses.device(ofTTY: "/dev/null"), "문자 장치")
+        XCTAssertNotNil(TTYProcesses.device(ofTTY: "/dev/null"), "Character device")
         XCTAssertNil(TTYProcesses.device(ofTTY: "/dev/ttys-nope"))
-        XCTAssertNil(TTYProcesses.device(ofTTY: "/tmp"), "장치가 아니다")
+        XCTAssertNil(TTYProcesses.device(ofTTY: "/tmp"), "Not a device")
     }
 
-    // MARK: Orca 안의 tmux
+    // MARK: tmux inside Orca
 
     private func orcaEntry(_ pid: Int32, parent: Int32, handle: String = "term_A", device: UInt32, foreground: Bool = true, _ arguments: String...) -> ProcessTable.Entry {
         ProcessTable.Entry(pid: pid, parent: parent, hasTerminal: true, terminalDevice: device,
@@ -202,8 +202,8 @@ final class FrontTerminalsTests: XCTestCase {
                            arguments: arguments, environment: ["HOME=/Users/x", "ORCA_TERMINAL_HANDLE=\(handle)"], executable: "")
     }
 
-    /// 터미널 A(tty 1): 셸 100 → tmux 클라이언트 110. tmux 서버 200(터미널 없음 — 목록에 없다) → 칸의 셸 210(tty 2) → claude 220,
-    /// 그리고 칸 안에서 다시 띄운 클라이언트 230. 서버를 A 에서 띄워 칸의 프로세스도 같은 핸들을 갖는다.
+    /// Terminal A (tty 1): shell 100 → tmux client 110. tmux server 200 (no terminal — not in the list) → pane shell 210 (tty 2) → claude 220,
+    /// and a client 230 started again inside the pane. The server was started from A, so the pane's processes carry the same handle.
     private var orcaTmux: (entries: [ProcessTable.Entry], parents: [Int32: Int32], isTmux: (Int32) -> Bool) {
         let entries = [
             orcaEntry(100, parent: 50, device: 1, foreground: false, "-zsh"),
@@ -218,18 +218,18 @@ final class FrontTerminalsTests: XCTestCase {
     func testOrcaTerminalRunningTmuxLeadsToItsClient() {
         let t = orcaTmux
         XCTAssertEqual(AgentProcesses.tmuxClient(orcaHandle: "term_A", entries: t.entries, parents: t.parents, isTmux: t.isTmux)?.pid, 110,
-                       "칸 안에서 다시 띄운 클라이언트(230)가 아니라 그 터미널의 클라이언트")
-        XCTAssertNil(AgentProcesses.tmuxClient(orcaHandle: "term_B", entries: t.entries, parents: t.parents, isTmux: t.isTmux), "다른 터미널")
+                       "That terminal's client, not the client (230) started again inside the pane")
+        XCTAssertNil(AgentProcesses.tmuxClient(orcaHandle: "term_B", entries: t.entries, parents: t.parents, isTmux: t.isTmux), "Another terminal")
     }
 
     func testSuspendedOrDetachedTmuxIsNotFollowedInOrca() {
         var t = orcaTmux
-        // Ctrl-Z 로 멈춰 둔 클라이언트: 앞 작업이 아니다.
+        // A client stopped with Ctrl-Z: not the foreground job.
         t.entries[1] = orcaEntry(110, parent: 100, device: 1, foreground: false, "tmux", "-L", "work", "attach")
         XCTAssertNil(AgentProcesses.tmuxClient(orcaHandle: "term_A", entries: t.entries, parents: t.parents, isTmux: t.isTmux))
-        // 그때 칸 안의 claude(같은 핸들을 물려받았다)를 이 터미널의 에이전트로 세지 않는다 — 화면에는 셸이 보인다.
+        // Then the claude inside the pane (which inherited the same handle) is not counted as this terminal's agent — the screen shows a shell.
         XCTAssertNil(AgentProcesses.agent(orcaHandle: "term_A", entries: t.entries, parents: t.parents, isTmux: t.isTmux))
-        // 양성 대조군: tmux 밖에서 바로 도는 에이전트는 센다.
+        // Positive control: an agent running directly outside tmux is counted.
         let plain = [orcaEntry(100, parent: 50, device: 1, foreground: false, "-zsh"), orcaEntry(120, parent: 100, device: 1, "codex")]
         XCTAssertEqual(AgentProcesses.agent(orcaHandle: "term_A", entries: plain, parents: [100: 50, 120: 100], isTmux: { _ in false }), .codex)
     }
@@ -246,13 +246,13 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertThrowsError(try Detector.target(bundleID: "com.apple.TextEdit", appName: "TextEdit"))
     }
 
-    /// 같은 터미널 앱을 둘 띄웠을 때: 부른 쪽이 아는 맨 앞 pid 가 있으면 그것이 이긴다. 실행 중인 앱 목록은 모를 때만 본다
-    /// (2026-10-13 실측 — 목록에서 고른 «활성» 프로세스가 먼저 뜬 쪽이어서 단축키가 그쪽의 셸로 갔다).
+    /// When the same terminal app is launched twice: a frontmost pid known to the caller wins. The running-app list is consulted only when it is unknown
+    /// (measured 2026-10-13 — the «active» process picked from the list was the one launched first, so the shortcut went to its shell).
     func testTheFrontProcessTheCallerKnowsWins() {
         var asked: [String] = []
         let active: (String) -> Int32? = { asked.append($0); return 1667 }
         XCTAssertEqual(Detector.frontProcess(known: 84481, bundleID: Detector.weztermBundleID, active: active), 84481)
-        XCTAssertEqual(asked, [], "아는 pid 가 있으면 목록에 묻지 않는다")
+        XCTAssertEqual(asked, [], "With a known pid the list is not consulted")
         XCTAssertEqual(Detector.frontProcess(known: nil, bundleID: Detector.kittyBundleID, active: active), 1667)
         XCTAssertEqual(asked, [Detector.kittyBundleID])
     }

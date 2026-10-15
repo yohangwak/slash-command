@@ -1,7 +1,7 @@
 import AppKit
 
-/// 메뉴 막대 아이콘 — 키 하나에 슬래시(앱 아이콘 `scripts/make-icon.swift` 와 같은 그림).
-/// 템플릿 이미지라 메뉴 막대의 밝기(밝음·어두움·강조)를 따라가고, 그릴 때마다 화면 배율에 맞춰 다시 그린다.
+/// Menu bar icon: a slash on a key (the same picture as the app icon `scripts/make-icon.swift`).
+/// It is a template image, so it follows the menu bar's brightness (light, dark, highlighted) and is redrawn at the screen scale each time it is drawn.
 enum StatusIcon {
     static let size = NSSize(width: 18, height: 18)
 
@@ -15,7 +15,7 @@ enum StatusIcon {
         return image
     }
 
-    /// 18pt 격자 기준으로 그린다. 다른 크기의 `rect` 에는 비율대로 늘어난다.
+    /// Drawn on an 18pt grid. For a `rect` of another size it is scaled proportionally.
     static func draw(in rect: NSRect) {
         let unit = rect.width / size.width
         NSColor.black.setStroke()

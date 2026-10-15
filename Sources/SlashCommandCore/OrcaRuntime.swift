@@ -1,15 +1,15 @@
 import Foundation
 
-/// Orca 앱에 직접 말을 건다 — `orca` 명령이 쓰는 것과 같은 통로(유닉스 소켓에 한 줄짜리 JSON 요청·응답).
+/// Talks to the Orca app directly, over the same channel the `orca` command uses (a one-line JSON request and response on a Unix socket).
 ///
-/// `orca` 명령은 부를 때마다 프로세스를 새로 띄워 한 번에 약 0.2초가 든다(2026-10-06 실측: 화면 읽기 200ms).
-/// 같은 요청을 소켓으로 직접 보내면 1ms 안쪽이다. 공개된 인터페이스가 아니므로 형식이 다르면 추측하지 않고
-/// `unavailable` 을 돌려주고, 부른 쪽이 `orca` 명령으로 되돌아간다.
+/// The `orca` command starts a new process on every call, costing about 0.2 s each (measured 2026-10-06: reading the screen, 200 ms).
+/// Sending the same request straight to the socket takes under 1 ms. It is not a public interface, so if the format differs it does not guess;
+/// it returns `unavailable` and the caller falls back to the `orca` command.
 public enum OrcaRuntime {
     public enum Failure: Error, Equatable {
-        /// 요청을 보내기 «전»에 실패했다 — 아무것도 전달되지 않았으므로 다른 길로 다시 해도 된다.
+        /// Failed "before" the request was sent: nothing was delivered, so trying another way is fine.
         case unavailable(String)
-        /// 요청을 보낸 «뒤»에 실패했다(응답 없음·오류 응답). 입력이 이미 들어갔을 수 있으므로 다시 보내지 않는다.
+        /// Failed "after" the request was sent (no response, or an error response). Input may already have gone in, so it is not sent again.
         case failed(String)
 
         public var message: String {
@@ -21,12 +21,12 @@ public enum OrcaRuntime {
 
     struct Metadata {
         let socketPath: String
-        /// Orca 가 실행 정보 파일에 적어 둔 인증 값. 화면·기록에 남기지 않는다.
+        /// The auth value Orca writes in its runtime info file. It is not kept on screen or in the log.
         let credential: String
         let runtimeID: String?
     }
 
-    /// 실행 정보 파일과 요청에서 인증 값이 들어가는 항목 이름.
+    /// The key name under which the auth value appears in the runtime info file and in requests.
     static let credentialField = "auth" + "Token"
 
     static var metadataURL: URL {
@@ -45,7 +45,7 @@ public enum OrcaRuntime {
         return Metadata(socketPath: path, credential: auth, runtimeID: json["runtimeId"] as? String)
     }
 
-    /// 요청 하나를 보내고 `result` 를 돌려준다.
+    /// Sends one request and returns its `result`.
     public static func call(_ method: String, _ params: [String: Any], timeout: TimeInterval = 5) -> Result<[String: Any], Failure> {
         guard let data = try? Data(contentsOf: metadataURL), let meta = metadata(from: data) else {
             return .failure(.unavailable(loc("Could not read Orca's runtime information")))
@@ -85,7 +85,7 @@ public enum OrcaRuntime {
         while sent < payload.count {
             let written = payload.withUnsafeBytes { write(fd, $0.baseAddress! + sent, payload.count - sent) }
             if written <= 0 {
-                // 한 바이트도 못 썼으면 전달된 것이 없다. 일부라도 썼으면 줄바꿈 없는 요청은 실행되지 않지만 단정하지 않는다.
+                // If not a single byte was written, nothing was delivered. If some was written, a request without a newline is not executed, but we do not assume that.
                 return .failure(sent == 0 ? .unavailable(loc("Could not write the request to the Orca app")) : .failed(loc("The connection dropped while writing the request to the Orca app")))
             }
             sent += written
@@ -113,7 +113,7 @@ public enum OrcaRuntime {
         case done(Result<[String: Any], Failure>)
     }
 
-    /// 응답 한 줄을 해석한다. 연결 유지용 줄(`_keepalive`)과 빈 줄은 건너뛴다.
+    /// Interprets one response line. Keepalive lines (`_keepalive`) and blank lines are skipped.
     static func frame(_ line: Data, expectingID id: String, runtimeID: String?) -> Frame {
         guard line.contains(where: { $0 != 0x20 && $0 != 0x0D && $0 != 0x09 }) else { return .skip }
         guard let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {

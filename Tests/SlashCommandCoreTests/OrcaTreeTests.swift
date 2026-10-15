@@ -1,9 +1,9 @@
 import XCTest
 @testable import SlashCommandCore
 
-/// 접근성 나무를 도는 부분. 실제 Orca 의 나무는 창 아래에서 앱 요소가 다시 자식으로 나와 끝없이 이어질 때가 있다(2026-10-12 집 맥).
+/// The part that walks the accessibility tree. The real Orca tree can run endlessly, with the app element reappearing as a child under the window (2026-10-12 test Mac).
 final class OrcaTreeTests: XCTestCase {
-    /// 번호로 된 가짜 나무: 자식 목록과 글.
+    /// A fake tree keyed by number: child lists and text.
     private struct Tree {
         var children: [Int: [Int]] = [:]
         var labels: [Int: String] = [:]
@@ -34,14 +34,14 @@ final class OrcaTreeTests: XCTestCase {
         XCTAssertFalse(tree.visited.contains(9))
     }
 
-    /// 창 아래에서 앱 요소가 다시 나와 창으로 돌아오는 고리 — 끝나야 하고, 탭은 한 번씩만 센다.
+    /// A cycle where the app element reappears under the window and leads back to the window — it must terminate, and each tab is counted once.
     func testACycleThroughTheApplicationEnds() {
         var tree = Tree()
-        // 0 = 앱, 1 = 창. 창의 자식에 앱이 다시 있고, 앱의 자식은 창이다.
+        // 0 = app, 1 = window. The window's children include the app again, and the app's child is the window.
         tree.children = [0: [1], 1: [2, 0], 2: [3]]
         tree.labels = [3: tab("only")]
         XCTAssertEqual(tree.tabs(from: [1], seen: [0])?.map(\.title), ["only"])
-        // 앱 요소를 미리 넣어 두지 않아도 끝난다.
+        // It ends even if the app element is not put in beforehand.
         XCTAssertEqual(tree.tabs(from: [1])?.map(\.title), ["only"])
     }
 
@@ -52,7 +52,7 @@ final class OrcaTreeTests: XCTestCase {
         XCTAssertEqual(tree.tabs(from: [1])?.map(\.title), ["only"])
     }
 
-    /// 상한에 걸리면 못 본 탭이 있을 수 있다 — 일부만 읽은 것으로 답하지 않는다.
+    /// If the limit is hit there may be tabs not seen — do not return a partial read as the answer.
     func testTooDeepOrTooLargeIsUnknown() {
         var chain = Tree()
         for depth in 0..<400 { chain.children[depth] = [depth + 1] }

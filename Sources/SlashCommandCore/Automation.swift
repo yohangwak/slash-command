@@ -1,14 +1,14 @@
 import AppKit
 
-/// macOS 의 «자동화» 허락 — 이 프로세스가 그 앱을 AppleScript 로 다뤄도 되는가.
+/// macOS "Automation" permission — may this process drive that app with AppleScript?
 public enum AutomationConsent: Equatable, Sendable {
     case allowed
     case denied
-    /// 아직 물은 적이 없다 — 처음 다룰 때 시스템이 묻는다.
+    /// Never asked yet — the system asks the first time the app is driven.
     case notAsked
     case notRunning
 
-    /// AppleScript 로 다루는 터미널들.
+    /// Terminals driven with AppleScript.
     public static let scriptedBundleIDs: Set<String> = [Detector.ghosttyBundleID, Detector.itermBundleID]
 
     static func classify(_ status: OSStatus) -> AutomationConsent {
@@ -16,39 +16,39 @@ public enum AutomationConsent: Equatable, Sendable {
         case noErr: return .allowed
         case OSStatus(errAEEventNotPermitted): return .denied
         case OSStatus(procNotFound): return .notRunning
-        default: return .notAsked     // errAEEventWouldRequireUserConsent(-1744) 등
+        default: return .notAsked     // errAEEventWouldRequireUserConsent (-1744), etc.
         }
     }
 
-    /// 지금의 허락 상태. `ask` 가 참이면 아직 묻지 않았을 때 시스템이 허용 창을 띄우고 «답할 때까지» 기다린다 —
-    /// 주 스레드에서 그렇게 부르지 않는다. 대상 앱이 응답하지 않으면 묻지 않아도 오래 걸릴 수 있다.
+    /// The current permission state. When `ask` is true and the user has not been asked yet, the system shows the permission dialog and waits "until it is answered" —
+    /// do not call it that way on the main thread. If the target app does not respond, it can take a long time even without asking.
     public static func status(bundleID: String, ask: Bool = false) -> AutomationConsent {
         guard NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first != nil else { return .notRunning }
         return classify(rawStatus(bundleID: bundleID, ask: ask))
     }
 
-    /// 시스템이 준 번호 그대로(0 허용 · -1743 거절 · -1744 아직 묻지 않음 · -600 실행 중 아님).
+    /// The number exactly as the system gave it (0 allowed, -1743 denied, -1744 not asked yet, -600 not running).
     public static func rawStatus(bundleID: String, ask: Bool = false) -> OSStatus {
         let target = NSAppleEventDescriptor(bundleIdentifier: bundleID)
         return AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, ask)
     }
 
-    /// 묻지 않고 읽은 결과와 시스템이 준 번호(기록용).
+    /// The result read without asking, and the number the system gave (for logging).
     struct Reading: Sendable {
         let consent: AutomationConsent
         let detail: String
     }
 
-    /// 시스템에 바로 묻는다 — «실행 중인가» 를 `NSRunningApplication` 으로 먼저 거르지 않는다. 우리 앱이 켜진 «뒤» 에 뜬 앱을
-    /// 그 목록이 다른 스레드에서 못 볼 때가 있어, 맨 앞에 있는 터미널을 «실행 중이 아니다» 로 읽었다(2026-10-13 집 맥 2 의 Ghostty,
-    /// 2번에 2번 — 기록 `first check: no running app with that id`). 정말 실행 중이 아니면 시스템이 -600 을 준다.
+    /// Asks the system directly — does not pre-filter with "is it running" via `NSRunningApplication`. For an app that launched "after" our app started,
+    /// that list is sometimes not visible from another thread, and the frontmost terminal was read as "not running" (2026-10-13, Ghostty on a test Mac,
+    /// 2 times out of 2 — log `first check: no running app with that id`). If it really is not running, the system returns -600.
     static func read(bundleID: String) -> Reading {
         let raw = rawStatus(bundleID: bundleID)
         return Reading(consent: classify(raw), detail: "status \(raw)")
     }
 
-    /// 묻지 않고 읽되 `seconds` 까지만 기다린다(평소의 답은 몇 ms 다). 대상 앱이 응답하지 않으면 이 확인도 답이 없을 수 있다 —
-    /// 그때는 nil(모른다)이고, 부른 쪽은 막지 않고 스크립트의 응답 제한에 맡긴다.
+    /// Reads without asking, but waits only up to `seconds` (the usual answer takes a few ms). If the target app does not respond, this check can also go unanswered —
+    /// then nil (unknown), and the caller does not block and leaves it to the script's response limit.
     static func bounded(bundleID: String, seconds: TimeInterval = 2) -> Reading? {
         final class Answer: @unchecked Sendable { var value: Reading? }
         let answer = Answer()
@@ -60,11 +60,11 @@ public enum AutomationConsent: Equatable, Sendable {
         return done.wait(timeout: .now() + seconds) == .success ? answer.value : nil
     }
 
-    /// 허용 창이 떠 있음을 한 번만 알린다. 닫은 뒤에는 알리지 않는다.
+    /// Announces once that the permission dialog is showing. Does not announce after it is closed.
     ///
-    /// 알림은 잠근 채로 부른다 — 이미 시작된 알림이 있으면 `close()` 가 그것이 끝날 때까지 기다린다. 그러지 않으면 답이 바로
-    /// 그 순간에 왔을 때 부른 쪽의 결과 알림이 먼저 줄을 서고 뒤늦은 «허용해 주세요» 가 그것을 덮는다(#35 리뷰).
-    /// 그래서 알림(`willAsk`)은 금방 끝나야 하고 `ensure` 를 다시 불러서는 안 된다.
+    /// The announcement is called while holding the lock — if an announcement has already started, `close()` waits until it finishes. Otherwise, when the answer arrives
+    /// at that very moment, the caller's result notification would queue first and the belated "please allow" notice would overwrite it (#35 review).
+    /// So the announcement (`willAsk`) must finish quickly and must not call `ensure` again.
     private final class Notice: @unchecked Sendable {
         private let lock = NSLock()
         private var action: (() -> Void)?
@@ -85,7 +85,7 @@ public enum AutomationConsent: Equatable, Sendable {
             DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + seconds) { self.fire() }
         }
 
-        /// 더는 알리지 않는다(시작된 알림은 끝난 뒤에 돌아온다). 알렸으면 참.
+        /// No more announcements (an announcement already started returns after it finishes). True if one was announced.
         func close() -> Bool {
             lock.lock()
             defer { lock.unlock() }
@@ -94,22 +94,22 @@ public enum AutomationConsent: Equatable, Sendable {
         }
     }
 
-    /// 그 터미널을 다루기 전에 허락을 확인하고, 아직 묻지 않았으면 «여기서» 묻고 답을 기다린다.
+    /// Checks the permission before driving that terminal, and if the user has not been asked yet, asks "here" and waits for the answer.
     ///
-    /// 묻지 않은 채 스크립트부터 보내면 시스템이 그때 허용 창을 띄우는데, 스크립트에는 응답 제한(5초)이 있어
-    /// 그 안에 누르지 못하면 창이 사라지고 답도 남지 않는다 — 누를 때마다 5초짜리 창이 떴다 사라진다(2026-10-12 집 맥 2 의 iTerm2 실측).
-    /// 허용 창을 띄워 허락받았으면 참을 돌려준다(그동안 맨 앞 앱이 바뀌었을 수 있다 — 부른 쪽이 다시 확인한다).
-    /// 이미 꺼져 있으면 `needsAutomation` 을 세운 오류를, 방금 창에서 거절했으면 그 표시 없는 오류를 던진다.
-    /// `willAsk` 는 허용 창이 뜰 때(또는 떠 있음을 알게 됐을 때) 한 번 불린다 — 다른 스레드에서 불릴 수 있고, 금방 끝나야 한다
-    /// (끝날 때까지 답을 돌려주지 않는다).
-    /// `note` 는 허락이 «확인되지 않았을» 때 무엇을 보았는지 한 줄로 받는다(기록용 — 첫 확인의 근거와 물은 뒤의 번호가 붙는다).
+    /// If a script were sent without asking, the system would show the permission dialog at that moment, but scripts have a response limit (5 s),
+    /// and if the user cannot click in time, the dialog disappears and no answer is recorded — a 5-second dialog appears and vanishes on every press (measured 2026-10-12, iTerm2 on a test Mac).
+    /// Returns true if the dialog was shown and the permission granted (the frontmost app may have changed meanwhile — the caller checks again).
+    /// If it is already off, throws an error with `needsAutomation` set; if the user just denied it in the dialog, an error without that mark.
+    /// `willAsk` is called once when the dialog appears (or when we learn it is showing) — it may be called from another thread and must finish quickly
+    /// (the answer is not returned until it finishes).
+    /// `note` receives, in one line, what was seen when the permission was "not confirmed" (for logging — carries the basis of the first check and the number after asking).
     @discardableResult
     public static func ensure(bundleID: String, appName: String, willAsk: @escaping () -> Void = {}, note: (String) -> Void = { _ in }) throws -> Bool {
         var seen: [String] = []
         return try ensure(bundleID: bundleID, appName: appName, willAsk: willAsk,
                           note: { note(seen.isEmpty ? $0 : "\($0) [\(seen.joined(separator: " · "))]") },
                           status: { id, ask in
-            // 물을 때는 «실행 중인가» 를 따로 보지 않는다 — 맨 앞에 있는 터미널이고, 이미 허락돼 있으면 바로 돌아온다.
+            // When asking, "is it running" is not checked separately — it is the frontmost terminal, and if already permitted this returns immediately.
             if ask {
                 let raw = rawStatus(bundleID: id, ask: true)
                 seen.append("asked: status \(raw)")
@@ -121,7 +121,7 @@ public enum AutomationConsent: Equatable, Sendable {
         })
     }
 
-    /// `status(번들 id, 물을지)` 는 답이 없으면 nil 이다. 물은 뒤 `lateAfter` 초가 지나도 답이 없으면 허용 창이 떠 있는 것으로 본다.
+    /// `status(bundle id, whether to ask)` returns nil when there is no answer. If there is still no answer `lateAfter` seconds after asking, the permission dialog is assumed to be showing.
     static func ensure(bundleID: String, appName: String, willAsk: @escaping () -> Void = {}, note: (String) -> Void = { _ in },
                        lateAfter: TimeInterval = 1,
                        status: (_ bundleID: String, _ ask: Bool) -> AutomationConsent?) throws -> Bool {
@@ -132,7 +132,7 @@ public enum AutomationConsent: Equatable, Sendable {
         case .allowed:
             return false
         case nil:
-            // 대상 앱이 답하지 않는다 — 막지 않고 스크립트의 응답 제한에 맡긴다.
+            // The target app does not answer — do not block; leave it to the script's response limit.
             note("automation \(appName): no answer")
             return false
         case .denied:
@@ -143,28 +143,28 @@ public enum AutomationConsent: Equatable, Sendable {
         case .notAsked, .notRunning:
             break
         }
-        // 허락이 확인되지 않았다. 물어서 확인한다 — 창이 뜨면 답할 때까지 기다린다.
+        // The permission is not confirmed. Ask to confirm — if the dialog appears, wait for the answer.
         note("automation \(appName): \(first == .notAsked ? "not asked yet" : "not confirmed") — asking")
-        // «아직 묻지 않았다» 면 창이 뜰 것을 안다 — 바로 알린다. 그 밖의 답에서는 물어 봐야 안다: 답이 늦으면 창이 떠 있는 것이므로
-        // 그때 알린다(2026-10-13 집 맥 2 의 Ghostty: 맨 앞에 있는데 첫 확인이 «확인 안 됨» 이었고, 허용 창은 떴지만 안내가 없었다).
+        // If "not asked yet", we know the dialog will appear — announce right away. For any other answer we only know by asking: if the answer is late, the dialog is showing, so
+        // announce then (2026-10-13, Ghostty on a test Mac: it was frontmost, the first check said "not confirmed", and the dialog appeared but there was no notice).
         let notice = Notice(willAsk)
         if first == .notAsked { notice.fire() } else { notice.fire(after: lateAfter) }
         let answer = status(bundleID, true)
-        // 창이 떴는지는 «아직 묻지 않았다» 였거나 답이 늦게 온 것으로 안다 — 알린 것과 같다.
+        // That the dialog appeared is known from "not asked yet" or from a late answer — same as having announced.
         let prompted = notice.close()
         switch answer {
         case .allowed: return prompted
         case .denied: throw SlashCommandError(off)
-        // 물을 수 없었거나 모르는 답이다 — 막지 않고 스크립트가 스스로 판가름하게 둔다.
+        // Could not ask, or an unknown answer — do not block; let the script decide for itself.
         case .notAsked, .notRunning, nil:
             note("automation \(appName): still not confirmed")
             return false
         }
     }
 
-    /// 지금 맨 앞 앱의 번들 id — 허용 창을 기다린 «뒤» 에 다시 읽을 때 쓴다.
-    /// 런루프가 돌지 않는 프로세스(명령줄 도구)에서는 `NSWorkspace` 의 값이 처음 읽은 그대로다(2026-10-12 실측: 앞 앱을 바꿔도
-    /// 6초 동안 그대로, 런루프를 잠깐 돌리면 따라온다). 그래서 주 스레드에서는 런루프를 잠깐 돌린 뒤 읽고, 다른 스레드에서는 주 스레드에 묻는다.
+    /// Bundle id of the current frontmost app — used to read again "after" waiting for the permission dialog.
+    /// In a process whose run loop is not running (a command-line tool), `NSWorkspace` keeps returning the value first read (measured 2026-10-12: after switching the front app it
+    /// stayed the same for 6 s, and followed once the run loop was briefly run). So on the main thread it runs the run loop briefly and then reads; on other threads it asks the main thread.
     public static func frontBundleID() -> String? {
         if Thread.isMainThread {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
@@ -173,8 +173,8 @@ public enum AutomationConsent: Equatable, Sendable {
         return DispatchQueue.main.sync { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
     }
 
-    /// 허용 창이 떠 있는 동안에는 그 창이 맨 앞이고, 그사이 사용자가 다른 앱으로 갔을 수도 있다.
-    /// 그 터미널이 다시 맨 앞에 올 때까지 잠깐(기본 2초) 기다리고, 오지 않으면 보내지 않는다 — 지금 맨 앞인 다른 앱으로 대상을 바꾸지도 않는다.
+    /// While the permission dialog is showing, that dialog is frontmost, and the user may have gone to another app meanwhile.
+    /// Waits briefly (2 s by default) for that terminal to be frontmost again, and if it does not, nothing is sent — nor is the target switched to whatever other app is frontmost now.
     public static func requireFront(bundleID: String, appName: String, tries: Int = 20,
                                     frontmost: () -> String? = AutomationConsent.frontBundleID,
                                     pause: () -> Void = { usleep(100_000) }) throws {

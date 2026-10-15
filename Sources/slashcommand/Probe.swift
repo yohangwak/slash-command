@@ -3,12 +3,12 @@ import ApplicationServices
 import Foundation
 import SlashCommandCore
 
-/// Orca 에서 «지금 보이는 터미널» 을 알려 주는 신호들이 UI 보다 얼마나 늦는지 재는 시험 도구(아무것도 보내지 않는다).
-/// 사람이 Orca 에서 탭·워크스페이스를 몇 번 옮기는 동안 돌려 두면, 신호가 바뀐 시각을 같은 시계로 찍는다.
-///   - 클릭: 마우스 왼쪽 버튼이 눌린 시각(권한 필요 없음)
-///   - AX: Orca 의 «포커스된 요소» 와 그 부모 사슬이 바뀐 시각
-///   - DB: 상태 DB 의 활성 워크스페이스·탭이 바뀐 시각
-///   - 목록: 소켓 `terminal.list` 의 워크스페이스별 활성 탭이 바뀐 시각
+/// A test tool that measures how far the signals Orca gives for "the terminal currently visible" lag behind the UI (it sends nothing).
+/// Run it while a person switches tabs and workspaces in Orca; it stamps when each signal changed, on the same clock.
+///   - click: when the left mouse button was pressed (no permission needed)
+///   - AX: when Orca's "focused element" and its parent chain changed
+///   - DB: when the active workspace and tab in the state DB changed
+///   - list: when the per-workspace active tab in the socket's `terminal.list` changed
 enum OrcaProbe {
     static func run(seconds: Double) {
         guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == Detector.orcaBundleID }) else {
@@ -48,7 +48,7 @@ enum OrcaProbe {
         return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
     }
 
-    /// 포커스된 요소에서 위로 올라가며 역할·DOM id·클래스·제목을 짧게 적은 한 줄.
+    /// One short line walking up from the focused element, giving role, DOM id, class and title.
     static func focusChain(_ app: AXUIElement) -> String {
         guard let focused = attribute(app, "AXFocusedUIElement") else { return "" }
         var parts: [String] = []
@@ -66,8 +66,8 @@ enum OrcaProbe {
         return parts.joined(separator: " < ")
     }
 
-    /// terminal.list 에서 «DB 가 말하는 활성 워크스페이스» 의 탭마다 활성 분할(leaf)을 모은다.
-    /// 목록이 따로 «지금 보이는 탭» 을 주는지, 분할 포커스는 DB 보다 빨리 바뀌는지를 본다.
+    /// From terminal.list, collects the active split (leaf) of each tab in the workspace the DB says is active.
+    /// Checks whether the list gives "the tab now visible" on its own, and whether split focus changes faster than the DB.
     static func activeTabs() -> String {
         guard case .success(let payload) = OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) else { return "(unreadable)" }
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []

@@ -39,13 +39,13 @@ func value(after flag: String, in args: [String]) -> String? {
     return args[index + 1]
 }
 
-/// 자동화 허용 창이 뜨기 직전에 알린다 — 답할 때까지 기다리므로 멈춘 것처럼 보이지 않게.
+/// Announce just before the Automation consent prompt appears. It waits for the answer, so this keeps it from looking stuck.
 func noteAutomationPrompt() {
     FileHandle.standardError.write(Data("macOS is asking whether this terminal may control that app — answer the prompt…\n".utf8))
 }
 
 func explicitTarget(_ args: [String]) throws -> Target? {
-    // `--bundle <번들 id>`: 그 앱이 맨 앞인 것처럼 대상을 찾는다 — 단축키가 가는 길 그대로(ssh 로 시험할 때).
+    // `--bundle <bundle id>`: find the target as if that app were frontmost, the same path the hotkey takes (for testing over ssh).
     if let bundle = value(after: "--bundle", in: args) {
         try AutomationConsent.ensure(bundleID: bundle, appName: bundle, willAsk: noteAutomationPrompt)
         return try Detector.target(bundleID: bundle, appName: bundle)
@@ -53,7 +53,7 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     let orca = value(after: "--orca", in: args)
     let ghostty = value(after: "--ghostty", in: args)
     let named = value(after: "--agent", in: args).flatMap(Agent.init(rawValue:))
-    // 시험 단계의 터미널: 대상을 직접 지정해야 하고 에이전트도 적어야 한다.
+    // Test-stage terminal: the target must be specified directly, and so must the agent.
     let more: [(String, (String) -> TerminalHost?)] = [
         ("--tmux", { .tmux(socket: value(after: "--tmux-socket", in: args), pane: $0) }),
         ("--kitty", { id in value(after: "--kitty-socket", in: args).map { .kitty(socket: $0, window: id) } }),
@@ -67,7 +67,7 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         return Target(host: host, agent: named, label: id)
     }
     guard orca != nil || ghostty != nil else { return nil }
-    // 그 Orca 터미널에서 tmux 가 앞 작업이면 단축키와 같이 그 tmux 칸으로 간다.
+    // If tmux is the foreground job in that Orca terminal, go to that tmux pane, same as the hotkey.
     if let orca, let inside = try Detector.orcaTmux(handle: orca) { return inside }
     guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
         throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
@@ -76,8 +76,8 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     return Target(host: .ghostty(terminalID: ghostty!), agent: agent, label: ghostty!)
 }
 
-/// `keep-defaults` 를 따로 띄운다 — `LaunchDefaults.begin` 이 준 표로 그 열기를 지켜본다.
-/// `detach` 면 그 프로세스가 진짜 일꾼을 다시 띄우고 끝나기를 기다린다: 일꾼이 우리(곧 에이전트)의 자식으로 남지 않는다.
+/// Starts `keep-defaults` separately, watching that launch with the table `LaunchDefaults.begin` returned.
+/// With `detach`, that process starts the real worker again and waits for it to finish, so the worker does not remain a child of us (that is, of the agent).
 func spawnDefaultsKeeper(agent: Agent, ticket: String, detach: Bool) throws {
     guard let executable = Bundle.main.executableURL else { throw SlashCommandError("could not find this program's own path") }
     let process = Process()
@@ -90,8 +90,8 @@ func spawnDefaultsKeeper(agent: Agent, ticket: String, detach: Bool) throws {
     if detach { process.waitUntilExit() }
 }
 
-/// 이 프로그램을 그 인자로 따로 띄운다. `wait` 면 `--detach` 를 붙여 띄우고 끝나기를 기다린다 — 그 프로세스가 진짜 일꾼을 다시 띄우고
-/// 바로 끝나므로, 일꾼이 우리(곧 에이전트로 바뀔 프로세스)의 자식으로 남지 않는다.
+/// Starts this program separately with those arguments. With `wait`, it is started with `--detach` and waited on: that process starts the real worker again and
+/// exits right away, so the worker does not remain a child of us (the process that will turn into the agent).
 func spawnDetached(_ arguments: [String], wait: Bool = true) throws {
     guard let executable = Bundle.main.executableURL else { throw SlashCommandError("could not find this program's own path") }
     let process = Process()
@@ -169,19 +169,19 @@ do {
         }
         let config = try store.load()
         let planned = try Switcher(config: config, codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
-        // `--dry-run` 은 바로 뒤에 올 때만 우리 것이다 — 그 뒤의 인자는 전부 에이전트에 넘긴다.
+        // `--dry-run` is ours only when it comes right after; every argument after it goes to the agent.
         let dryRun = args.count > 3 && args[3] == "--dry-run"
         if agent == .opencode {
-            // opencode 2 는 여는 옵션에 `--model` 이 없다(2.0.25 실측). 없는 옵션을 넘기면 opencode 가 오류로 끝난다.
-            // 그래서 그냥 열고, 따로 띄운 일꾼(`follow`)이 «이 터미널» 에 입력창이 뜨기를 기다렸다가 단축키와 같은 전환을 돌린다.
+            // opencode 2 has no `--model` among its launch options (measured on 2.0.25). Passing an unknown option makes opencode exit with an error.
+            // So it just launches, and a separately started worker (`follow`) waits for the input box to appear in "this terminal", then runs the same switch as the hotkey.
             let help = Proc.run("/usr/bin/env", ["opencode", "--help"], timeout: 20)
             if help.ok, !Launch.openCodeTakesModel(help: help.out + help.err) {
                 let extra = Array(args.dropFirst(dryRun ? 4 : 3))
-                // 이 터미널이 무엇인지는 환경변수로만 안다(포커스나 폴더로 짐작하지 않는다 — 같은 폴더의 다른 터미널일 수 있다. PR #29 리뷰).
+                // This terminal is identified only by environment variables (not guessed from focus or folder; it could be another terminal in the same folder. PR #29 review).
                 guard let host = Launch.currentTerminal(environment: ProcessInfo.processInfo.environment), let launched = Follow.Launched.current() else {
                     fail("this OpenCode version has no option to choose the model when it opens (`opencode --help` lists no --model), and this terminal cannot be addressed to switch after it opens (Orca · iTerm2 · WezTerm · kitty with remote control · tmux can; Ghostty gives a session no way to know its own terminal). Open the session, then switch with the shortcut.")
                 }
-                // 일꾼은 «이 프로세스»(곧 opencode 가 된다)가 살아 있는 동안만 따른다.
+                // The worker follows only while "this process" (which becomes opencode) is alive.
                 let follow = ["follow", String(slot), "--launched", launched.argument] + Launch.targetArguments(host: host, agent: agent)
                 let command = [agent.executable] + extra
                 if dryRun {
@@ -196,7 +196,7 @@ do {
                 fail("could not run \(command[0]): \(String(cString: strerror(errno)))")
             }
         }
-        // 화면 이름이 아니라 id 를 받는 에이전트는 그 CLI 의 모델 목록에서 id 를 찾는다.
+        // An agent that takes an id rather than an on-screen name looks the id up in that CLI's model list.
         var resolved: Launch.Resolved?
         if let listing = Launch.listing(agent: agent) {
             let result = Proc.run("/usr/bin/env", listing, timeout: 40)
@@ -204,8 +204,8 @@ do {
                 let detail = result.timedOut ? "timed out" : (result.err + result.out).trimmingCharacters(in: .whitespacesAndNewlines)
                 fail("could not list the \(agent.displayName) models (\(listing.joined(separator: " "))): \(detail)")
             }
-            // opencode 는 제공자를 화면에 «이름» 으로 보여 준다. 그 이름은 opencode 의 모델 캐시와, 직접 넣은 제공자라면
-            // «적용된 설정»(`opencode debug config`)에 있다. 둘 다 못 읽으면 id 로만 맞춘다. 설정의 값은 찍지 않는다(이름만 쓴다).
+            // opencode shows the provider on screen by "name". That name is in opencode's model cache and, for a provider added by hand,
+            // in the "applied config" (`opencode debug config`). If neither can be read, match by id only. Values in the config are never printed (names only).
             var providerNames: [String: String] = [:]
             if agent == .opencode {
                 let config = Proc.run("/usr/bin/env", ["opencode", "debug", "config"], timeout: 20)
@@ -219,7 +219,7 @@ do {
         if dryRun {
             print(command.joined(separator: " "))
         } else {
-            // cursor 는 `--model` 로 연 모델을 새 세션 기본값으로도 저장한다 — 연 «전» 값을 따로 띄운 프로세스가 되돌린다.
+            // cursor also saves the model opened with `--model` as the default for new sessions; a separately started process restores the value from before the launch.
             if config.keepDefaults, let model = resolved?.model, Launch.savesLaunchModelAsDefault(agent: agent) {
                 let ticket = try LaunchDefaults.begin(agent: agent, model: model)
                 do {
@@ -229,14 +229,14 @@ do {
                     throw error
                 }
             }
-            // 이 프로세스를 에이전트로 바꾼다 — 터미널에서 직접 친 것과 같다.
+            // Turn this process into the agent, the same as typing it directly in the terminal.
             var argv: [UnsafeMutablePointer<CChar>?] = command.map { strdup($0) }
             argv.append(nil)
             execvp(command[0], argv)
             fail("could not run \(command[0]): \(String(cString: strerror(errno)))")
         }
     case "follow":
-        // 내부용 — `run` 이 부른다. 방금 연 세션의 입력창이 그 터미널에 뜨기를 기다렸다가 프리셋을 적용한다.
+        // Internal: called by `run`. Waits for the input box of the just-opened session to appear in that terminal, then applies the preset.
         guard args.count >= 2, let slot = Int(args[1]) else { fail("slashcommand follow <number> <target>") }
         if args.contains("--detach") {
             try spawnDetached(args.filter { $0 != "--detach" }, wait: false)
@@ -248,10 +248,10 @@ do {
             Follow.log("run \(slot) \(target.agent.rawValue)@\(target.host.appName): \(outcome)")
         }
     case "keep-defaults":
-        // 내부용 — `run` 이 부른다. 그 열기가 쓴 새 세션 기본값을 1분 동안 연 전 값으로 되돌린다.
+        // Internal: called by `run`. Restores, for one minute, the new-session default that launch wrote to its pre-launch value.
         guard args.count >= 3, let agent = Agent(rawValue: args[1]) else { fail("slashcommand keep-defaults <agent> <ticket>") }
         if args.contains("--detach") {
-            // 곧 에이전트로 바뀔 프로세스의 자식으로 남지 않게, 한 번 더 띄우고 바로 끝난다.
+            // So it does not remain a child of the process that will turn into the agent: start once more and exit right away.
             try spawnDefaultsKeeper(agent: agent, ticket: args[2], detach: false)
         } else {
             LaunchDefaults.keep(agent: agent, ticket: args[2], rounds: 400, sleep: { usleep(UInt32($0) * 1000) })
@@ -275,7 +275,7 @@ do {
         if let screen = io.screen() {
             print("screen read   ok (\(screen.count) lines)")
             print("input box     \(Readiness.inputVisible(agent: target.agent, screen: screen) ? "visible — can switch" : "not visible — will not switch")")
-            // 시험 표본을 만들 때: 제품이 읽는 «그대로» 의 화면을 파일로 저장한다(`orca terminal read` 의 tail 은 아래쪽 줄이 빠질 수 있다).
+            // When making a test sample: save the screen exactly as the product reads it to a file (the tail of `orca terminal read` can drop the bottom lines).
             if let path = value(after: "--dump", in: args), let snapshot = io.snapshot() {
                 let object: [String: Any] = ["draft": snapshot.draft as Any, "tail": snapshot.lines]
                 if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted]) {

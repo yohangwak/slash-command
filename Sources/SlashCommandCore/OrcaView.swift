@@ -2,15 +2,15 @@ import AppKit
 import ApplicationServices
 import Foundation
 
-/// Orca 화면에 «지금 보이는» 탭을 접근성(AX)으로 읽어 터미널 목록과 맞춘다.
+/// Reads the tab that is "currently visible" in Orca's window through accessibility (AX) and matches it against the terminal list.
 ///
-/// 왜: 상태 DB 와 `terminal.list` 의 «활성 탭» 은 UI 보다 1.3~2.5초 늦다(2026-10-07 같은 전환 5회 실측: DB +1.3~1.7초).
-/// Orca 의 탭 줄(DOM)은 접근성 트리에 순서대로 있고 활성 탭만 `text-foreground` 클래스를 가진다 — 같은 전환에서 0.25초 안에 따라왔다.
-/// 탭 줄의 제목 순서를 `terminal.list` 의 레이아웃(워크스페이스마다 탭 제목 순서)과 맞추면 워크스페이스와 탭이 정해진다.
-/// 읽지 못하거나 하나로 정해지지 않으면 `nil` — 부른 쪽이 DB 로 되돌아간다(옛 동작, 지연 위험은 문서화돼 있다).
+/// Why: the state DB and the "active tab" of `terminal.list` lag the UI by 1.3-2.5 s (measured 2026-10-07, same switch 5 times: DB +1.3-1.7 s).
+/// Orca's tab strip (DOM) is in the accessibility tree in order, and only the active tab has the `text-foreground` class — in the same switch it followed within 0.25 s.
+/// Matching the order of titles in the tab strip against the layout of `terminal.list` (the order of tab titles per workspace) determines the workspace and tab.
+/// `nil` if it cannot be read or is not narrowed to one — the caller falls back to the DB (the old behavior; the latency risk is documented).
 public enum OrcaView {
     public struct Strip: Equatable, Sendable {
-        /// 탭 줄의 제목들(왼쪽부터). 제목이 잘려 있으면 `truncated` 가 참.
+        /// The titles in the tab strip (from the left). `truncated` is true if a title is cut off.
         public struct Tab: Equatable, Sendable {
             public let title: String
             public let truncated: Bool
@@ -30,15 +30,15 @@ public enum OrcaView {
 
     public enum Resolution: Equatable, Sendable {
         case tab(OrcaState.Active)
-        /// 같은 탭 제목 순서를 가진 워크스페이스가 둘 이상이다.
+        /// More than one workspace has the same order of tab titles.
         case ambiguous([String])
-        /// 맞는 워크스페이스가 없다(탭 줄에 터미널이 아닌 탭이 섞였을 수 있다).
+        /// No workspace matches (the tab strip may contain non-terminal tabs).
         case noMatch
     }
 
-    // MARK: - 맞추기 (순수 함수)
+    // MARK: - Matching (pure functions)
 
-    /// 제목 비교용: 소문자, 글자·숫자가 아닌 것은 한 칸 공백으로(AX 는 `-` 같은 기호를 공백으로 읽어 준다).
+    /// For comparing titles: lowercase, and anything that is not a letter or digit becomes a single space (AX reads symbols like `-` as a space).
     static func normalized(_ text: String) -> String {
         var out = ""
         var lastSpace = true
@@ -58,15 +58,15 @@ public enum OrcaView {
         let a = normalized(listed)
         let b = normalized(shown.title)
         if a == b { return true }
-        // 긴 제목은 화면에서 잘린다. 말줄임표(`...`)가 붙어 오면 그 앞부분과 같으면 되고, 2026-10-07 실측으로는 말줄임표 없이
-        // 앞부분만 오는 제목도 있다(96자 제목이 «…HANDOFF 2026 10 06» 까지만). 이때는 12자 이상일 때만 앞부분 일치를 인정한다 —
-        // 짧은 제목(`initial` 대 `initial 2`)끼리 섞이지 않도록. 어차피 탭 수와 «모든» 탭 제목이 함께 맞아야 한다.
+        // Long titles are cut off on screen. If it comes with an ellipsis (`...`) it is enough to match the part before it; and in the 2026-10-07 measurement some titles come with only the leading part, with no ellipsis
+        // (a 96-character title came through only up to "...HANDOFF 2026 10 06"). In that case a prefix match is accepted only for 12 or more characters —
+        // so that short titles (`initial` vs `initial 2`) do not get mixed up. In any case the tab count and "all" tab titles must match together.
         guard !b.isEmpty, a.hasPrefix(b) else { return false }
         return shown.truncated || b.count >= 12
     }
 
-    /// 탭 줄과 레이아웃(`terminal.list` 의 `visualLayouts`)을 맞춘다. 탭 수와 제목 순서가 모두 같아야 한다.
-    /// 후보가 둘 이상이면 «모호» 다 — 늦은 상태 DB 로 고르지 않는다(DB 는 워크스페이스를 바꾼 직후 1.3~2.5초 옛 값이다).
+    /// Matches the tab strip against the layout (`visualLayouts` of `terminal.list`). Both the tab count and the order of titles must be the same.
+    /// If there is more than one candidate it is "ambiguous" — do not pick with the late state DB (right after switching workspace the DB holds the old value for 1.3-2.5 s).
     public static func resolve(strip: Strip, layouts: [[String: Any]]) -> Resolution {
         guard !strip.tabs.isEmpty, let activeIndex = strip.tabs.firstIndex(where: \.active),
               strip.tabs.filter(\.active).count == 1 else { return .noMatch }
@@ -87,17 +87,17 @@ public enum OrcaView {
         }
     }
 
-    // MARK: - 접근성으로 읽기
+    // MARK: - Reading through accessibility
 
-    /// 지금 Orca 의 탭 줄. 권한이 없거나 못 읽으면 nil.
+    /// Orca's tab strip right now. nil if there is no permission or it cannot be read.
     public static func readStrip() -> Strip? {
         guard GhosttyScreen.trusted(),
               let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return nil }
         let element = AXUIElementCreateApplication(app.processIdentifier)
-        // Chromium 은 접근성 요청이 있어야 웹 화면(DOM)을 트리에 내놓는다.
+        // Chromium exposes the web view (DOM) in the tree only when there is an accessibility request.
         AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         let windows = ((attribute(element, "AXWindows") as? [AXUIElement]) ?? []).map(Node.init)
-        // 앱 요소는 «이미 본 것» 으로 넣어 둔다 — 창 아래에서 앱 요소가 다시 자식으로 나오는 때가 있다(아래 `tabs(from:…)`).
+        // Put the app element in as "already seen" — under the window the app element sometimes comes out again as a child (see `tabs(from:…)` below).
         let tabs = tabs(from: windows, seen: [Node(element)],
                         label: { (attribute($0.element, "AXTitle") as? String) ?? (attribute($0.element, "AXDescription") as? String) ?? "" },
                         classes: { (attribute($0.element, "AXDOMClassList") as? [String]) ?? [] },
@@ -105,7 +105,7 @@ public enum OrcaView {
         return tabs.flatMap { $0.isEmpty ? nil : Strip(tabs: $0) }
     }
 
-    /// 접근성 요소 하나. 같은 요소인지는 `CFEqual` 로 본다(같은 요소를 다시 받아도 객체는 다르다).
+    /// One accessibility element. Whether it is the same element is judged with `CFEqual` (receiving the same element again gives a different object).
     struct Node: Hashable {
         let element: AXUIElement
         init(_ element: AXUIElement) { self.element = element }
@@ -113,12 +113,12 @@ public enum OrcaView {
         func hash(into hasher: inout Hasher) { hasher.combine(CFHash(element)) }
     }
 
-    /// 나무를 위에서 아래로, 형제는 차례대로 돌며 탭 버튼을 모은다. 탭 버튼의 안쪽은 보지 않는다.
+    /// Walks the tree from top to bottom, siblings in turn, and collects tab buttons. Does not look inside a tab button.
     ///
-    /// 🔴 이 나무는 «나무가 아닐» 때가 있다: Orca 의 창 아래에서 앱 요소가 다시 자식으로 나와 끝없이 이어진다
-    /// (2026-10-12 집 맥 실측: `AXApplication > AXApplication > …`, 깊이 6만 5천에서 스택이 넘쳐 프로그램이 죽었다).
-    /// 그래서 이미 본 요소로는 다시 들어가지 않고, 깊이와 요소 수에도 상한을 둔다.
-    /// 상한에 걸리면 못 본 탭이 있을 수 있으므로 «모른다»(nil)다 — 일부만 읽은 탭 줄로 탭을 짚지 않는다.
+    /// RED: this tree is sometimes "not a tree": under Orca's window the app element comes out again as a child, continuing endlessly
+    /// (measured 2026-10-12 on a test Mac: `AXApplication > AXApplication > …`, the stack overflowed at a depth of 65,000 and the program died).
+    /// So it does not enter an element it has already seen, and it also sets limits on depth and element count.
+    /// If a limit is hit, there may be a tab it did not see, so the answer is "unknown" (nil) — a tab is not picked from a partially read tab strip.
     static func tabs<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
                                   label: (N) -> String, classes: (N) -> [String], children: (N) -> [N]) -> [Strip.Tab]? {
         var seen = seen
@@ -137,7 +137,7 @@ public enum OrcaView {
         return cut ? nil : tabs
     }
 
-    /// `"<상태> <제목> Close tab <제목>"` 꼴의 탭 버튼. 제목은 «Close tab » 뒤의 것을 쓴다.
+    /// A tab button of the form `"<state> <title> Close tab <title>"`. The title is the part after "Close tab ".
     static func tab(fromLabel label: String, classes: [String]) -> Strip.Tab? {
         guard let range = label.range(of: "Close tab ", options: .backwards) else { return nil }
         var title = String(label[range.upperBound...])
@@ -146,7 +146,7 @@ public enum OrcaView {
             title = String(title.dropLast(ellipsis.count))
             truncated = true
         }
-        // 활성 탭만 `text-foreground`(그대로) 클래스를 가진다. 나머지는 `text-muted-foreground`·`hover:text-foreground`.
+        // Only the active tab has the class `text-foreground` (exactly). The rest have `text-muted-foreground` and `hover:text-foreground`.
         return Strip.Tab(title: title, truncated: truncated, active: classes.contains("text-foreground"))
     }
 

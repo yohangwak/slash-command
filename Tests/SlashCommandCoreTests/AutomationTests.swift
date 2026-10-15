@@ -4,13 +4,13 @@ import XCTest
 final class AutomationConsentTests: XCTestCase {
     private let iterm = Detector.itermBundleID
 
-    /// 순서대로 답하는 가짜 상태. 무엇을 물었는지(`ask`) 적어 둔다.
+    /// A fake state that answers in order. It records what was asked (`ask`).
     private final class Fake {
         var answers: [AutomationConsent?]
         var asked: [Bool] = []
-        /// 물었을 때 답이 오기까지 걸리는 시간 — 허용 창이 떠 있는 동안을 흉내 낸다.
+        /// How long an answer takes to arrive once asked — imitates the time the permission dialog is up.
         var answerDelay: TimeInterval = 0
-        /// 물은 답을 돌려주기 직전에 불린다.
+        /// Called right before the answer to the question is returned.
         var beforeAnswer: () -> Void = {}
         init(_ answers: [AutomationConsent?]) { self.answers = answers }
         func status(_ bundleID: String, _ ask: Bool) -> AutomationConsent? {
@@ -21,7 +21,7 @@ final class AutomationConsentTests: XCTestCase {
         }
     }
 
-    /// 다른 스레드에서 불려도 되는 표시.
+    /// A flag that may be set from another thread.
     private final class Flag: @unchecked Sendable {
         private let lock = NSLock()
         private var count = 0
@@ -29,7 +29,7 @@ final class AutomationConsentTests: XCTestCase {
         var raised: Int { lock.lock(); defer { lock.unlock() }; return count }
     }
 
-    /// 여러 스레드에서 일어난 일의 순서.
+    /// The order of events that happened on several threads.
     private final class Order: @unchecked Sendable {
         private let lock = NSLock()
         private var list: [String] = []
@@ -70,7 +70,7 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertEqual(fake.asked, [false])
     }
 
-    /// 방금 창에서 거절했다면 설정 화면까지 열지는 않는다(표시 없는 오류).
+    /// If the user just refused in the dialog, the settings screen is not opened as well (an error with no indication).
     func testDeniedInThePromptDoesNotOpenTheSettings() {
         let fake = Fake([.notAsked, .denied])
         XCTAssertThrowsError(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", status: fake.status)) { error in
@@ -78,7 +78,7 @@ final class AutomationConsentTests: XCTestCase {
         }
     }
 
-    /// 답이 없거나(대상 앱이 멈췄다) 물을 수 없었으면 막지 않는다 — 스크립트가 스스로 판가름한다.
+    /// If there is no answer (the target app is stuck) or it could not be asked, do not block — the script decides for itself.
     func testNoAnswerDoesNotBlock() throws {
         let silent = Fake([nil])
         XCTAssertFalse(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", status: silent.status))
@@ -87,7 +87,7 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertFalse(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", status: Fake([.notAsked, nil]).status))
     }
 
-    /// 허락이 확인되지 않으면(«실행 중이 아니다» 같은 답) 물어서 확인한다 — 이미 허락돼 있으면 창 없이 바로 돌아온다.
+    /// If permission is not confirmed (an answer like «not running»), ask to confirm — if already allowed, it returns immediately without a dialog.
     func testUnconfirmedIsSettledByAsking() throws {
         let fake = Fake([.notRunning, .allowed])
         var notified = false
@@ -99,8 +99,8 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertThrowsError(try AutomationConsent.ensure(bundleID: iterm, appName: "iTerm2", status: Fake([.notRunning, .denied]).status))
     }
 
-    /// 첫 확인이 «확인 안 됨» 이어도 물은 뒤 답이 늦으면 허용 창이 떠 있는 것이다 — 그때 알리고, 창을 띄운 것으로 친다
-    /// (2026-10-13 집 맥 2 의 Ghostty: 창은 떴는데 안내가 없었다).
+    /// Even if the first check says «not confirmed», a late answer after asking means the permission dialog is up — notify then, and treat the dialog as shown
+    /// (Ghostty on a test Mac, 2026-10-13: the dialog appeared but there was no notice).
     func testUnconfirmedTellsOnceTheAnswerIsLate() throws {
         let fake = Fake([.notRunning, .allowed])
         fake.answerDelay = 0.3
@@ -110,7 +110,7 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertEqual(told.raised, 1)
     }
 
-    /// 답이 바로 왔으면(창이 뜨지 않았다) 나중에도 알리지 않는다.
+    /// If the answer came right away (no dialog appeared), it does not notify later either.
     func testUnconfirmedStaysQuietWhenTheAnswerIsQuick() throws {
         let fake = Fake([.notRunning, .allowed])
         let told = Flag()
@@ -119,7 +119,7 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertEqual(told.raised, 0)
     }
 
-    /// «아직 묻지 않았다» 면 묻기 전에 한 번만 알린다 — 답이 늦어도 다시 알리지 않는다.
+    /// If «not asked yet», it notifies once before asking — it does not notify again even if the answer is late.
     func testNotAskedTellsExactlyOnce() throws {
         let fake = Fake([.notAsked, .allowed])
         fake.answerDelay = 0.2
@@ -129,13 +129,13 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertEqual(told.raised, 1)
     }
 
-    /// 늦은 안내가 이미 시작됐으면, 그것이 끝난 뒤에야 답을 돌려준다 — 부른 쪽이 그다음에 띄우는 결과 알림을
-    /// 뒤늦은 «허용해 주세요» 가 덮지 않게(#35 리뷰: 답이 바로 그 순간에 오면 안내가 결과 뒤에 줄을 섰다).
+    /// If a late notice has already started, the answer is returned only after it finishes — so the late «please allow» does not cover
+    /// the result notification the caller shows next (#35 review: when the answer arrived at that very moment, the notice queued behind the result).
     func testAnswerWaitsForANoticeAlreadyUnderWay() {
         let fake = Fake([.notRunning, .denied])
         let started = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0), finished = DispatchSemaphore(value: 0)
         let order = Order()
-        // 물은 답은 안내가 시작된 «뒤» 에 온다.
+        // The answer to the question arrives «after» the notice has started.
         fake.beforeAnswer = { started.wait() }
         let iterm = self.iterm
         DispatchQueue.global().async {
@@ -147,14 +147,14 @@ final class AutomationConsentTests: XCTestCase {
             order.add("answered")
             finished.signal()
         }
-        // 답은 왔지만 안내가 아직 끝나지 않았다 — 돌아오면 안 된다.
+        // The answer has arrived but the notice has not finished yet — it must not return.
         XCTAssertEqual(finished.wait(timeout: .now() + 0.4), .timedOut)
         release.signal()
         XCTAssertEqual(finished.wait(timeout: .now() + 5), .success)
         XCTAssertEqual(order.items, ["notice", "answered"])
     }
 
-    /// 허용 창이 닫히면 터미널이 곧 다시 맨 앞에 온다 — 그때까지 잠깐 기다린다.
+    /// When the permission dialog closes the terminal comes back to the front shortly — wait for that for a moment.
     func testGoesOnWhenTheTerminalIsInFrontAgain() throws {
         var answers: [String?] = ["com.apple.UserNotificationCenter", nil, iterm]
         var pauses = 0
@@ -163,7 +163,7 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertTrue(answers.isEmpty)
     }
 
-    /// 답하는 사이 다른 앱으로 갔으면 보내지 않는다(뒤에 있는 터미널을 바꾸지도, 지금 맨 앞 앱으로 대상을 바꾸지도 않는다).
+    /// If the user moved to another app while answering, nothing is sent (neither changing the terminal behind nor retargeting to the app now in front).
     func testStopsWhenAnotherAppStaysInFront() {
         var asked = 0
         XCTAssertThrowsError(try AutomationConsent.requireFront(bundleID: iterm, appName: "iTerm2", tries: 5,
@@ -175,7 +175,7 @@ final class AutomationConsentTests: XCTestCase {
         XCTAssertEqual(asked, 5)
     }
 
-    /// AppleScript 로 다루지 않는 터미널은 묻지도 읽지도 않는다.
+    /// A terminal not driven by AppleScript is neither asked nor read.
     func testOtherTerminalsAreNotChecked() throws {
         let fake = Fake([])
         XCTAssertFalse(try AutomationConsent.ensure(bundleID: Detector.weztermBundleID, appName: "WezTerm", status: fake.status))
@@ -194,7 +194,7 @@ final class ProcTests: XCTestCase {
         XCTAssertFalse(result.ok)
     }
 
-    /// 끝난 것을 바로 안다 — 런루프를 돌며 기다리던 때는 호출 하나가 약 65ms 였고(200번에 13초), 끝난 것을 놓치면 제한 시간까지 기다렸다.
+    /// It knows right away when the process finished — when it waited by spinning the run loop, one call took about 65ms (13 s for 200 calls), and missing the finish meant waiting until the timeout.
     func testManyShortRunsFinishPromptly() {
         let start = Date()
         for _ in 0..<200 {
@@ -204,7 +204,7 @@ final class ProcTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 5)
     }
 
-    /// 작업 스레드 여럿에서 한꺼번에 불러도 같다(앱은 작업 큐에서 부른다).
+    /// The same when called from several worker threads at once (the app calls it from a work queue).
     func testConcurrentRunsFinishPromptly() {
         let start = Date()
         DispatchQueue.concurrentPerform(iterations: 8) { _ in
@@ -221,7 +221,7 @@ final class ProcTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 2)
     }
 
-    /// SIGTERM 을 무시하는 자식은 강제로 끝낸다 — 끝나지 않으면 출력 읽기가 영영 기다린다.
+    /// A child that ignores SIGTERM is killed forcibly — otherwise reading its output would wait forever.
     func testChildIgnoringTerminateIsKilled() {
         let start = Date()
         let result = Proc.run("/usr/bin/perl", ["-e", "$SIG{TERM} = 'IGNORE'; sleep 30"], timeout: 0.3)

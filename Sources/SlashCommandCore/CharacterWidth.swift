@@ -1,15 +1,15 @@
 import Foundation
 
-/// 터미널이 글자를 몇 칸으로 그리는가(유니코드 16.0.0 의 East Asian Width 와 글자 종류에서 뽑은 표 — 손으로 고치지 않는다).
+/// How many cells a terminal draws a character in (a table derived from Unicode 16.0.0 East Asian Width and character categories; do not edit by hand).
 ///
-/// 이 표는 «화면에 몇 줄이 보이는가» 를 세는 데 쓰이고, 그 답이 입력을 허락한다. 그래서 원칙은 하나다:
-/// **확실히 아는 글자만 정확히 세고, 모르는 것은 넓게(2칸) 센다** — 적게 세면 화면 밖의 줄이 화면으로 읽히고, 많이 세면 위쪽 줄 하나를 덜 읽을 뿐이다.
-/// 터미널마다 표의 판이 다르다(iTerm2 3.7.3 은 유니코드 17 — PR #27 네 번째 리뷰: 16 의 표로는 U+1FAEA 를 1칸으로 셌다).
+/// This table is used to count "how many lines are visible on screen", and that answer permits input. So there is one principle:
+/// **count exactly only the characters we know for sure, and count unknown ones wide (2 cells)**. Counting too few lets a line off screen be read as on screen; counting too many just reads one fewer line at the top.
+/// Terminals differ in table version (iTerm2 3.7.3 uses Unicode 17; PR #27 fourth review: with the 16 table, U+1FAEA was counted as 1 cell).
 ///
-/// - 폭 없음: 결합 문자·서식 문자(종류 Mn · Me · Cf).
-/// - 넓음(2칸): East Asian Width 가 W · F(한글·한자·가나·전각 글자·이모지), 그리고 **이 표의 판에서 아직 배정되지 않은 코드**(나중 판의 이모지일 수 있다).
-/// - 모호함: East Asian Width 가 A — `─` · `·` · `●` 처럼, 터미널 설정에 따라 1칸 또는 2칸. `›`(U+203A) · `❯`(U+276F)는 여기 없다(늘 1칸).
-/// - 나머지는 1칸.
+/// - Zero width: combining and format characters (categories Mn · Me · Cf).
+/// - Wide (2 cells): East Asian Width W or F (Hangul, Han characters, kana, fullwidth letters, emoji), and **codes not yet assigned in this table's version** (they may be emoji of a later version).
+/// - Ambiguous: East Asian Width A, such as `─` · `·` · `●`; 1 or 2 cells depending on the terminal settings. `›` (U+203A) and `❯` (U+276F) are not here (always 1 cell).
+/// - Everything else is 1 cell.
 enum CharacterWidth {
     static func cells(_ scalar: Unicode.Scalar, ambiguousIsDoubleWidth: Bool) -> Int {
         let value = scalar.value
@@ -20,7 +20,7 @@ enum CharacterWidth {
         return 1
     }
 
-    /// 글의 칸 수. 이모지 표시 선택자(U+FE0F)가 붙은 글자는 2칸으로 센다 — 터미널이 그 글자를 이모지로 넓게 그릴 수 있다.
+    /// The cell count of a text. A character followed by the emoji presentation selector (U+FE0F) counts as 2 cells: the terminal may draw it wide as an emoji.
     static func cells(_ text: String, ambiguousIsDoubleWidth: Bool) -> Int {
         var total = 0
         var last = 0
