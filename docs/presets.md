@@ -76,4 +76,4 @@ slashcommand effort up           # keep the model, raise the effort one level
 
 `slashcommand` with no arguments prints the full usage, including how to name a target terminal directly.
 
-A release install does not put `slashcommand` on your `PATH`. The tool is `Slash Command.app/Contents/MacOS/slashcommand-cli`; the [README](../README.md#command-line) shows how to link it.
+Installing with Homebrew links the tool as `slashcommand`. An install from the zip does not put it on your `PATH`: the tool is `Slash Command.app/Contents/MacOS/slashcommand-cli`, and the [README](../README.md#command-line) shows how to link it.

@@ -97,3 +97,10 @@ gh release create v0.1.0 dist/Slash-Command.zip --title "Slash Command 0.1.0" --
 ```
 
 Keep the asset name `Slash-Command.zip`. The README links to the latest release, and a stable name keeps `releases/latest/download/Slash-Command.zip` working.
+
+Then update the Homebrew cask in [yohangwak/homebrew-tap](https://github.com/yohangwak/homebrew-tap): set `version` and the `sha256` that `release.sh` printed in `Casks/slash-command.rb`, and check it before pushing:
+
+```sh
+brew style yohangwak/tap
+brew audit --cask --online --strict yohangwak/tap/slash-command
+```

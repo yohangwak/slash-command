@@ -20,7 +20,13 @@ Slash Command 是一款 macOS 菜单栏应用。在终端里按下 **⇧⌥1 …
 
 需要 macOS 13 或更高版本。
 
-1. 从[最新版本](https://github.com/yohangwak/slash-command/releases/latest)下载 `Slash-Command.zip`,解压后把 **Slash Command** 移动到“应用程序”文件夹。
+1. 用 [Homebrew](https://brew.sh) 安装:
+
+   ```sh
+   brew install --cask yohangwak/tap/slash-command
+   ```
+
+   或者从[最新版本](https://github.com/yohangwak/slash-command/releases/latest)下载 `Slash-Command.zip`,解压后把 **Slash Command** 移动到“应用程序”文件夹。
 2. 打开它,菜单栏中会出现一个 `/` 键图标。
 3. 通过该图标打开 **设置…**,使用顶部的 **权限** 区域。其中的按钮会替你打开系统设置里对应的面板。
 
@@ -76,7 +82,7 @@ cd slash-command
 
 ## 命令行
 
-应用自带一个命令行工具,使用相同的切换逻辑。它位于应用包内,创建一次链接后即可用 `slashcommand` 调用:
+应用自带一个命令行工具,使用相同的切换逻辑。用 Homebrew 安装时,可以直接用 `slashcommand` 调用。从 zip 安装时,它位于应用包内,需要创建一次链接:
 
 ```sh
 sudo mkdir -p /usr/local/bin

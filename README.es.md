@@ -20,7 +20,13 @@ Funciona con **Claude Code, Codex, Grok, Cursor Agent, Antigravity y OpenCode**,
 
 Requiere macOS 13 o posterior.
 
-1. Descarga `Slash-Command.zip` desde la [última versión](https://github.com/yohangwak/slash-command/releases/latest), descomprímelo y mueve **Slash Command** a la carpeta Aplicaciones.
+1. Instálala con [Homebrew](https://brew.sh):
+
+   ```sh
+   brew install --cask yohangwak/tap/slash-command
+   ```
+
+   O descarga `Slash-Command.zip` desde la [última versión](https://github.com/yohangwak/slash-command/releases/latest), descomprímelo y mueve **Slash Command** a la carpeta Aplicaciones.
 2. Ábrela. Aparecerá un icono con la tecla `/` en la barra de menús.
 3. Abre **Ajustes…** desde ese icono y usa el cuadro **Permisos** de la parte superior. Sus botones abren por ti el panel correcto de Ajustes del Sistema.
 
@@ -76,7 +82,7 @@ El número de un preajuste es una intención. Cada preajuste tiene una entrada p
 
 ## Línea de comandos
 
-La app incluye una herramienta de línea de comandos con la misma lógica de cambio. Está dentro del paquete de la app, así que crea el enlace una vez para llamarla como `slashcommand`:
+La app incluye una herramienta de línea de comandos con la misma lógica de cambio. Si instalaste con Homebrew, ya puedes llamarla como `slashcommand`. Si instalaste desde el zip, está dentro del paquete de la app, así que crea el enlace una vez:
 
 ```sh
 sudo mkdir -p /usr/local/bin
