@@ -291,3 +291,25 @@
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "يتعذر على Slash Command قراءة عمليات هذه الطرفية (قد تكون تعمل بصلاحيات المسؤول)، لذلك لا يرسل أي شيء.";
 
 "Refused to run a batch file with arguments that cmd.exe could misread." = "لم يُشغَّل الملف الدفعي لأن بعض الوسائط قد يسيء cmd.exe تفسيرها.";
+
+/* Windows tray app */
+"Checking…" = "جارٍ التحقق…";
+"Command is unavailable on Windows. Using Alt+Shift." = "Command غير متاح على Windows. سيُستخدم Alt+Shift.";
+"Could not change Open at login." = "تعذر تغيير الفتح عند تسجيل الدخول.";
+"Could not open the file or folder." = "تعذر فتح الملف أو المجلد.";
+"Could not start Slash Command." = "تعذر بدء Slash Command.";
+"No supported terminal in front" = "لا توجد طرفية مدعومة في المقدمة";
+"Not set" = "غير محدد";
+"Open log folder" = "فتح مجلد السجلات";
+"Open presets file" = "فتح ملف الإعدادات المسبقة";
+"Shortcuts need Control or Alt. Using Alt+Shift." = "تتطلب الاختصارات Control أو Alt. سيُستخدم Alt+Shift.";
+"Slash Command" = "Slash Command";
+"Slash Command is not running." = "Slash Command ليس قيد التشغيل.";
+"The foreground app changed. Press the shortcut again." = "تغيّر التطبيق في المقدمة. اضغط الاختصار مرة أخرى.";
+"Unknown argument." = "وسيطة غير معروفة.";
+"Use --press with 1–9, up, or down." = "استخدم --press مع 1–9 أو up أو down.";
+
+"Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file." = "بعد تبديل علامات تبويب Orca، انتظر 2.5 ثانية قبل الضغط على اختصار؛ تُقرأ علامة التبويب الظاهرة من ملف حالة Orca الذي يتأخر تحديثه.";
+"The shortcut is not available right now." = "هذا الاختصار غير متاح الآن.";
+
+"The presets file could not be read — choose Open presets file to fix it." = "تعذّرت قراءة ملف الإعدادات المسبقة — اختر «فتح ملف الإعدادات المسبقة» لإصلاحه.";

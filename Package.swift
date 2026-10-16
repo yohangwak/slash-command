@@ -10,7 +10,8 @@ let products: [Product] = [
 let targets: [Target] = [
     .target(name: "SlashCommandCore"),
     .executableTarget(name: "slashcommand", dependencies: ["SlashCommandCore"]),
-    .executableTarget(name: "SlashCommandWin", dependencies: ["SlashCommandCore"]),
+    .executableTarget(name: "SlashCommandWin", dependencies: ["SlashCommandCore"],
+                      linkerSettings: [.unsafeFlags(["-Xlinker", "/SUBSYSTEM:WINDOWS", "-Xlinker", "/ENTRY:mainCRTStartup"])]),
     .testTarget(name: "SlashCommandCoreTests", dependencies: ["SlashCommandCore"], resources: [.copy("Fixtures")]),
 ]
 #else
