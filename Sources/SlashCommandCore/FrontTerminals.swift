@@ -88,6 +88,9 @@ public enum WezTermFront {
     static func environment(socket: String?) -> [String: String]? {
         guard let socket else { return nil }
         var environment = ProcessInfo.processInfo.environment
+        #if os(Windows)
+        for key in environment.keys.filter({ $0.uppercased() == "WEZTERM_UNIX_SOCKET" }) { environment.removeValue(forKey: key) }
+        #endif
         environment["WEZTERM_UNIX_SOCKET"] = socket
         return environment
     }

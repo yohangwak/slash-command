@@ -1,0 +1,28 @@
+[
+  {
+    "window_id": 0,
+    "tab_id": 0,
+    "pane_id": 0,
+    "workspace": "default",
+    "size": {
+      "rows": 24,
+      "cols": 80,
+      "pixel_width": 640,
+      "pixel_height": 384,
+      "dpi": 0
+    },
+    "title": "Test shell",
+    "cwd": "file:///C:/test/",
+    "cursor_x": 29,
+    "cursor_y": 2,
+    "cursor_shape": "Default",
+    "cursor_visibility": "Visible",
+    "left_col": 0,
+    "top_row": 0,
+    "tab_title": "",
+    "window_title": "",
+    "is_active": true,
+    "is_zoomed": false,
+    "tty_name": null
+  }
+]

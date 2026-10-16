@@ -29,6 +29,9 @@ public struct Target: Equatable, Sendable {
     public let agent: Agent
     /// A human-readable description (terminal title, etc.).
     public let label: String
+    #if os(Windows)
+    var windowsFrontPID: Int32? = nil
+    #endif
 
     public init(host: TerminalHost, agent: Agent, label: String) {
         self.host = host

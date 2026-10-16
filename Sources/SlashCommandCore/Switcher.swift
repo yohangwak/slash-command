@@ -190,10 +190,20 @@ public struct Switcher {
             }
             return KittyIO(kitty: kitty, socket: socket, window: window)
         case .wezterm(let socket, let pane):
-            guard let wezterm = Proc.locate("wezterm", extra: ["/Applications/WezTerm.app/Contents/MacOS"]) else {
+            #if os(Windows)
+            let directories = Detector.weztermExtraDirectories
+            #else
+            let directories = ["/Applications/WezTerm.app/Contents/MacOS"]
+            #endif
+            guard let wezterm = Proc.locate("wezterm", extra: directories) else {
                 throw SlashCommandError(loc("The wezterm command was not found."))
             }
+            #if os(Windows)
+            let pinned = try socket ?? Detector.windowsWezTermSocket(frontPID: target.windowsFrontPID)
+            return WindowsWezTermIO(base: WezTermIO(wezterm: wezterm, socket: pinned, pane: pane), frontPID: target.windowsFrontPID)
+            #else
             return WezTermIO(wezterm: wezterm, socket: socket, pane: pane)
+            #endif
         case .iterm(let sessionID):
             #if os(macOS)
             return ITermIO(sessionID: sessionID)
