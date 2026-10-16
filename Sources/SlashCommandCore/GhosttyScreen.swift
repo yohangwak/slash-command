@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 import ApplicationServices
 
@@ -72,3 +73,4 @@ public enum GhosttyScreen {
         return children.flatMap { textAreas(in: $0, depth: depth + 1) }
     }
 }
+#endif

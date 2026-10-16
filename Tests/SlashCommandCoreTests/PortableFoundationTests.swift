@@ -1,0 +1,152 @@
+import XCTest
+@testable import SlashCommandCore
+
+final class PortableFoundationTests: XCTestCase {
+    func testDescendantsAreFoundDeepestFirstAndSkipReusedParentIDs() {
+        // 10 → 11 → 12, 10 → 13; 20 is unrelated; 30 claims parent 10 but started before 10 (pid reuse).
+        let parents: [Int32: Int32] = [10: 1, 11: 10, 12: 11, 13: 10, 20: 1, 30: 10]
+        let order = Proc.descendants(of: 10, parents: parents, startedBefore: { child, _ in child == 30 })
+        XCTAssertEqual(Set(order), [11, 12, 13])
+        XCTAssertLessThan(order.firstIndex(of: 12)!, order.firstIndex(of: 11)!, "A child is ended before its parent")
+        XCTAssertEqual(Proc.descendants(of: 99, parents: parents), [])
+        XCTAssertEqual(Proc.descendants(of: 1, parents: [1: 1, 2: 1]), [2], "A self-parented entry does not loop")
+    }
+
+    func testTreeCleanupLeavesProcessesThatOnlyInheritedAPid() {
+        // Times: parent started at 100, the snapshot was taken at 200.
+        XCTAssertFalse(Proc.skipsChild(childStart: 150, parentStart: 100, snapshotTime: 200), "A real child is ended")
+        XCTAssertFalse(Proc.skipsChild(childStart: 100, parentStart: 100, snapshotTime: 200))
+        XCTAssertTrue(Proc.skipsChild(childStart: 50, parentStart: 100, snapshotTime: 200), "Older than its claimed parent: the parent pid was reused")
+        XCTAssertTrue(Proc.skipsChild(childStart: 250, parentStart: 100, snapshotTime: 200), "Started after the snapshot: the child pid was reused before OpenProcess")
+        XCTAssertTrue(Proc.skipsChild(childStart: nil, parentStart: 100, snapshotTime: 200))
+        XCTAssertTrue(Proc.skipsChild(childStart: 150, parentStart: nil, snapshotTime: 200))
+        // A replaced pid in the middle of a chain cuts off everything below it.
+        let parents: [Int32: Int32] = [10: 1, 11: 10, 12: 11]
+        let starts: [Int32: UInt64] = [10: 100, 11: 250, 12: 260]   // 11 was replaced after the snapshot at 200
+        let order = Proc.descendants(of: 10, parents: parents, startedBefore: { child, parent in
+            Proc.skipsChild(childStart: starts[child], parentStart: starts[parent], snapshotTime: 200)
+        })
+        XCTAssertEqual(order, [])
+    }
+
+    func testBatchArgumentsOnlyPassPlainArguments() {
+        XCTAssertNil(Proc.batchArguments(#"C:\x\orca.exe"#, ["--version"]), "Not a batch file")
+        XCTAssertEqual(Proc.batchArguments(#"C:\Program Files\x\opencode.cmd"#, ["--version"]),
+                       ["/d", "/c", #"C:\Program Files\x\opencode.cmd"#, "--version"])
+        XCTAssertEqual(Proc.batchArguments(#"C:\x\a.BAT"#, ["terminal", "list", "--json"]), ["/d", "/c", #"C:\x\a.BAT"#, "terminal", "list", "--json"])
+        for bad in ["a b", "a&b", "a|b", "a>b", "%PATH%", "x^y", #"say "hi""#, "(x)", "!x!", "", "a\nb"] {
+            XCTAssertNil(Proc.batchArguments(#"C:\x\a.cmd"#, [bad]), bad)
+        }
+        XCTAssertNil(Proc.batchArguments(#"C:\x%y\a.cmd"#, ["--version"]), "cmd.exe expands % even inside quotes")
+        XCTAssertNil(Proc.batchArguments(#"C:\a&b\a.cmd"#, ["--version"]), "A special character in the path changes how cmd.exe strips the quotes")
+    }
+
+    #if os(Windows)
+    func testTimeoutEndsTheChildThatABatchShimStarted() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // The shim starts a child that keeps stdout open for 30 s, like an npm shim whose program hangs.
+        let shim = directory.appendingPathComponent("slashcommand-hang.cmd")
+        try Data("@ping -n 31 127.0.0.1\r\n".utf8).write(to: shim)
+        let started = Date()
+        let result = Proc.run(shim.path, ["--version"], timeout: 2)
+        XCTAssertTrue(result.timedOut)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 10, "The read must end soon after the timeout")
+    }
+    #endif
+
+    #if os(Windows)
+    func testRunsABatchShimThroughCmdAndRefusesUnsafeArguments() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let shim = directory.appendingPathComponent("slashcommand-echo.cmd")
+        try Data("@echo shim:%1\r\n".utf8).write(to: shim)
+        let ran = Proc.run(shim.path, ["--version"], timeout: 10)
+        XCTAssertTrue(ran.ok, ran.err)
+        XCTAssertEqual(ran.out.trimmingCharacters(in: .whitespacesAndNewlines), "shim:--version")
+        let refused = Proc.run(shim.path, ["a&echo injected"], timeout: 10)
+        XCTAssertFalse(refused.ok)
+        XCTAssertFalse(refused.out.contains("injected"))
+    }
+    #endif
+
+    func testJSONDeepEquality() throws {
+        func json(_ text: String) throws -> Any {
+            try JSONSerialization.jsonObject(with: Data(text.utf8), options: [.fragmentsAllowed])
+        }
+        let pairs = [
+            (#"{"array":["text",1,true,null,{"nested":2}],"empty":{}}"#,
+             #"{"empty":{},"array":["text",1.0,true,null,{"nested":2.0}]}"#, true),
+            (#"[1,2]"#, #"[2,1]"#, false),
+            (#"{"a":null}"#, #"{}"#, false),
+            (#"{"a":1}"#, #"{"b":1}"#, false),
+            (#""1""#, #"1"#, false),
+            (#"true"#, #"1"#, true),
+            (#"false"#, #"0"#, true),
+            (#"true"#, #"false"#, false),
+            (#"null"#, #"null"#, true),
+            (#"null"#, #"false"#, false),
+            (#"[]"#, #"{}"#, false),
+        ]
+        for (left, right, expected) in pairs {
+            let a = try json(left), b = try json(right)
+            XCTAssertEqual(DefaultsFile.jsonEqual(a, b), expected, "\(left) vs \(right)")
+            #if os(macOS)
+            XCTAssertEqual(DefaultsFile.jsonEqual(a, b), (a as AnyObject).isEqual(b))
+            #endif
+        }
+    }
+
+    func testStringsParserHandlesCommentsEscapesAndRejectsIncompleteTables() {
+        let text = #"/* heading */ "a" = "line\nquote\"slash\\"; // trailing comment"#
+        XCTAssertEqual(StringsTable.parse(text), ["a": "line\nquote\"slash\\"])
+        XCTAssertEqual(StringsTable.parse(#""unicode" = "\U0041\UD83D\UDE00";"#), ["unicode": "A😀"])
+        XCTAssertEqual(StringsTable.parse("/* empty */"), [:])
+        XCTAssertNil(StringsTable.parse(#""a" = "value""#))
+        XCTAssertNil(StringsTable.parse(#""a" = "unterminated;"#))
+        XCTAssertNil(StringsTable.parse("/* unterminated"))
+    }
+
+    #if os(macOS)
+    func testPortableStringsParserMatchesFoundationForEveryTranslation() throws {
+        let languages = L10n.available(in: L10nTests.resources)
+        XCTAssertEqual(languages.count, 9)
+        for language in languages {
+            let url = L10nTests.resources.appendingPathComponent("\(language).lproj/Localizable.strings")
+            let foundation = try XCTUnwrap(NSDictionary(contentsOf: url) as? [String: String], language)
+            let portable = try XCTUnwrap(StringsTable.parse(try String(contentsOf: url, encoding: .utf8)), language)
+            XCTAssertEqual(portable, foundation, language)
+        }
+    }
+    #endif
+
+    #if os(Windows)
+    func testLocateWindowsExecutablesAndShims() throws {
+        let command = try XCTUnwrap(Proc.locate("cmd"), "Search the semicolon-separated Windows PATH")
+        XCTAssertEqual(URL(fileURLWithPath: command).lastPathComponent.lowercased(), "cmd.exe")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for ext in ["exe", "cmd", "bat"] {
+            let name = "slashcommand-test-\(ext)"
+            let file = directory.appendingPathComponent("\(name).\(ext)")
+            try Data().write(to: file)
+            XCTAssertEqual(Proc.locate(name, extra: [directory.path]), file.path)
+            XCTAssertEqual(Proc.locate("\(name).\(ext)", extra: [directory.path]), file.path)
+        }
+        // An extensionless shell script next to the .cmd shim (npm, Electron apps) is not what cmd.exe would run.
+        try Data("#!/bin/sh".utf8).write(to: directory.appendingPathComponent("slashcommand-shim"))
+        let shim = directory.appendingPathComponent("slashcommand-shim.cmd")
+        try Data().write(to: shim)
+        XCTAssertEqual(Proc.locate("slashcommand-shim", extra: [directory.path]), shim.path)
+        XCTAssertNil(Proc.locate("slashcommand-only-script", extra: [directory.path]))
+        try Data("#!/bin/sh".utf8).write(to: directory.appendingPathComponent("slashcommand-only-script"))
+        XCTAssertNil(Proc.locate("slashcommand-only-script", extra: [directory.path]), "A bare file without a PATHEXT extension is not runnable")
+        let folder = directory.appendingPathComponent("folder.exe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        XCTAssertNil(Proc.locate("folder", extra: [directory.path]))
+    }
+    #endif
+}

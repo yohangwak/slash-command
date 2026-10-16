@@ -47,9 +47,16 @@ func noteAutomationPrompt() {
 func explicitTarget(_ args: [String]) throws -> Target? {
     // `--bundle <bundle id>`: find the target as if that app were frontmost, the same path the hotkey takes (for testing over ssh).
     if let bundle = value(after: "--bundle", in: args) {
+        #if os(macOS)
         try AutomationConsent.ensure(bundleID: bundle, appName: bundle, willAsk: noteAutomationPrompt)
         return try Detector.target(bundleID: bundle, appName: bundle)
+        #else
+        throw SlashCommandError(loc("This is not supported on this operating system yet."))
+        #endif
     }
+    #if os(Windows)
+    if let app = value(after: "--app", in: args) { return try Detector.target(app: app) }
+    #endif
     let orca = value(after: "--orca", in: args)
     let ghostty = value(after: "--ghostty", in: args)
     let named = value(after: "--agent", in: args).flatMap(Agent.init(rawValue:))
@@ -67,11 +74,24 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         return Target(host: host, agent: named, label: id)
     }
     guard orca != nil || ghostty != nil else { return nil }
+    #if os(macOS)
     // If tmux is the foreground job in that Orca terminal, go to that tmux pane, same as the hotkey.
     if let orca, let inside = try Detector.orcaTmux(handle: orca) { return inside }
     guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
         throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
     }
+    #elseif os(Windows)
+    if let orca { _ = try Detector.orcaTmux(handle: orca) }
+    guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
+        throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
+    }
+    #else
+    // Without the process table this OS cannot tell whether tmux is the foreground job in that Orca terminal,
+    // and reading through Orca would then mix tmux panes into one screen. Stop instead of guessing.
+    guard let agent = named, orca == nil else {
+        throw SlashCommandError(loc("This is not supported on this operating system yet."))
+    }
+    #endif
     if let orca { return Target(host: .orca(handle: orca), agent: agent, label: orca) }
     return Target(host: .ghostty(terminalID: ghostty!), agent: agent, label: ghostty!)
 }
@@ -167,6 +187,7 @@ do {
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
             fail("slashcommand run <number> <claude|codex|grok|cursor|antigravity|opencode> [args…]")
         }
+        #if os(macOS)
         let config = try store.load()
         let planned = try Switcher(config: config, codexModels: { CodexModels(models: []) }).preset(slot: slot, agent: agent)
         // `--dry-run` is ours only when it comes right after; every argument after it goes to the agent.
@@ -235,6 +256,9 @@ do {
             execvp(command[0], argv)
             fail("could not run \(command[0]): \(String(cString: strerror(errno)))")
         }
+        #else
+        throw SlashCommandError(loc("This is not supported on this operating system yet."))
+        #endif
     case "follow":
         // Internal: called by `run`. Waits for the input box of the just-opened session to appear in that terminal, then applies the preset.
         guard args.count >= 2, let slot = Int(args[1]) else { fail("slashcommand follow <number> <target>") }
@@ -254,25 +278,38 @@ do {
             // So it does not remain a child of the process that will turn into the agent: start once more and exit right away.
             try spawnDefaultsKeeper(agent: agent, ticket: args[2], detach: false)
         } else {
-            LaunchDefaults.keep(agent: agent, ticket: args[2], rounds: 400, sleep: { usleep(UInt32($0) * 1000) })
+            LaunchDefaults.keep(agent: agent, ticket: args[2], rounds: 400, sleep: {
+                #if os(macOS)
+                usleep(UInt32($0) * 1000)
+                #else
+                Thread.sleep(forTimeInterval: Double($0) / 1000)
+                #endif
+            })
         }
     case "where":
         let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
+        #if os(macOS)
         if case .orca = target.host, let payload = try? Detector.orcaTerminals(), let found = try? Detector.orcaActive(payload: payload) {
             print("visible via   \(found.source)")
         }
+        #endif
     case "doctor":
         let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
         print("target        \(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
+        #if os(macOS)
         if case .ghostty = target.host { print("accessibility \(GhosttyScreen.trusted() ? "allowed" : "not allowed")") }
         if case .iterm = target.host {
             print("accessibility \(GhosttyScreen.trusted() ? "allowed" : "not allowed")")
             ITermBroadcast.report().forEach { print($0) }
         }
+        #endif
         AgentVersions.report(for: target.agent).lines.forEach { print($0) }
         let io = try Switcher.terminalIO(for: target)
         if let screen = io.screen() {
+            #if os(Windows)
+            if case .orca = target.host { print("runtime       \(OrcaRuntime.windowsTransportStatus())") }
+            #endif
             print("screen read   ok (\(screen.count) lines)")
             print("input box     \(Readiness.inputVisible(agent: target.agent, screen: screen) ? "visible — can switch" : "not visible — will not switch")")
             // When making a test sample: save the screen exactly as the product reads it to a file (the tail of `orca terminal read` can drop the bottom lines).
@@ -291,7 +328,11 @@ do {
             print("screen read   failed — will not switch")
         }
     case "probe-orca":
+        #if os(macOS)
         OrcaProbe.run(seconds: value(after: "--seconds", in: args).flatMap(Double.init) ?? 30)
+        #else
+        throw SlashCommandError(loc("This is not supported on this operating system yet."))
+        #endif
     case "list":
         let config = try store.load()
         for (index, slot) in config.slots.enumerated() {
@@ -311,7 +352,11 @@ do {
     case "path":
         print(store.url.path)
     default:
+        #if os(Windows)
+        print(usage.replacingOccurrences(of: "--bundle <bundle id>", with: "--app orca"))
+        #else
         print(usage)
+        #endif
         exit(args.isEmpty || args.first == "help" || args.first == "--help" ? 0 : 1)
     }
 } catch {

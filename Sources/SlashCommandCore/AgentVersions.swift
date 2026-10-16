@@ -88,6 +88,7 @@ public enum AgentVersions {
     // MARK: - Running version
 
     public static func running(_ agent: Agent) -> [String] {
+        #if os(macOS)
         let table = ProcessTable.snapshot()
         let found: [(commandLine: String, executable: String)]
         if !table.entries.isEmpty {
@@ -105,6 +106,9 @@ public enum AgentVersions {
             return version(inCommandLine: entry.commandLine) ?? version(inCommandLine: entry.executable) ?? unknown
         }
         return Array(Set(versions)).sorted()
+        #else
+        return [unknown]
+        #endif
     }
 
     /// Install layouts whose executable path contains the version: claude `…/claude/versions/2.1.289` · codex `…/releases/0.160.0/bin/codex`.

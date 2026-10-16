@@ -1,3 +1,4 @@
+#if os(macOS)
 import XCTest
 @testable import SlashCommandCore
 
@@ -235,3 +236,4 @@ final class ProcTests: XCTestCase {
         XCTAssertEqual(result.status, -1)
     }
 }
+#endif

@@ -17,8 +17,24 @@ public enum Proc {
                            cwd: String? = nil,
                            timeout: TimeInterval = 10) -> ProcResult {
         let process = Process()
+        #if os(Windows)
+        // CreateProcessW cannot start a batch file (npm and Electron shims are .cmd); it needs cmd.exe.
+        // cmd.exe re-parses the whole line, so only arguments made of plain characters are passed through it.
+        if let cmdArgs = batchArguments(exe, args) {
+            let comspec = ProcessInfo.processInfo.environment.first(where: { $0.key.uppercased() == "COMSPEC" })?.value
+                ?? #"C:\Windows\System32\cmd.exe"#
+            process.executableURL = URL(fileURLWithPath: comspec)
+            process.arguments = cmdArgs
+        } else if isBatchFile(exe) {
+            return ProcResult(status: -1, out: "", err: "\(exe): " + loc("Refused to run a batch file with arguments that cmd.exe could misread."), timedOut: false)
+        } else {
+            process.executableURL = URL(fileURLWithPath: exe)
+            process.arguments = args
+        }
+        #else
         process.executableURL = URL(fileURLWithPath: exe)
         process.arguments = args
+        #endif
         if let env { process.environment = env }
         if let cwd { process.currentDirectoryURL = URL(fileURLWithPath: cwd) }
         let outPipe = Pipe()
@@ -60,10 +76,20 @@ public enum Proc {
         var timedOut = false
         if !waitForExit(process, done, seconds: timeout) {
             timedOut = true
+            #if os(Windows)
+            // A batch shim runs the real program as a child of cmd.exe; that child keeps our pipes open,
+            // so end the whole tree, not just the process we started.
+            terminateTree(process.processIdentifier)
+            #else
             process.terminate()
+            #endif
             // If it ignores SIGTERM, kill it forcibly: the pipes must close for the reads below to finish.
             if !waitForExit(process, done, seconds: 2) {
+                #if os(Windows)
+                process.terminate()   // TerminateProcess: already forcible on Windows
+                #else
                 kill(process.processIdentifier, SIGKILL)
+                #endif
                 _ = waitForExit(process, done, seconds: 1)
             }
         }
@@ -87,8 +113,72 @@ public enum Proc {
         }
     }
 
+    /// Every descendant of `root` in a pid → parent pid table, deepest first. `startedBefore` drops a "child" that
+    /// existed before its parent did (its parent pid was reused), so an unrelated process is never included.
+    static func descendants(of root: Int32, parents: [Int32: Int32], startedBefore: (Int32, Int32) -> Bool = { _, _ in false }) -> [Int32] {
+        var children: [Int32: [Int32]] = [:]
+        for (pid, parent) in parents where pid != parent && !startedBefore(pid, parent) { children[parent, default: []].append(pid) }
+        var order: [Int32] = [], seen: Set<Int32> = [root]
+        func walk(_ pid: Int32) {
+            for child in children[pid, default: []].sorted() where seen.insert(child).inserted {
+                walk(child); order.append(child)
+            }
+        }
+        walk(root)
+        return order
+    }
+
+    /// Whether a tree cleanup must leave a "child" alone: its start time is unknown, it started before its claimed
+    /// parent (the parent's pid was reused), or it started after the snapshot (its own pid was reused before it was opened).
+    static func skipsChild(childStart: UInt64?, parentStart: UInt64?, snapshotTime: UInt64) -> Bool {
+        guard let childStart, let parentStart else { return true }
+        return childStart < parentStart || childStart > snapshotTime
+    }
+
+    static func isBatchFile(_ path: String) -> Bool {
+        ["cmd", "bat"].contains((path as NSString).pathExtension.lowercased())
+    }
+
+    /// The `cmd.exe` arguments that run a batch file, or nil when `exe` is not a batch file or an argument contains
+    /// anything cmd.exe could treat as syntax (spaces, quotes, `&|<>^%!()`, line breaks). See "BatBadBut".
+    /// Process quotes only the path (it may contain spaces); `cmd /c "<path>" args` keeps those quotes because the
+    /// line has exactly two quote characters around an existing file and no special characters.
+    static func batchArguments(_ exe: String, _ args: [String]) -> [String]? {
+        guard isBatchFile(exe), !exe.contains("\""), !exe.contains("%"), !exe.contains("!") else { return nil }
+        let unsafe = CharacterSet(charactersIn: "&|<>^()@,;")
+        guard exe.unicodeScalars.allSatisfy({ !unsafe.contains($0) }) else { return nil }
+        let plain = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.=:/\\")
+        guard args.allSatisfy({ !$0.isEmpty && $0.unicodeScalars.allSatisfy(plain.contains) }) else { return nil }
+        return ["/d", "/c", exe] + args
+    }
+
     /// GUI apps do not inherit the login shell's PATH, so look in the usual install locations directly.
     public static func locate(_ name: String, extra: [String] = []) -> String? {
+        #if os(Windows)
+        var dirs = extra
+        // Environment keys are case-insensitive on Windows; Foundation's dictionary is not.
+        let environment = ProcessInfo.processInfo.environment
+        if let path = environment.first(where: { $0.key.uppercased() == "PATH" })?.value {
+            // An entry may be quoted ("C:\Program Files\x"), as cmd.exe accepts.
+            dirs.append(contentsOf: path.split(separator: ";").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"")) })
+        }
+        // Like cmd.exe: a bare name is tried only with the PATHEXT extensions, in that order. npm and Electron apps
+        // put an extensionless shell script next to the .cmd shim, and that script cannot be started directly.
+        let pathext = environment.first(where: { $0.key.uppercased() == "PATHEXT" })?.value ?? ".COM;.EXE;.BAT;.CMD"
+        let extensions = pathext.split(separator: ";").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ". ")).lowercased() }.filter { !$0.isEmpty }
+        let names = extensions.contains((name as NSString).pathExtension.lowercased())
+            ? [name] : extensions.map { "\(name).\($0)" }
+        for dir in dirs {
+            for name in names {
+                let candidate = URL(fileURLWithPath: dir).appendingPathComponent(name).path
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: candidate, isDirectory: &isDirectory), !isDirectory.boolValue {
+                    return candidate
+                }
+            }
+        }
+        return nil
+        #else
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         var dirs = ["/usr/local/bin", "/opt/homebrew/bin", "\(home)/.local/bin", "/usr/bin", "/bin"] + extra
         if let path = ProcessInfo.processInfo.environment["PATH"] {
@@ -99,5 +189,6 @@ public enum Proc {
             if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
         }
         return nil
+        #endif
     }
 }

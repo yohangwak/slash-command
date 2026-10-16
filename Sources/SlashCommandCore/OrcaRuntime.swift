@@ -29,11 +29,21 @@ public enum OrcaRuntime {
     /// The key name under which the auth value appears in the runtime info file and in requests.
     static let credentialField = "auth" + "Token"
 
+    #if os(Windows)
+    static var metadataURL: URL {
+        get throws {
+            let base = try ProcessInfo.processInfo.environment["ORCA_USER_DATA_PATH"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+                ?? OrcaState.supportDirectory
+            return base.appendingPathComponent("orca-runtime.json")
+        }
+    }
+    #else
     static var metadataURL: URL {
         let base = ProcessInfo.processInfo.environment["ORCA_USER_DATA_PATH"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
             ?? OrcaState.supportDirectory
         return base.appendingPathComponent("orca-runtime.json")
     }
+    #endif
 
     static func metadata(from data: Data) -> Metadata? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -47,6 +57,7 @@ public enum OrcaRuntime {
 
     /// Sends one request and returns its `result`.
     public static func call(_ method: String, _ params: [String: Any], timeout: TimeInterval = 5) -> Result<[String: Any], Failure> {
+        #if os(macOS)
         guard let data = try? Data(contentsOf: metadataURL), let meta = metadata(from: data) else {
             return .failure(.unavailable(loc("Could not read Orca's runtime information")))
         }
@@ -106,6 +117,11 @@ public enum OrcaRuntime {
                 }
             }
         }
+        #elseif os(Windows)
+        return windowsCall(method, params, timeout: timeout)
+        #else
+        return .failure(.unavailable(loc("Could not connect to the Orca app")))
+        #endif
     }
 
     enum Frame {

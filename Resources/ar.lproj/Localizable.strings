@@ -283,3 +283,11 @@
 "Allow Slash Command to control %@" = "اسمح لـ Slash Command بالتحكم في %@";
 "macOS is asking for permission. Click Allow and the switch continues." = "يطلب macOS الإذن. انقر على «السماح» وسيستمر التبديل.";
 "%@ is allowed now. Try again." = "أصبح التحكم في %@ مسموحًا. حاول مرة أخرى.";
+
+"This is not supported on this operating system yet." = "هذه الميزة غير مدعومة على نظام التشغيل هذا حتى الآن.";
+
+"This terminal runs tmux or WSL, which Slash Command cannot follow on Windows yet." = "تعمل هذه الطرفية باستخدام tmux أو WSL، ولا يستطيع Slash Command تتبعها على Windows بعد.";
+
+"Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "يتعذر على Slash Command قراءة عمليات هذه الطرفية (قد تكون تعمل بصلاحيات المسؤول)، لذلك لا يرسل أي شيء.";
+
+"Refused to run a batch file with arguments that cmd.exe could misread." = "لم يُشغَّل الملف الدفعي لأن بعض الوسائط قد يسيء cmd.exe تفسيرها.";

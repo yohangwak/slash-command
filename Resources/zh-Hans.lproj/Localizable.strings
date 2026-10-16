@@ -283,3 +283,11 @@
 "Allow Slash Command to control %@" = "请允许 Slash Command 控制 %@";
 "macOS is asking for permission. Click Allow and the switch continues." = "macOS 正在请求权限。点按“允许”后将继续切换。";
 "%@ is allowed now. Try again." = "已允许控制 %@。请再试一次。";
+
+"This is not supported on this operating system yet." = "此操作系统暂不支持此功能。";
+
+"This terminal runs tmux or WSL, which Slash Command cannot follow on Windows yet." = "此终端正在运行 tmux 或 WSL，Slash Command 暂时还无法在 Windows 上跟踪它。";
+
+"Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command 无法读取此终端的进程（可能以管理员身份运行），因此不会发送任何内容。";
+
+"Refused to run a batch file with arguments that cmd.exe could misread." = "参数可能被 cmd.exe 误读，因此未运行该批处理文件。";

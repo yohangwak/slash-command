@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 import ApplicationServices
 import Foundation
@@ -93,3 +94,4 @@ enum OrcaProbe {
         return found.sorted().joined(separator: " ")
     }
 }
+#endif

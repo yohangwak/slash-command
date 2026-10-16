@@ -56,7 +56,12 @@ enum DefaultsFile {
         var oldRest = old
         for key in keys { rest[key] = nil; oldRest[key] = nil }
         do {
-            if NSDictionary(dictionary: rest).isEqual(to: oldRest) {
+            #if os(macOS)
+            let restEqual = NSDictionary(dictionary: rest).isEqual(to: oldRest)
+            #else
+            let restEqual = jsonEqual(rest, oldRest)
+            #endif
+            if restEqual {
                 if let before {
                     try before.write(to: url, options: .atomic)
                 } else {
@@ -67,7 +72,12 @@ enum DefaultsFile {
                 if keys.allSatisfy({ key in
                     switch (now[key], old[key]) {
                     case (nil, nil): return true
-                    case (let a?, let b?): return (a as AnyObject).isEqual(b)
+                    case (let a?, let b?):
+                        #if os(macOS)
+                        return (a as AnyObject).isEqual(b)
+                        #else
+                        return jsonEqual(a, b)
+                        #endif
                     default: return false
                     }
                 }) { return .unchanged }
@@ -79,6 +89,23 @@ enum DefaultsFile {
             return .restored
         } catch {
             return .failed(error.localizedDescription)
+        }
+    }
+
+    /// Equality of JSON values without Objective-C dispatch. NSNumber preserves Foundation's
+    /// numeric equality (including 1 == 1.0 and true == 1); arrays remain order-sensitive.
+    static func jsonEqual(_ a: Any, _ b: Any) -> Bool {
+        switch (a, b) {
+        case (let a as [String: Any], let b as [String: Any]):
+            return a.count == b.count && a.allSatisfy { key, value in
+                b[key].map { jsonEqual(value, $0) } ?? false
+            }
+        case (let a as [Any], let b as [Any]):
+            return a.count == b.count && zip(a, b).allSatisfy { jsonEqual($0, $1) }
+        case (let a as String, let b as String): return a == b
+        case (let a as NSNumber, let b as NSNumber): return a.isEqual(to: b)
+        case (is NSNull, is NSNull): return true
+        default: return false
         }
     }
 
@@ -280,11 +307,15 @@ public enum LaunchDefaults {
 
     /// Keeps other launches and guards from interfering while the record is read and modified (`flock`).
     static func locked<T>(_ record: URL, _ body: () throws -> T) throws -> T {
+        #if os(macOS)
         let descriptor = open(record.path + ".lock", O_CREAT | O_RDWR, 0o600)
         guard descriptor >= 0 else { throw SlashCommandError("could not open \(record.lastPathComponent).lock: \(String(cString: strerror(errno)))") }
         defer { close(descriptor) }
         guard flock(descriptor, LOCK_EX) == 0 else { throw SlashCommandError("could not lock \(record.lastPathComponent).lock: \(String(cString: strerror(errno)))") }
         defer { flock(descriptor, LOCK_UN) }
         return try body()
+        #else
+        throw SlashCommandError(loc("This is not supported on this operating system yet."))
+        #endif
     }
 }

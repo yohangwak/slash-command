@@ -1,1 +1,9 @@
 /* English is the base language: the sentences live in the code (`loc("…")`). Keep this file empty. */
+
+/* This is not supported on this operating system yet. — English comes from the sentence in code. */
+
+/* This terminal runs tmux or WSL, which Slash Command cannot follow on Windows yet. — English comes from the sentence in code. */
+
+/* Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything. — English comes from the sentence in code. */
+
+/* Refused to run a batch file with arguments that cmd.exe could misread. — English comes from the sentence in code. */

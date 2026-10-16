@@ -1,4 +1,6 @@
+#if os(macOS)
 import Darwin
+#endif
 import Foundation
 
 // Finding the front session: WezTerm and kitty, and tmux inside them.
@@ -18,6 +20,7 @@ import Foundation
 
 /// Processes attached to a terminal (tty).
 enum TTYProcesses {
+    #if os(macOS)
     /// The device number of `/dev/ttys004`. Same value as the process's `e_tdev`.
     static func device(ofTTY path: String) -> UInt32? {
         var info = stat()
@@ -30,11 +33,13 @@ enum TTYProcesses {
         return (first.split(separator: "/").last.map(String.init) ?? "") == "tmux"
     }
 
+    #endif
     /// Whether the executable path is tmux (the server has no terminal, so it is not in `ProcessTable`'s list — judge by path).
     static func isTmux(executable path: String) -> Bool {
         (path.split(separator: "/").last.map(String.init) ?? "") == "tmux"
     }
 
+    #if os(macOS)
     /// The agent of that terminal (agents launched by an agent are not counted). nil if they do not converge on one kind.
     static func agent(in entries: [ProcessTable.Entry], parents: [Int32: Int32]) -> Agent? {
         let candidates = entries.compactMap { entry -> (pid: String, agent: Agent)? in
@@ -43,6 +48,8 @@ enum TTYProcesses {
         let table = Dictionary(uniqueKeysWithValues: parents.map { (String($0.key), String($0.value)) })
         return AgentProcesses.outermostAgent(candidates, parents: table)
     }
+    #endif
+
 }
 
 public enum WezTermFront {
@@ -107,6 +114,7 @@ public enum KittyFront {
         return found
     }
 
+    #if os(macOS)
     /// The pids of the main kitty processes (the windowless helper `kitty +runpy …` is excluded).
     static func instances() -> [Int32] {
         ProcessTable.allPIDs().filter { pid in
@@ -125,6 +133,7 @@ public enum KittyFront {
         return found
     }
 
+    #endif
     /// The focused OS window -> tab -> window from the JSON of `kitty @ ls`. If there is only one OS window, it is that window even when kitty is not the frontmost app (even with no focus flag).
     static func focusedWindow(ls: Data) -> Window? {
         guard let osWindows = try? JSONSerialization.jsonObject(with: ls) as? [[String: Any]] else { return nil }
@@ -189,6 +198,7 @@ public enum TmuxFront {
         Proc.run(tmux, self.arguments(socket: socket) + arguments, timeout: 5)
     }
 
+    #if os(macOS)
     /// The agent in the pane the tmux client process is looking at.
     static func target(client: ProcessTable.Entry, table: (entries: [ProcessTable.Entry], parents: [Int32: Int32]), outer: String) throws -> Target {
         guard let tmux = Proc.locate("tmux") else { throw SlashCommandError(loc("The tmux command was not found.")) }
@@ -208,12 +218,15 @@ public enum TmuxFront {
         }
         return Target(host: .tmux(socket: socket, pane: client.pane), agent: agent, label: label)
     }
+    #endif
+
 }
 
 extension Detector {
     public static let weztermBundleID = "com.github.wez.wezterm"
     public static let kittyBundleID = "net.kovidgoyal.kitty"
 
+    #if os(macOS)
     /// Finds the agent from "the processes of that session" the terminal app reported. If tmux is running there, goes into the pane that client is looking at.
     static func session(host: TerminalHost, appName: String, label: String,
                         table: (entries: [ProcessTable.Entry], parents: [Int32: Int32]), device: UInt32) throws -> Target {
@@ -272,4 +285,6 @@ extension Detector {
         }
         return try session(host: .kitty(socket: socket, window: window.id), appName: "kitty", label: window.title, table: table, device: device)
     }
+    #endif
+
 }
