@@ -4,6 +4,8 @@
 
 [English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [Español](README.es.md)
 
+**[下载 macOS 版](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 或更高版本 · Apple 芯片和 Intel
+
 ![每按一次快捷键,Claude Code 就在 Sonnet、Fable、Opus 之间切换并提高 effort,每次变更都会显示通知](docs/assets/demo.gif)
 
 Slash Command 是一款 macOS 菜单栏应用。在终端里按下 **⇧⌥1 … ⇧⌥9**,最前面会话中的智能体就会切换到对应预设的 **模型 + effort**。**⇧⌥=** 和 **⇧⌥-** 可以把 effort 调高或调低一级。
@@ -20,15 +22,20 @@ Slash Command 是一款 macOS 菜单栏应用。在终端里按下 **⇧⌥1 …
 
 需要 macOS 13 或更高版本。
 
-1. 用 [Homebrew](https://brew.sh) 安装:
+1. 下载 [**Slash-Command.dmg**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)。
+2. 打开它,把 **Slash Command** 拖到 **Applications**(应用程序)上。
+3. 从“应用程序”文件夹打开 Slash Command,菜单栏中会出现一个 `/` 键图标。
+4. 通过该图标打开 **设置…**,使用顶部的 **权限** 区域。其中的按钮会替你打开系统设置里对应的面板。
 
-   ```sh
-   brew install --cask yohangwak/tap/slash-command
-   ```
+使用 **Homebrew** 时,用下面的命令代替第 1、2 步:
 
-   或者从[最新版本](https://github.com/yohangwak/slash-command/releases/latest)下载 `Slash-Command.zip`,解压后把 **Slash Command** 移动到“应用程序”文件夹。
-2. 打开它,菜单栏中会出现一个 `/` 键图标。
-3. 通过该图标打开 **设置…**,使用顶部的 **权限** 区域。其中的按钮会替你打开系统设置里对应的面板。
+```sh
+brew install --cask yohangwak/tap/slash-command
+```
+
+这样安装时,命令行工具也会链接为 `slashcommand`。
+
+第 4 步中的权限用途:
 
 | 权限 | 用途 |
 |---|---|
@@ -82,7 +89,7 @@ cd slash-command
 
 ## 命令行
 
-应用自带一个命令行工具,使用相同的切换逻辑。用 Homebrew 安装时,可以直接用 `slashcommand` 调用。从 zip 安装时,它位于应用包内,需要创建一次链接:
+应用自带一个命令行工具,使用相同的切换逻辑。用 Homebrew 安装时,可以直接用 `slashcommand` 调用。从磁盘映像安装时,它位于应用包内,需要创建一次链接:
 
 ```sh
 sudo mkdir -p /usr/local/bin

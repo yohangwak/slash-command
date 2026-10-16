@@ -4,6 +4,8 @@
 
 [English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md)
 
+**[Descargar para macOS](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 o posterior · Apple silicon e Intel
+
 ![Cada atajo cambia Claude Code entre Sonnet, Fable y Opus y sube el effort, con un aviso en cada cambio](docs/assets/demo.gif)
 
 Slash Command es una app de la barra de menús de macOS. Pulsa **⇧⌥1 … ⇧⌥9** en tu terminal y el agente de la sesión en primer plano cambia al **modelo + effort** de ese preajuste. **⇧⌥=** y **⇧⌥-** suben o bajan el effort un nivel.
@@ -20,15 +22,20 @@ Funciona con **Claude Code, Codex, Grok, Cursor Agent, Antigravity y OpenCode**,
 
 Requiere macOS 13 o posterior.
 
-1. Instálala con [Homebrew](https://brew.sh):
+1. Descarga [**Slash-Command.dmg**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg).
+2. Ábrelo y arrastra **Slash Command** a **Applications** (Aplicaciones).
+3. Abre Slash Command desde la carpeta Aplicaciones. Aparecerá un icono con la tecla `/` en la barra de menús.
+4. Abre **Ajustes…** desde ese icono y usa el cuadro **Permisos** de la parte superior. Sus botones abren por ti el panel correcto de Ajustes del Sistema.
 
-   ```sh
-   brew install --cask yohangwak/tap/slash-command
-   ```
+**Con Homebrew**, sustituye los pasos 1 y 2 por:
 
-   O descarga `Slash-Command.zip` desde la [última versión](https://github.com/yohangwak/slash-command/releases/latest), descomprímelo y mueve **Slash Command** a la carpeta Aplicaciones.
-2. Ábrela. Aparecerá un icono con la tecla `/` en la barra de menús.
-3. Abre **Ajustes…** desde ese icono y usa el cuadro **Permisos** de la parte superior. Sus botones abren por ti el panel correcto de Ajustes del Sistema.
+```sh
+brew install --cask yohangwak/tap/slash-command
+```
+
+Así también se enlaza la herramienta de línea de comandos como `slashcommand`.
+
+Los permisos del paso 4:
 
 | Permiso | Para qué sirve |
 |---|---|
@@ -82,7 +89,7 @@ El número de un preajuste es una intención. Cada preajuste tiene una entrada p
 
 ## Línea de comandos
 
-La app incluye una herramienta de línea de comandos con la misma lógica de cambio. Si instalaste con Homebrew, ya puedes llamarla como `slashcommand`. Si instalaste desde el zip, está dentro del paquete de la app, así que crea el enlace una vez:
+La app incluye una herramienta de línea de comandos con la misma lógica de cambio. Si instalaste con Homebrew, ya puedes llamarla como `slashcommand`. Si instalaste desde la imagen de disco, está dentro del paquete de la app, así que crea el enlace una vez:
 
 ```sh
 sudo mkdir -p /usr/local/bin
