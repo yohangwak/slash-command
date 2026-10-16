@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 
 /// macOS "Automation" permission — may this process drive that app with AppleScript?
@@ -187,3 +188,4 @@ public enum AutomationConsent: Equatable, Sendable {
         throw error
     }
 }
+#endif

@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 public enum TerminalHost: Equatable, Sendable {
@@ -39,93 +38,10 @@ public struct Target: Equatable, Sendable {
 }
 
 public enum Detector {
+    public static let itermBundleID = "com.googlecode.iterm2"
     public static let ghosttyBundleID = "com.mitchellh.ghostty"
     public static let orcaBundleID = "com.stablyai.orca"
     public static let supportedBundleIDs: Set<String> = [ghosttyBundleID, orcaBundleID, itermBundleID, weztermBundleID, kittyBundleID]
-
-    /// The frontmost terminal of the frontmost app and the agent in it. For a terminal driven by AppleScript, it first checks automation permission
-    /// (if a permission dialog appears it calls `willAskAutomation` and waits for the answer — `AutomationConsent.ensure`).
-    /// If it showed a dialog to get permission, it continues only when that app is back in front.
-    public static func frontmost(willAskAutomation: @escaping () -> Void = {}) throws -> Target {
-        guard let app = NSWorkspace.shared.frontmostApplication,
-              let bundleID = app.bundleIdentifier else {
-            throw SlashCommandError(loc("Cannot tell which app is in front."))
-        }
-        let appName = app.localizedName ?? bundleID
-        // If the user moved to another app while answering the permission dialog, do not change the terminal behind it.
-        var frontPID = app.processIdentifier
-        if try AutomationConsent.ensure(bundleID: bundleID, appName: appName, willAsk: willAskAutomation) {
-            try AutomationConsent.requireFront(bundleID: bundleID, appName: appName)
-            // While answering the dialog, another process of the same app may have come to the front.
-            if let now = NSWorkspace.shared.frontmostApplication, now.bundleIdentifier == bundleID { frontPID = now.processIdentifier }
-        }
-        return try target(bundleID: bundleID, appName: appName, frontPID: frontPID)
-    }
-
-    /// `frontPID` is the pid of the frontmost app (as reported by `NSWorkspace.frontmostApplication`). It is used to pick the «frontmost» process when more than one instance of the same app is running.
-    /// If unknown (`--bundle`, which asks as if that app were in front), it looks for the active one among the running ones.
-    public static func target(bundleID: String, appName: String, frontPID: Int32? = nil) throws -> Target {
-        switch bundleID {
-        case ghosttyBundleID: return try ghostty()
-        case orcaBundleID: return try orca()
-        case itermBundleID: return try iterm()
-        case weztermBundleID: return try wezterm(frontPID: frontProcess(known: frontPID, bundleID: weztermBundleID))
-        case kittyBundleID: return try kitty(frontPID: frontProcess(known: frontPID, bundleID: kittyBundleID))
-        default:
-            throw SlashCommandError(loc("%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal.", appName))
-        }
-    }
-
-    /// The frontmost process. If the caller knows a pid, use it — picking the «active» one from the running-app list
-    /// can be wrong in a long-lived app (measured 2026-10-13: with two WezTerms running and the later-launched one in front, 2 of 4 shortcut presses
-    /// went to the shell of the first-launched one. A list read by a freshly launched process at the same moment was right).
-    static func frontProcess(known: Int32?, bundleID: String, active: (String) -> Int32? = Detector.activeProcess) -> Int32? {
-        known ?? active(bundleID)
-    }
-
-    static func activeProcess(bundleID: String) -> Int32? {
-        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first(where: \.isActive)?.processIdentifier
-    }
-
-    // MARK: Ghostty
-
-    public static func ghostty() throws -> Target {
-        let script = """
-        tell application "Ghostty"
-            if (count of windows) is 0 then return ""
-            set t to focused terminal of selected tab of front window
-            return (id of t) & linefeed & (name of t) & linefeed & (working directory of t)
-        end tell
-        """
-        let result = GhosttyIO.osascript(script)
-        guard result.ok else {
-            let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw SlashCommandError(loc("Could not read the frontmost Ghostty terminal: %@", detail))
-        }
-        let parts = result.out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        guard parts.count >= 2, !parts[0].isEmpty else {
-            throw SlashCommandError(loc("Ghostty has no open window."))
-        }
-        let id = parts[0]
-        let name = parts[1]
-        let cwd = parts.count > 2 ? parts[2] : ""
-
-        if let agent = agent(inTitle: name) {
-            return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
-        }
-        // A tab whose title was changed by hand cannot be told apart by title. If only one kind of agent runs in that folder, take that one.
-        let kinds = AgentProcesses.kinds(inDirectory: cwd)
-        // If claude and codex run separately in the same folder: decide by which input box is visible on this terminal's screen.
-        if kinds.count > 1, let lines = GhosttyIO(terminalID: id).screen(), let agent = agent(onScreen: lines) {
-            return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
-        }
-        guard kinds.count == 1, let agent = kinds.first else {
-            throw SlashCommandError(kinds.isEmpty
-                ? loc("The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", name)
-                : loc("The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder.", name))
-        }
-        return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
-    }
 
     /// The agent whose input box is «visible» on screen. nil if it cannot be narrowed to one (both visible or neither visible).
     static func agent(onScreen lines: [String]) -> Agent? {
@@ -141,62 +57,39 @@ public enum Detector {
         return nil
     }
 
+    #if os(Windows)
+    public static var orcaExtraDirectories: [String] {
+        get throws { [try WindowsPaths.requiredEnvironment("LOCALAPPDATA") + "/Programs/orca/resources/bin"] }
+    }
+    #else
+    public static var orcaExtraDirectories: [String] { [] }
+    #endif
+
     // MARK: Orca
-
-    /// The agent running in that terminal when only the handle is known.
-    public static func orcaAgent(handle: String) -> Agent? {
-        AgentProcesses.agent(orcaHandle: handle)
-    }
-
-    public static func orca() throws -> Target {
-        let payload = try orcaTerminals()
-        let active = try orcaActive(payload: payload).active
-        // If tmux is running as the «foreground job» in that terminal, go into the tmux pane that client is looking at (write and read via tmux too).
-        // Used as-is through Orca, the bottom of the screen is tmux's status line, and if panes are split the text of several panes is mixed on one screen.
-        if let handle = try? OrcaState.pane(in: payload, active: active).handle, let inside = try orcaTmux(handle: handle) {
-            return inside
-        }
-        return try OrcaState.target(in: payload, active: active, processAgent: AgentProcesses.agent(orcaHandle:))
-    }
-
-    /// If a tmux client is the foreground job in that Orca terminal, the tmux pane that client is looking at. Otherwise nil.
-    public static func orcaTmux(handle: String) throws -> Target? {
-        let table = ProcessTable.snapshot()
-        let client = AgentProcesses.tmuxClient(orcaHandle: handle, entries: table.entries, parents: table.parents,
-                                               isTmux: { TTYProcesses.isTmux(executable: ProcessTable.executablePath(of: $0)) })
-        return try client.map { try TmuxFront.target(client: $0, table: table, outer: "Orca") }
-    }
-
-    /// The workspace and tab shown on screen, and «how it was learned».
-    /// It first uses the tab lines read through accessibility (no delay), and falls back to the state DB (1.3–2.5 s late) if they cannot be read or no workspace matches.
-    /// If the tab lines match more than one workspace, it cannot tell which, so nothing is sent.
-    public static func orcaActive(payload: [String: Any]) throws -> (active: OrcaState.Active, source: String) {
-        let database = try? OrcaState.active()
-        guard let strip = OrcaView.readStrip() else {
-            return (try OrcaState.active(), "state DB (could not read the tab strip through Accessibility)")
-        }
-        let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
-        switch OrcaView.resolve(strip: strip, layouts: layouts) {
-        case .tab(let active):
-            let note = (database == active) ? "Accessibility (same as the DB)" : "Accessibility (differs from the DB — the DB still has the old value)"
-            return (active, note)
-        case .ambiguous:
-            throw SlashCommandError(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."))
-        case .noMatch:
-            return (try OrcaState.active(), "state DB (the tab strip matches no workspace)")
-        }
-    }
 
     /// The terminal list and screen layout. Asks the Orca app directly, and if that fails asks through the `orca` command.
     public static func orcaTerminals() throws -> [String: Any] {
+        #if os(Windows)
+        switch OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) {
+        case .success(let payload): return payload
+        case .failure(.failed(let message)): throw SlashCommandError(message)
+        case .failure(.unavailable): break
+        }
+        #else
         if case .success(let payload) = OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) {
             return payload
         }
-        guard let orca = Proc.locate("orca") else {
+        #endif
+        #if os(Windows)
+        let orcaCommand = try Proc.locate("orca", extra: orcaExtraDirectories)
+        #else
+        let orcaCommand = Proc.locate("orca")
+        #endif
+        guard let orca = orcaCommand else {
             throw SlashCommandError(loc("Could not connect to the Orca app, and the orca command was not found either."))
         }
         let result = Proc.run(orca, ["terminal", "list", "--include-visual-layouts", "--json"],
-                              env: OrcaIO.cleanEnv, cwd: "/", timeout: 10)
+                              env: OrcaIO.cleanEnv, cwd: OrcaIO.runtimeWorkingDirectory, timeout: 10)
         guard result.ok,
               let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
               let payload = json["result"] as? [String: Any] else {
@@ -222,11 +115,23 @@ public enum OrcaState {
         }
     }
 
+    #if os(Windows)
+    static var supportDirectory: URL {
+        get throws { URL(fileURLWithPath: try WindowsPaths.requiredEnvironment("APPDATA")).appendingPathComponent("orca") }
+    }
+
+    static func databaseURL() throws -> URL {
+        try databaseURL(in: supportDirectory)
+    }
+    #else
     static var supportDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/orca")
     }
 
-    static func databaseURL() -> URL {
+    static func databaseURL() -> URL { databaseURL(in: supportDirectory) }
+    #endif
+
+    private static func databaseURL(in supportDirectory: URL) -> URL {
         var profile = "local-default"
         let index = supportDirectory.appendingPathComponent("orca-profile-index.json")
         if let data = try? Data(contentsOf: index),
@@ -238,13 +143,21 @@ public enum OrcaState {
     }
 
     public static func active() throws -> Active {
+        #if os(Windows)
+        let database = try databaseURL()
+        #else
         let database = databaseURL()
+        #endif
         let query = """
         select json_object('worktree', json_extract(payload, '$.activeWorktreeId'), \
         'tab', json_extract(payload, '$.activeTabId')) \
         from profile_state_documents where domain = 'workspaceSession'
         """
+        #if os(Windows)
+        let result = WindowsOrcaState.query(database: database.path, sql: query)
+        #else
         let result = Proc.run("/usr/bin/sqlite3", ["-readonly", "file:\(database.path)?mode=ro", query], timeout: 5)
+        #endif
         let unknown = SlashCommandError(loc("Could not work out which Orca workspace is on screen (an Orca update may have changed how it stores its state)."))
         guard result.ok,
               let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
@@ -273,7 +186,13 @@ public enum OrcaState {
     /// The active terminal of the tab visible on screen: handle, human-readable name, and the agent the list records (may be absent).
     static func pane(in payload: [String: Any], active: Active) throws -> (handle: String, label: String, listedAgent: Agent?) {
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
-        guard let layout = layouts.first(where: { $0["worktreeId"] as? String == active.worktreeID }) else {
+        guard let layout = layouts.first(where: {
+            #if os(Windows)
+            return ($0["worktreeId"] as? String).map { WindowsPaths.normalized($0) == WindowsPaths.normalized(active.worktreeID) } ?? false
+            #else
+            return $0["worktreeId"] as? String == active.worktreeID
+            #endif
+        }) else {
             throw SlashCommandError(loc("The frontmost Orca workspace has no open terminal."))
         }
         guard let tab = tabs(in: layout["root"]).first(where: { $0["tabId"] as? String == active.tabID }) else {
@@ -313,49 +232,7 @@ public enum OrcaState {
 
 /// Finds running claude and codex processes by working directory (a fallback for when the Ghostty title cannot tell).
 enum AgentProcesses {
-    static func kinds(inDirectory directory: String) -> Set<Agent> {
-        guard !directory.isEmpty else { return [] }
-        let wanted = URL(fileURLWithPath: directory).standardizedFileURL.path
-        let ps = Proc.run("/bin/ps", ["-axo", "pid=,tty=,args="], timeout: 5)
-        guard ps.ok else { return [] }
-        var candidates: [(pid: String, agent: Agent)] = []
-        for line in ps.out.split(separator: "\n") {
-            let fields = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
-            guard fields.count == 3, fields[1] != "??",
-                  let agent = agent(forCommandLine: String(fields[2])) else { continue }
-            candidates.append((String(fields[0]), agent))
-        }
-        guard !candidates.isEmpty else { return [] }
-        let lsof = Proc.run("/usr/sbin/lsof",
-                            ["-a", "-d", "cwd", "-Fpn", "-p", candidates.map(\.pid).joined(separator: ",")],
-                            timeout: 5)
-        var cwdByPID: [String: String] = [:]
-        var current: String?
-        for line in lsof.out.split(separator: "\n") {
-            if line.hasPrefix("p") {
-                current = String(line.dropFirst())
-            } else if line.hasPrefix("n"), let pid = current {
-                cwdByPID[pid] = URL(fileURLWithPath: String(line.dropFirst())).standardizedFileURL.path
-            }
-        }
-        return Set(candidates.filter { cwdByPID[$0.pid] == wanted }.map(\.agent))
-    }
-
-    /// Orca gives each terminal `ORCA_TERMINAL_HANDLE` as an environment variable. Among the processes that have that value, find the agent.
-    /// If an agent started another agent as a child (e.g. claude runs `codex exec`), pick the outer one.
-    /// The environment may contain secrets, so this output is not kept anywhere.
-    static func agent(orcaHandle handle: String) -> Agent? {
-        let table = ProcessTable.snapshot()
-        if !table.entries.isEmpty {
-            return agent(orcaHandle: handle, entries: table.entries, parents: table.parents,
-                         isTmux: { TTYProcesses.isTmux(executable: ProcessTable.executablePath(of: $0)) })
-        }
-        // If it cannot be read inside the process, read the same information with `ps`.
-        let ps = Proc.run("/bin/ps", ["-axEww", "-o", "pid=,ppid=,tty=,command="], timeout: 5)
-        guard ps.ok else { return nil }
-        return agent(orcaHandle: handle, psOutput: ps.out)
-    }
-
+    #if os(macOS)
     static func agent(orcaHandle handle: String, entries: [ProcessTable.Entry], parents: [Int32: Int32], isTmux: (Int32) -> Bool) -> Agent? {
         let marker = "ORCA_TERMINAL_HANDLE=\(handle)"
         let candidates = entries.compactMap { entry -> (pid: String, agent: Agent)? in
@@ -381,6 +258,8 @@ enum AgentProcesses {
         }
         return found.count == 1 ? found.first : nil
     }
+
+    #endif
 
     static func hasAncestor(of pid: Int32, parents: [Int32: Int32], where matches: (Int32) -> Bool) -> Bool {
         var current = parents[pid]
@@ -429,6 +308,14 @@ enum AgentProcesses {
     }
 
     static func agent(forCommandLine commandLine: String) -> Agent? {
+        #if os(Windows)
+        return windowsAgent(forCommandLine: commandLine)
+        #else
+        return nonWindowsAgent(forCommandLine: commandLine)
+        #endif
+    }
+
+    static func nonWindowsAgent(forCommandLine commandLine: String) -> Agent? {
         guard let first = commandLine.split(separator: " ").first else { return nil }
         let name = first.split(separator: "/").last.map(String.init) ?? ""
         if name == "claude" || first.contains("/claude/versions/") { return .claude }
@@ -440,3 +327,15 @@ enum AgentProcesses {
         return nil
     }
 }
+
+#if !os(macOS) && !os(Windows)
+extension Detector {
+    public static func frontmost(willAskAutomation: @escaping () -> Void = {}) throws -> Target {
+        throw SlashCommandError(loc("This is not supported on this operating system yet."))
+    }
+
+    public static func target(bundleID: String, appName: String, frontPID: Int32? = nil) throws -> Target {
+        throw SlashCommandError(loc("This is not supported on this operating system yet."))
+    }
+}
+#endif

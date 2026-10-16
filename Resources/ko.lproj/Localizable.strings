@@ -283,3 +283,9 @@
 "Allow Slash Command to control %@" = "Slash Command 가 %@ 를 제어하도록 허용해 주세요";
 "macOS is asking for permission. Click Allow and the switch continues." = "macOS 가 권한을 묻고 있습니다. 허용을 누르면 전환이 이어집니다.";
 "%@ is allowed now. Try again." = "%@ 제어가 허용됐습니다. 다시 해 주세요.";
+
+"This is not supported on this operating system yet." = "이 운영체제에서는 아직 지원하지 않습니다.";
+
+"This terminal runs tmux or WSL, which Slash Command cannot follow on Windows yet." = "이 터미널은 tmux 또는 WSL을 실행 중이며, Slash Command는 Windows에서 아직 이를 따라갈 수 없습니다.";
+
+"Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command가 이 터미널의 프로세스를 읽을 수 없어 아무것도 보내지 않습니다(관리자 권한으로 실행 중일 수 있습니다).";

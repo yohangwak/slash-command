@@ -458,12 +458,15 @@ final class ProcessTableTests: KoreanMessagesTestCase {
         return bytes + [0, 0]
     }
 
+    #if os(macOS)
     func testParsesArgumentsThenEnvironment() throws {
         let parsed = try XCTUnwrap(ProcessTable.parse(procargs: procargs(argc: 2, ["claude", "--model", "A=1", "ORCA_TERMINAL_HANDLE=term_x"])))
         XCTAssertEqual(parsed.arguments, ["claude", "--model"])
         XCTAssertEqual(parsed.environment, ["A=1", "ORCA_TERMINAL_HANDLE=term_x"])
     }
+    #endif
 
+    #if os(macOS)
     func testKeepsEmptyArgumentsAndRejectsTruncatedData() throws {
         let parsed = try XCTUnwrap(ProcessTable.parse(procargs: procargs(argc: 3, ["codex", "", "x", "E=1"])))
         XCTAssertEqual(parsed.arguments, ["codex", "", "x"])
@@ -471,8 +474,10 @@ final class ProcessTableTests: KoreanMessagesTestCase {
         XCTAssertNil(ProcessTable.parse(procargs: procargs(argc: 5, ["only", "two"])))
         XCTAssertNil(ProcessTable.parse(procargs: [1, 0]))
     }
+    #endif
 
     /// Positive control: this test process itself must be read — if it cannot be read, "no agent" comes out falsely.
+    #if os(macOS)
     func testReadsThisProcess() throws {
         let own = try XCTUnwrap(ProcessTable.commandLine(of: getpid()))
         XCTAssertEqual(own.arguments.first, CommandLine.arguments.first)
@@ -480,6 +485,7 @@ final class ProcessTableTests: KoreanMessagesTestCase {
         XCTAssertTrue(ProcessTable.allPIDs().contains(getpid()))
         XCTAssertNotNil(ProcessTable.snapshot().parents[getpid()])
     }
+    #endif
 }
 
 final class OrcaRuntimeTests: KoreanMessagesTestCase {
@@ -582,6 +588,18 @@ final class ClaudeDefaultsTests: KoreanMessagesTestCase {
             .replacingOccurrences(of: "\"model\": \"opus\"", with: "\"model\": \"sonnet\"")
             .replacingOccurrences(of: "\"effortLevel\": \"medium\"", with: "\"effortLevel\": \"xhigh\"")
         XCTAssertEqual(decide(current), .write(Data(original.utf8)))
+    }
+
+    func testRestoresOriginalBytesWhenOtherSettingsHoldBooleansAndNumbers() throws {
+        // Booleans and numbers are where Foundation's dictionary equality differs between platforms.
+        let original = self.original.replacingOccurrences(of: "\"model\": \"opus\",", with: "\"model\": \"opus\",\n  \"alwaysThinkingEnabled\": true,\n  \"cleanupPeriodDays\": 30,")
+        let current = original.replacingOccurrences(of: "\"model\": \"opus\"", with: "\"model\": \"sonnet\"")
+        XCTAssertEqual(ClaudeDefaults.restoredContents(original: Data(original.utf8), current: Data(current.utf8)), .write(Data(original.utf8)))
+        let elsewhere = current.replacingOccurrences(of: "\"x\": \"model\"", with: "\"x\": \"changed-elsewhere\"")
+        guard case .write(let data) = ClaudeDefaults.restoredContents(original: Data(original.utf8), current: Data(elsewhere.utf8)) else {
+            return XCTFail("Must patch the file")
+        }
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), original.replacingOccurrences(of: "\"x\": \"model\"", with: "\"x\": \"changed-elsewhere\""))
     }
 
     func testPatchesOnlyDefaultsWhenOtherSettingsAlsoChanged() throws {
@@ -694,7 +712,11 @@ final class ConfigTests: KoreanMessagesTestCase {
         edited.slots.removeLast()
         try ConfigStore(url: link).save(edited)
 
+        #if os(Windows)
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), real.path.replacingOccurrences(of: "/", with: "\\"), "A link must not be replaced by a regular file")
+        #else
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), real.path, "A link must not be replaced by a regular file")
+        #endif
         XCTAssertEqual(try ConfigStore(url: real).load(), edited, "Must write to the file the link points to")
     }
 
@@ -725,12 +747,14 @@ final class ConfigTests: KoreanMessagesTestCase {
         XCTAssertEqual(Slot().summary(), loc("No agents set"))
     }
 
+    #if os(macOS)
     func testAppleScriptIsTimeLimited() {
         let wrapped = GhosttyIO.timeLimited("tell application \"Ghostty\"\n    return 1\nend tell")
         XCTAssertTrue(wrapped.hasPrefix("with timeout of \(GhosttyIO.replySeconds) seconds\n"))
         XCTAssertTrue(wrapped.hasSuffix("\nend timeout"))
         XCTAssertLessThanOrEqual(GhosttyIO.replySeconds, 10, "The main thread would hang while waiting for an unresponsive Ghostty")
     }
+    #endif
 
     func testSwitcherPlanErrors() throws {
         let switcher = Switcher(config: .starter, codexModels: { CodexModels(models: []) })
@@ -742,6 +766,7 @@ final class ConfigTests: KoreanMessagesTestCase {
 }
 
 final class GhosttyEscapeTests: KoreanMessagesTestCase {
+    #if os(macOS)
     func testEscapesControlBytesOnly() {
         XCTAssertEqual(GhosttyIO.actionEscaped("/model opus"), "/model opus")
         XCTAssertEqual(GhosttyIO.actionEscaped("\u{13}"), "\\x13")
@@ -749,6 +774,7 @@ final class GhosttyEscapeTests: KoreanMessagesTestCase {
         XCTAssertEqual(GhosttyIO.actionEscaped("a\\b"), "a\\\\b")
         XCTAssertEqual(GhosttyIO.quoted("say \"hi\" \\x13"), "\"say \\\"hi\\\" \\\\x13\"")
     }
+    #endif
 
     func testAgentFromTitle() {
         XCTAssertEqual(Detector.agent(inTitle: "claude"), .claude)
@@ -3562,6 +3588,7 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         (((try? JSONSerialization.jsonObject(with: Data(contentsOf: url))) as? [String: Any])?["model"] as? [String: Any])?["modelId"] as? String
     }
 
+    #if os(macOS)
     func testLaunchPutsBackOnlyWhatItsOwnLaunchWrote() throws {
         let (url, record) = launchFiles()
         try JSONSerialization.data(withJSONObject: ["version": 1, "hints": true], options: [.prettyPrinted, .sortedKeys]).write(to: url)
@@ -3579,7 +3606,9 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         XCTAssertLessThanOrEqual(round, 4 + 20, "After the first restore, watch for only 3 more seconds")
         XCTAssertFalse(FileManager.default.fileExists(atPath: record.path), "Deletes the record when finished")
     }
+    #endif
 
+    #if os(macOS)
     func testLaunchLeavesAnotherSessionsChangeAlone() throws {
         // Review (2026-10-11): during the one minute of watching, it must not revert a default that another session changed on purpose.
         let (url, record) = launchFiles()
@@ -3595,7 +3624,9 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         XCTAssertEqual(restored, 1)
         XCTAssertEqual(savedModel(url), "gemini-3.7-flash", "The value another session changed is the new baseline — only the opened model is restored")
     }
+    #endif
 
+    #if os(macOS)
     func testOverlappingLaunchesShareTheStateFromBeforeTheFirst() throws {
         // Review (2026-10-11): if opened again before the value written by the previous launch is restored, that momentary value is taken as the pre-launch one and the watchers fight each other.
         let (url, record) = launchFiles()
@@ -3618,7 +3649,9 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         XCTAssertEqual(savedModel(url), "gemini-3.7-flash")
         XCTAssertFalse(FileManager.default.fileExists(atPath: record.path))
     }
+    #endif
 
+    #if os(macOS)
     func testLaunchWithNoSettingsFileBefore() throws {
         let (url, record) = launchFiles()
         let ticket = try LaunchDefaults.begin(agent: .cursor, model: "auto", defaults: url, record: record)
@@ -3642,6 +3675,7 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         XCTAssertEqual(LaunchDefaults.keep(agent: .cursor, ticket: fresh, defaults: url, record: record, rounds: 2, sleep: { _ in }), 1)
         XCTAssertEqual(savedModel(url), "gemini-3.7-flash", "Not the baseline (grok-4.7) of the launch 10 minutes ago")
     }
+    #endif
 
     func testWhichSavedModelALaunchIdWrites() {
         // The eight pairs measured on 2026-10-11.
@@ -3663,6 +3697,7 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         XCTAssertFalse(LaunchDefaults.wrote(launch: "grok-4.7-high", model: [:]))
     }
 
+    #if os(macOS)
     func testLaunchLeavesASimilarlyNamedModelSavedByAnotherSession() throws {
         let (url, record) = launchFiles()
         try JSONSerialization.data(withJSONObject: ["version": 1], options: [.sortedKeys]).write(to: url)
@@ -3675,7 +3710,9 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         }), 0)
         XCTAssertEqual(savedModel(url), "claude-opus-5", "The Opus 5 chosen by someone else stays — what we opened is Opus 5.5")
     }
+    #endif
 
+    #if os(macOS)
     func testRestoringAnotherLaunchDoesNotCutThisLaunchsWatchShort() throws {
         // Review (2026-10-11): B's watcher restored A's write and then shortened to 3 seconds because it had restored, and after 5 seconds nobody restored what B wrote.
         let (url, record) = launchFiles()
@@ -3693,6 +3730,7 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         XCTAssertEqual(savedModel(url), "grok-4.7", "What B wrote late was also restored")
         XCTAssertEqual(round, 35 + 20, "Shortens to 3 seconds only after restoring its own")
     }
+    #endif
 
     /// Lines taken from the 2026-10-11 output of `agy models` (agy 1.3.3).
     static let agyModels = """

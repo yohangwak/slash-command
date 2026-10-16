@@ -283,3 +283,9 @@
 "Allow Slash Command to control %@" = "Autorisez Slash Command à contrôler %@";
 "macOS is asking for permission. Click Allow and the switch continues." = "macOS demande l’autorisation. Cliquez sur Autoriser et le changement se poursuit.";
 "%@ is allowed now. Try again." = "%@ est maintenant autorisé. Réessayez.";
+
+"This is not supported on this operating system yet." = "Cette fonctionnalité n’est pas encore prise en charge sur ce système d’exploitation.";
+
+"This terminal runs tmux or WSL, which Slash Command cannot follow on Windows yet." = "Ce terminal utilise tmux ou WSL, que Slash Command ne peut pas encore suivre sous Windows.";
+
+"Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command ne peut pas lire les processus de ce terminal (il est peut-être exécuté en tant qu’administrateur), donc il n’envoie rien.";

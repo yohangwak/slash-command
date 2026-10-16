@@ -8,6 +8,7 @@ final class SettingsNamesTests: XCTestCase {
     }
 
     /// Reads the name this macOS's System Settings uses for that list (macOS 27: "Device Control and Data Access"; earlier: "Accessibility").
+    #if os(macOS)
     func testReadsTheNameThisSystemUses() throws {
         try XCTSkipUnless(FileManager.default.fileExists(atPath: SettingsNames.privacyExtension), "no Privacy & Security extension on this system")
         let name = try XCTUnwrap(SettingsNames.system(key: "ACCESSIBILITY"))
@@ -15,6 +16,7 @@ final class SettingsNamesTests: XCTestCase {
         XCTAssertFalse(name.isEmpty)
         XCTAssertNotEqual(name, "ACCESSIBILITY")
     }
+    #endif
 
     func testFallsBackToOurOwnWord() {
         XCTAssertFalse(SettingsNames.accessibility.isEmpty)

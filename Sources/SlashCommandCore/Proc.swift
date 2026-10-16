@@ -63,7 +63,11 @@ public enum Proc {
             process.terminate()
             // If it ignores SIGTERM, kill it forcibly: the pipes must close for the reads below to finish.
             if !waitForExit(process, done, seconds: 2) {
+                #if os(Windows)
+                process.terminate()   // TerminateProcess: already forcible on Windows
+                #else
                 kill(process.processIdentifier, SIGKILL)
+                #endif
                 _ = waitForExit(process, done, seconds: 1)
             }
         }
@@ -89,6 +93,31 @@ public enum Proc {
 
     /// GUI apps do not inherit the login shell's PATH, so look in the usual install locations directly.
     public static func locate(_ name: String, extra: [String] = []) -> String? {
+        #if os(Windows)
+        var dirs = extra
+        // Environment keys are case-insensitive on Windows; Foundation's dictionary is not.
+        let environment = ProcessInfo.processInfo.environment
+        if let path = environment.first(where: { $0.key.uppercased() == "PATH" })?.value {
+            // An entry may be quoted ("C:\Program Files\x"), as cmd.exe accepts.
+            dirs.append(contentsOf: path.split(separator: ";").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"")) })
+        }
+        // Like cmd.exe: a bare name is tried only with the PATHEXT extensions, in that order. npm and Electron apps
+        // put an extensionless shell script next to the .cmd shim, and that script cannot be started directly.
+        let pathext = environment.first(where: { $0.key.uppercased() == "PATHEXT" })?.value ?? ".COM;.EXE;.BAT;.CMD"
+        let extensions = pathext.split(separator: ";").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ". ")).lowercased() }.filter { !$0.isEmpty }
+        let names = extensions.contains((name as NSString).pathExtension.lowercased())
+            ? [name] : extensions.map { "\(name).\($0)" }
+        for dir in dirs {
+            for name in names {
+                let candidate = URL(fileURLWithPath: dir).appendingPathComponent(name).path
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: candidate, isDirectory: &isDirectory), !isDirectory.boolValue {
+                    return candidate
+                }
+            }
+        }
+        return nil
+        #else
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         var dirs = ["/usr/local/bin", "/opt/homebrew/bin", "\(home)/.local/bin", "/usr/bin", "/bin"] + extra
         if let path = ProcessInfo.processInfo.environment["PATH"] {
@@ -99,5 +128,6 @@ public enum Proc {
             if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
         }
         return nil
+        #endif
     }
 }

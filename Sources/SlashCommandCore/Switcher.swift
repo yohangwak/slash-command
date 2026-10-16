@@ -158,14 +158,22 @@ public struct Switcher {
         guard config.keepDefaults else { return OpenCodeDefaults() }
         var handle: String?
         if case .orca(let orca) = target.host { handle = orca }
+        #if os(macOS)
         let processes = ProcessTable.snapshot().entries.map { (arguments: $0.arguments, environment: $0.environment) }
         return try OpenCodeDefaults.resolve(processes: processes, orcaHandle: handle)
+        #else
+        throw SlashCommandError(loc("This is not supported on this operating system yet."))
+        #endif
     }
 
     public static func terminalIO(for target: Target) throws -> TerminalIO {
         switch target.host {
         case .ghostty(let terminalID):
+            #if os(macOS)
             return GhosttyIO(terminalID: terminalID)
+            #else
+            throw SlashCommandError(loc("This is not supported on this operating system yet."))
+            #endif
         case .orca(let handle):
             let io = OrcaIO(orca: Proc.locate("orca"), handle: handle)
             // For testing: exercises the path of terminals whose screen lags behind (Ghostty) in an Orca session.
@@ -187,7 +195,11 @@ public struct Switcher {
             }
             return WezTermIO(wezterm: wezterm, socket: socket, pane: pane)
         case .iterm(let sessionID):
+            #if os(macOS)
             return ITermIO(sessionID: sessionID)
+            #else
+            throw SlashCommandError(loc("This is not supported on this operating system yet."))
+            #endif
         }
     }
 

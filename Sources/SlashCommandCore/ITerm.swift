@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 import ApplicationServices
 import Foundation
@@ -314,7 +315,6 @@ enum ITermProfile {
 }
 
 extension Detector {
-    public static let itermBundleID = "com.googlecode.iterm2"
 
     /// `"<unique id>\n<tty>\n<name>"` → (id, tty, name). nil if there is no window (empty text).
     static func itermSession(from output: String) -> (id: String, tty: String, name: String)? {
@@ -344,3 +344,4 @@ extension Detector {
         return try session(host: .iterm(sessionID: found.id), appName: "iTerm2", label: found.name, table: ProcessTable.snapshot(), device: device)
     }
 }
+#endif

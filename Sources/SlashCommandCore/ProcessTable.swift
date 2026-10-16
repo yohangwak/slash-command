@@ -1,3 +1,4 @@
+#if os(macOS)
 import Darwin
 import Foundation
 
@@ -95,3 +96,4 @@ enum ProcessTable {
         return (Array(strings.prefix(Int(argc))), Array(strings.dropFirst(Int(argc))))
     }
 }
+#endif

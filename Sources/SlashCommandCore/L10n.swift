@@ -20,10 +20,14 @@ public enum L10n {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
         }
         guard let executable = Bundle.main.executableURL?.resolvingSymlinksInPath() else { return nil }
+        #if os(macOS)
         let macOS = executable.deletingLastPathComponent()
         let contents = macOS.deletingLastPathComponent()
         guard macOS.lastPathComponent == "MacOS", contents.lastPathComponent == "Contents" else { return nil }
         return contents.appendingPathComponent("Resources")
+        #else
+        return executable.deletingLastPathComponent().appendingPathComponent("Resources")
+        #endif
     }
 
     /// The languages in that folder (`ko.lproj` → `ko`).
@@ -57,7 +61,12 @@ public enum L10n {
     /// Reads one `Localizable.strings`. If it is missing or unreadable, an empty table (English as is).
     public static func table(in directory: URL, language: String) -> [String: String] {
         let url = directory.appendingPathComponent("\(language).lproj/Localizable.strings")
+        #if os(macOS)
         return (NSDictionary(contentsOf: url) as? [String: String]) ?? [:]
+        #else
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [:] }
+        return StringsTable.parse(text) ?? [:]
+        #endif
     }
 
     private static func current() -> (language: String, table: [String: String]) {

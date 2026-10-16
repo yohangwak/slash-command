@@ -15,8 +15,12 @@ public enum Follow {
 
         /// This process right now (it will turn into the agent).
         public static func current() -> Launched? {
+            #if os(macOS)
             let pid = getpid()
             return ProcessTable.startTime(of: pid).map { Launched(pid: pid, started: $0) }
+            #else
+            return nil
+            #endif
         }
 
         public var argument: String { "\(pid):\(started)" }
@@ -27,17 +31,25 @@ public enum Follow {
             self.init(pid: pid, started: started)
         }
 
+        #if os(macOS)
         /// Whether that process is still alive (not a different process with the same pid), is that agent, and is the foreground job of its own terminal.
         /// False if the launch failed or the user quit. Even if another session appears in the same terminal, nothing is written to it (PR #29 review).
         func isRunning(_ agent: Agent, entries: [ProcessTable.Entry], startTime: (Int32) -> UInt64?) -> Bool {
             guard startTime(pid) == started, let entry = entries.first(where: { $0.pid == pid }) else { return false }
             return entry.isForeground && AgentProcesses.agent(forCommandLine: entry.arguments.joined(separator: " ")) == agent
         }
+        #endif
     }
 
     /// Waits until the input box is seen "twice in a row" (does not start from one frame of a screen that is just being drawn). If it does not appear in time, nothing is sent.
     /// `alive` is whether the opened process is still that session; it is checked on every wait and again just before applying.
-    public static func run(timeoutMs: Int = 30_000, pollMs: Int = 250, sleep: (Int) -> Void = { usleep(UInt32($0) * 1000) },
+    public static func run(timeoutMs: Int = 30_000, pollMs: Int = 250, sleep: (Int) -> Void = {
+                               #if os(macOS)
+                               usleep(UInt32($0) * 1000)
+                               #else
+                               Thread.sleep(forTimeInterval: Double($0) / 1000)
+                               #endif
+                           },
                            alive: () -> Bool = { true }, ready: () -> Bool, apply: () throws -> String) -> String {
         let gone = "not applied — the session this was opened for is no longer running in that terminal"
         var waited = 0
@@ -63,6 +75,7 @@ public enum Follow {
     }
 
     public static func run(slot: Int, target: Target, launched: Launched, config: SlashCommandConfig) -> String {
+        #if os(macOS)
         guard let io = try? Switcher.terminalIO(for: target) else { return "not applied — the terminal cannot be reached" }
         return run(alive: { launched.isRunning(target.agent, entries: ProcessTable.snapshot().entries, startTime: ProcessTable.startTime(of:)) },
                    ready: { io.screen().map { Readiness.inputVisible(agent: target.agent, screen: $0) } ?? false },
@@ -71,6 +84,9 @@ public enum Follow {
                        // The log file is the only place the result remains: do not drop the warnings (effort could not be set, default could not be restored).
                        return result.summary + (result.warning.map { " ⚠️ \($0)" } ?? "")
                    })
+        #else
+        return "not applied — \(SlashCommandError(loc("This is not supported on this operating system yet.")))"
+        #endif
     }
 
     /// One line in the same log file as the app (`~/Library/Logs/SlashCommand/slashcommand.log`).

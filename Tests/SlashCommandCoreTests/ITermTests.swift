@@ -1,3 +1,4 @@
+#if os(macOS)
 import XCTest
 @testable import SlashCommandCore
 
@@ -460,3 +461,4 @@ final class FollowTests: XCTestCase {
         XCTAssertEqual(outcome, "not applied — no such row")
     }
 }
+#endif

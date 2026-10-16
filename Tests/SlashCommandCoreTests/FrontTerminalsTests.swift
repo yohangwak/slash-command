@@ -4,11 +4,13 @@ import XCTest
 /// Finding the frontmost session (WezTerm, kitty, and tmux inside them). The JSON is a trimmed copy of what was captured on a test Mac on 2026-10-12.
 final class FrontTerminalsTests: XCTestCase {
     /// If `foreground` is false it is not that terminal's foreground job (suspended with Ctrl-Z or `tmux suspend-client`).
+    #if os(macOS)
     private func entry(_ pid: Int32, parent: Int32 = 1, device: UInt32, foreground: Bool = true, _ arguments: String...) -> ProcessTable.Entry {
         ProcessTable.Entry(pid: pid, parent: parent, hasTerminal: true, terminalDevice: device,
                            processGroup: pid, foregroundGroup: foreground ? pid : pid + 1000,
                            arguments: arguments, environment: [], executable: "")
     }
+    #endif
 
     // MARK: WezTerm
 
@@ -137,6 +139,7 @@ final class FrontTerminalsTests: XCTestCase {
 
     // MARK: Processes in that terminal
 
+    #if os(macOS)
     func testAgentOnATerminal() {
         let shell = entry(10, device: 7, "-zsh")
         let claude = entry(11, parent: 10, device: 7, "claude")
@@ -147,7 +150,9 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertTrue(TTYProcesses.isTmuxClient(entry(20, device: 7, "/opt/homebrew/bin/tmux", "-L", "x", "attach")))
         XCTAssertFalse(TTYProcesses.isTmuxClient(claude))
     }
+    #endif
 
+    #if os(macOS)
     func testSessionOfATerminal() throws {
         let table: (entries: [ProcessTable.Entry], parents: [Int32: Int32]) = (
             [entry(10, device: 7, "-zsh"), entry(11, parent: 10, device: 7, "codex"), entry(30, device: 9, "-zsh"), entry(31, parent: 30, device: 9, "claude")],
@@ -156,7 +161,9 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertEqual(target, Target(host: .wezterm(socket: nil, pane: "1"), agent: .codex, label: "Repos"), "Agents in other terminals are ignored")
         XCTAssertThrowsError(try Detector.session(host: .wezterm(socket: nil, pane: "2"), appName: "WezTerm", label: "zsh", table: table, device: 8))
     }
+    #endif
 
+    #if os(macOS)
     func testSuspendedTmuxClientIsNotTheSessionInFront() throws {
         // `tmux suspend-client` (or Ctrl-Z): the client stays on that tty but the screen shows a shell. Do not go into the tmux pane behind it (PR #25 review).
         let suspended = entry(21, parent: 20, device: 7, foreground: false, "tmux", "-L", "x", "attach")
@@ -170,6 +177,7 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertEqual(try Detector.session(host: .wezterm(socket: nil, pane: "0"), appName: "WezTerm", label: "zsh", table: withAgent, device: 7).host,
                        .wezterm(socket: nil, pane: "0"))
     }
+    #endif
 
     // MARK: Clipped picker in a short window
 
@@ -188,22 +196,27 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertFalse(Picker.clipped(whole, header: "Select model"), "If the hint line is visible it is not clipped")
     }
 
+    #if os(macOS)
     func testTerminalDevice() {
         XCTAssertNotNil(TTYProcesses.device(ofTTY: "/dev/null"), "Character device")
         XCTAssertNil(TTYProcesses.device(ofTTY: "/dev/ttys-nope"))
         XCTAssertNil(TTYProcesses.device(ofTTY: "/tmp"), "Not a device")
     }
+    #endif
 
     // MARK: tmux inside Orca
 
+    #if os(macOS)
     private func orcaEntry(_ pid: Int32, parent: Int32, handle: String = "term_A", device: UInt32, foreground: Bool = true, _ arguments: String...) -> ProcessTable.Entry {
         ProcessTable.Entry(pid: pid, parent: parent, hasTerminal: true, terminalDevice: device,
                            processGroup: pid, foregroundGroup: foreground ? pid : pid + 1000,
                            arguments: arguments, environment: ["HOME=/Users/x", "ORCA_TERMINAL_HANDLE=\(handle)"], executable: "")
     }
+    #endif
 
     /// Terminal A (tty 1): shell 100 → tmux client 110. tmux server 200 (no terminal — not in the list) → pane shell 210 (tty 2) → claude 220,
     /// and a client 230 started again inside the pane. The server was started from A, so the pane's processes carry the same handle.
+    #if os(macOS)
     private var orcaTmux: (entries: [ProcessTable.Entry], parents: [Int32: Int32], isTmux: (Int32) -> Bool) {
         let entries = [
             orcaEntry(100, parent: 50, device: 1, foreground: false, "-zsh"),
@@ -214,14 +227,18 @@ final class FrontTerminalsTests: XCTestCase {
         ]
         return (entries, [100: 50, 110: 100, 200: 1, 210: 200, 220: 210, 230: 210, 50: 1], { $0 == 200 })
     }
+    #endif
 
+    #if os(macOS)
     func testOrcaTerminalRunningTmuxLeadsToItsClient() {
         let t = orcaTmux
         XCTAssertEqual(AgentProcesses.tmuxClient(orcaHandle: "term_A", entries: t.entries, parents: t.parents, isTmux: t.isTmux)?.pid, 110,
                        "That terminal's client, not the client (230) started again inside the pane")
         XCTAssertNil(AgentProcesses.tmuxClient(orcaHandle: "term_B", entries: t.entries, parents: t.parents, isTmux: t.isTmux), "Another terminal")
     }
+    #endif
 
+    #if os(macOS)
     func testSuspendedOrDetachedTmuxIsNotFollowedInOrca() {
         var t = orcaTmux
         // A client stopped with Ctrl-Z: not the foreground job.
@@ -233,6 +250,7 @@ final class FrontTerminalsTests: XCTestCase {
         let plain = [orcaEntry(100, parent: 50, device: 1, foreground: false, "-zsh"), orcaEntry(120, parent: 100, device: 1, "codex")]
         XCTAssertEqual(AgentProcesses.agent(orcaHandle: "term_A", entries: plain, parents: [100: 50, 120: 100], isTmux: { _ in false }), .codex)
     }
+    #endif
 
     func testTmuxExecutable() {
         XCTAssertTrue(TTYProcesses.isTmux(executable: "/opt/homebrew/Cellar/tmux/3.8/bin/tmux"))
@@ -240,14 +258,17 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertFalse(TTYProcesses.isTmux(executable: ""))
     }
 
+    #if os(macOS)
     func testNewTerminalsAreHandled() {
         XCTAssertTrue(Detector.supportedBundleIDs.contains(Detector.weztermBundleID))
         XCTAssertTrue(Detector.supportedBundleIDs.contains(Detector.kittyBundleID))
         XCTAssertThrowsError(try Detector.target(bundleID: "com.apple.TextEdit", appName: "TextEdit"))
     }
+    #endif
 
     /// When the same terminal app is launched twice: a frontmost pid known to the caller wins. The running-app list is consulted only when it is unknown
     /// (measured 2026-10-13 — the «active» process picked from the list was the one launched first, so the shortcut went to its shell).
+    #if os(macOS)
     func testTheFrontProcessTheCallerKnowsWins() {
         var asked: [String] = []
         let active: (String) -> Int32? = { asked.append($0); return 1667 }
@@ -256,4 +277,5 @@ final class FrontTerminalsTests: XCTestCase {
         XCTAssertEqual(Detector.frontProcess(known: nil, bundleID: Detector.kittyBundleID, active: active), 1667)
         XCTAssertEqual(asked, [Detector.kittyBundleID])
     }
+    #endif
 }
