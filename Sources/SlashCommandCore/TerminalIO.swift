@@ -6,6 +6,8 @@ public protocol TerminalIO {
     func press(_ key: Key) throws
     /// The lines of the screen right now. nil for a terminal whose screen cannot be read.
     func screen() -> [String]?
+    /// Specific reason a read stopped, when known. Never contains screen text.
+    var lastFailure: String? { get }
     /// The text being written in the input box. nil if unknown.
     func draft() -> String?
     /// The screen and the draft in one call. A terminal that provides them separately (Orca) gives both in one call.
@@ -23,6 +25,7 @@ public struct ScreenSnapshot: Sendable {
 }
 
 public extension TerminalIO {
+    var lastFailure: String? { nil }
     func draft() -> String? { nil }
 
     func snapshot() -> ScreenSnapshot? {

@@ -34,6 +34,14 @@ enum WindowsWezTerm {
         return pane(in: panes, id: focused)
     }
 
+    static func focusedPaneID(clients: Data, frontPID: Int32) -> String? {
+        guard let rows = try? JSONSerialization.jsonObject(with: clients) as? [[String: Any]] else { return nil }
+        let matches = rows.filter { integer($0["pid"]) == Int(frontPID) }
+        guard matches.count == 1, let client = matches.first,
+              let pane = integer(client["focused_pane_id"]) else { return nil }
+        return String(pane)
+    }
+
     /// Known GUI PID is authoritative, including when its socket is missing.
     /// A caller must fail on nil rather than fall back to WezTerm's default GUI.
     static func socket(ofGUI pid: Int32, home: URL, exists: (String) -> Bool = WindowsWezTerm.pathExists) -> String? {
@@ -70,7 +78,7 @@ extension Detector {
         let socket = try windowsWezTermSocket(frontPID: frontPID)
         let pane = try windowsWezTermPane(executable: executable, socket: socket, frontPID: frontPID)
         let io = WindowsWezTermIO(base: WezTermIO(wezterm: executable, socket: socket, pane: pane.id), frontPID: frontPID)
-        guard let agent = WindowsWezTerm.agent(screen: io.screen()) else {
+        guard let agent = WindowsWezTerm.agent(screen: io.base.screen()) else {
             throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", pane.title))
         }
         var target = Target(host: .wezterm(socket: socket, pane: pane.id), agent: agent, label: pane.title)
@@ -122,26 +130,55 @@ extension Detector {
     }
 }
 
-/// Hotkeys recheck foreground PID and focused pane before each read/write. Explicit
-/// CLI pane targets have no frontPID and deliberately remain addressable offscreen.
-struct WindowsWezTermIO: TerminalIO {
+/// Reads stay pinned to one pane. Writes additionally verify the GUI client's focus.
+final class WindowsWezTermIO: TerminalIO {
     let base: WezTermIO
     let frontPID: Int32?
+    private(set) var lastFailure: String?
 
-    private func requireTarget() throws {
-        guard let frontPID else { return }
-        var pid: DWORD = 0
-        guard let window = GetForegroundWindow() else { throw SlashCommandError(loc("Cannot tell which app is in front.")) }
-        GetWindowThreadProcessId(window, &pid)
-        guard Int32(bitPattern: pid) == frontPID,
-              WindowsAppModel.app(image: ProcessTable.executablePath(of: frontPID)) == "wezterm",
-              let pane = try? Detector.windowsWezTermPane(executable: base.wezterm, socket: base.socket, frontPID: frontPID),
-              pane.id == base.pane else {
-            throw SlashCommandError(loc("The foreground app changed. Press the shortcut again."))
-        }
+    private let foregroundPID: () -> Int32?
+    private let readClients: (WezTermIO) -> ProcResult
+
+    init(base: WezTermIO, frontPID: Int32?,
+         foregroundPID: @escaping () -> Int32? = WindowsWezTermIO.currentForegroundPID,
+         readClients: @escaping (WezTermIO) -> ProcResult = WindowsWezTermIO.clients) {
+        self.base = base; self.frontPID = frontPID
+        self.foregroundPID = foregroundPID; self.readClients = readClients
     }
-    func type(_ text: String) throws { try requireTarget(); try base.type(text) }
-    func press(_ key: Key) throws { try requireTarget(); try base.press(key) }
-    func screen() -> [String]? { guard (try? requireTarget()) != nil else { return nil }; return base.screen() }
+
+    private static func currentForegroundPID() -> Int32? {
+        guard let window = GetForegroundWindow() else { return nil }
+        var pid: DWORD = 0
+        GetWindowThreadProcessId(window, &pid)
+        return Int32(bitPattern: pid)
+    }
+    private static func clients(_ base: WezTermIO) -> ProcResult {
+        Proc.run(base.wezterm, ["cli", "--no-auto-start", "list-clients", "--format", "json"],
+                 env: WezTermFront.environment(socket: base.socket), timeout: 5)
+    }
+
+    private func requireTarget(writing: Bool) throws {
+        if let lastFailure { throw SlashCommandError(lastFailure) }
+        guard let frontPID else { return }
+        var valid = foregroundPID() == frontPID
+        if valid && writing {
+            let clients = readClients(base)
+            valid = clients.ok && WindowsWezTerm.focusedPaneID(clients: Data(clients.out.utf8), frontPID: frontPID) == base.pane
+            // Focus may have moved while the CLI was running.
+            valid = valid && foregroundPID() == frontPID
+        }
+        guard valid else {
+            let reason = loc("The foreground app changed. Press the shortcut again.")
+            lastFailure = reason
+            throw SlashCommandError(reason)
+        }
+        lastFailure = nil
+    }
+    func type(_ text: String) throws { try requireTarget(writing: true); try base.type(text) }
+    func press(_ key: Key) throws { try requireTarget(writing: true); try base.press(key) }
+    func screen() -> [String]? {
+        do { try requireTarget(writing: false) } catch { return nil }
+        return base.screen()
+    }
 }
 #endif

@@ -8,8 +8,20 @@ extension Detector {
         WindowsAppModel.app(image: ProcessTable.executablePath(of: Int32(bitPattern: pid))) == "orca"
     }
 
+    /// Menu reads retain the terminal snapshot while Explorer/the tray owns focus.
+    /// This only resolves the pinned pane; writes still require WindowsWezTermIO's foreground guard.
+    public static func windowsMenuTarget(app: String, frontPID: UInt32) throws -> Target {
+        guard WindowsAppModel.app(image: ProcessTable.executablePath(of: Int32(bitPattern: frontPID))) == app else {
+            throw SlashCommandError(loc("The foreground app changed. Press the shortcut again."))
+        }
+        return try app == "wezterm" ? windowsWezTerm(frontPID: Int32(bitPattern: frontPID)) : target(app: app)
+    }
+
     /// Pins asynchronous resolution to the process where the shortcut was pressed.
     public static func target(app: String, frontPID: UInt32) throws -> Target {
+        guard WindowsAppModel.app(image: app) != nil || ["orca", "wezterm"].contains(app.lowercased()) else {
+            throw SlashCommandError(loc("This is not supported on this operating system yet."))
+        }
         func requireFront() throws {
             var current: DWORD = 0
             guard let window = GetForegroundWindow() else { throw SlashCommandError(loc("Cannot tell which app is in front.")) }

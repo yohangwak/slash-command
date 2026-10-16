@@ -110,6 +110,7 @@ struct TracingIO: TerminalIO {
     func draft() -> String? { let r = base.draft(); trace.mark("read draft"); return r }
     func snapshot() -> ScreenSnapshot? { let r = base.snapshot(); trace.mark("read"); return r }
     var screenLagMs: Int { base.screenLagMs }
+    var lastFailure: String? { base.lastFailure }
     func freshSnapshot() -> ScreenSnapshot? { let r = base.freshSnapshot(); trace.mark("fresh read"); return r }
 }
 
@@ -270,7 +271,7 @@ public struct Switcher {
     private func readyScreen(_ io: TerminalIO, target: Target) throws -> ScreenSnapshot {
         // Judging from a stale screen would miss a window that just appeared; always look at the screen as it is now.
         guard let screen = io.freshSnapshot() else {
-            throw SlashCommandError(Switcher.unreadable(target.host))
+            throw SlashCommandError(io.lastFailure ?? Switcher.unreadable(target.host))
         }
         guard Readiness.inputVisible(agent: target.agent, screen: screen.lines) else {
             throw SlashCommandError(loc("Not switched: the %@ input box is not visible. If a permission prompt or a picker is showing, deal with that first.", target.agent.displayName))
@@ -499,6 +500,7 @@ public struct Runner {
             values.compactMap { $0 == Step.steppedEffort ? stepped : $0 }
         }
         for step in steps {
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             switch step {
             case .text(let text):
                 try io.type(text)
@@ -615,7 +617,7 @@ public struct Runner {
         if !unseen.isEmpty {
             // Other claude sessions also write the defaults file, so the file changing alone does not prove «our command» ran.
             // Read a fresh screen once at the end and count it as success only if the result line made this time is «visible».
-            guard let snap = freshSnapshot() else { throw SlashCommandError(loc("Could not read the terminal screen, so the result could not be checked.")) }
+            guard let snap = freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Could not read the terminal screen, so the result could not be checked.")) }
             let before = initial?.lines ?? []
             for (prefix, command) in unseen {
                 let now = ClaudeScreen.results(snap.lines, prefix: prefix)
@@ -629,6 +631,7 @@ public struct Runner {
                 }
             }
         }
+        if let reason = io.lastFailure { throw SlashCommandError(reason) }
         return confirmations
     }
 
@@ -657,7 +660,7 @@ public struct Runner {
             }
             let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
             if clock.elapsedMs() >= io.screenLagMs {
-                guard let snap = io.snapshot() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
+                guard let snap = io.snapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen.")) }
                 clock.reset()
                 // The file did not change, but this command's result newly appeared on screen.
                 let matched = ClaudeScreen.results(snap.lines, prefix: prefix)
@@ -735,7 +738,7 @@ public struct Runner {
         var goneAt: Int?
         var deadline = timeoutMs
         while true {
-            guard let snap = io.snapshot() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
+            guard let snap = io.snapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen.")) }
             let elapsed = max(Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000), simulated)
 
             let stampChanged = stamp != nil && (stamp?() ?? nil) != armedStamp
@@ -796,7 +799,7 @@ public struct Runner {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let lines = io.screen() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
+            guard let lines = io.screen() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen.")) }
             if condition(lines) { return true }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return false }
@@ -856,7 +859,7 @@ public struct Runner {
             return try poll(timeoutMs: min(timeoutMs, 700)) { lines in cursor(lines).map { $0 != number } ?? false }
         }
         func read() throws -> [String] {
-            guard let lines = io.screen() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
+            guard let lines = io.screen() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen.")) }
             return lines
         }
         for _ in 0..<40 {
@@ -877,7 +880,7 @@ public struct Runner {
     /// Until the cursor is on the `label` row: read the cursor row from the screen, send up or down by the difference, and see that the cursor «has arrived».
     private func moveCursor(to label: String, timeoutMs: Int) throws -> Bool {
         for _ in 0..<4 {
-            guard let lines = io.screen() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
+            guard let lines = io.screen() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen.")) }
             let rows = Picker.rows(lines)
             guard let target = Picker.index(of: label, in: rows),
                   let cursor = rows.firstIndex(where: \.selected) else { return false }
@@ -1060,7 +1063,7 @@ public struct Runner {
         var awaiting = false
         var deadline = timeoutMs
         while true {
-            guard let snap = io.snapshot() else { throw SlashCommandError(loc("Stopped: could not read the terminal screen.")) }
+            guard let snap = io.snapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen.")) }
             let draftBack = draftBefore.isEmpty || !draft(snap).isEmpty
             if !Picker.isOpen(snap.lines), Readiness.inputVisible(agent: agent, screen: snap.lines), draftBack { return .ready }
             if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }
@@ -1083,7 +1086,11 @@ public struct Runner {
     /// Presses Esc only while the picker is visible. Re-reads the screen after each press.
     private func closePicker() throws {
         for _ in 0..<4 {
-            guard let lines = io.screen() else { return }
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
+            guard let lines = io.screen() else {
+                if let reason = io.lastFailure { throw SlashCommandError(reason) }
+                return
+            }
             let before = Picker.rows(lines)
             if before.isEmpty {
                 // A picker with its bottom hint line cut off is also a picker: in a low window, when the effort description gets long (`Max` adds two more lines), the hint line

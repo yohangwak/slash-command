@@ -72,16 +72,17 @@ final class Resident {
     func scheduleTrayRetry(needed: Bool) {
         if needed { SetTimer(window, 3, 5000, nil) } else { KillTimer(window, 3) }
     }
-    func refreshForeground(retry: Bool = false) {
+    func refreshForeground(retry: Bool = false, reason: WindowsAppModel.RefreshReason = .foregroundChanged) {
         let (observedWindow, pid) = Foreground.identity()
         // Do not leave global keys active while asynchronous process checks run.
         if pid != front.pid || !front.supported { hotKeys.unregister(window: self.window) }
         guard retry || refreshes == 0 else { return }
         refreshes += 1
-        let lookupTarget = !worker.busy
+        let canLookup = !worker.busy
         refreshQueue.async {
             let captured = Foreground.capture(window: observedWindow, pid: pid)
             let loaded = Result { try ConfigStore().load() }
+            let lookupTarget = canLookup && WindowsAppModel.looksUpTarget(app: captured.app, reason: reason)
             let found = captured.supported && lookupTarget ? try? Detector.target(app: captured.app, frontPID: captured.pid) : nil
             self.mailbox.post {
                 self.refreshes -= 1
@@ -125,6 +126,20 @@ final class Resident {
         return true
     }
     func openMenu() {
+        let captured = front
+        // The tray owns foreground now; resolve the cached terminal's pinned GUI, for display only.
+        if captured.app == "wezterm", !worker.busy,
+           WindowsAppModel.looksUpTarget(app: captured.app, reason: .menu) {
+            refreshQueue.async {
+                let found = try? Detector.windowsMenuTarget(app: captured.app, frontPID: captured.pid)
+                self.mailbox.post {
+                    if self.front.pid == captured.pid && self.front.app == captured.app { self.target = found }
+                    self.showMenu()
+                }
+            }
+        } else { showMenu() }
+    }
+    private func showMenu() {
         // Foreground events already cached the terminal before Explorer/our tray took focus.
         tray?.show(lines: WindowsAppModel.menu(config: config, supported: front.supported, agent: target?.agent,
                                               terminal: target?.label, failures: failures, warning: warning,
@@ -134,7 +149,7 @@ final class Resident {
         if id == 3 { tray?.restore(); return }
         if quitting && !worker.busy { DestroyWindow(window); return }
         let wakeUp = WaitForSingleObject(wake, 0) == WAIT_OBJECT_0
-        refreshForeground(retry: wakeUp)
+        refreshForeground(retry: wakeUp, reason: .tick)
     }
     func stop() {
         KillTimer(window, 1); KillTimer(window, 3)

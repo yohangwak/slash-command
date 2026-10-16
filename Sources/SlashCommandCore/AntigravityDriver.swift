@@ -186,7 +186,7 @@ public struct AntigravityDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw SlashCommandError(loc("Stopped: could not read the Antigravity terminal screen.")) }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the Antigravity terminal screen.")) }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -197,6 +197,7 @@ public struct AntigravityDriver {
 
     /// If the picker is open, closes it with Esc, and if the text we typed remains in the input line, clears it.
     private func back(clearing leftover: String? = nil) {
+        guard io.lastFailure == nil else { return }
         for _ in 0..<2 {
             guard let lines = io.freshSnapshot()?.lines, AntigravityDriverHelper.pickerOpen(lines) else { break }
             try? io.press(.escape)
@@ -224,6 +225,7 @@ public struct AntigravityDriver {
                 sleep(250)
                 _ = defaults.restore(to: before)
             }
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
     }
@@ -271,6 +273,7 @@ public struct AntigravityDriver {
         guard slider.labels.indices.contains(next) else {
             var error = fail(up ? loc("Already at the highest level (%@).", slider.labels[slider.selected]) : loc("Already at the lowest level (%@).", slider.labels[slider.selected]))
             error.nothingToDo = true
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
         try moveEffort(to: next, failure: fail)
@@ -280,7 +283,7 @@ public struct AntigravityDriver {
     // MARK: Steps
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the Antigravity terminal screen.")) }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Not switched: could not read the Antigravity terminal screen.")) }
         guard AgyScreen.idle(first.lines) else {
             if let draft = AgyScreen.draft(first.lines), !draft.isEmpty {
                 throw SlashCommandError(loc("Not switched: there is text in the Antigravity input box. Send or clear it, then press again."))

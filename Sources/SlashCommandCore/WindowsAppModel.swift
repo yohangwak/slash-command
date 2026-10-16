@@ -2,6 +2,17 @@ import Foundation
 
 /// Windows presentation decisions, kept independent of WinSDK for portable tests.
 public enum WindowsAppModel {
+    public enum RefreshReason { case foregroundChanged, menu, tick }
+
+    /// A WezTerm lookup launches CLI children; idle ticks must remain in-process.
+    public static func looksUpTarget(app: String, reason: RefreshReason) -> Bool {
+        switch app {
+        case "orca": return true
+        case "wezterm": return reason != .tick
+        default: return false
+        }
+    }
+
     public static let version = "0.1.0" // scripts/Info.plist
     public static let effortUp = 101
     public static let effortDown = 102
