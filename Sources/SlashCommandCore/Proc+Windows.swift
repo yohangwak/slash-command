@@ -34,9 +34,8 @@ extension Proc {
         // Left alone: a "child" that cannot be opened, that started before its claimed parent (the parent pid was reused),
         // or that started after the snapshot (its own pid was reused between the snapshot and OpenProcess).
         let reused: (Int32, Int32) -> Bool = { child, parent in
-            guard let childHandle = handle(child), let parentHandle = handle(parent),
-                  let childStart = startTime(childHandle), let parentStart = startTime(parentHandle) else { return true }
-            return childStart < parentStart || childStart > snapshotTime
+            guard let childHandle = handle(child), let parentHandle = handle(parent) else { return true }
+            return skipsChild(childStart: startTime(childHandle), parentStart: startTime(parentHandle), snapshotTime: snapshotTime)
         }
         for pid in descendants(of: root, parents: parents, startedBefore: reused) + [root] {
             guard let target = handle(pid) else { continue }

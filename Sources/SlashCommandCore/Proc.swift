@@ -128,6 +128,13 @@ public enum Proc {
         return order
     }
 
+    /// Whether a tree cleanup must leave a "child" alone: its start time is unknown, it started before its claimed
+    /// parent (the parent's pid was reused), or it started after the snapshot (its own pid was reused before it was opened).
+    static func skipsChild(childStart: UInt64?, parentStart: UInt64?, snapshotTime: UInt64) -> Bool {
+        guard let childStart, let parentStart else { return true }
+        return childStart < parentStart || childStart > snapshotTime
+    }
+
     static func isBatchFile(_ path: String) -> Bool {
         ["cmd", "bat"].contains((path as NSString).pathExtension.lowercased())
     }

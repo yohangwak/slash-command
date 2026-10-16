@@ -12,6 +12,23 @@ final class PortableFoundationTests: XCTestCase {
         XCTAssertEqual(Proc.descendants(of: 1, parents: [1: 1, 2: 1]), [2], "A self-parented entry does not loop")
     }
 
+    func testTreeCleanupLeavesProcessesThatOnlyInheritedAPid() {
+        // Times: parent started at 100, the snapshot was taken at 200.
+        XCTAssertFalse(Proc.skipsChild(childStart: 150, parentStart: 100, snapshotTime: 200), "A real child is ended")
+        XCTAssertFalse(Proc.skipsChild(childStart: 100, parentStart: 100, snapshotTime: 200))
+        XCTAssertTrue(Proc.skipsChild(childStart: 50, parentStart: 100, snapshotTime: 200), "Older than its claimed parent: the parent pid was reused")
+        XCTAssertTrue(Proc.skipsChild(childStart: 250, parentStart: 100, snapshotTime: 200), "Started after the snapshot: the child pid was reused before OpenProcess")
+        XCTAssertTrue(Proc.skipsChild(childStart: nil, parentStart: 100, snapshotTime: 200))
+        XCTAssertTrue(Proc.skipsChild(childStart: 150, parentStart: nil, snapshotTime: 200))
+        // A replaced pid in the middle of a chain cuts off everything below it.
+        let parents: [Int32: Int32] = [10: 1, 11: 10, 12: 11]
+        let starts: [Int32: UInt64] = [10: 100, 11: 250, 12: 260]   // 11 was replaced after the snapshot at 200
+        let order = Proc.descendants(of: 10, parents: parents, startedBefore: { child, parent in
+            Proc.skipsChild(childStart: starts[child], parentStart: starts[parent], snapshotTime: 200)
+        })
+        XCTAssertEqual(order, [])
+    }
+
     func testBatchArgumentsOnlyPassPlainArguments() {
         XCTAssertNil(Proc.batchArguments(#"C:\x\orca.exe"#, ["--version"]), "Not a batch file")
         XCTAssertEqual(Proc.batchArguments(#"C:\Program Files\x\opencode.cmd"#, ["--version"]),
