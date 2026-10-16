@@ -4,6 +4,8 @@ import WinSDK
 
 extension Proc {
     /// Ends `root` and every process it started, deepest first.
+    /// Each process is opened once, and its start time is read and it is terminated through that same handle,
+    /// so a pid reused between the snapshot and the termination can never point at another process.
     static func terminateTree(_ root: Int32) {
         var parents: [Int32: Int32] = [:]
         let snapshot = CreateToolhelp32Snapshot(DWORD(TH32CS_SNAPPROCESS), 0)
@@ -17,24 +19,30 @@ extension Proc {
                 more = Process32NextW(snapshot, &entry)
             }
         }
-        // A child whose start time cannot be read, or that started before its claimed parent, is left alone.
+        var handles: [Int32: HANDLE] = [:]
+        defer { for handle in handles.values { CloseHandle(handle) } }
+        func handle(_ pid: Int32) -> HANDLE? {
+            if let open = handles[pid] { return open }
+            guard let opened = OpenProcess(DWORD(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION), false, DWORD(bitPattern: pid)) else { return nil }
+            handles[pid] = opened
+            return opened
+        }
+        // A "child" that cannot be opened, or that started before its claimed parent (a reused parent pid), is left alone.
         let reused: (Int32, Int32) -> Bool = { child, parent in
-            guard let childStart = startTime(child), let parentStart = startTime(parent) else { return true }
+            guard let childHandle = handle(child), let parentHandle = handle(parent),
+                  let childStart = startTime(childHandle), let parentStart = startTime(parentHandle) else { return true }
             return childStart < parentStart
         }
         for pid in descendants(of: root, parents: parents, startedBefore: reused) + [root] {
-            guard let handle = OpenProcess(DWORD(PROCESS_TERMINATE), false, DWORD(bitPattern: pid)) else { continue }
-            _ = TerminateProcess(handle, 1)
-            CloseHandle(handle)
+            guard let target = handle(pid) else { continue }
+            _ = TerminateProcess(target, 1)
         }
     }
 
-    /// Creation time as a FILETIME count, or nil when the process cannot be opened.
-    static func startTime(_ pid: Int32) -> UInt64? {
-        guard let handle = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, DWORD(bitPattern: pid)) else { return nil }
-        defer { CloseHandle(handle) }
+    /// Creation time as a FILETIME count.
+    static func startTime(_ process: HANDLE) -> UInt64? {
         var created = FILETIME(), exited = FILETIME(), kernel = FILETIME(), user = FILETIME()
-        guard GetProcessTimes(handle, &created, &exited, &kernel, &user) else { return nil }
+        guard GetProcessTimes(process, &created, &exited, &kernel, &user) else { return nil }
         return UInt64(created.dwHighDateTime) << 32 | UInt64(created.dwLowDateTime)
     }
 }
