@@ -1,7 +1,8 @@
 #!/bin/sh
-# Builds the release zip: a universal app, signed with Developer ID, notarized and stapled.
+# Builds the release files: a universal app, signed with Developer ID, notarized and stapled,
+# packed as dist/Slash-Command.dmg (what people download) and dist/Slash-Command.zip (for Homebrew).
 #
-#   scripts/release.sh                 build, sign, notarize, staple, zip → dist/Slash-Command.zip
+#   scripts/release.sh                 build, sign, notarize, staple → dist/Slash-Command.dmg and .zip
 #   scripts/release.sh --no-notarize   stop after signing (to check the build without Apple's service)
 #
 # Needs, in the login keychain of this Mac:
@@ -42,6 +43,15 @@ if [ "$notarize" = yes ]; then
     spctl --assess --type execute -vv "$app"
 fi
 
+# The disk image is what people download; the zip is for Homebrew.
+dmg="dist/Slash-Command.dmg"
+if [ "$notarize" = yes ]; then
+    ./scripts/make-dmg.sh "$app" "$dmg" --notarize
+else
+    ./scripts/make-dmg.sh "$app" "$dmg"
+fi
+
 echo "release: $zip  (version $version, sha256 $(shasum -a 256 "$zip" | cut -d' ' -f1))"
-[ "$notarize" = yes ] && echo "publish: gh release create v$version $zip --title \"Slash Command $version\" --notes-file <notes>"
+echo "release: $dmg  (version $version, sha256 $(shasum -a 256 "$dmg" | cut -d' ' -f1))"
+[ "$notarize" = yes ] && echo "publish: gh release create v$version $dmg $zip --title \"Slash Command $version\" --notes-file <notes>"
 exit 0

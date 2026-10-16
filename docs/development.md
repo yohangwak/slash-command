@@ -84,21 +84,21 @@ The icon is a key with a slash on it. `swift scripts/make-icon.swift` regenerate
 Releases are built on a maintainer's Mac. There is no macOS CI.
 
 ```sh
-./scripts/release.sh                # universal build, Developer ID signature, notarization, stapling → dist/Slash-Command.zip
+./scripts/release.sh                # universal build, Developer ID signature, notarization, stapling → dist/Slash-Command.dmg and .zip
 ./scripts/release.sh --no-notarize  # stop after signing
 ```
 
 The script needs a "Developer ID Application" certificate and a `notarytool` keychain profile named `slashcommand-notary` (`xcrun notarytool store-credentials slashcommand-notary`). It refuses to run when `CHANGELOG.md` has no section for the version in `scripts/Info.plist`. Run it in a login session; over ssh the keychain is locked and `codesign` fails.
 
-Then publish the zip:
+Then publish both files:
 
 ```sh
-gh release create v0.1.0 dist/Slash-Command.zip --title "Slash Command 0.1.0" --notes-file notes.md
+gh release create v0.1.0 dist/Slash-Command.dmg dist/Slash-Command.zip --title "Slash Command 0.1.0" --notes-file notes.md
 ```
 
-Keep the asset name `Slash-Command.zip`. The README links to the latest release, and a stable name keeps `releases/latest/download/Slash-Command.zip` working.
+Keep the asset names `Slash-Command.dmg` and `Slash-Command.zip`. The README links to `releases/latest/download/Slash-Command.dmg`, which works only while the name stays the same. The disk image is what people download; the zip is what the Homebrew cask installs. `scripts/make-dmg.sh` builds the disk image from an app that is already signed and notarized.
 
-Then update the Homebrew cask in [yohangwak/homebrew-tap](https://github.com/yohangwak/homebrew-tap): set `version` and the `sha256` that `release.sh` printed in `Casks/slash-command.rb`, and check it before pushing:
+Then update the Homebrew cask in [yohangwak/homebrew-tap](https://github.com/yohangwak/homebrew-tap): set `version` and the zip's `sha256` that `release.sh` printed in `Casks/slash-command.rb`, and check it before pushing:
 
 ```sh
 brew style yohangwak/tap

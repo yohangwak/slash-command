@@ -4,6 +4,8 @@
 
 [English](README.md) · [한국어](README.ko.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
+**[macOS 版をダウンロード](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 以降 · Apple シリコンと Intel
+
 ![ホットキーを押すたびに Claude Code が Sonnet、Fable、Opus に切り替わり、effort が上がり、そのつど通知が表示されます](docs/assets/demo.gif)
 
 Slash Command は macOS のメニューバーアプリです。ターミナルで **⇧⌥1 … ⇧⌥9** を押すと、最前面のセッションのエージェントがそのプリセットの **モデル + effort** に切り替わります。**⇧⌥=** と **⇧⌥-** は effort を一段階上げ下げします。
@@ -20,15 +22,20 @@ Slash Command は macOS のメニューバーアプリです。ターミナル�
 
 macOS 13 以降が必要です。
 
-1. [Homebrew](https://brew.sh) でインストールします。
+1. [**Slash-Command.dmg**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg) をダウンロードします。
+2. 開いて **Slash Command** を **Applications**(アプリケーション)にドラッグします。
+3. 「アプリケーション」フォルダから Slash Command を開きます。メニューバーに `/` キーのアイコンが表示されます。
+4. そのアイコンから **設定…** を開き、上部の **権限** ボックスを使います。ボタンを押すと、システム設定の該当のパネルが開きます。
 
-   ```sh
-   brew install --cask yohangwak/tap/slash-command
-   ```
+**Homebrew** を使う場合は、手順 1・2 の代わりに次を実行します。
 
-   または、[最新リリース](https://github.com/yohangwak/slash-command/releases/latest)から `Slash-Command.zip` をダウンロードして展開し、**Slash Command** を「アプリケーション」フォルダに移動します。
-2. 起動すると、メニューバーに `/` キーのアイコンが表示されます。
-3. そのアイコンから **設定…** を開き、上部の **権限** ボックスを使います。ボタンを押すと、システム設定の該当のパネルが開きます。
+```sh
+brew install --cask yohangwak/tap/slash-command
+```
+
+この方法では、コマンドラインツールも `slashcommand` としてリンクされます。
+
+手順 4 の権限の用途:
 
 | 権限 | 用途 |
 |---|---|
@@ -82,7 +89,7 @@ Swift ツールチェーン(Xcode または Command Line Tools)が必要です�
 
 ## コマンドライン
 
-アプリには、同じ切り替えロジックを使うコマンドラインツールが付属しています。Homebrew でインストールした場合は、`slashcommand` としてそのまま呼び出せます。zip からインストールした場合、ツールはアプリバンドルの中にあるので、一度リンクを作成します。
+アプリには、同じ切り替えロジックを使うコマンドラインツールが付属しています。Homebrew でインストールした場合は、`slashcommand` としてそのまま呼び出せます。ディスクイメージからインストールした場合、ツールはアプリバンドルの中にあるので、一度リンクを作成します。
 
 ```sh
 sudo mkdir -p /usr/local/bin

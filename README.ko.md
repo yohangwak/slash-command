@@ -4,6 +4,8 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
+**[macOS 용 내려받기](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 이상 · Apple 실리콘과 Intel
+
 ![단축키를 누를 때마다 Claude Code 가 Sonnet, Fable, Opus 로 바뀌고 effort 가 올라가며, 바뀔 때마다 알림이 뜹니다](docs/assets/demo.gif)
 
 Slash Command 는 macOS 메뉴 막대 앱입니다. 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면 맨 앞 세션의 에이전트가 그 번호 프리셋의 **모델 + effort** 로 바뀝니다. **⇧⌥=** 와 **⇧⌥-** 는 effort 만 한 단계 올리고 내립니다.
@@ -20,15 +22,20 @@ Slash Command 는 macOS 메뉴 막대 앱입니다. 터미널에서 **⇧⌥1 �
 
 macOS 13 이상이 필요합니다.
 
-1. [Homebrew](https://brew.sh) 로 설치합니다.
+1. [**Slash-Command.dmg**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg) 를 내려받습니다.
+2. 파일을 열고 **Slash Command** 를 **Applications**(응용 프로그램) 폴더로 끌어다 놓습니다.
+3. 응용 프로그램 폴더에서 Slash Command 를 엽니다. 메뉴 막대에 `/` 키 모양 아이콘이 생깁니다.
+4. 그 아이콘에서 **설정…** 을 열고 맨 위의 **권한** 칸을 씁니다. 버튼이 시스템 설정의 해당 화면을 바로 열어 줍니다.
 
-   ```sh
-   brew install --cask yohangwak/tap/slash-command
-   ```
+**Homebrew** 를 쓰면 1·2단계 대신 이렇게 설치합니다.
 
-   또는 [최신 릴리스](https://github.com/yohangwak/slash-command/releases/latest)에서 `Slash-Command.zip` 을 내려받아 압축을 풀고 **Slash Command** 를 응용 프로그램 폴더로 옮깁니다.
-2. 앱을 엽니다. 메뉴 막대에 `/` 키 모양 아이콘이 생깁니다.
-3. 그 아이콘에서 **설정…** 을 열고 맨 위의 **권한** 칸을 씁니다. 버튼이 시스템 설정의 해당 화면을 바로 열어 줍니다.
+```sh
+brew install --cask yohangwak/tap/slash-command
+```
+
+이렇게 설치하면 명령줄 도구도 `slashcommand` 로 링크됩니다.
+
+4단계의 권한은 이런 데 씁니다.
 
 | 권한 | 쓰는 곳 |
 |---|---|
@@ -82,7 +89,7 @@ Swift 도구(Xcode 또는 Command Line Tools)가 필요합니다. 서명 인증�
 
 ## 명령줄
 
-앱에는 같은 전환 로직을 쓰는 명령줄 도구가 들어 있습니다. Homebrew 로 설치했다면 `slashcommand` 로 바로 부를 수 있습니다. zip 으로 설치했다면 도구가 앱 묶음 안에 있으므로 한 번 링크를 겁니다.
+앱에는 같은 전환 로직을 쓰는 명령줄 도구가 들어 있습니다. Homebrew 로 설치했다면 `slashcommand` 로 바로 부를 수 있습니다. 디스크 이미지로 설치했다면 도구가 앱 묶음 안에 있으므로 한 번 링크를 겁니다.
 
 ```sh
 sudo mkdir -p /usr/local/bin

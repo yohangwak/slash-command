@@ -4,6 +4,8 @@
 
 [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
+**[Download for macOS](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 or later · Apple silicon and Intel
+
 ![Pressing a hotkey switches Claude Code between Sonnet, Fable and Opus and raises the effort, with a notice for each change](docs/assets/demo.gif)
 
 Slash Command is a macOS menu bar app. Press **⇧⌥1 … ⇧⌥9** in your terminal and the agent in the frontmost session switches to that preset's **model + effort**. **⇧⌥=** and **⇧⌥-** move the effort one level up or down.
@@ -20,15 +22,20 @@ It works with **Claude Code, Codex, Grok, Cursor Agent, Antigravity and OpenCode
 
 Requires macOS 13 or later.
 
-1. Install it with [Homebrew](https://brew.sh):
+1. Download [**Slash-Command.dmg**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg).
+2. Open it and drag **Slash Command** onto **Applications**.
+3. Open Slash Command from your Applications folder. A `/` key icon appears in the menu bar.
+4. Open **Settings…** from that icon and use the **Permissions** box at the top. Its buttons open the right pane of System Settings for you.
 
-   ```sh
-   brew install --cask yohangwak/tap/slash-command
-   ```
+**With Homebrew**, replace steps 1 and 2 with:
 
-   Or download `Slash-Command.zip` from the [latest release](https://github.com/yohangwak/slash-command/releases/latest), unzip it, and move **Slash Command** to your Applications folder.
-2. Open it. A `/` key icon appears in the menu bar.
-3. Open **Settings…** from that icon and use the **Permissions** box at the top. Its buttons open the right pane of System Settings for you.
+```sh
+brew install --cask yohangwak/tap/slash-command
+```
+
+This also links the command line tool as `slashcommand`.
+
+The permissions in step 4:
 
 | Permission | Why |
 |---|---|
@@ -82,7 +89,7 @@ A preset number is an intent. Each preset holds one entry per agent, and a hotke
 
 ## Command line
 
-The app ships a command line tool with the same switching logic. Homebrew links it as `slashcommand` for you. If you installed from the zip, the tool lives inside the app bundle, so link it once:
+The app ships a command line tool with the same switching logic. Homebrew links it as `slashcommand` for you. If you installed from the disk image, the tool lives inside the app bundle, so link it once:
 
 ```sh
 sudo mkdir -p /usr/local/bin
