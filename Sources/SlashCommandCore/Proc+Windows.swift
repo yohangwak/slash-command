@@ -8,6 +8,10 @@ extension Proc {
     /// so a pid reused between the snapshot and the termination can never point at another process.
     static func terminateTree(_ root: Int32) {
         var parents: [Int32: Int32] = [:]
+        // Every process in the snapshot existed before this moment; one that started later only inherited a pid.
+        var now = FILETIME()
+        GetSystemTimeAsFileTime(&now)
+        let snapshotTime = UInt64(now.dwHighDateTime) << 32 | UInt64(now.dwLowDateTime)
         let snapshot = CreateToolhelp32Snapshot(DWORD(TH32CS_SNAPPROCESS), 0)
         if snapshot != INVALID_HANDLE_VALUE {
             defer { CloseHandle(snapshot) }
@@ -27,11 +31,12 @@ extension Proc {
             handles[pid] = opened
             return opened
         }
-        // A "child" that cannot be opened, or that started before its claimed parent (a reused parent pid), is left alone.
+        // Left alone: a "child" that cannot be opened, that started before its claimed parent (the parent pid was reused),
+        // or that started after the snapshot (its own pid was reused between the snapshot and OpenProcess).
         let reused: (Int32, Int32) -> Bool = { child, parent in
             guard let childHandle = handle(child), let parentHandle = handle(parent),
                   let childStart = startTime(childHandle), let parentStart = startTime(parentHandle) else { return true }
-            return childStart < parentStart
+            return childStart < parentStart || childStart > snapshotTime
         }
         for pid in descendants(of: root, parents: parents, startedBefore: reused) + [root] {
             guard let target = handle(pid) else { continue }
