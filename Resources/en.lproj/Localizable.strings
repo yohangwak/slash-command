@@ -7,3 +7,39 @@
 /* Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything. — English comes from the sentence in code. */
 
 /* Refused to run a batch file with arguments that cmd.exe could misread. — English comes from the sentence in code. */
+
+/* Checking… — English comes from the sentence in code. */
+
+/* Command is unavailable on Windows. Using Alt+Shift. — English comes from the sentence in code. */
+
+/* Could not change Open at login. — English comes from the sentence in code. */
+
+/* Could not open the file or folder. — English comes from the sentence in code. */
+
+/* Could not start Slash Command. — English comes from the sentence in code. */
+
+/* No supported terminal in front — English comes from the sentence in code. */
+
+/* Not set — English comes from the sentence in code. */
+
+/* Open log folder — English comes from the sentence in code. */
+
+/* Open presets file — English comes from the sentence in code. */
+
+/* Shortcuts need Control or Alt. Using Alt+Shift. — English comes from the sentence in code. */
+
+/* Slash Command — English comes from the sentence in code. */
+
+/* Slash Command is not running. — English comes from the sentence in code. */
+
+/* The foreground app changed. Press the shortcut again. — English comes from the sentence in code. */
+
+/* Unknown argument. — English comes from the sentence in code. */
+
+/* Use --press with 1–9, up, or down. — English comes from the sentence in code. */
+
+/* Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file. — English comes from the sentence in code. */
+
+/* The shortcut is not available right now. — English comes from the sentence in code. */
+
+/* The presets file could not be read — choose Open presets file to fix it. — English comes from the sentence in code. */

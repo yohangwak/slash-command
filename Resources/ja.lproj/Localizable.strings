@@ -291,3 +291,25 @@
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command はこのターミナルのプロセスを読み取れないため、何も送信しません（管理者として実行されている可能性があります）。";
 
 "Refused to run a batch file with arguments that cmd.exe could misread." = "cmd.exe が誤って解釈するおそれのある引数があるため、バッチファイルを実行しませんでした。";
+
+/* Windows tray app */
+"Checking…" = "確認中…";
+"Command is unavailable on Windows. Using Alt+Shift." = "WindowsではCommandは使えません。Alt+Shiftを使用します。";
+"Could not change Open at login." = "ログイン時の起動設定を変更できませんでした。";
+"Could not open the file or folder." = "ファイルまたはフォルダーを開けませんでした。";
+"Could not start Slash Command." = "Slash Commandを起動できませんでした。";
+"No supported terminal in front" = "対応するターミナルが最前面にありません";
+"Not set" = "未設定";
+"Open log folder" = "ログフォルダーを開く";
+"Open presets file" = "プリセットファイルを開く";
+"Shortcuts need Control or Alt. Using Alt+Shift." = "ショートカットにはControlかAltが必要です。Alt+Shiftを使用します。";
+"Slash Command" = "Slash Command";
+"Slash Command is not running." = "Slash Commandは起動していません。";
+"The foreground app changed. Press the shortcut again." = "最前面のアプリが変わりました。ショートカットをもう一度押してください。";
+"Unknown argument." = "不明な引数です。";
+"Use --press with 1–9, up, or down." = "--pressには1–9、up、downを指定してください。";
+
+"Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file." = "Orcaのタブを切り替えた直後は、ショートカットを押す前に2.5秒お待ちください。表示中のタブは更新が遅れるOrcaの状態ファイルから読み取ります。";
+"The shortcut is not available right now." = "現在このショートカットは使用できません。";
+
+"The presets file could not be read — choose Open presets file to fix it." = "プリセットファイルを読み込めません — 「プリセットファイルを開く」で開いて直してください。";

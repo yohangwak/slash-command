@@ -291,3 +291,25 @@
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command가 이 터미널의 프로세스를 읽을 수 없어 아무것도 보내지 않습니다(관리자 권한으로 실행 중일 수 있습니다).";
 
 "Refused to run a batch file with arguments that cmd.exe could misread." = "cmd.exe 가 잘못 읽을 수 있는 인자가 있어 배치 파일을 실행하지 않았습니다.";
+
+/* Windows tray app */
+"Checking…" = "확인 중…";
+"Command is unavailable on Windows. Using Alt+Shift." = "Windows에서는 Command를 사용할 수 없습니다. Alt+Shift를 사용합니다.";
+"Could not change Open at login." = "로그인 시 실행 설정을 변경하지 못했습니다.";
+"Could not open the file or folder." = "파일 또는 폴더를 열지 못했습니다.";
+"Could not start Slash Command." = "Slash Command를 시작하지 못했습니다.";
+"No supported terminal in front" = "앞에 지원되는 터미널이 없습니다";
+"Not set" = "미설정";
+"Open log folder" = "로그 폴더 열기";
+"Open presets file" = "프리셋 파일 열기";
+"Shortcuts need Control or Alt. Using Alt+Shift." = "단축키에는 Control 또는 Alt가 필요합니다. Alt+Shift를 사용합니다.";
+"Slash Command" = "Slash Command";
+"Slash Command is not running." = "Slash Command가 실행 중이 아닙니다.";
+"The foreground app changed. Press the shortcut again." = "앞의 앱이 바뀌었습니다. 단축키를 다시 누르세요.";
+"Unknown argument." = "알 수 없는 인수입니다.";
+"Use --press with 1–9, up, or down." = "--press에는 1–9, up 또는 down을 사용하세요.";
+
+"Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file." = "Orca 탭을 바꾼 직후에는 단축키를 누르기 전에 2.5초 기다리세요. 표시 중인 탭 정보는 늦게 갱신되는 Orca 상태 파일에서 읽습니다.";
+"The shortcut is not available right now." = "지금은 이 단축키를 사용할 수 없습니다.";
+
+"The presets file could not be read — choose Open presets file to fix it." = "프리셋 파일을 읽을 수 없습니다 — «프리셋 파일 열기» 를 눌러 고치세요.";

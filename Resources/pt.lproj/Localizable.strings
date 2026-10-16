@@ -291,3 +291,25 @@
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "O Slash Command não consegue ler os processos deste terminal (pode estar a ser executado como administrador), por isso não envia nada.";
 
 "Refused to run a batch file with arguments that cmd.exe could misread." = "O arquivo em lote não foi executado porque há argumentos que o cmd.exe poderia interpretar errado.";
+
+/* Windows tray app */
+"Checking…" = "Verificando…";
+"Command is unavailable on Windows. Using Alt+Shift." = "Command não está disponível no Windows. Usando Alt+Shift.";
+"Could not change Open at login." = "Não foi possível alterar a abertura ao iniciar sessão.";
+"Could not open the file or folder." = "Não foi possível abrir o arquivo ou a pasta.";
+"Could not start Slash Command." = "Não foi possível iniciar o Slash Command.";
+"No supported terminal in front" = "Nenhum terminal compatível em primeiro plano";
+"Not set" = "Não definido";
+"Open log folder" = "Abrir pasta de logs";
+"Open presets file" = "Abrir arquivo de predefinições";
+"Shortcuts need Control or Alt. Using Alt+Shift." = "Atalhos precisam de Control ou Alt. Usando Alt+Shift.";
+"Slash Command" = "Slash Command";
+"Slash Command is not running." = "O Slash Command não está em execução.";
+"The foreground app changed. Press the shortcut again." = "O aplicativo em primeiro plano mudou. Pressione o atalho novamente.";
+"Unknown argument." = "Argumento desconhecido.";
+"Use --press with 1–9, up, or down." = "Use --press com 1–9, up ou down.";
+
+"Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file." = "Após trocar de aba no Orca, espere 2,5 segundos antes de usar um atalho; a aba visível é lida do arquivo de estado do Orca, que é atualizado com atraso.";
+"The shortcut is not available right now." = "Este atalho não está disponível agora.";
+
+"The presets file could not be read — choose Open presets file to fix it." = "Não foi possível ler o arquivo de predefinições — escolha “Abrir arquivo de predefinições” para corrigi-lo.";

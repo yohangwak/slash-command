@@ -291,3 +291,25 @@
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command 无法读取此终端的进程（可能以管理员身份运行），因此不会发送任何内容。";
 
 "Refused to run a batch file with arguments that cmd.exe could misread." = "参数可能被 cmd.exe 误读，因此未运行该批处理文件。";
+
+/* Windows tray app */
+"Checking…" = "正在检查…";
+"Command is unavailable on Windows. Using Alt+Shift." = "Windows 不支持 Command。将使用 Alt+Shift。";
+"Could not change Open at login." = "无法更改登录时启动设置。";
+"Could not open the file or folder." = "无法打开文件或文件夹。";
+"Could not start Slash Command." = "无法启动 Slash Command。";
+"No supported terminal in front" = "前台没有受支持的终端";
+"Not set" = "未设置";
+"Open log folder" = "打开日志文件夹";
+"Open presets file" = "打开预设文件";
+"Shortcuts need Control or Alt. Using Alt+Shift." = "快捷键需要 Control 或 Alt。将使用 Alt+Shift。";
+"Slash Command" = "Slash Command";
+"Slash Command is not running." = "Slash Command 未运行。";
+"The foreground app changed. Press the shortcut again." = "前台应用已更改。请再次按快捷键。";
+"Unknown argument." = "未知参数。";
+"Use --press with 1–9, up, or down." = "请将 --press 与 1–9、up 或 down 一起使用。";
+
+"Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file." = "切换 Orca 标签页后，请等待 2.5 秒再按快捷键；当前标签页信息来自延迟更新的 Orca 状态文件。";
+"The shortcut is not available right now." = "此快捷键当前不可用。";
+
+"The presets file could not be read — choose Open presets file to fix it." = "无法读取预设文件——请选择 “打开预设文件” 打开并修正。";

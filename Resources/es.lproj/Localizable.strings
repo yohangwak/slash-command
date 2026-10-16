@@ -291,3 +291,25 @@
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command no puede leer los procesos de este terminal (puede que se ejecute como administrador), por lo que no envía nada.";
 
 "Refused to run a batch file with arguments that cmd.exe could misread." = "No se ejecutó el archivo por lotes porque tiene argumentos que cmd.exe podría interpretar mal.";
+
+/* Windows tray app */
+"Checking…" = "Comprobando…";
+"Command is unavailable on Windows. Using Alt+Shift." = "Command no está disponible en Windows. Se usará Alt+Shift.";
+"Could not change Open at login." = "No se pudo cambiar el inicio de sesión.";
+"Could not open the file or folder." = "No se pudo abrir el archivo o la carpeta.";
+"Could not start Slash Command." = "No se pudo iniciar Slash Command.";
+"No supported terminal in front" = "No hay un terminal compatible en primer plano";
+"Not set" = "Sin configurar";
+"Open log folder" = "Abrir carpeta de registros";
+"Open presets file" = "Abrir archivo de preajustes";
+"Shortcuts need Control or Alt. Using Alt+Shift." = "Los atajos necesitan Control o Alt. Se usará Alt+Shift.";
+"Slash Command" = "Slash Command";
+"Slash Command is not running." = "Slash Command no está en ejecución.";
+"The foreground app changed. Press the shortcut again." = "La aplicación en primer plano cambió. Pulse de nuevo el atajo.";
+"Unknown argument." = "Argumento desconocido.";
+"Use --press with 1–9, up, or down." = "Use --press con 1–9, up o down.";
+
+"Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file." = "Después de cambiar de pestaña en Orca, espera 2,5 segundos antes de pulsar un atajo; la pestaña visible se lee del archivo de estado de Orca, que se actualiza con retraso.";
+"The shortcut is not available right now." = "Este atajo no está disponible en este momento.";
+
+"The presets file could not be read — choose Open presets file to fix it." = "No se pudo leer el archivo de preajustes: elige «Abrir archivo de preajustes» para corregirlo.";

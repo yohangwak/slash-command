@@ -291,3 +291,25 @@
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command kann die Prozesse dieses Terminals nicht lesen (es wird möglicherweise als Administrator ausgeführt) und sendet deshalb nichts.";
 
 "Refused to run a batch file with arguments that cmd.exe could misread." = "Die Batchdatei wurde nicht ausgeführt, weil cmd.exe einige Argumente falsch auslegen könnte.";
+
+/* Windows tray app */
+"Checking…" = "Wird geprüft…";
+"Command is unavailable on Windows. Using Alt+Shift." = "Command ist unter Windows nicht verfügbar. Alt+Shift wird verwendet.";
+"Could not change Open at login." = "Start bei Anmeldung konnte nicht geändert werden.";
+"Could not open the file or folder." = "Datei oder Ordner konnte nicht geöffnet werden.";
+"Could not start Slash Command." = "Slash Command konnte nicht gestartet werden.";
+"No supported terminal in front" = "Kein unterstütztes Terminal im Vordergrund";
+"Not set" = "Nicht festgelegt";
+"Open log folder" = "Protokollordner öffnen";
+"Open presets file" = "Vorgabendatei öffnen";
+"Shortcuts need Control or Alt. Using Alt+Shift." = "Tastenkürzel benötigen Control oder Alt. Alt+Shift wird verwendet.";
+"Slash Command" = "Slash Command";
+"Slash Command is not running." = "Slash Command läuft nicht.";
+"The foreground app changed. Press the shortcut again." = "Die App im Vordergrund hat sich geändert. Drücken Sie das Tastenkürzel erneut.";
+"Unknown argument." = "Unbekanntes Argument.";
+"Use --press with 1–9, up, or down." = "Verwenden Sie --press mit 1–9, up oder down.";
+
+"Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file." = "Warte nach einem Orca-Tabwechsel 2,5 Sekunden, bevor du ein Tastenkürzel drückst; der sichtbare Tab wird aus Orcas verzögert aktualisierter Statusdatei gelesen.";
+"The shortcut is not available right now." = "Dieses Tastenkürzel ist gerade nicht verfügbar.";
+
+"The presets file could not be read — choose Open presets file to fix it." = "Die Vorgabendatei konnte nicht gelesen werden – wählen Sie „Vorgabendatei öffnen“, um sie zu korrigieren.";
