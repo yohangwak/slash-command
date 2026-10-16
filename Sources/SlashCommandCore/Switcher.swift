@@ -597,8 +597,9 @@ public struct Runner {
                     throw Runner.declined()
                 case .timedOut:
                     if let asking = io.screen().flatMap(ClaudeScreen.switchPrompt) { throw Runner.awaitingSwitch(asking) }
+                    if let reason = io.lastFailure { throw SlashCommandError(reason) }
                     _ = try? run(abort)
-                    throw SlashCommandError(failure)
+                    throw SlashCommandError(io.lastFailure ?? failure)
                 }
             case .closePicker:
                 try closePicker()
@@ -631,7 +632,6 @@ public struct Runner {
                 }
             }
         }
-        if let reason = io.lastFailure { throw SlashCommandError(reason) }
         return confirmations
     }
 
@@ -815,7 +815,10 @@ public struct Runner {
 
     /// Runs the cleanup steps and, if the picker closed and we are back at the input box, marks the failure as one that «backed out cleanly».
     private func aborted(_ abort: [Step], _ failure: String) throws -> SlashCommandError {
+        // A failed target check sends nothing more and is the real reason the step failed.
+        if let reason = io.lastFailure { return SlashCommandError(reason) }
         _ = try? run(abort)
+        if let reason = io.lastFailure { return SlashCommandError(reason) }
         var error = SlashCommandError(failure)
         if let lines = io.screen(), !Picker.isOpen(lines),
            Readiness.claudePromptVisible(lines) || Readiness.codexComposerVisible(lines) {

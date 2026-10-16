@@ -13,8 +13,8 @@ extension Proc {
         } else if isBatchFile(exe) {
             return ProcResult(status: -1, out: "", err: "\(exe): " + loc("Refused to run a batch file with arguments that cmd.exe could misread."), timedOut: false)
         }
-        func failed() -> ProcResult {
-            ProcResult(status: -1, out: "", err: "\(exe): Win32 \(GetLastError())", timedOut: false)
+        func failed(_ code: DWORD = GetLastError()) -> ProcResult {
+            ProcResult(status: -1, out: "", err: "\(exe): Win32 \(code)", timedOut: false)
         }
         var security = SECURITY_ATTRIBUTES()
         security.nLength = DWORD(MemoryLayout<SECURITY_ATTRIBUTES>.size)
@@ -52,6 +52,7 @@ extension Proc {
             startup.StartupInfo.hStdError = errWrite
             startup.lpAttributeList = attributes
             var process = PROCESS_INFORMATION()
+            var launchError: DWORD = 0
             var command = Array(([executable] + arguments).map(windowsQuote).joined(separator: " ").utf16) + [0]
             var environment = env.map(windowsEnvironment) ?? []
             let launch: (UnsafeMutableRawPointer?, UnsafePointer<WCHAR>?) -> Bool = { block, directory in
@@ -59,9 +60,12 @@ extension Proc {
                     command.withUnsafeMutableBufferPointer { line in
                         withUnsafeMutablePointer(to: &startup) { extended in
                             extended.withMemoryRebound(to: STARTUPINFOW.self, capacity: 1) {
-                                CreateProcessW(app, line.baseAddress, nil, nil, true,
-                                               DWORD(CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT),
-                                               block, directory, $0, &process)
+                                let ok = CreateProcessW(app, line.baseAddress, nil, nil, true,
+                                                        DWORD(CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT),
+                                                        block, directory, $0, &process)
+                                // Read before any Swift cleanup can overwrite it.
+                                if !ok { launchError = GetLastError() }
+                                return ok
                             }
                         }
                     }
@@ -72,7 +76,7 @@ extension Proc {
                 return launch(block, nil)
             }
             let created = env == nil ? launchAtDirectory(nil) : environment.withUnsafeMutableBytes { launchAtDirectory($0.baseAddress) }
-            guard created else { return failed() }
+            guard created else { return failed(launchError) }
             CloseHandle(process.hThread)
             defer { CloseHandle(process.hProcess) }
             // Close child ends immediately: a parent's write handle would keep ReadFile waiting forever.

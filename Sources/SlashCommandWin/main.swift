@@ -49,6 +49,7 @@ final class Resident {
     private var configError: String?
     private let refreshQueue = DispatchQueue(label: "slashcommand.windows.refresh")
     private var refreshes = 0
+    private var menuLookupPending = false
     private var front = Foreground(window: nil, pid: 0, supported: false)
     private var target: Target?
     private var failures: [Int] = []
@@ -126,13 +127,17 @@ final class Resident {
         return true
     }
     func openMenu() {
+        // A second click while the lookup runs would queue a second menu.
+        guard !menuLookupPending else { return }
         let captured = front
         // The tray owns foreground now; resolve the cached terminal's pinned GUI, for display only.
         if captured.app == "wezterm", !worker.busy,
            WindowsAppModel.looksUpTarget(app: captured.app, reason: .menu) {
+            menuLookupPending = true
             refreshQueue.async {
                 let found = try? Detector.windowsMenuTarget(app: captured.app, frontPID: captured.pid)
                 self.mailbox.post {
+                    self.menuLookupPending = false
                     if self.front.pid == captured.pid && self.front.app == captured.app { self.target = found }
                     self.showMenu()
                 }

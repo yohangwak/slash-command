@@ -71,6 +71,28 @@ final class WindowsReviewFixTests: XCTestCase {
         XCTAssertTrue(io.keys.isEmpty)
     }
 
+    func testQuotingTreatsCombiningMarksAfterSpaceOrQuoteAsSeparateScalars() {
+        XCTAssertEqual(Proc.windowsQuote("a \u{301}b"), "\"a \u{301}b\"")
+        XCTAssertEqual(Proc.windowsQuote("x\"\u{301}y"), "\"x\\\"\u{301}y\"")
+    }
+
+    func testCaptureAfterTheSwitchIsNotTurnedIntoAFailure() throws {
+        let io = FailedIO()
+        let runner = Runner(io: io, sleep: { _ in })
+        // The switch steps already ran; only the result capture lost the target.
+        XCTAssertEqual(try runner.run([.capture(prefixes: ["Set model to"])]), [])
+        XCTAssertTrue(io.keys.isEmpty)
+    }
+
+    func testAbortedStepReportsTheTargetFailure() {
+        let io = FailedIO()
+        let runner = Runner(io: io, sleep: { _ in })
+        XCTAssertThrowsError(try runner.run([.expectCurrentRow(abort: [.closePicker], failure: "cursor is not on the current model")])) {
+            XCTAssertEqual(String(describing: $0), io.lastFailure)
+        }
+        XCTAssertTrue(io.keys.isEmpty)
+    }
+
     func testRunnerPreservesTargetFailureAndDoesNotEscape() {
         let io = FailedIO()
         let runner = Runner(io: io, sleep: { _ in })

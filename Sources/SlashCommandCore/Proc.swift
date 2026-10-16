@@ -141,15 +141,16 @@ public enum Proc {
     }
 
     /// MSVCRT argument encoding: double backslashes only before a quote or a closing quote.
+    /// Works on Unicode scalars: a combining mark after a space or a quote makes one Character, which compares unequal to " " or "\"".
     static func windowsQuote(_ argument: String) -> String {
-        guard argument.isEmpty || argument.contains(where: { $0 == " " || $0 == "\t" || $0 == "\"" }) else { return argument }
+        guard argument.isEmpty || argument.unicodeScalars.contains(where: { $0 == " " || $0 == "\t" || $0 == "\"" }) else { return argument }
         var result = "\"", slashes = 0
-        for character in argument {
-            if character == "\\" { slashes += 1; continue }
-            if character == "\"" {
+        for scalar in argument.unicodeScalars {
+            if scalar == "\\" { slashes += 1; continue }
+            if scalar == "\"" {
                 result += String(repeating: "\\", count: slashes * 2 + 1) + "\""
             } else {
-                result += String(repeating: "\\", count: slashes) + String(character)
+                result += String(repeating: "\\", count: slashes) + String(scalar)
             }
             slashes = 0
         }
