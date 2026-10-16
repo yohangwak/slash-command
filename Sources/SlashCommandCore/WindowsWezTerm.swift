@@ -63,10 +63,42 @@ enum WindowsWezTerm {
     static func agent(screen: [String]?) -> Agent? {
         screen.flatMap { Detector.agent(onScreen: $0) }
     }
+
+    /// `gui-sock-<pid>` → pid. nil for any other socket name.
+    static func guiPID(socket: String) -> Int32? {
+        let name = socket.replacingOccurrences(of: "\\", with: "/").split(separator: "/").last.map(String.init) ?? ""
+        guard name.hasPrefix("gui-sock-"), let pid = Int32(name.dropFirst("gui-sock-".count)), pid > 0, name == "gui-sock-\(pid)" else { return nil }
+        return pid
+    }
 }
 
 #if os(Windows)
 import WinSDK
+
+extension WindowsWezTerm {
+    enum Locality: Equatable { case local, mixed, noAgentProcess }
+
+    /// Windows WezTerm does not say which process runs in which pane, so the agent comes from the screen.
+    /// Defaults protection reads the Windows user's defaults file, which is that agent's own only when the agent runs on Windows:
+    /// accept it only when nothing under the GUI runs WSL, tmux or a remote shell, and an agent process of that kind is under the GUI.
+    static func locality(of agent: Agent, gui: Int32, entries: [ProcessTable.Entry]) -> Locality {
+        var children: [Int32: [ProcessTable.Entry]] = [:]
+        for entry in entries { children[entry.parent, default: []].append(entry) }
+        var queue = children[gui] ?? [], seen: Set<Int32> = [gui], found = false
+        while let entry = queue.popLast() {
+            guard seen.insert(entry.pid).inserted else { continue }
+            let name = WindowsPaths.normalized(entry.executable).split(separator: "/").last.map(String.init) ?? ""
+            // A process that cannot be read could be any of these.
+            if name.isEmpty || AgentProcesses.isWindowsNestedTerminal(entry) || remoteShells.contains(name) { return .mixed }
+            if AgentProcesses.agent(forCommandLine: entry.arguments.joined(separator: " ")) == agent { found = true }
+            queue += children[entry.pid] ?? []
+        }
+        return found ? .local : .noAgentProcess
+    }
+
+    /// Programs whose sessions keep their defaults on another machine or in a container.
+    static let remoteShells: Set<String> = ["ssh.exe", "plink.exe", "mosh-client.exe", "docker.exe", "podman.exe", "kubectl.exe"]
+}
 
 extension Detector {
     public static var weztermExtraDirectories: [String] { [#"C:\Program Files\WezTerm"#] }
@@ -81,6 +113,7 @@ extension Detector {
         guard let agent = WindowsWezTerm.agent(screen: io.base.screen()) else {
             throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", pane.title))
         }
+        try requireWindowsLocal(agent, socket: socket, label: pane.title)
         var target = Target(host: .wezterm(socket: socket, pane: pane.id), agent: agent, label: pane.title)
         target.windowsFrontPID = frontPID
         return target
@@ -115,7 +148,20 @@ extension Detector {
               let pane = WindowsWezTerm.pane(in: Data(panes.out.utf8), id: number) else {
             throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "WezTerm", "cli list"))
         }
+        try requireWindowsLocal(agent, socket: pinned, label: pane.title)
         return Target(host: .wezterm(socket: pinned, pane: pane.id), agent: agent, label: pane.title)
+    }
+
+    /// See `WindowsWezTerm.locality`. The processes are those of the GUI that owns the socket.
+    static func requireWindowsLocal(_ agent: Agent, socket: String, label: String) throws {
+        let locality = WindowsWezTerm.guiPID(socket: socket).map { WindowsWezTerm.locality(of: agent, gui: $0, entries: ProcessTable.descendants(of: $0)) } ?? .mixed
+        switch locality {
+        case .local: return
+        case .mixed:
+            throw SlashCommandError(loc("Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected."))
+        case .noAgentProcess:
+            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", label))
+        }
     }
 
     static func windowsWezTermPane(executable: String, socket: String?, frontPID: Int32?) throws -> WindowsWezTerm.Pane {

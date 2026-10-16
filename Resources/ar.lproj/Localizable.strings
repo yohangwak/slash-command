@@ -313,3 +313,5 @@
 "The shortcut is not available right now." = "هذا الاختصار غير متاح الآن.";
 
 "The presets file could not be read — choose Open presets file to fix it." = "تعذّرت قراءة ملف الإعدادات المسبقة — اختر «فتح ملف الإعدادات المسبقة» لإصلاحه.";
+
+"Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "لم يتم التبديل: تشغّل نافذة WezTerm هذه أيضًا WSL أو tmux أو صدفة بعيدة، ولا يخبر WezTerm بالبرنامج الذي يعمل في كل جزء، لذا لا يمكن حماية الإعدادات الافتراضية الخاصة بالوكيل.";

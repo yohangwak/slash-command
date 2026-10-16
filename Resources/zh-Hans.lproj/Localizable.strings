@@ -313,3 +313,5 @@
 "The shortcut is not available right now." = "此快捷键当前不可用。";
 
 "The presets file could not be read — choose Open presets file to fix it." = "无法读取预设文件——请选择 “打开预设文件” 打开并修正。";
+
+"Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "未切换：此 WezTerm 窗口中还运行着 WSL、tmux 或远程 shell，而 WezTerm 不会告知哪个窗格运行哪个程序，因此无法保护代理自身的默认设置。";

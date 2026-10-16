@@ -313,3 +313,5 @@
 "The shortcut is not available right now." = "Este atalho não está disponível agora.";
 
 "The presets file could not be read — choose Open presets file to fix it." = "Não foi possível ler o arquivo de predefinições — escolha “Abrir arquivo de predefinições” para corrigi-lo.";
+
+"Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "Não trocado: esta janela do WezTerm também executa WSL, tmux ou um shell remoto, e o WezTerm não informa qual painel executa qual programa, então os padrões do próprio agente não podem ser protegidos.";

@@ -76,6 +76,35 @@ final class WindowsReviewFixTests: XCTestCase {
         XCTAssertEqual(Proc.windowsQuote("x\"\u{301}y"), "\"x\\\"\u{301}y\"")
     }
 
+    func testGUIPIDComesOnlyFromAGUISocketName() {
+        XCTAssertEqual(WindowsWezTerm.guiPID(socket: #"C:\Users\u\.local\share\wezterm\gui-sock-6708"#), 6708)
+        XCTAssertNil(WindowsWezTerm.guiPID(socket: #"C:\Users\u\.local\share\wezterm\sock"#))
+        XCTAssertNil(WindowsWezTerm.guiPID(socket: "gui-sock-+1"))
+        XCTAssertNil(WindowsWezTerm.guiPID(socket: "gui-sock-0012"))
+    }
+
+    #if os(Windows)
+    private func entry(_ pid: Int32, _ parent: Int32, _ exe: String, _ command: String? = nil) -> ProcessTable.Entry {
+        ProcessTable.Entry(pid: pid, parent: parent, arguments: [command ?? "\"\(exe)\""], environment: [], executable: exe)
+    }
+
+    func testWezTermAgentMustBeAWindowsProcessUnderThatGUI() {
+        let gui: Int32 = 100
+        let shell = entry(101, gui, #"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"#)
+        let claude = entry(102, 101, #"C:\Users\u\.local\bin\claude.exe"#)
+        let other = entry(201, 200, #"C:\Users\u\.local\bin\claude.exe"#)
+        XCTAssertEqual(WindowsWezTerm.locality(of: .claude, gui: gui, entries: [shell, claude]), .local)
+        // An agent of another kind, or one under a different GUI, does not count.
+        XCTAssertEqual(WindowsWezTerm.locality(of: .codex, gui: gui, entries: [shell, claude]), .noAgentProcess)
+        XCTAssertEqual(WindowsWezTerm.locality(of: .claude, gui: gui, entries: [shell, other]), .noAgentProcess)
+        // WSL, tmux or a remote shell in any pane of that GUI: the screen's agent may live elsewhere.
+        for nested in [entry(103, 101, #"C:\Windows\System32\wsl.exe"#), entry(103, gui, #"C:\Windows\System32\OpenSSH\ssh.exe"#),
+                       entry(103, 101, #"C:\Program Files\Docker\docker.exe"#)] {
+            XCTAssertEqual(WindowsWezTerm.locality(of: .claude, gui: gui, entries: [shell, claude, nested]), .mixed)
+        }
+    }
+    #endif
+
     func testCaptureAfterTheSwitchIsNotTurnedIntoAFailure() throws {
         let io = FailedIO()
         let runner = Runner(io: io, sleep: { _ in })
