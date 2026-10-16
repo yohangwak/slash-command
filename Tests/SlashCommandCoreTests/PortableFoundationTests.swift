@@ -2,6 +2,16 @@ import XCTest
 @testable import SlashCommandCore
 
 final class PortableFoundationTests: XCTestCase {
+    func testDescendantsAreFoundDeepestFirstAndSkipReusedParentIDs() {
+        // 10 → 11 → 12, 10 → 13; 20 is unrelated; 30 claims parent 10 but started before 10 (pid reuse).
+        let parents: [Int32: Int32] = [10: 1, 11: 10, 12: 11, 13: 10, 20: 1, 30: 10]
+        let order = Proc.descendants(of: 10, parents: parents, startedBefore: { child, _ in child == 30 })
+        XCTAssertEqual(Set(order), [11, 12, 13])
+        XCTAssertLessThan(order.firstIndex(of: 12)!, order.firstIndex(of: 11)!, "A child is ended before its parent")
+        XCTAssertEqual(Proc.descendants(of: 99, parents: parents), [])
+        XCTAssertEqual(Proc.descendants(of: 1, parents: [1: 1, 2: 1]), [2], "A self-parented entry does not loop")
+    }
+
     func testBatchArgumentsOnlyPassPlainArguments() {
         XCTAssertNil(Proc.batchArguments(#"C:\x\orca.exe"#, ["--version"]), "Not a batch file")
         XCTAssertEqual(Proc.batchArguments(#"C:\Program Files\x\opencode.cmd"#, ["--version"]),
@@ -13,6 +23,21 @@ final class PortableFoundationTests: XCTestCase {
         XCTAssertNil(Proc.batchArguments(#"C:\x%y\a.cmd"#, ["--version"]), "cmd.exe expands % even inside quotes")
         XCTAssertNil(Proc.batchArguments(#"C:\a&b\a.cmd"#, ["--version"]), "A special character in the path changes how cmd.exe strips the quotes")
     }
+
+    #if os(Windows)
+    func testTimeoutEndsTheChildThatABatchShimStarted() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // The shim starts a child that keeps stdout open for 30 s, like an npm shim whose program hangs.
+        let shim = directory.appendingPathComponent("slashcommand-hang.cmd")
+        try Data("@ping -n 31 127.0.0.1\r\n".utf8).write(to: shim)
+        let started = Date()
+        let result = Proc.run(shim.path, ["--version"], timeout: 2)
+        XCTAssertTrue(result.timedOut)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 10, "The read must end soon after the timeout")
+    }
+    #endif
 
     #if os(Windows)
     func testRunsABatchShimThroughCmdAndRefusesUnsafeArguments() throws {

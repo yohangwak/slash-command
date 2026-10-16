@@ -76,7 +76,13 @@ public enum Proc {
         var timedOut = false
         if !waitForExit(process, done, seconds: timeout) {
             timedOut = true
+            #if os(Windows)
+            // A batch shim runs the real program as a child of cmd.exe; that child keeps our pipes open,
+            // so end the whole tree, not just the process we started.
+            terminateTree(process.processIdentifier)
+            #else
             process.terminate()
+            #endif
             // If it ignores SIGTERM, kill it forcibly: the pipes must close for the reads below to finish.
             if !waitForExit(process, done, seconds: 2) {
                 #if os(Windows)
@@ -105,6 +111,21 @@ public enum Proc {
             if !process.isRunning { return true }
             if Date() >= deadline { return false }
         }
+    }
+
+    /// Every descendant of `root` in a pid → parent pid table, deepest first. `startedBefore` drops a "child" that
+    /// existed before its parent did (its parent pid was reused), so an unrelated process is never included.
+    static func descendants(of root: Int32, parents: [Int32: Int32], startedBefore: (Int32, Int32) -> Bool = { _, _ in false }) -> [Int32] {
+        var children: [Int32: [Int32]] = [:]
+        for (pid, parent) in parents where pid != parent && !startedBefore(pid, parent) { children[parent, default: []].append(pid) }
+        var order: [Int32] = [], seen: Set<Int32> = [root]
+        func walk(_ pid: Int32) {
+            for child in children[pid, default: []].sorted() where seen.insert(child).inserted {
+                walk(child); order.append(child)
+            }
+        }
+        walk(root)
+        return order
     }
 
     static func isBatchFile(_ path: String) -> Bool {
