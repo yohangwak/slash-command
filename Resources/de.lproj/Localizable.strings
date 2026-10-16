@@ -289,3 +289,5 @@
 "This terminal runs tmux or WSL, which Slash Command cannot follow on Windows yet." = "Dieses Terminal verwendet tmux oder WSL. Slash Command kann ihm unter Windows noch nicht folgen.";
 
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command kann die Prozesse dieses Terminals nicht lesen (es wird möglicherweise als Administrator ausgeführt) und sendet deshalb nichts.";
+
+"Refused to run a batch file with arguments that cmd.exe could misread." = "Die Batchdatei wurde nicht ausgeführt, weil cmd.exe einige Argumente falsch auslegen könnte.";

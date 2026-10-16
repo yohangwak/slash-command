@@ -289,3 +289,5 @@
 "This terminal runs tmux or WSL, which Slash Command cannot follow on Windows yet." = "تعمل هذه الطرفية باستخدام tmux أو WSL، ولا يستطيع Slash Command تتبعها على Windows بعد.";
 
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "يتعذر على Slash Command قراءة عمليات هذه الطرفية (قد تكون تعمل بصلاحيات المسؤول)، لذلك لا يرسل أي شيء.";
+
+"Refused to run a batch file with arguments that cmd.exe could misread." = "لم يُشغَّل الملف الدفعي لأن بعض الوسائط قد يسيء cmd.exe تفسيرها.";

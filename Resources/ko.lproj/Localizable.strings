@@ -289,3 +289,5 @@
 "This terminal runs tmux or WSL, which Slash Command cannot follow on Windows yet." = "이 터미널은 tmux 또는 WSL을 실행 중이며, Slash Command는 Windows에서 아직 이를 따라갈 수 없습니다.";
 
 "Slash Command cannot read the processes of this terminal (it may run as administrator), so it does not send anything." = "Slash Command가 이 터미널의 프로세스를 읽을 수 없어 아무것도 보내지 않습니다(관리자 권한으로 실행 중일 수 있습니다).";
+
+"Refused to run a batch file with arguments that cmd.exe could misread." = "cmd.exe 가 잘못 읽을 수 있는 인자가 있어 배치 파일을 실행하지 않았습니다.";

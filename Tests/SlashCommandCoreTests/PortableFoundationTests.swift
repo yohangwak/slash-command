@@ -2,6 +2,34 @@ import XCTest
 @testable import SlashCommandCore
 
 final class PortableFoundationTests: XCTestCase {
+    func testBatchArgumentsOnlyPassPlainArguments() {
+        XCTAssertNil(Proc.batchArguments(#"C:\x\orca.exe"#, ["--version"]), "Not a batch file")
+        XCTAssertEqual(Proc.batchArguments(#"C:\Program Files\x\opencode.cmd"#, ["--version"]),
+                       ["/d", "/c", #"C:\Program Files\x\opencode.cmd"#, "--version"])
+        XCTAssertEqual(Proc.batchArguments(#"C:\x\a.BAT"#, ["terminal", "list", "--json"]), ["/d", "/c", #"C:\x\a.BAT"#, "terminal", "list", "--json"])
+        for bad in ["a b", "a&b", "a|b", "a>b", "%PATH%", "x^y", #"say "hi""#, "(x)", "!x!", "", "a\nb"] {
+            XCTAssertNil(Proc.batchArguments(#"C:\x\a.cmd"#, [bad]), bad)
+        }
+        XCTAssertNil(Proc.batchArguments(#"C:\x%y\a.cmd"#, ["--version"]), "cmd.exe expands % even inside quotes")
+        XCTAssertNil(Proc.batchArguments(#"C:\a&b\a.cmd"#, ["--version"]), "A special character in the path changes how cmd.exe strips the quotes")
+    }
+
+    #if os(Windows)
+    func testRunsABatchShimThroughCmdAndRefusesUnsafeArguments() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let shim = directory.appendingPathComponent("slashcommand-echo.cmd")
+        try Data("@echo shim:%1\r\n".utf8).write(to: shim)
+        let ran = Proc.run(shim.path, ["--version"], timeout: 10)
+        XCTAssertTrue(ran.ok, ran.err)
+        XCTAssertEqual(ran.out.trimmingCharacters(in: .whitespacesAndNewlines), "shim:--version")
+        let refused = Proc.run(shim.path, ["a&echo injected"], timeout: 10)
+        XCTAssertFalse(refused.ok)
+        XCTAssertFalse(refused.out.contains("injected"))
+    }
+    #endif
+
     func testJSONDeepEquality() throws {
         func json(_ text: String) throws -> Any {
             try JSONSerialization.jsonObject(with: Data(text.utf8), options: [.fragmentsAllowed])

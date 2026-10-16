@@ -17,8 +17,24 @@ public enum Proc {
                            cwd: String? = nil,
                            timeout: TimeInterval = 10) -> ProcResult {
         let process = Process()
+        #if os(Windows)
+        // CreateProcessW cannot start a batch file (npm and Electron shims are .cmd); it needs cmd.exe.
+        // cmd.exe re-parses the whole line, so only arguments made of plain characters are passed through it.
+        if let cmdArgs = batchArguments(exe, args) {
+            let comspec = ProcessInfo.processInfo.environment.first(where: { $0.key.uppercased() == "COMSPEC" })?.value
+                ?? #"C:\Windows\System32\cmd.exe"#
+            process.executableURL = URL(fileURLWithPath: comspec)
+            process.arguments = cmdArgs
+        } else if isBatchFile(exe) {
+            return ProcResult(status: -1, out: "", err: "\(exe): " + loc("Refused to run a batch file with arguments that cmd.exe could misread."), timedOut: false)
+        } else {
+            process.executableURL = URL(fileURLWithPath: exe)
+            process.arguments = args
+        }
+        #else
         process.executableURL = URL(fileURLWithPath: exe)
         process.arguments = args
+        #endif
         if let env { process.environment = env }
         if let cwd { process.currentDirectoryURL = URL(fileURLWithPath: cwd) }
         let outPipe = Pipe()
@@ -89,6 +105,23 @@ public enum Proc {
             if !process.isRunning { return true }
             if Date() >= deadline { return false }
         }
+    }
+
+    static func isBatchFile(_ path: String) -> Bool {
+        ["cmd", "bat"].contains((path as NSString).pathExtension.lowercased())
+    }
+
+    /// The `cmd.exe` arguments that run a batch file, or nil when `exe` is not a batch file or an argument contains
+    /// anything cmd.exe could treat as syntax (spaces, quotes, `&|<>^%!()`, line breaks). See "BatBadBut".
+    /// Process quotes only the path (it may contain spaces); `cmd /c "<path>" args` keeps those quotes because the
+    /// line has exactly two quote characters around an existing file and no special characters.
+    static func batchArguments(_ exe: String, _ args: [String]) -> [String]? {
+        guard isBatchFile(exe), !exe.contains("\""), !exe.contains("%"), !exe.contains("!") else { return nil }
+        let unsafe = CharacterSet(charactersIn: "&|<>^()@,;")
+        guard exe.unicodeScalars.allSatisfy({ !unsafe.contains($0) }) else { return nil }
+        let plain = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.=:/\\")
+        guard args.allSatisfy({ !$0.isEmpty && $0.unicodeScalars.allSatisfy(plain.contains) }) else { return nil }
+        return ["/d", "/c", exe] + args
     }
 
     /// GUI apps do not inherit the login shell's PATH, so look in the usual install locations directly.
