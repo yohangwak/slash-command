@@ -85,10 +85,20 @@ final class WindowsTerminalTests: XCTestCase {
         XCTAssertTrue(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .menu))
         XCTAssertTrue(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .foregroundChanged))
     }
-    func testOnlyAWindowStillInFrontReplacesTheTerminal() {
+    func testWhichCaptureTheMenuDescribes() {
         XCTAssertTrue(WindowsAppModel.adoptsForeground(stillFront: true, keepsSnapshot: false))
-        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false), "a short-lived window already gone")
         XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: true, keepsSnapshot: true), "the tray or hidden icons")
+        // A terminal brought to the front, then the tray opened before its lookup finished.
+        XCTAssertTrue(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false, supported: true,
+                                                       replacedBySnapshotKeeper: true, windowExists: true))
+        // A short-lived Explorer window seen on the way to the hidden icons.
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false, supported: false,
+                                                        replacedBySnapshotKeeper: true, windowExists: true))
+        // A terminal another app has replaced, or one whose window has closed.
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false, supported: true,
+                                                        replacedBySnapshotKeeper: false, windowExists: true))
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false, supported: true,
+                                                        replacedBySnapshotKeeper: true, windowExists: false))
     }
     /// A tab or pane switch inside the window is seen by the next tick, so the menu resolves the pane as it is now.
     func testMenuUsesThePaneLastSeenInTheSameWindow() {

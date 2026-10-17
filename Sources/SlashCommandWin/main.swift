@@ -101,10 +101,17 @@ final class Resident {
                     self.configError = text; self.config = nil
                 }
                 if stillFront { self.hotKeys.update(window: self.window, foreground: captured, config: self.config, retry: retry) }
-                if stillFront, let frontWindow, let pane { self.seenPane = (frontWindow, pane) }
-                if WindowsAppModel.adoptsForeground(stillFront: stillFront, keepsSnapshot: captured.keepsSnapshot) {
+                // Only when the capture is already out of date: what replaced it, read here and now.
+                let replacement = stillFront ? nil : Foreground.capture(window: currentWindow, pid: currentPID)
+                let adopt = WindowsAppModel.adoptsForeground(stillFront: stillFront, keepsSnapshot: captured.keepsSnapshot,
+                                                             supported: captured.supported,
+                                                             replacedBySnapshotKeeper: replacement?.keepsSnapshot == true,
+                                                             windowExists: captured.window.map { IsWindow($0) } ?? false)
+                if adopt, let frontWindow, let pane { self.seenPane = (frontWindow, pane) }
+                if adopt {
                     if found != nil || captured.pid != self.front.pid || !captured.supported || lookupTarget { self.target = found }
-                    self.failures = self.hotKeys.failed; self.warning = self.hotKeys.warning
+                    if stillFront { self.failures = self.hotKeys.failed; self.warning = self.hotKeys.warning }
+                    else { self.failures = []; self.warning = self.config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning } }
                     self.front = captured
                 }
             }

@@ -12,10 +12,17 @@ public enum WindowsAppModel {
         default: return false
         }
     }
-    /// A capture of a window that has already left the front is dropped: opening hidden tray icons passes through
-    /// short-lived Explorer windows (measured 2026-10-17), and adopting one replaced the terminal the menu describes.
-    /// The next foreground event or the 1-second tick captures whatever is in front.
-    public static func adoptsForeground(stillFront: Bool, keepsSnapshot: Bool) -> Bool { stillFront && !keepsSnapshot }
+    /// Which capture the menu describes. One still in front is adopted. One that has already left the front is adopted
+    /// only if it is a terminal whose window still exists and the tray (or hidden icons, or this app) took over: the
+    /// user opened the menu before its lookup finished. Opening hidden tray icons passes through short-lived Explorer
+    /// windows (measured 2026-10-17), and a capture superseded by another app is out of date; both are dropped, and the
+    /// next foreground event or the 1-second tick captures whatever is in front.
+    public static func adoptsForeground(stillFront: Bool, keepsSnapshot: Bool, supported: Bool = false,
+                                        replacedBySnapshotKeeper: Bool = false, windowExists: Bool = false) -> Bool {
+        if keepsSnapshot { return false }
+        if stillFront { return true }
+        return supported && replacedBySnapshotKeeper && windowExists
+    }
     /// UI Automation reports which Windows Terminal pane has keyboard focus only while its window is in front, and the tray
     /// holds the foreground when its menu opens. So each tick notes the focused pane (in-process, no text), and the menu
     /// resolves that pane, as it is then. Nil when the pane was seen in another window.
