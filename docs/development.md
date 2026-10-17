@@ -105,7 +105,7 @@ The script needs a "Developer ID Application" certificate and a `notarytool` key
 Then publish both files:
 
 ```sh
-gh release create v0.1.0 dist/Slash-Command.dmg dist/Slash-Command.zip --title "Slash Command 0.1.0" --notes-file notes.md
+gh release create v0.2.0 dist/Slash-Command.dmg dist/Slash-Command.zip --draft --title "Slash Command 0.2.0" --notes-file notes.md
 ```
 
 Keep the asset names `Slash-Command.dmg` and `Slash-Command.zip`. The README links to `releases/latest/download/Slash-Command.dmg`, which works only while the name stays the same. The disk image is what people download; the zip is what the Homebrew cask installs. `scripts/make-dmg.sh` builds the disk image from an app that is already signed and notarized.
