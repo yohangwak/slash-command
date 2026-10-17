@@ -85,6 +85,30 @@ final class WindowsTerminalTests: XCTestCase {
         XCTAssertTrue(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .menu))
         XCTAssertTrue(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .foregroundChanged))
     }
+    /// Replays foreground events as the tray sees them: `lastReal` follows every event that is not the tray, hidden
+    /// icons or this app, and each refresh, finishing later, asks whether its capture is still that window.
+    func testWhichCaptureTheMenuDescribes() {
+        let explorer = "C:\\Windows\\explorer.exe"
+        func keeps(_ windowClass: String) -> Bool { WindowsAppModel.keepsSnapshot(pid: 2, ownPID: 9, image: explorer, windowClass: windowClass) }
+        // The way to the hidden tray icons (measured 2026-10-17): InputSite, then the overflow window.
+        XCTAssertTrue(keeps("Windows.UI.Input.InputSite.WindowClass")); XCTAssertTrue(keeps("TopLevelWindowForOverflowXamlIsland"))
+        XCTAssertFalse(keeps("CabinetWClass"), "a File Explorer window is an app like any other")
+        // Terminal A, then the tray before A's lookup finished: A is still the latest real window.
+        XCTAssertTrue(WindowsAppModel.adoptsForeground(keepsSnapshot: false, latest: true, windowExists: true))
+        // Terminal A, then app B, then the tray: A's late capture is dropped and B's refresh follows.
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(keepsSnapshot: false, latest: false, windowExists: true))
+        // A window that closed before its refresh finished.
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(keepsSnapshot: false, latest: true, windowExists: false))
+        // The tray itself never replaces the terminal.
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(keepsSnapshot: true, latest: false, windowExists: true))
+    }
+    /// A tab or pane switch inside the window is seen by the next tick, so the menu resolves the pane as it is now.
+    func testMenuUsesThePaneLastSeenInTheSameWindow() {
+        XCTAssertEqual(WindowsAppModel.menuPane(seen: (7, "42/1/"), window: 7), "42/1/")
+        XCTAssertNil(WindowsAppModel.menuPane(seen: (7, "42/1/"), window: 8))
+        XCTAssertNil(WindowsAppModel.menuPane(seen: nil, window: 7))
+        XCTAssertNil(WindowsAppModel.menuPane(seen: (7, "42/1/"), window: nil))
+    }
     func testWindowsTerminalMenuHasStatusAndNinePresets() {
         L10n.use(language: "en", directory: nil)
         let lines = WindowsAppModel.menu(config: .starter, supported: true, agent: .claude, terminal: "Test", appName: "Windows Terminal")
@@ -97,6 +121,7 @@ final class WindowsTerminalTests: XCTestCase {
     func testUIASuccessWithNullOutPointersRefusesWithoutDereference() {
         for stage in 1...9 { XCTAssertEqual(sc_test_uia_null(Int32(stage)), 1, "NULL stage \(stage)") }
     }
+    func testUIASelectsPaneByRuntimeIDWithoutFocusAndReadsIdentityAlone() { XCTAssertEqual(sc_test_uia_select(), 1) }
     func testUIAClientIsReusedAndReleasedOncePerIO() {
         var milliseconds: Double = 0
         XCTAssertEqual(sc_test_uia_reuse(1000, &milliseconds), 1)
@@ -105,13 +130,14 @@ final class WindowsTerminalTests: XCTestCase {
     private final class FakeConsole: WindowsConsoleReading {
         var text = "first\nsecond\nthird"
         var writes: [WindowsConsoleKey] = []
+        var chunks = 0
         let member = WindowsConsoleMember(pid: 7, start: 11)
         func read() throws -> WindowsConsoleScreen { .init(text: text, members: [member]) }
         func members() throws -> [WindowsConsoleMember] { [member] }
         func pin(pid: Int32, start: UInt64) throws {
             guard UInt32(bitPattern: pid) == member.pid, start == member.start else { throw WindowsTerminal.changed }
         }
-        func write(_ key: WindowsConsoleKey) throws { writes.append(key) }
+        func write(_ keys: [WindowsConsoleKey]) throws { writes += keys; chunks += 1 }
     }
     func testIdenticalHiddenConsolePlusUnreadableCandidateRefuses() throws {
         let hidden = FakeConsole()
@@ -134,25 +160,56 @@ final class WindowsTerminalTests: XCTestCase {
         let fake = FakeConsole()
         XCTAssertEqual(try WindowsTerminal.matchedConsole(candidates: [1, 2], visible: three, read: { _ in try fake.read() }).text, three)
     }
-    func testSamePaneLosesTextMatchBetweenKeysAndNoFurtherKeyIsSent() throws {
-        let fake = FakeConsole()
+    private final class Count { var n = 0 }
+    private func paneIO(_ fake: FakeConsole, settles: Count = Count(),
+                        focused: @escaping (Int) -> WindowsTerminal.Pane) throws -> WindowsConsoleIO {
         var target = Target(host: .windowsConsole(pid: 7, start: 11), agent: .claude, label: "fake")
         target.windowsWindow = 123; target.windowsPaneIdentity = "pane"
         var checks = 0
-        let io = try WindowsConsoleIO(target: target, bridge: fake, focused: { _ in
-            checks += 1
-            return .init(text: checks == 1 ? fake.text : "different\nsecond\nthird", identity: "pane")
-        }, validate: { _, agent, _ in (.init(agent: agent, pid: 7), 11) })
-        XCTAssertThrowsError(try io.type("ab"))
-        XCTAssertEqual(fake.writes, [.character(97)])
-        XCTAssertThrowsError(try io.press(.enter)); XCTAssertEqual(checks, 2)
+        return try WindowsConsoleIO(target: target, bridge: fake, focused: { _ in checks += 1; return focused(checks) },
+                                    settle: { settles.n += 1 }, validate: { _, agent, _ in (.init(agent: agent, pid: 7), 11) })
+    }
+    /// A chunk such as Claude's Ctrl+S, "/model", Enter is checked once and written whole, never stopped halfway.
+    func testChunkIsCheckedOnceAndWrittenWhole() throws {
+        let fake = FakeConsole()
+        var checks = 0
+        let io = try paneIO(fake) { n in checks = n; return .init(text: fake.text, identity: "pane") }
+        try io.type("\u{13}/m\r")
+        XCTAssertEqual(fake.writes, [.character(0x13), .character(47), .character(109), .character(13)])
+        XCTAssertEqual(fake.chunks, 1); XCTAssertEqual(checks, 1)
+    }
+    func testNextChunkIsRefusedOnceTheTextStopsMatching() throws {
+        let fake = FakeConsole()
+        let settles = Count()
+        let io = try paneIO(fake, settles: settles) { n in .init(text: n == 1 ? fake.text : "different\nsecond\nthird", identity: "pane") }
+        try io.type("ab")
+        XCTAssertThrowsError(try io.press(.enter))
+        XCTAssertEqual(fake.writes, [.character(97), .character(98)])
+        XCTAssertEqual(settles.n, WindowsConsoleIO.textAttempts - 1)
+        XCTAssertThrowsError(try io.press(.enter)); XCTAssertEqual(fake.chunks, 1)
+    }
+    /// UI Automation shows the agent's echo a few milliseconds after the console has it.
+    func testTextThatCatchesUpWithinTheAttemptsIsAccepted() throws {
+        let fake = FakeConsole()
+        let settles = Count()
+        let io = try paneIO(fake, settles: settles) { n in .init(text: n < 3 ? "lagging\nsecond\nthird" : fake.text, identity: "pane") }
+        try io.press(.enter)
+        XCTAssertEqual(fake.writes, [.key(.enter)]); XCTAssertEqual(settles.n, 2)
+    }
+    func testPaneChangeIsNotWaitedFor() throws {
+        let fake = FakeConsole()
+        let settles = Count()
+        var checks = 0
+        let io = try paneIO(fake, settles: settles) { n in checks = n; return .init(text: fake.text, identity: "other pane") }
+        XCTAssertThrowsError(try io.press(.enter))
+        XCTAssertTrue(fake.writes.isEmpty); XCTAssertEqual(settles.n, 0); XCTAssertEqual(checks, 1)
     }
     func testFirstTextMismatchSendsNoKeyEvenForExplicitAppTarget() throws {
         let fake = FakeConsole()
         var target = Target(host: .windowsConsole(pid: 7, start: 11), agent: .claude, label: "fake")
         target.windowsWindow = 123; target.windowsPaneIdentity = "pane"
         let io = try WindowsConsoleIO(target: target, bridge: fake, focused: { _ in .init(text: "other\nsecond\nthird", identity: "pane") },
-                                     validate: { _, agent, _ in (.init(agent: agent, pid: 7), 11) })
+                                     settle: {}, validate: { _, agent, _ in (.init(agent: agent, pid: 7), 11) })
         XCTAssertThrowsError(try io.press(.enter)); XCTAssertTrue(fake.writes.isEmpty)
     }
     func testExitedMemberIsRecheckedAndDropped() throws {
@@ -342,7 +399,7 @@ final class WindowsTerminalTests: XCTestCase {
         XCTAssertGreaterThan(member.start, 0); XCTAssertEqual(member.start, start)
         XCTAssertEqual(try bridge.members(), screen.members)
     }
-    func testIORechecksFocusedPaneBeforeEveryCharacter() throws {
+    func testIORechecksFocusedPaneBeforeEveryChunk() throws {
         let (console, result) = try fixture(records: 2)
         defer { sc_test_console_close(console); try? FileManager.default.removeItem(at: result) }
         let bridge = try WindowsConsoleBridge(pid: Int32(bitPattern: sc_test_console_pid(console)))
@@ -354,13 +411,14 @@ final class WindowsTerminalTests: XCTestCase {
         let io = try fixtureIO(target, bridge: bridge, foreground: { 123 }, focused: { _ in
             checks += 1; return .init(text: try bridge.read().text, identity: checks == 1 ? "pane" : "other")
         })
-        XCTAssertThrowsError(try io.type("ab"))
+        try io.type("a")
+        XCTAssertThrowsError(try io.type("b"))
         XCTAssertEqual(checks, 2); XCTAssertEqual(io.lastFailure, String(describing: WindowsTerminal.changed))
         XCTAssertNil(io.screen()); XCTAssertThrowsError(try io.press(.enter))
         XCTAssertEqual(checks, 2, "target failure is sticky")
         bridge.close()
         let records = try String(contentsOf: result, encoding: .utf8).split(separator: "\n")
-        XCTAssertEqual(records.count, 2, "only the first character's pair was written")
+        XCTAssertEqual(records.count, 2, "only the first chunk's pair was written")
         XCTAssertTrue(records.allSatisfy { $0.contains(",97,") })
     }
     func testIORefusesForegroundWindowChangeBeforeReadingOrWriting() throws {
@@ -414,7 +472,7 @@ final class WindowsTerminalTests: XCTestCase {
         let screen = try waitReady(bridge)
         XCTAssertTrue(screen.text.contains("B13 synthetic console")); XCTAssertTrue(screen.text.contains("한글")); XCTAssertTrue(screen.text.contains("e\u{301}"))
         XCTAssertTrue(screen.members.contains { $0.pid == sc_test_console_pid(console) })
-        for key in keys { try bridge.write(key) }
+        try bridge.write(keys)   // one chunk, Escape included: the bridge still pauses after it
         XCTAssertTrue(bridge.close(), "bridge must exit normally after stdin EOF")
         for _ in 0..<200 {
             if sc_test_console_finished(console) == 1 { break }
@@ -431,7 +489,7 @@ final class WindowsTerminalTests: XCTestCase {
         let bridge = try WindowsConsoleBridge(pid: Int32(bitPattern: sc_test_console_pid(console)))
         defer { bridge.close() }
         _ = try waitReady(bridge)
-        try bridge.write(.key(.enter))
+        try bridge.write([.key(.enter)])
         for _ in 0..<200 {
             if sc_test_console_finished(console) == 1 { break }
             Thread.sleep(forTimeInterval: 0.02)

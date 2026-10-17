@@ -28,9 +28,28 @@ void sc_uia_close(SCUIA *context) {
     if (context->client) IUIAutomation_Release(context->client);
     CoUninitialize(); free(context);
 }
+// The runtime ID pins the actual control, so a same-window pane change is caught even if screens become identical.
+static wchar_t *runtime_token(IUIAutomationElement *element) {
+    SAFEARRAY *runtime = NULL; wchar_t *token = NULL; LONG lower, upper;
+    if (FAILED(IUIAutomationElement_GetRuntimeId(element, &runtime)) || !runtime || SafeArrayGetDim(runtime) != 1) goto done;
+    if (FAILED(SafeArrayGetLBound(runtime, 1, &lower)) || FAILED(SafeArrayGetUBound(runtime, 1, &upper)) || upper < lower || upper - lower > 128) goto done;
+    token = calloc((size_t)(upper - lower + 1) * 16 + 1, sizeof(wchar_t));
+    if (!token) goto done;
+    for (LONG i = lower; i <= upper; i++) {
+        int part = 0; wchar_t buffer[20];
+        if (FAILED(SafeArrayGetElement(runtime, &i, &part))) { free(token); token = NULL; goto done; }
+        swprintf(buffer, 20, L"%d/", part); wcscat(token, buffer);
+    }
+done:
+    if (runtime) SafeArrayDestroy(runtime);
+    return token;
+}
 // No window messages or synthetic keyboard input. UIA is read-only.
-int sc_focused_pane(SCUIA *context, uintptr_t window, uint16_t **text, uint16_t **identity, int *panes, int *focused) {
-    *text = NULL; *identity = NULL; *panes = 0; *focused = 0;
+// Selects the pane with keyboard focus, or with `want` the pane with that runtime ID whether or not it has focus.
+// With text NULL only the identity is read.
+int sc_pane(SCUIA *context, uintptr_t window, const uint16_t *want, uint16_t **text, uint16_t **identity, int *panes, int *matched) {
+    if (text) *text = NULL;
+    *identity = NULL; *panes = 0; *matched = 0;
     if (!context || !context->client || context->thread != GetCurrentThreadId()) return 0;
     IUIAutomation *uia = context->client;
     IUIAutomationElement *root = NULL, *selected = NULL;
@@ -38,7 +57,6 @@ int sc_focused_pane(SCUIA *context, uintptr_t window, uint16_t **text, uint16_t 
     IUIAutomationElementArray *elements = NULL;
     IUIAutomationTextPattern *pattern = NULL;
     IUIAutomationTextRangeArray *ranges = NULL;
-    SAFEARRAY *runtime = NULL;
     wchar_t *joined = NULL, *token = NULL;
     int ok = 0, length = 0;
     if (FAILED(IUIAutomation_ElementFromHandle(uia, (UIA_HWND)window, &root)) || !root) goto done;
@@ -52,26 +70,21 @@ int sc_focused_pane(SCUIA *context, uintptr_t window, uint16_t **text, uint16_t 
         IUIAutomationElement *element = NULL; BOOL focus = FALSE;
         hr = IUIAutomationElementArray_GetElement(elements, i, &element);
         if (FAILED(hr) || !element) { if (element) IUIAutomationElement_Release(element); goto done; }
-        hr = IUIAutomationElement_get_CurrentHasKeyboardFocus(element, &focus);
+        if (want) {
+            wchar_t *candidate = runtime_token(element);
+            focus = candidate && !wcscmp(candidate, (const wchar_t *)want);
+            free(candidate); hr = S_OK;
+        } else hr = IUIAutomationElement_get_CurrentHasKeyboardFocus(element, &focus);
         if (SUCCEEDED(hr) && focus) {
-            ++*focused;
+            ++*matched;
             if (selected) IUIAutomationElement_Release(selected);
             selected = element;
         } else IUIAutomationElement_Release(element);
         if (FAILED(hr)) goto done;
     }
-    if (*focused != 1 || !selected) goto done;
-    // The runtime ID pins the actual control, so a same-window pane change is caught even if screens become identical.
-    if (FAILED(IUIAutomationElement_GetRuntimeId(selected, &runtime)) || !runtime || SafeArrayGetDim(runtime) != 1) goto done;
-    LONG lower, upper;
-    if (FAILED(SafeArrayGetLBound(runtime, 1, &lower)) || FAILED(SafeArrayGetUBound(runtime, 1, &upper)) || upper < lower || upper - lower > 128) goto done;
-    token = calloc((size_t)(upper - lower + 1) * 16 + 1, sizeof(wchar_t));
-    if (!token) goto done;
-    for (LONG i = lower; i <= upper; i++) {
-        int part = 0; wchar_t buffer[20];
-        if (FAILED(SafeArrayGetElement(runtime, &i, &part))) goto done;
-        swprintf(buffer, 20, L"%d/", part); wcscat(token, buffer);
-    }
+    if (*matched != 1 || !selected) goto done;
+    if (!(token = runtime_token(selected))) goto done;
+    if (!text) { *identity = (uint16_t *)token; token = NULL; ok = 1; goto done; }
     if (FAILED(IUIAutomationElement_GetCurrentPatternAs(selected, UIA_TextPatternId, &IID_IUIAutomationTextPattern, (void **)&pattern)) || !pattern) goto done;
     if (FAILED(IUIAutomationTextPattern_GetVisibleRanges(pattern, &ranges)) || !ranges || FAILED(IUIAutomationTextRangeArray_get_Length(ranges, &length)) || length < 1 || length > 4096) goto done;
     size_t used = 0;
@@ -95,7 +108,6 @@ int sc_focused_pane(SCUIA *context, uintptr_t window, uint16_t **text, uint16_t 
     *identity = (uint16_t *)token; token = NULL; ok = 1;
 done:
     free(joined); free(token);
-    if (runtime) SafeArrayDestroy(runtime);
     if (ranges) IUIAutomationTextRangeArray_Release(ranges);
     if (pattern) IUIAutomationTextPattern_Release(pattern);
     if (selected) IUIAutomationElement_Release(selected);
@@ -103,6 +115,9 @@ done:
     if (condition) IUIAutomationCondition_Release(condition);
     if (root) IUIAutomationElement_Release(root);
     return ok;
+}
+int sc_focused_pane(SCUIA *context, uintptr_t window, uint16_t **text, uint16_t **identity, int *panes, int *focused) {
+    return sc_pane(context, window, NULL, text, identity, panes, focused);
 }
 
 #endif

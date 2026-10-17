@@ -22,7 +22,7 @@ extern const long UIA_ClassNamePropertyId, UIA_TextPatternId;
 #include "CWindowsConsoleFixture.h"
 
 // Compile the production reader against fake COM providers. No desktop/window is queried.
-static int null_at, initialized, created, released, uninitialized;
+static int null_at, initialized, created, released, uninitialized, has_focus = 1, text_reads;
 static HRESULT WINAPI fake_initialize(LPVOID reserved, DWORD mode) { initialized++; return S_OK; }
 static void WINAPI fake_uninitialize(void) { uninitialized++; }
 static HRESULT WINAPI fake_create(REFCLSID cls, LPUNKNOWN outer, DWORD flags, REFIID iid, LPVOID *out);
@@ -32,10 +32,12 @@ static HRESULT WINAPI fake_create(REFCLSID cls, LPUNKNOWN outer, DWORD flags, RE
 #define sc_uia_create test_uia_create
 #define sc_uia_close test_uia_close
 #define sc_focused_pane test_focused_pane
+#define sc_pane test_pane
 // Forward declarations because the production header has already been included.
 SCUIA *test_uia_create(void);
 void test_uia_close(SCUIA *);
 int test_focused_pane(SCUIA *, uintptr_t, uint16_t **, uint16_t **, int *, int *);
+int test_pane(SCUIA *, uintptr_t, const uint16_t *, uint16_t **, uint16_t **, int *, int *);
 #include "../../Sources/CWindowsTerminal/UIA.c"
 
 static IUIAutomation client;
@@ -57,7 +59,7 @@ static HRESULT WINAPI property(IUIAutomation *self, PROPERTYID id, VARIANT v, IU
 static HRESULT WINAPI find_all(IUIAutomationElement *self, enum TreeScope scope, IUIAutomationCondition *c, IUIAutomationElementArray **out) { *out = null_at == 3 ? NULL : &elements; return S_OK; }
 static HRESULT WINAPI elements_length(IUIAutomationElementArray *self, int *out) { *out = 1; return S_OK; }
 static HRESULT WINAPI get_element(IUIAutomationElementArray *self, int i, IUIAutomationElement **out) { *out = null_at == 4 ? NULL : &element; return S_OK; }
-static HRESULT WINAPI get_focus(IUIAutomationElement *self, BOOL *out) { *out = TRUE; return S_OK; }
+static HRESULT WINAPI get_focus(IUIAutomationElement *self, BOOL *out) { *out = has_focus ? TRUE : FALSE; return S_OK; }
 static HRESULT WINAPI runtime_id(IUIAutomationElement *self, SAFEARRAY **out) {
     *out = SafeArrayCreateVector(VT_I4, 0, 1);
     LONG index = 0, value = 42; return SafeArrayPutElement(*out, &index, &value);
@@ -66,7 +68,7 @@ static HRESULT WINAPI get_pattern(IUIAutomationElement *self, PATTERNID id, REFI
 static HRESULT WINAPI visible_ranges(IUIAutomationTextPattern *self, IUIAutomationTextRangeArray **out) { *out = null_at == 6 ? NULL : &ranges; return S_OK; }
 static HRESULT WINAPI ranges_length(IUIAutomationTextRangeArray *self, int *out) { *out = 1; return S_OK; }
 static HRESULT WINAPI get_range(IUIAutomationTextRangeArray *self, int i, IUIAutomationTextRange **out) { *out = null_at == 7 ? NULL : &range; return S_OK; }
-static HRESULT WINAPI get_text(IUIAutomationTextRange *self, int max, BSTR *out) { *out = null_at == 8 ? NULL : SysAllocString(L"first\nsecond\nthird"); return S_OK; }
+static HRESULT WINAPI get_text(IUIAutomationTextRange *self, int max, BSTR *out) { text_reads++; *out = null_at == 8 ? NULL : SysAllocString(L"first\nsecond\nthird"); return S_OK; }
 static IUIAutomationVtbl client_vtable = { .Release = release_client, .ElementFromHandle = from_handle, .CreatePropertyCondition = property };
 static IUIAutomationElementVtbl element_vtable = { .Release = release_element, .FindAll = find_all, .get_CurrentHasKeyboardFocus = get_focus, .GetRuntimeId = runtime_id, .GetCurrentPatternAs = get_pattern };
 static IUIAutomationConditionVtbl condition_vtable = { .Release = release_condition };
@@ -89,6 +91,22 @@ int sc_test_uia_null(int stage) {
     int ok = test_focused_pane(c, 123, &text, &identity, &panes, &focused);
     int passed = ok == 0 && !text && !identity;
     free(text); free(identity); test_uia_close(c); return passed;
+}
+// Once the tray is in front no pane has focus: the menu selects the pane by the runtime ID seen earlier.
+int sc_test_uia_select(void) {
+    null_at = 0; text_reads = 0;
+    SCUIA *c = test_uia_create(); if (!c) return 0;
+    has_focus = 0;
+    uint16_t *text = NULL, *identity = NULL; int panes = 0, matched = 0, passed = 1;
+    if (test_focused_pane(c, 123, &text, &identity, &panes, &matched) || matched != 0 || text || identity) passed = 0;
+    if (!test_pane(c, 123, (const uint16_t *)L"42/", &text, &identity, &panes, &matched) || matched != 1 || !text || !identity
+        || wcscmp((wchar_t *)identity, L"42/")) passed = 0;
+    free(text); free(identity); text = identity = NULL;
+    if (test_pane(c, 123, (const uint16_t *)L"43/", &text, &identity, &panes, &matched) || matched != 0 || text || identity) passed = 0;
+    has_focus = 1; int reads = text_reads;
+    if (!test_pane(c, 123, NULL, NULL, &identity, &panes, &matched) || !identity || wcscmp((wchar_t *)identity, L"42/") || text_reads != reads) passed = 0;
+    free(identity); test_uia_close(c);
+    return passed;
 }
 int sc_test_uia_reuse(int reads, double *milliseconds) {
     initialized = created = released = uninitialized = 0; null_at = 0;

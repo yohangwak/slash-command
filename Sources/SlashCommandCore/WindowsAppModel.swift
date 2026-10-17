@@ -4,13 +4,26 @@ import Foundation
 public enum WindowsAppModel {
     public enum RefreshReason { case foregroundChanged, menu, tick }
 
-    /// A WezTerm lookup launches CLI children; idle ticks must remain in-process.
+    /// A WezTerm or Windows Terminal lookup launches CLI children; idle ticks must remain in-process.
     public static func looksUpTarget(app: String, reason: RefreshReason) -> Bool {
         switch app {
         case "orca": return true
         case "wezterm", "windowsterminal": return reason != .tick
         default: return false
         }
+    }
+    /// Which capture the menu describes: the latest window seen in front other than the tray, hidden icons or this app,
+    /// if it still exists. So a terminal stays described when the tray opens before its lookup finishes, and a capture
+    /// that another app has since replaced is dropped (the app's own refresh follows).
+    public static func adoptsForeground(keepsSnapshot: Bool, latest: Bool, windowExists: Bool) -> Bool {
+        !keepsSnapshot && latest && windowExists
+    }
+    /// UI Automation reports which Windows Terminal pane has keyboard focus only while its window is in front, and the tray
+    /// holds the foreground when its menu opens. So each tick notes the focused pane (in-process, no text), and the menu
+    /// resolves that pane, as it is then. Nil when the pane was seen in another window.
+    public static func menuPane(seen: (window: UInt, pane: String)?, window: UInt?) -> String? {
+        guard let seen, let window, seen.window == window else { return nil }
+        return seen.pane
     }
 
     public static let version = "0.2.0" // scripts/Info.plist
@@ -68,8 +81,10 @@ public enum WindowsAppModel {
     public static func keepsSnapshot(pid: UInt32, ownPID: UInt32, image: String, windowClass: String) -> Bool {
         if pid != 0 && pid == ownPID { return true }
         let name = image.replacingOccurrences(of: "\\", with: "/").split(separator: "/").last?.lowercased()
-        // Windows 11 opens hidden tray icons in TopLevelWindowForOverflowXamlIsland (measured 2026-10-16, build 26200).
-        return name == "explorer.exe" && ["Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow", "TopLevelWindowForOverflowXamlIsland"].contains(windowClass)
+        // Windows 11 opens hidden tray icons in TopLevelWindowForOverflowXamlIsland (measured 2026-10-16, build 26200),
+        // passing through the taskbar's InputSite window on the way (measured 2026-10-17).
+        return name == "explorer.exe" && ["Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow", "TopLevelWindowForOverflowXamlIsland",
+                                           "Windows.UI.Input.InputSite.WindowClass"].contains(windowClass)
     }
 
     public enum NoticeKind { case result, error, awaiting, awaitingError, unchanged, multiline }

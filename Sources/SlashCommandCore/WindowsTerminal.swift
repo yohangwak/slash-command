@@ -90,7 +90,8 @@ protocol WindowsConsoleReading: AnyObject {
     func read() throws -> WindowsConsoleScreen
     func members() throws -> [WindowsConsoleMember]
     func pin(pid: Int32, start: UInt64) throws
-    func write(_ key: WindowsConsoleKey) throws
+    /// One chunk: the bridge writes all of its records without a check in between.
+    func write(_ keys: [WindowsConsoleKey]) throws
 }
 struct WindowsConsoleReply: Codable {
     var ok: Bool
@@ -143,8 +144,8 @@ final class WindowsConsoleBridge: WindowsConsoleReading {
         return members.sorted { $0.pid < $1.pid }
     }
     func pin(pid: Int32, start: UInt64) throws { _ = try request("pin \(pid) \(start)") }
-    func write(_ key: WindowsConsoleKey) throws {
-        let data = try JSONEncoder().encode(key)
+    func write(_ keys: [WindowsConsoleKey]) throws {
+        let data = try JSONEncoder().encode(keys)
         _ = try request("keys " + String(decoding: data, as: UTF8.self))
     }
 
@@ -174,11 +175,17 @@ final class WindowsConsoleBridge: WindowsConsoleReading {
                     if !reply.ok { reply.changed = true; leave = true }
                 }
             } else if request.hasPrefix("keys "),
-                      let key = try? JSONDecoder().decode(WindowsConsoleKey.self, from: Data(request.dropFirst(5).utf8)) {
-                reply.ok = sc_console_key(console, key.native) == 1
-                if !reply.ok, sc_console_valid(console) != 1 { reply.changed = true; leave = true }
-                // ConPTY must not merge Escape and the following record into Alt+key.
-                if reply.ok, key.vk == UInt16(VK_ESCAPE) { Thread.sleep(forTimeInterval: 0.25) }
+                      let keys = try? JSONDecoder().decode([WindowsConsoleKey].self, from: Data(request.dropFirst(5).utf8)), !keys.isEmpty {
+                reply.ok = true
+                for key in keys {
+                    guard sc_console_key(console, key.native) == 1 else {
+                        reply.ok = false
+                        if sc_console_valid(console) != 1 { reply.changed = true; leave = true }
+                        break
+                    }
+                    // ConPTY must not merge Escape and the following record into Alt+key.
+                    if key.vk == UInt16(VK_ESCAPE) { Thread.sleep(forTimeInterval: 0.25) }
+                }
             }
             guard let data = try? JSONEncoder().encode(reply),
                   String(decoding: data, as: UTF8.self).withCString({ sc_console_reply(console, $0) }) == 1 else { return 1 }
@@ -235,6 +242,24 @@ enum WindowsTerminal {
                 throw SlashCommandError(loc("Could not tell which Windows Terminal pane is in front. Close any palette or dialog and focus the agent's input box."))
             }
             return Pane(text: String(decodingCString: text, as: UTF16.self), identity: String(decodingCString: identity, as: UTF16.self))
+        }
+        /// The pane with this runtime ID, whether or not it has keyboard focus (UI Automation reports focus only while the window is in front).
+        func pane(window: UInt, identity want: String) throws -> Pane {
+            var text: UnsafeMutablePointer<UInt16>?, identity: UnsafeMutablePointer<UInt16>?
+            var panes: Int32 = 0, matched: Int32 = 0
+            let ok = want.withCString(encodedAs: UTF16.self) { sc_pane(context, window, $0, &text, &identity, &panes, &matched) }
+            defer { sc_free(text); sc_free(identity) }
+            guard ok == 1, matched == 1, let text, let identity else { throw changed }
+            return Pane(text: String(decodingCString: text, as: UTF16.self), identity: String(decodingCString: identity, as: UTF16.self))
+        }
+        /// Only the runtime ID of the focused pane: no text is read.
+        func focusedIdentity(window: UInt) -> String? {
+            var identity: UnsafeMutablePointer<UInt16>?
+            var panes: Int32 = 0, matched: Int32 = 0
+            let ok = sc_pane(context, window, nil, nil, &identity, &panes, &matched)
+            defer { sc_free(identity) }
+            guard ok == 1, matched == 1, let identity else { return nil }
+            return String(decodingCString: identity, as: UTF16.self)
         }
     }
     static func focused(window: UInt) throws -> Pane { try FocusReader().focused(window: window) }
@@ -327,7 +352,13 @@ extension Detector {
         try WindowsTerminal.requireInput(text: screen.text, agent: agent)
         return Target(host: .windowsConsole(pid: identity.pid, start: start), agent: agent, label: String(pid))
     }
-    static func windowsTerminal(window: UInt? = nil, requireForeground: Bool = false) throws -> Target {
+    /// Display only: the runtime ID of the pane that has keyboard focus while Windows Terminal is in front. Reads no text.
+    public static func windowsTerminalFocusedPane(window: UInt) -> String? {
+        guard let reader = try? WindowsTerminal.FocusReader() else { return nil }
+        return reader.focusedIdentity(window: window)
+    }
+    /// With `pane`, resolves that pane (seen with focus earlier) instead of the one with focus now; for display only.
+    static func windowsTerminal(window: UInt? = nil, requireForeground: Bool = false, pane wanted: String? = nil) throws -> Target {
         let window = try WindowsTerminal.requireWindow(window ?? WindowsTerminal.window())
         guard let hwnd = HWND(bitPattern: window) else { throw WindowsTerminal.unreadable }
         var pid: DWORD = 0; GetWindowThreadProcessId(hwnd, &pid)
@@ -335,7 +366,8 @@ extension Detector {
         if requireForeground, GetForegroundWindow() != hwnd { throw WindowsTerminal.changed }
         let pane: WindowsTerminal.Pane
         let focusReader = try WindowsTerminal.FocusReader()
-        do { pane = try focusReader.focused(window: window) }
+        let read = { try wanted.map { try focusReader.pane(window: window, identity: $0) } ?? focusReader.focused(window: window) }
+        do { pane = try read() }
         catch {
             if WindowsTerminal.elevated(pid: Int32(bitPattern: pid)) { throw WindowsTerminal.failure(pid: Int32(bitPattern: pid)) }
             throw error
@@ -356,7 +388,7 @@ extension Detector {
         defer { bridge.close() }
         let (identity, start) = try WindowsTerminal.requireWindowsLocal(members: selected.members, refresh: bridge.members)
         try WindowsTerminal.requireInput(text: selected.text, agent: identity.agent)
-        let current = try focusReader.focused(window: window)
+        let current = try read()
         guard current.identity == pane.identity, WindowsTerminalMatching.equal(console: selected.text, visible: current.text) else { throw WindowsTerminal.changed }
         if requireForeground, GetForegroundWindow() != hwnd { throw WindowsTerminal.changed }
         var title = [WCHAR](repeating: 0, count: 32768)
@@ -375,14 +407,16 @@ final class WindowsConsoleIO: TerminalIO {
     private(set) var lastFailure: String?
     private let foreground: () -> UInt?
     private let focused: (UInt) throws -> WindowsTerminal.Pane
+    private let settle: () -> Void
     init(target: Target, bridge: WindowsConsoleReading? = nil,
          foreground: @escaping () -> UInt? = { GetForegroundWindow().map { UInt(bitPattern: $0) } },
          focused: ((UInt) throws -> WindowsTerminal.Pane)? = nil,
+         settle: @escaping () -> Void = { Thread.sleep(forTimeInterval: 0.04) },
          validate: ([WindowsConsoleMember], Agent, () throws -> [WindowsConsoleMember]) throws -> (WindowsTerminal.Identity, UInt64) = {
              try WindowsTerminal.requireWindowsLocal(members: $0, expected: $1, refresh: $2)
          }) throws {
         guard case .windowsConsole(let pid, let start) = target.host else { throw WindowsTerminal.unreadable }
-        self.target = target; self.foreground = foreground
+        self.target = target; self.foreground = foreground; self.settle = settle
         if let focused { self.focused = focused }
         else if target.windowsWindow != nil {
             let reader = try WindowsTerminal.FocusReader()
@@ -400,10 +434,18 @@ final class WindowsConsoleIO: TerminalIO {
             if let window = target.windowsWindow {
                 if target.windowsRequiresForeground, foreground() != window { throw WindowsTerminal.changed }
                 if writing {
-                    let console = try bridge.read()
-                    let pane = try focused(window)
-                    guard pane.identity == target.windowsPaneIdentity,
-                          WindowsTerminalMatching.equal(console: console.text, visible: pane.text) else { throw WindowsTerminal.changed }
+                    // The agent echoes a key into the console a few milliseconds before UI Automation shows it (measured on
+                    // Windows Terminal 1.24), so a read that falls in between differs. Only text waits for that; a pane change does not.
+                    var attempt = 0
+                    while true {
+                        let console = try bridge.read()
+                        let pane = try focused(window)
+                        guard pane.identity == target.windowsPaneIdentity else { throw WindowsTerminal.changed }
+                        if WindowsTerminalMatching.equal(console: console.text, visible: pane.text) { break }
+                        attempt += 1
+                        guard attempt < WindowsConsoleIO.textAttempts else { throw WindowsTerminal.changed }
+                        settle()
+                    }
                     if target.windowsRequiresForeground, foreground() != window { throw WindowsTerminal.changed }
                 }
             }
@@ -416,11 +458,15 @@ final class WindowsConsoleIO: TerminalIO {
         do { try requireTarget(writing: false); return try bridge.read().text.components(separatedBy: "\n") }
         catch { lastFailure = String(describing: error); return nil }
     }
-    private func write(_ key: WindowsConsoleKey) throws {
+    static let textAttempts = 5
+    /// Checks once, then writes the chunk whole. A check between its keys could stop halfway, for example after Claude's
+    /// Ctrl+S stash and before the command, and leave a half-typed command in the input box.
+    private func write(_ keys: [WindowsConsoleKey]) throws {
+        guard !keys.isEmpty else { return }
         try requireTarget(writing: true)
-        do { try bridge.write(key) } catch { lastFailure = String(describing: error); throw error }
+        do { try bridge.write(keys) } catch { lastFailure = String(describing: error); throw error }
     }
-    func type(_ text: String) throws { for unit in text.utf16 { try write(.character(unit)) } }
-    func press(_ key: Key) throws { try write(.key(key)) }
+    func type(_ text: String) throws { try write(text.utf16.map { .character($0) }) }
+    func press(_ key: Key) throws { try write([.key(key)]) }
 }
 #endif

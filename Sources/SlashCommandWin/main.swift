@@ -52,6 +52,10 @@ final class Resident {
     private var menuLookupPending = false
     private var front = Foreground(window: nil, pid: 0, supported: false)
     private var target: Target?
+    /// The Windows Terminal pane last seen with keyboard focus, for the menu (see WindowsAppModel.menuPane).
+    private var seenPane: (window: UInt, pane: String)?
+    /// The last window seen in front that is not the tray, hidden icons or this app (see WindowsAppModel.adoptsForeground).
+    private var lastReal: (window: HWND?, pid: DWORD) = (nil, 0)
     private var failures: [Int] = []
     private var warning: String?
 
@@ -73,8 +77,11 @@ final class Resident {
     func scheduleTrayRetry(needed: Bool) {
         if needed { SetTimer(window, 3, 5000, nil) } else { KillTimer(window, 3) }
     }
-    func refreshForeground(retry: Bool = false, reason: WindowsAppModel.RefreshReason = .foregroundChanged) {
-        let (observedWindow, pid) = Foreground.identity()
+    func refreshForeground(retry: Bool = false, reason: WindowsAppModel.RefreshReason = .foregroundChanged,
+                           identity: (HWND?, DWORD)? = nil) {
+        let (observedWindow, pid) = identity ?? Foreground.identity()
+        // Noted here, not in the refresh: a refresh still running drops the events that arrive meanwhile.
+        if identity == nil, !Foreground.capture(window: observedWindow, pid: pid).keepsSnapshot { lastReal = (observedWindow, pid) }
         // Do not leave global keys active while asynchronous process checks run.
         if pid != front.pid || !front.supported { hotKeys.unregister(window: self.window) }
         guard retry || refreshes == 0 else { return }
@@ -85,6 +92,8 @@ final class Resident {
             let loaded = Result { try ConfigStore().load() }
             let lookupTarget = canLookup && WindowsAppModel.looksUpTarget(app: captured.app, reason: reason)
             let found = captured.supported && lookupTarget ? try? Detector.target(app: captured.app, frontPID: captured.pid, frontWindow: captured.window.map { UInt(bitPattern: $0) }) : nil
+            let frontWindow = captured.window.map { UInt(bitPattern: $0) }
+            let pane = captured.supported && captured.app == "windowsterminal" ? frontWindow.flatMap(Detector.windowsTerminalFocusedPane) : nil
             self.mailbox.post {
                 self.refreshes -= 1
                 let (currentWindow, currentPID) = Foreground.identity()
@@ -97,14 +106,19 @@ final class Resident {
                     self.configError = text; self.config = nil
                 }
                 if stillFront { self.hotKeys.update(window: self.window, foreground: captured, config: self.config, retry: retry) }
-                if !captured.keepsSnapshot {
-                    if found != nil || captured.pid != self.front.pid || !captured.supported || (lookupTarget && stillFront) { self.target = found }
-                    if stillFront {
-                        self.failures = self.hotKeys.failed; self.warning = self.hotKeys.warning
-                    } else if captured.pid != self.front.pid {
-                        self.failures = []; self.warning = self.config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning }
-                    }
+                let latest = self.lastReal.window == captured.window && self.lastReal.pid == captured.pid
+                let adopt = WindowsAppModel.adoptsForeground(keepsSnapshot: captured.keepsSnapshot, latest: latest,
+                                                             windowExists: captured.window.map { IsWindow($0) } ?? false)
+                if adopt, let frontWindow, let pane { self.seenPane = (frontWindow, pane) }
+                if adopt {
+                    if found != nil || captured.pid != self.front.pid || !captured.supported || lookupTarget { self.target = found }
+                    if stillFront { self.failures = self.hotKeys.failed; self.warning = self.hotKeys.warning }
+                    else { self.failures = []; self.warning = self.config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning } }
                     self.front = captured
+                }
+                // Another window came to the front while this refresh ran, and its own refresh was dropped.
+                if !latest, !captured.keepsSnapshot, self.refreshes == 0 {
+                    self.refreshForeground(retry: true, reason: .foregroundChanged, identity: self.lastReal)
                 }
             }
         }
@@ -130,12 +144,14 @@ final class Resident {
         // A second click while the lookup runs would queue a second menu.
         guard !menuLookupPending else { return }
         let captured = front
+        let frontWindow = captured.window.map { UInt(bitPattern: $0) }
+        let pane = WindowsAppModel.menuPane(seen: seenPane, window: frontWindow)
         // The tray owns foreground now; resolve the cached terminal's pinned GUI, for display only.
         if ["wezterm", "windowsterminal"].contains(captured.app), !worker.busy,
-           WindowsAppModel.looksUpTarget(app: captured.app, reason: .menu) {
+           WindowsAppModel.looksUpTarget(app: captured.app, reason: .menu), captured.app != "windowsterminal" || pane != nil {
             menuLookupPending = true
             refreshQueue.async {
-                let found = try? Detector.windowsMenuTarget(app: captured.app, frontPID: captured.pid, frontWindow: captured.window.map { UInt(bitPattern: $0) })
+                let found = try? Detector.windowsMenuTarget(app: captured.app, frontPID: captured.pid, frontWindow: frontWindow, pane: pane)
                 self.mailbox.post {
                     self.menuLookupPending = false
                     if self.front.pid == captured.pid && self.front.app == captured.app { self.target = found }
