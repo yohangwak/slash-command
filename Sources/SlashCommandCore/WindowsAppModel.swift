@@ -5,10 +5,13 @@ public enum WindowsAppModel {
     public enum RefreshReason { case foregroundChanged, menu, tick }
 
     /// A WezTerm lookup launches CLI children; idle ticks must remain in-process.
+    /// Windows Terminal is resolved only when it comes to the front: UI Automation reports which pane has keyboard focus
+    /// only while its window is in front, and the tray holds the foreground when its menu opens. The menu keeps that target.
     public static func looksUpTarget(app: String, reason: RefreshReason) -> Bool {
         switch app {
         case "orca": return true
-        case "wezterm", "windowsterminal": return reason != .tick
+        case "wezterm": return reason != .tick
+        case "windowsterminal": return reason == .foregroundChanged
         default: return false
         }
     }
