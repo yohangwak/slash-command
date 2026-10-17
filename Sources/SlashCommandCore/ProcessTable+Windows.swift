@@ -58,6 +58,41 @@ enum ProcessTable {
         return (entries, parents)
     }
 
+    /// Every native process started under `root` (not `root` itself), with its command line and image.
+    /// Unlike `snapshot()` it does not require the Orca marker, and it reads no environment.
+    /// A descendant that cannot be opened is still listed, with an empty command line and image, so a caller can refuse instead of missing it.
+    static func descendants(of root: Int32) -> [Entry] {
+        var parents: [Int32: Int32] = [:]
+        let snapshot = CreateToolhelp32Snapshot(DWORD(TH32CS_SNAPPROCESS), 0)
+        guard snapshot != INVALID_HANDLE_VALUE, let snapshot else { return [] }
+        defer { CloseHandle(snapshot) }
+        var item = PROCESSENTRY32W()
+        item.dwSize = DWORD(MemoryLayout<PROCESSENTRY32W>.size)
+        var more = Process32FirstW(snapshot, &item)
+        while more {
+            parents[Int32(bitPattern: item.th32ProcessID)] = Int32(bitPattern: item.th32ParentProcessID)
+            more = Process32NextW(snapshot, &item)
+        }
+        var children: [Int32: [Int32]] = [:]
+        for (pid, parent) in parents where pid != parent { children[parent, default: []].append(pid) }
+        // A pid can be reused: a "child" that started before its parent belongs to someone else, and so does everything under it.
+        func started(_ pid: Int32) -> (UInt64?, String, String) {
+            guard let process = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, DWORD(bitPattern: pid)) else { return (nil, "", "") }
+            defer { CloseHandle(process) }
+            return (Proc.startTime(process), commandLine(process) ?? "", image(process))
+        }
+        guard let rootStart = started(root).0 else { return [] }
+        var queue = (children[root] ?? []).map { ($0, rootStart) }, seen: Set<Int32> = [root], entries: [Entry] = []
+        while let (pid, parentStart) = queue.popLast() {
+            guard seen.insert(pid).inserted else { continue }
+            let (start, command, executable) = started(pid)
+            if let start, start < parentStart { continue }
+            entries.append(Entry(pid: pid, parent: parents[pid] ?? 0, arguments: [command], environment: [], executable: executable))
+            if let start { queue += (children[pid] ?? []).map { ($0, start) } }
+        }
+        return entries
+    }
+
     static func commandLine(_ process: HANDLE) -> String? {
         guard let query else { return nil }
         var size: UInt32 = 0

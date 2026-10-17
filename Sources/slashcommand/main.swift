@@ -71,6 +71,9 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         guard let id = value(after: flag, in: args) else { continue }
         guard let host = make(id) else { throw SlashCommandError("--kitty needs --kitty-socket unix:/path.") }
         guard let named else { throw SlashCommandError("\(flag) needs --agent <agent>.") }
+        #if os(Windows)
+        if flag == "--wezterm" { return try Detector.windowsWezTermExplicit(pane: id, agent: named, socket: value(after: "--wezterm-socket", in: args)) }
+        #endif
         return Target(host: host, agent: named, label: id)
     }
     guard orca != nil || ghostty != nil else { return nil }

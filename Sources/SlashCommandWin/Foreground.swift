@@ -7,6 +7,7 @@ struct Foreground {
     let pid: DWORD
     let supported: Bool
     var keepsSnapshot: Bool = false
+    var app: String = "orca"
 
     /// Only window metadata; safe on the UI thread. Process-image I/O is in capture().
     static func identity() -> (HWND?, DWORD) {
@@ -29,7 +30,8 @@ struct Foreground {
         }
         return Foreground(window: window, pid: pid, supported: pid != 0 && WindowsAppModel.supports(image: path),
                           keepsSnapshot: WindowsAppModel.keepsSnapshot(pid: pid, ownPID: GetCurrentProcessId(), image: path,
-                              windowClass: String(decoding: name.prefix(Int(max(0, count))), as: UTF16.self)))
+                              windowClass: String(decoding: name.prefix(Int(max(0, count))), as: UTF16.self)),
+                          app: WindowsAppModel.app(image: path) ?? "")
     }
 }
 

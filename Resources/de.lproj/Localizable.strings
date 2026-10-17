@@ -313,3 +313,7 @@
 "The shortcut is not available right now." = "Dieses Tastenkürzel ist gerade nicht verfügbar.";
 
 "The presets file could not be read — choose Open presets file to fix it." = "Die Vorgabendatei konnte nicht gelesen werden – wählen Sie „Vorgabendatei öffnen“, um sie zu korrigieren.";
+
+"Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "Nicht gewechselt: In diesem WezTerm-Fenster laufen auch WSL, tmux oder eine entfernte Shell, und WezTerm sagt nicht, welcher Bereich welches Programm ausführt, daher lassen sich die eigenen Standardwerte des Agenten nicht schützen.";
+
+"Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "Nicht gewechselt: Dieser Agent speichert die Auswahl als Standard für neue Sitzungen, und WezTerm zeigt nicht, ob dieser Bereich auf diesem Computer läuft, daher ließe sich dieser Standard nicht zurücksetzen. Verwende Windows Terminal oder Orca, oder schalte keepDefaults aus.";

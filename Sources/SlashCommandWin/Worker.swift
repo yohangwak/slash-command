@@ -43,14 +43,14 @@ final class Worker {
                     let targetDetail = target.map { "\n" + WindowsAppModel.targetLine($0) } ?? ""
                     self.mailbox.post { completion(.init(loc("Press Enter to confirm") + targetDetail + "\n" + loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation).", model), kind: .awaiting)) }
                 }
-                let found = try Detector.target(app: "orca", frontPID: foreground.pid)
+                let found = try Detector.target(app: foreground.app, frontPID: foreground.pid)
                 target = found
                 trace.mark("find target")
                 let result = try id <= 9 ? switcher.apply(slot: id, to: found, deferFinalCheck: true)
                     : switcher.stepEffort(up: id == WindowsAppModel.effortUp, on: found)
                 Log.write(WindowsAppModel.appliedLine(id: id, result: result))
-                let notice = WindowsAppModel.hud(result: result, tabLagNote: !self.nudgedTabLag)
-                self.nudgedTabLag = true
+                let notice = WindowsAppModel.hud(result: result, tabLagNote: foreground.app == "orca" && !self.nudgedTabLag)
+                if foreground.app == "orca" { self.nudgedTabLag = true }
                 self.mailbox.post { completion(notice) }
                 if let before = result.pendingRestore, let late = switcher.verifyRestore(before) {
                     Log.write("⚠️ \(late)")
@@ -59,7 +59,7 @@ final class Worker {
             } catch {
                 Log.write("\(WindowsAppModel.errorPrefix(error)) \(label): \(error)")
                 var detail = target.map { "\n" + WindowsAppModel.targetLine($0) } ?? ""
-                if target != nil && !self.nudgedTabLag {
+                if target != nil && foreground.app == "orca" && !self.nudgedTabLag {
                     self.nudgedTabLag = true
                     detail += "\n" + loc("Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file.")
                 }

@@ -49,6 +49,7 @@ final class Resident {
     private var configError: String?
     private let refreshQueue = DispatchQueue(label: "slashcommand.windows.refresh")
     private var refreshes = 0
+    private var menuLookupPending = false
     private var front = Foreground(window: nil, pid: 0, supported: false)
     private var target: Target?
     private var failures: [Int] = []
@@ -72,17 +73,18 @@ final class Resident {
     func scheduleTrayRetry(needed: Bool) {
         if needed { SetTimer(window, 3, 5000, nil) } else { KillTimer(window, 3) }
     }
-    func refreshForeground(retry: Bool = false) {
+    func refreshForeground(retry: Bool = false, reason: WindowsAppModel.RefreshReason = .foregroundChanged) {
         let (observedWindow, pid) = Foreground.identity()
         // Do not leave global keys active while asynchronous process checks run.
         if pid != front.pid || !front.supported { hotKeys.unregister(window: self.window) }
         guard retry || refreshes == 0 else { return }
         refreshes += 1
-        let lookupTarget = !worker.busy
+        let canLookup = !worker.busy
         refreshQueue.async {
             let captured = Foreground.capture(window: observedWindow, pid: pid)
             let loaded = Result { try ConfigStore().load() }
-            let found = captured.supported && lookupTarget ? try? Detector.target(app: "orca", frontPID: captured.pid) : nil
+            let lookupTarget = canLookup && WindowsAppModel.looksUpTarget(app: captured.app, reason: reason)
+            let found = captured.supported && lookupTarget ? try? Detector.target(app: captured.app, frontPID: captured.pid) : nil
             self.mailbox.post {
                 self.refreshes -= 1
                 let (currentWindow, currentPID) = Foreground.identity()
@@ -125,15 +127,34 @@ final class Resident {
         return true
     }
     func openMenu() {
+        // A second click while the lookup runs would queue a second menu.
+        guard !menuLookupPending else { return }
+        let captured = front
+        // The tray owns foreground now; resolve the cached terminal's pinned GUI, for display only.
+        if captured.app == "wezterm", !worker.busy,
+           WindowsAppModel.looksUpTarget(app: captured.app, reason: .menu) {
+            menuLookupPending = true
+            refreshQueue.async {
+                let found = try? Detector.windowsMenuTarget(app: captured.app, frontPID: captured.pid)
+                self.mailbox.post {
+                    self.menuLookupPending = false
+                    if self.front.pid == captured.pid && self.front.app == captured.app { self.target = found }
+                    self.showMenu()
+                }
+            }
+        } else { showMenu() }
+    }
+    private func showMenu() {
         // Foreground events already cached the terminal before Explorer/our tray took focus.
         tray?.show(lines: WindowsAppModel.menu(config: config, supported: front.supported, agent: target?.agent,
-                                              terminal: target?.label, failures: failures, warning: warning))
+                                              terminal: target?.label, failures: failures, warning: warning,
+                                              appName: front.app == "wezterm" ? "WezTerm" : "Orca"))
     }
     func tick(_ id: Int) {
         if id == 3 { tray?.restore(); return }
         if quitting && !worker.busy { DestroyWindow(window); return }
         let wakeUp = WaitForSingleObject(wake, 0) == WAIT_OBJECT_0
-        refreshForeground(retry: wakeUp)
+        refreshForeground(retry: wakeUp, reason: .tick)
     }
     func stop() {
         KillTimer(window, 1); KillTimer(window, 3)
@@ -166,11 +187,12 @@ let args = Array(CommandLine.arguments.dropFirst())
 // GUI-subsystem launches create no console. Explicit command modes reuse the caller's console.
 if !args.isEmpty { _ = AttachConsole(DWORD(bitPattern: -1)) }
 if args == ["--version"] { output(WindowsAppModel.version); exit(0) }
-if args == ["--menu-text"] || args == ["--menu-text", "--as-if", "orca"] {
+if args == ["--menu-text"] || args == ["--menu-text", "--as-if", "orca"] || args == ["--menu-text", "--as-if", "wezterm"] {
     let config = try? ConfigStore().load()
-    let asOrca = args.count == 3
-    output(WindowsAppModel.menu(config: config, supported: asOrca, agent: nil,
-                               warning: config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning }).joined(separator: "\n"))
+    let supported = args.count == 3
+    output(WindowsAppModel.menu(config: config, supported: supported, agent: nil,
+                               warning: config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning },
+                               appName: args.last == "wezterm" ? "WezTerm" : "Orca").joined(separator: "\n"))
     exit(0)
 }
 if args.first == "--press" {

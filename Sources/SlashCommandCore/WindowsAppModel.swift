@@ -2,6 +2,17 @@ import Foundation
 
 /// Windows presentation decisions, kept independent of WinSDK for portable tests.
 public enum WindowsAppModel {
+    public enum RefreshReason { case foregroundChanged, menu, tick }
+
+    /// A WezTerm lookup launches CLI children; idle ticks must remain in-process.
+    public static func looksUpTarget(app: String, reason: RefreshReason) -> Bool {
+        switch app {
+        case "orca": return true
+        case "wezterm": return reason != .tick
+        default: return false
+        }
+    }
+
     public static let version = "0.1.0" // scripts/Info.plist
     public static let effortUp = 101
     public static let effortDown = 102
@@ -30,7 +41,15 @@ public enum WindowsAppModel {
     }
 
     public static func supports(image: String) -> Bool {
-        image.replacingOccurrences(of: "\\", with: "/").split(separator: "/").last?.lowercased() == "orca.exe"
+        app(image: image) != nil
+    }
+
+    public static func app(image: String) -> String? {
+        switch image.replacingOccurrences(of: "\\", with: "/").split(separator: "/").last?.lowercased() {
+        case "orca.exe": return "orca"
+        case "wezterm-gui.exe": return "wezterm"
+        default: return nil
+        }
     }
 
     public static func keyName(_ id: Int) -> String {
@@ -71,7 +90,7 @@ public enum WindowsAppModel {
         }
     }
     public static func targetLine(_ target: Target) -> String {
-        "\(target.agent.displayName) · Orca · \(displayLabel(target.label))"
+        "\(target.agent.displayName) · \(target.host.appName) · \(displayLabel(target.label))"
     }
 
     /// Agents put status symbols at the start of the tab title (Claude Code: `✳`, spinner frames in the Braille block).
@@ -89,7 +108,7 @@ public enum WindowsAppModel {
         var lines = [targetLine(result.target)]
         if !result.slotName.isEmpty { lines.append(result.slotName) }
         if let warning = result.warning { lines.append("⚠️ " + warning) }
-        if tabLagNote { lines.append(loc("Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file.")) }
+        if tabLagNote, case .orca = result.target.host { lines.append(loc("Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file.")) }
         return Notice(([result.summary] + lines).joined(separator: "\n"), kind: lines.count > 2 ? .multiline : .result)
     }
     public static func actionLabel(_ id: Int) -> String {
@@ -105,7 +124,7 @@ public enum WindowsAppModel {
         return nil
     }
     public static func appliedLine(id: Int, result: SwitchResult) -> String {
-        "applied \(actionLabel(id)): \(result.summary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@Orca\(result.warning.map { " ⚠️ " + $0 } ?? "")"
+        "applied \(actionLabel(id)): \(result.summary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")"
     }
     public static func hotkeysLine(previous: [Int], registered: [Int]) -> String? {
         guard previous != registered else { return nil }
@@ -124,8 +143,8 @@ public enum WindowsAppModel {
     }
 
     public static func menu(config: SlashCommandConfig?, supported: Bool, agent: Agent?, terminal: String? = nil,
-                            failures: [Int] = [], warning: String? = nil) -> [String] {
-        let status = supported ? "Orca · \(agent?.displayName ?? loc("Checking…"))\(terminal.map { " · " + displayLabel($0) } ?? "")"
+                            failures: [Int] = [], warning: String? = nil, appName: String = "Orca") -> [String] {
+        let status = supported ? "\(appName) · \(agent?.displayName ?? loc("Checking…"))\(terminal.map { " · " + displayLabel($0) } ?? "")"
             : loc("No supported terminal in front")
         var lines = [status]
         if let config {

@@ -8,10 +8,13 @@ extension Detector {
         var pid: DWORD = 0
         GetWindowThreadProcessId(window, &pid)
         let image = WindowsPaths.normalized(ProcessTable.executablePath(of: Int32(bitPattern: pid)))
-        return try target(app: image.split(separator: "/").last.map(String.init) ?? "")
+        return try target(app: image.split(separator: "/").last.map(String.init) ?? "", frontPID: pid)
     }
 
     public static func target(app: String) throws -> Target {
+        if ["wezterm", "wezterm.exe", "wezterm-gui.exe"].contains(app.lowercased()) {
+            return try windowsWezTerm()
+        }
         guard ["orca", "orca.exe"].contains(app.lowercased()) else {
             throw SlashCommandError(loc("This is not supported on this operating system yet."))
         }

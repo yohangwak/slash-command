@@ -304,7 +304,7 @@ public struct GrokDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw SlashCommandError(loc("Stopped: could not read the Grok terminal screen.")) }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the Grok terminal screen.")) }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -315,6 +315,7 @@ public struct GrokDriver {
 
     /// If the text we wrote remains in the input box, erase it (other text is left alone).
     private func clear(_ text: String) {
+        guard io.lastFailure == nil else { return }
         guard let lines = io.freshSnapshot()?.lines, let now = GrokScreen.draft(lines), !now.isEmpty, text.hasPrefix(now) || now.hasPrefix(text) else { return }
         for _ in 0..<(now.count + 2) {
             try? io.press(.backspace)
@@ -342,13 +343,14 @@ public struct GrokDriver {
                 sleep(250)
                 _ = defaults.restore(to: before)
             }
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
     }
 
     /// Starts only in the idle state with an empty input box. On failure it erases only the text we wrote and stops.
     private func applyUnguarded(_ preset: AgentPreset) throws -> Outcome {
-        guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the Grok terminal screen.")) }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Not switched: could not read the Grok terminal screen.")) }
         guard GrokScreen.box(first.lines) != nil else {
             throw SlashCommandError(loc("Not switched: the Grok input box is not visible. If a picker or a confirmation is showing, deal with that first."))
         }
@@ -396,6 +398,7 @@ public struct GrokDriver {
         guard model.efforts.indices.contains(next) else {
             var error = SlashCommandError(up ? loc("Already at the highest level (%@).", current) : loc("Already at the lowest level (%@).", current))
             error.nothingToDo = true
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
         return try run(command: "/model \(model.id) \(model.efforts[next])", expectedLabel: "\(model.name) (\(model.efforts[next]))", effort: model.efforts[next], first: first.lines)

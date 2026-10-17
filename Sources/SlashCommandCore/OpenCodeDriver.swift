@@ -265,7 +265,7 @@ public struct OpenCodeDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw SlashCommandError(loc("Stopped: could not read the OpenCode terminal screen.")) }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the OpenCode terminal screen.")) }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -276,6 +276,7 @@ public struct OpenCodeDriver {
 
     /// Closes open dialogs with Esc (at most 3 times) and erases text we wrote in the input box if any is left.
     private func back(clearing leftover: String? = nil) {
+        guard io.lastFailure == nil else { return }
         for _ in 0..<3 {
             guard let lines = io.freshSnapshot()?.lines, OpenCodeScreen.dialogTitle(lines) != nil else { break }
             try? io.press(.escape)
@@ -305,6 +306,7 @@ public struct OpenCodeDriver {
                 sleep(250)
                 _ = defaults.restore(to: before)
             }
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
     }
@@ -354,6 +356,7 @@ public struct OpenCodeDriver {
             if let before { sleep(250); _ = defaults.restore(to: before) }
             var error = SlashCommandError(loc("This OpenCode model has no effort levels (it has no variants)."))
             error.nothingToDo = true
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
         guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []),
@@ -365,6 +368,7 @@ public struct OpenCodeDriver {
         guard dialog.rows.indices.contains(next) else {
             var error = fail(up ? loc("Already at the highest level (%@).", dialog.rows[at].text) : loc("Already at the lowest level (%@).", dialog.rows[at].text))
             error.nothingToDo = true
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
         try chooseInOpenDialog(text: dialog.rows[next].text, failure: fail)
@@ -374,7 +378,7 @@ public struct OpenCodeDriver {
     // MARK: steps
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the OpenCode terminal screen.")) }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Not switched: could not read the OpenCode terminal screen.")) }
         guard OpenCodeScreen.idle(first.lines) else {
             if let draft = OpenCodeScreen.draft(first.lines), !draft.isEmpty {
                 throw SlashCommandError(loc("Not switched: there is text in the OpenCode input box. Send or clear it, then press again."))

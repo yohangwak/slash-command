@@ -43,3 +43,7 @@
 /* The shortcut is not available right now. — English comes from the sentence in code. */
 
 /* The presets file could not be read — choose Open presets file to fix it. — English comes from the sentence in code. */
+
+/* Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected. — English comes from the sentence in code. */
+
+/* Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off. — English comes from the sentence in code. */

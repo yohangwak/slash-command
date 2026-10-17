@@ -16,25 +16,12 @@ public enum Proc {
                            env: [String: String]? = nil,
                            cwd: String? = nil,
                            timeout: TimeInterval = 10) -> ProcResult {
-        let process = Process()
         #if os(Windows)
-        // CreateProcessW cannot start a batch file (npm and Electron shims are .cmd); it needs cmd.exe.
-        // cmd.exe re-parses the whole line, so only arguments made of plain characters are passed through it.
-        if let cmdArgs = batchArguments(exe, args) {
-            let comspec = ProcessInfo.processInfo.environment.first(where: { $0.key.uppercased() == "COMSPEC" })?.value
-                ?? #"C:\Windows\System32\cmd.exe"#
-            process.executableURL = URL(fileURLWithPath: comspec)
-            process.arguments = cmdArgs
-        } else if isBatchFile(exe) {
-            return ProcResult(status: -1, out: "", err: "\(exe): " + loc("Refused to run a batch file with arguments that cmd.exe could misread."), timedOut: false)
-        } else {
-            process.executableURL = URL(fileURLWithPath: exe)
-            process.arguments = args
-        }
+        return runWindows(exe, args, env: env, cwd: cwd, timeout: timeout)
         #else
+        let process = Process()
         process.executableURL = URL(fileURLWithPath: exe)
         process.arguments = args
-        #endif
         if let env { process.environment = env }
         if let cwd { process.currentDirectoryURL = URL(fileURLWithPath: cwd) }
         let outPipe = Pipe()
@@ -100,6 +87,7 @@ public enum Proc {
                           out: String(decoding: outData, as: UTF8.self),
                           err: String(decoding: errData, as: UTF8.self),
                           timedOut: timedOut)
+        #endif
     }
 
     /// Waits up to `seconds` for the signal that it finished. In case the signal is missed it does not hang: it waits in short slices and also checks `isRunning`.
@@ -150,6 +138,32 @@ public enum Proc {
         let plain = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.=:/\\")
         guard args.allSatisfy({ !$0.isEmpty && $0.unicodeScalars.allSatisfy(plain.contains) }) else { return nil }
         return ["/d", "/c", exe] + args
+    }
+
+    /// MSVCRT argument encoding: double backslashes only before a quote or a closing quote.
+    /// Works on Unicode scalars: a combining mark after a space or a quote makes one Character, which compares unequal to " " or "\"".
+    static func windowsQuote(_ argument: String) -> String {
+        guard argument.isEmpty || argument.unicodeScalars.contains(where: { $0 == " " || $0 == "\t" || $0 == "\"" }) else { return argument }
+        var result = "\"", slashes = 0
+        for scalar in argument.unicodeScalars {
+            if scalar == "\\" { slashes += 1; continue }
+            if scalar == "\"" {
+                result += String(repeating: "\\", count: slashes * 2 + 1) + "\""
+            } else {
+                result += String(repeating: "\\", count: slashes) + String(scalar)
+            }
+            slashes = 0
+        }
+        return result + String(repeating: "\\", count: slashes * 2) + "\""
+    }
+
+    static func windowsEnvironment(_ environment: [String: String]) -> [UInt16] {
+        let keys = environment.keys.sorted {
+            let a = $0.uppercased(), b = $1.uppercased()
+            return a == b ? $0 < $1 : a < b
+        }
+        let entries = keys.map { "\($0)=\(environment[$0]!)" }
+        return Array((entries.joined(separator: "\0") + "\0\0").utf16)
     }
 
     /// GUI apps do not inherit the login shell's PATH, so look in the usual install locations directly.

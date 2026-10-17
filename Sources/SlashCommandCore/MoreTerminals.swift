@@ -93,7 +93,11 @@ public struct WezTermIO: TerminalIO {
     public let pane: String
 
     private func run(_ arguments: [String]) -> ProcResult {
+        #if os(Windows)
+        return Proc.run(wezterm, ["cli", "--no-auto-start"] + arguments, env: WezTermFront.environment(socket: socket), timeout: 5)
+        #else
         Proc.run(wezterm, ["cli"] + arguments, env: WezTermFront.environment(socket: socket), timeout: 5)
+        #endif
     }
 
     private func write(_ bytes: String) throws {

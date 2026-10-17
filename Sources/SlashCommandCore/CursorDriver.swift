@@ -225,7 +225,7 @@ public struct CursorDriver {
         let started = DispatchTime.now()
         var simulated = 0
         while true {
-            guard let screen = io.freshSnapshot() else { throw SlashCommandError(loc("Stopped: could not read the Cursor terminal screen.")) }
+            guard let screen = io.freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the Cursor terminal screen.")) }
             if condition(screen.lines) { return screen.lines }
             let real = Int((DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000)
             if max(real, simulated) >= timeoutMs { return nil }
@@ -244,6 +244,7 @@ public struct CursorDriver {
 
     /// Closes whatever is open with Esc and returns to the input box (at most 3 times). Text left in the input box is erased only if `leftover` is ours.
     private func back(toIdleClearing leftover: String? = nil) {
+        guard io.lastFailure == nil else { return }
         for _ in 0..<3 {
             guard let lines = io.freshSnapshot()?.lines else { return }
             if CursorScreen.idle(lines) || CursorScreen.list(lines) != nil || CursorScreen.editor(lines) != nil {
@@ -279,6 +280,7 @@ public struct CursorDriver {
                 sleep(250)
                 _ = defaults.restore(to: before)
             }
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
     }
@@ -347,6 +349,7 @@ public struct CursorDriver {
         guard options.indices.contains(next) else {
             var error = fail(up ? loc("Already at the highest level (%@).", options[at].label) : loc("Already at the lowest level (%@).", options[at].label))
             error.nothingToDo = true
+            if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
         }
         let label = options[next].label
@@ -357,7 +360,7 @@ public struct CursorDriver {
     // MARK: steps
 
     private func start() throws {
-        guard let first = io.freshSnapshot() else { throw SlashCommandError(loc("Not switched: could not read the Cursor terminal screen.")) }
+        guard let first = io.freshSnapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Not switched: could not read the Cursor terminal screen.")) }
         guard CursorScreen.idle(first.lines) else {
             if let draft = CursorScreen.draft(first.lines), !draft.isEmpty {
                 throw SlashCommandError(loc("Not switched: there is text in the Cursor input box. Send or clear it, then press again."))
