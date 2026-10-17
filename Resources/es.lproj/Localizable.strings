@@ -322,7 +322,7 @@
 
 "The Windows Terminal pane or its agent changed. Press the shortcut again." = "El panel de Windows Terminal o su agente ha cambiado. Vuelva a pulsar el atajo.";
 
-"Could not uniquely match the focused Windows Terminal pane to a readable console. Keep at least three non-blank rows visible, return to the live screen, and try again." = "No se pudo asociar de forma única el panel enfocado de Windows Terminal con una consola legible. Muestre al menos tres líneas no vacías, vuelva a la pantalla en vivo e inténtelo de nuevo.";
+"Could not uniquely match the focused Windows Terminal pane to a readable console. Keep at least three non-blank rows or 60 non-whitespace characters visible, return to the live screen, and try again." = "No se pudo asociar de forma única el panel enfocado de Windows Terminal con una consola legible. Muestre al menos tres líneas no vacías o 60 caracteres que no sean espacios, vuelva a la pantalla en vivo e inténtelo de nuevo.";
 
 "This Windows Terminal pane runs as administrator. Run it without administrator privileges to switch its agent." = "Este panel de Windows Terminal se ejecuta como administrador. Ejecútelo sin privilegios de administrador para cambiar su agente.";
 
@@ -331,3 +331,4 @@
 "Not switched: this Windows Terminal pane's agent could not be identified as a local Windows process, so its own defaults cannot be protected (WSL, tmux and remote shells are not supported)." = "No se cambió: no se pudo identificar al agente de este panel de Windows Terminal como un proceso local de Windows, por lo que no se pueden proteger sus valores predeterminados (no se admiten WSL, tmux ni shells remotos).";
 
 "Use --console with a positive process ID and --agent <agent>." = "Use --console con un ID de proceso positivo y --agent <agent>.";
+"No Windows Terminal window is open." = "No hay ninguna ventana de Windows Terminal abierta.";

@@ -10,7 +10,7 @@ let products: [Product] = [
 let targets: [Target] = [
     .target(name: "CWindowsTerminal", linkerSettings: [.linkedLibrary("ole32"), .linkedLibrary("oleaut32"), .linkedLibrary("uiautomationcore"), .linkedLibrary("user32"), .linkedLibrary("uuid")]),
     .target(name: "SlashCommandCore", dependencies: ["CWindowsTerminal"]),
-    .target(name: "CWindowsConsoleFixture", path: "Tests/CWindowsConsoleFixture"),
+    .target(name: "CWindowsConsoleFixture", dependencies: ["CWindowsTerminal"], path: "Tests/CWindowsConsoleFixture"),
     .executableTarget(name: "WindowsConsoleFixture", dependencies: ["CWindowsConsoleFixture"], path: "Tests/WindowsConsoleFixture"),
     .executableTarget(name: "slashcommand", dependencies: ["SlashCommandCore"]),
     .executableTarget(name: "SlashCommandWin", dependencies: ["SlashCommandCore"],

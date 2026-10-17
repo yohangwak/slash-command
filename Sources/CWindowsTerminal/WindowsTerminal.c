@@ -4,90 +4,12 @@
 #define CINTERFACE
 #define COBJMACROS
 #include <windows.h>
-#include <UIAutomationClient.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <wchar.h>
 #include "CWindowsTerminal.h"
 
 void sc_free(void *p) { free(p); }
-
-// No window messages or synthetic keyboard input. UIA is read-only.
-int sc_focused_pane(uintptr_t window, uint16_t **text, uint16_t **identity, int *panes, int *focused) {
-    *text = NULL; *identity = NULL; *panes = 0; *focused = 0;
-    HRESULT init = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-    if (FAILED(init)) return 0;
-    IUIAutomation *uia = NULL;
-    IUIAutomationElement *root = NULL, *selected = NULL;
-    IUIAutomationCondition *condition = NULL;
-    IUIAutomationElementArray *elements = NULL;
-    IUIAutomationTextPattern *pattern = NULL;
-    IUIAutomationTextRangeArray *ranges = NULL;
-    SAFEARRAY *runtime = NULL;
-    wchar_t *joined = NULL, *token = NULL;
-    int ok = 0, length = 0;
-    if (FAILED(CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void **)&uia))) goto done;
-    if (FAILED(IUIAutomation_ElementFromHandle(uia, (UIA_HWND)window, &root))) goto done;
-    VARIANT value; VariantInit(&value); value.vt = VT_BSTR; value.bstrVal = SysAllocString(L"TermControl");
-    HRESULT hr = IUIAutomation_CreatePropertyCondition(uia, UIA_ClassNamePropertyId, value, &condition);
-    VariantClear(&value);
-    if (FAILED(hr) || FAILED(IUIAutomationElement_FindAll(root, TreeScope_Descendants, condition, &elements))) goto done;
-    if (FAILED(IUIAutomationElementArray_get_Length(elements, panes))) goto done;
-    for (int i = 0; i < *panes; i++) {
-        IUIAutomationElement *element = NULL; BOOL focus = FALSE;
-        if (FAILED(IUIAutomationElementArray_GetElement(elements, i, &element))) goto done;
-        hr = IUIAutomationElement_get_CurrentHasKeyboardFocus(element, &focus);
-        if (SUCCEEDED(hr) && focus) {
-            ++*focused;
-            if (selected) IUIAutomationElement_Release(selected);
-            selected = element;
-        } else IUIAutomationElement_Release(element);
-        if (FAILED(hr)) goto done;
-    }
-    if (*focused != 1 || !selected) goto done;
-    // The runtime ID pins the actual control, so a same-window pane change is caught even if screens become identical.
-    if (FAILED(IUIAutomationElement_GetRuntimeId(selected, &runtime)) || !runtime || SafeArrayGetDim(runtime) != 1) goto done;
-    LONG lower, upper;
-    if (FAILED(SafeArrayGetLBound(runtime, 1, &lower)) || FAILED(SafeArrayGetUBound(runtime, 1, &upper)) || upper < lower || upper - lower > 128) goto done;
-    token = calloc((size_t)(upper - lower + 1) * 16 + 1, sizeof(wchar_t));
-    if (!token) goto done;
-    for (LONG i = lower; i <= upper; i++) {
-        int part = 0; wchar_t buffer[20];
-        if (FAILED(SafeArrayGetElement(runtime, &i, &part))) goto done;
-        swprintf(buffer, 20, L"%d/", part); wcscat(token, buffer);
-    }
-    if (FAILED(IUIAutomationElement_GetCurrentPatternAs(selected, UIA_TextPatternId, &IID_IUIAutomationTextPattern, (void **)&pattern))) goto done;
-    if (FAILED(IUIAutomationTextPattern_GetVisibleRanges(pattern, &ranges)) || FAILED(IUIAutomationTextRangeArray_get_Length(ranges, &length)) || length < 1 || length > 4096) goto done;
-    size_t used = 0;
-    joined = calloc(1, sizeof(wchar_t));
-    if (!joined) goto done;
-    for (int i = 0; i < length; i++) {
-        IUIAutomationTextRange *range = NULL; BSTR segment = NULL;
-        if (FAILED(IUIAutomationTextRangeArray_GetElement(ranges, i, &range))) goto done;
-        hr = IUIAutomationTextRange_GetText(range, -1, &segment);
-        IUIAutomationTextRange_Release(range);
-        if (FAILED(hr)) { if (segment) SysFreeString(segment); goto done; }
-        size_t count = SysStringLen(segment);
-        if (used + count > 1048576) { SysFreeString(segment); goto done; }
-        wchar_t *grown = realloc(joined, (used + count + 1) * sizeof(wchar_t));
-        if (!grown) { SysFreeString(segment); goto done; }
-        joined = grown; memcpy(joined + used, segment, count * sizeof(wchar_t)); used += count; joined[used] = 0;
-        SysFreeString(segment);
-    }
-    *text = (uint16_t *)joined; joined = NULL;
-    *identity = (uint16_t *)token; token = NULL; ok = 1;
-done:
-    free(joined); free(token);
-    if (runtime) SafeArrayDestroy(runtime);
-    if (ranges) IUIAutomationTextRangeArray_Release(ranges);
-    if (pattern) IUIAutomationTextPattern_Release(pattern);
-    if (selected) IUIAutomationElement_Release(selected);
-    if (elements) IUIAutomationElementArray_Release(elements);
-    if (condition) IUIAutomationCondition_Release(condition);
-    if (root) IUIAutomationElement_Release(root);
-    if (uia) IUIAutomation_Release(uia);
-    CoUninitialize(); return ok;
-}
 
 struct SCChannel { HANDLE input, output, process; };
 static int put_line(HANDLE handle, const char *text) {
@@ -174,23 +96,47 @@ static uint64_t started(HANDLE process) {
     FILETIME c,e,k,u; if (!GetProcessTimes(process,&c,&e,&k,&u)) return 0;
     return ((uint64_t)c.dwHighDateTime << 32) | c.dwLowDateTime;
 }
-uint32_t *sc_console_members(SCConsole *c, uint32_t *count) {
-    (void)c; *count = 0; DWORD size = 64;
+static DWORD *console_ids(uint32_t *count) {
+    *count = 0; DWORD size = 64;
     for (int i = 0; i < 4; i++) {
         DWORD *ids = calloc(size, sizeof(DWORD)); if (!ids) return NULL;
         DWORD n = GetConsoleProcessList(ids, size);
         if (n && n <= size) {
             // The bridge is an implementation detail, not part of console identity.
             DWORD used = 0; for (DWORD j = 0; j < n; j++) if (ids[j] != GetCurrentProcessId()) ids[used++] = ids[j];
-            *count = used; return (uint32_t *)ids;
+            *count = used; return ids;
         }
         free(ids); if (!n || n > 65536) return NULL; size = n;
     }
     return NULL;
 }
+SCMember *sc_console_members(SCConsole *c, uint32_t *count) {
+    (void)c; *count = 0;
+    uint32_t n = 0; DWORD *ids = console_ids(&n);
+    if (!ids) return NULL;
+    SCMember *members = calloc(n ? n : 1, sizeof(*members));
+    if (!members) { free(ids); return NULL; }
+    uint32_t used = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, ids[i]);
+        uint64_t start = process ? started(process) : 0;
+        if (process) CloseHandle(process);
+        if (!start) {
+            uint32_t current_n = 0; DWORD *current = console_ids(&current_n);
+            if (!current) { free(ids); free(members); return NULL; }
+            int present = 0;
+            for (uint32_t j = 0; j < current_n; j++) if (current[j] == ids[i]) present = 1;
+            free(current);
+            if (!present) continue;
+            // Still a member but unreadable: preserve it; the parent must refuse, never infer a remote shell.
+        }
+        members[used].pid = ids[i]; members[used].start = start; used++;
+    }
+    free(ids); *count = used; return members;
+}
 int sc_console_valid(SCConsole *c) {
     if (!c || !c->pinned || WaitForSingleObject(c->pinned,0) != WAIT_TIMEOUT || started(c->pinned) != c->start) return 0;
-    uint32_t n = 0; uint32_t *members = sc_console_members(c, &n); int found = 0;
+    uint32_t n = 0; DWORD *members = console_ids(&n); int found = 0;
     for (uint32_t i = 0; i < n; i++) if (members[i] == c->pid) found = 1;
     free(members); return found;
 }

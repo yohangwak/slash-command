@@ -26,15 +26,53 @@ final class WindowsTerminalTests: XCTestCase {
     func testTrailingPaddingAndBlankRowsAreIgnored() {
         XCTAssertTrue(WindowsTerminalMatching.equal(console: "first   \r\nsecond\t\r\nthird \r\n  \r\n", visible: three + "\n\n"))
     }
-    func testLeadingAndInteriorSpacesRemainSignificant() {
-        XCTAssertFalse(WindowsTerminalMatching.equal(console: " first\nsecond\nthird", visible: three))
-        XCTAssertFalse(WindowsTerminalMatching.equal(console: "fi rst\nsecond\nthird", visible: three))
+    func testLeadingAndInteriorSpacesAreIgnored() {
+        XCTAssertTrue(WindowsTerminalMatching.equal(console: " first\nsecond\nthird", visible: three))
+        XCTAssertTrue(WindowsTerminalMatching.equal(console: "fi rst\nsecond\nthird", visible: three))
     }
-    func testInteriorBlankRowsRemainSignificant() { XCTAssertFalse(WindowsTerminalMatching.equal(console: "first\n\nsecond\nthird", visible: three)) }
+    func testInteriorBlankRowsAreIgnored() { XCTAssertTrue(WindowsTerminalMatching.equal(console: "first\n\nsecond\nthird", visible: three)) }
     func testKoreanAndCombiningMarksPreserved() {
         let text = "한글\ne\u{301}\nthird"
         XCTAssertTrue(WindowsTerminalMatching.equal(console: text, visible: text))
         XCTAssertFalse(WindowsTerminalMatching.equal(console: text, visible: "한글\né\nthird"))
+    }
+    func testSoftWrapped162CharactersAt60ColumnsMatchOneUIARow() {
+        let line = String(repeating: "0123456789", count: 16) + "ab"
+        let console = [String(line.prefix(60)), String(line.dropFirst(60).prefix(60)), String(line.suffix(42))].joined(separator: "\n")
+        XCTAssertTrue(WindowsTerminalMatching.equal(console: console, visible: line))
+    }
+    func testDifferentCharacterAnywhereInWrappedLineRefuses() {
+        let line = String(repeating: "a", count: 162)
+        for index in 0..<162 {
+            var units = Array(line); units[index] = "b"
+            XCTAssertFalse(WindowsTerminalMatching.equal(console: line, visible: String(units)), "offset \(index)")
+        }
+    }
+    func testWrappedEqualConsolesRemainAmbiguous() {
+        let line = String(repeating: "x", count: 162)
+        XCTAssertNil(WindowsTerminalMatching.uniqueMatch(consoles: [line, String(line.prefix(60)) + "\n" + String(line.dropFirst(60))], visible: line))
+    }
+    func testSixtyNonWhitespaceCharactersSuffice() {
+        let line = String(repeating: "x", count: 60)
+        XCTAssertTrue(WindowsTerminalMatching.equal(console: line, visible: line))
+    }
+    func testFiftyNineNonWhitespaceCharactersDoNotSuffice() {
+        let line = String(repeating: "x", count: 59)
+        XCTAssertFalse(WindowsTerminalMatching.equal(console: line, visible: line))
+    }
+    func testWhitespaceDoesNotCountTowardMinimumContent() {
+        let text = String(repeating: " ", count: 100) + "x\t\n\r"
+        XCTAssertFalse(WindowsTerminalMatching.equal(console: text, visible: text))
+    }
+    func testMinimumRowsAreUIARowsRatherThanConsoleWraps() {
+        XCTAssertFalse(WindowsTerminalMatching.equal(console: "a\nb\nc", visible: "abc"))
+    }
+    func testThreeShortUIARowsStillSufficeWhenConsoleJoinsThem() {
+        XCTAssertTrue(WindowsTerminalMatching.equal(console: "abc", visible: "a\nb\nc"))
+    }
+    func testAllWhitespaceRemovedWhileReplacementRuleSurvivesWrapping() {
+        XCTAssertTrue(WindowsTerminalMatching.equal(console: "f\ti r s t �\r\nsecond\nthird", visible: "first😀\nsecond\nthird"))
+        XCTAssertFalse(WindowsTerminalMatching.equal(console: "first �\nsecond\nthird", visible: "firstA\nsecond\nthird"))
     }
     func testAppImageRecognizesWindowsTerminalOnly() {
         for image in ["WindowsTerminal.exe", #"C:\Program Files\WindowsApps\Microsoft.WindowsTerminal\WINDOWSTERMINAL.EXE"#] {
@@ -56,6 +94,99 @@ final class WindowsTerminalTests: XCTestCase {
     }
 
     #if os(Windows)
+    func testUIASuccessWithNullOutPointersRefusesWithoutDereference() {
+        for stage in 1...9 { XCTAssertEqual(sc_test_uia_null(Int32(stage)), 1, "NULL stage \(stage)") }
+    }
+    func testUIAClientIsReusedAndReleasedOncePerIO() {
+        var milliseconds: Double = 0
+        XCTAssertEqual(sc_test_uia_reuse(1000, &milliseconds), 1)
+        print("B13 fake-provider focus check ms/write=\(milliseconds) (1000 reads, one COM client; excludes desktop provider latency)")
+    }
+    private final class FakeConsole: WindowsConsoleReading {
+        var text = "first\nsecond\nthird"
+        var writes: [WindowsConsoleKey] = []
+        let member = WindowsConsoleMember(pid: 7, start: 11)
+        func read() throws -> WindowsConsoleScreen { .init(text: text, members: [member]) }
+        func members() throws -> [WindowsConsoleMember] { [member] }
+        func pin(pid: Int32, start: UInt64) throws {
+            guard UInt32(bitPattern: pid) == member.pid, start == member.start else { throw WindowsTerminal.changed }
+        }
+        func write(_ key: WindowsConsoleKey) throws { writes.append(key) }
+    }
+    func testIdenticalHiddenConsolePlusUnreadableCandidateRefuses() throws {
+        let hidden = FakeConsole()
+        var read: [Int32] = []
+        XCTAssertThrowsError(try WindowsTerminal.matchedConsole(candidates: [1, 2], visible: hidden.text) { pid in
+            read.append(pid)
+            if pid == 2 { throw WindowsTerminal.unreadable }
+            return try hidden.read()
+        }) { XCTAssertEqual(String(describing: $0), String(describing: WindowsTerminal.unmatched)) }
+        XCTAssertEqual(read, [1, 2]); XCTAssertTrue(hidden.writes.isEmpty)
+    }
+    func testFirstUnreadableCandidateStopsEnumeration() throws {
+        var calls = 0
+        XCTAssertThrowsError(try WindowsTerminal.matchedConsole(candidates: [1, 2], visible: three) { _ in
+            calls += 1; throw WindowsTerminal.unreadable
+        })
+        XCTAssertEqual(calls, 1)
+    }
+    func testDuplicateProbesOfOneConsoleAreDeduplicated() throws {
+        let fake = FakeConsole()
+        XCTAssertEqual(try WindowsTerminal.matchedConsole(candidates: [1, 2], visible: three, read: { _ in try fake.read() }).text, three)
+    }
+    func testSamePaneLosesTextMatchBetweenKeysAndNoFurtherKeyIsSent() throws {
+        let fake = FakeConsole()
+        var target = Target(host: .windowsConsole(pid: 7, start: 11), agent: .claude, label: "fake")
+        target.windowsWindow = 123; target.windowsPaneIdentity = "pane"
+        var checks = 0
+        let io = try WindowsConsoleIO(target: target, bridge: fake, focused: { _ in
+            checks += 1
+            return .init(text: checks == 1 ? fake.text : "different\nsecond\nthird", identity: "pane")
+        }, validate: { _, agent, _ in (.init(agent: agent, pid: 7), 11) })
+        XCTAssertThrowsError(try io.type("ab"))
+        XCTAssertEqual(fake.writes, [.character(97)])
+        XCTAssertThrowsError(try io.press(.enter)); XCTAssertEqual(checks, 2)
+    }
+    func testFirstTextMismatchSendsNoKeyEvenForExplicitAppTarget() throws {
+        let fake = FakeConsole()
+        var target = Target(host: .windowsConsole(pid: 7, start: 11), agent: .claude, label: "fake")
+        target.windowsWindow = 123; target.windowsPaneIdentity = "pane"
+        let io = try WindowsConsoleIO(target: target, bridge: fake, focused: { _ in .init(text: "other\nsecond\nthird", identity: "pane") },
+                                     validate: { _, agent, _ in (.init(agent: agent, pid: 7), 11) })
+        XCTAssertThrowsError(try io.press(.enter)); XCTAssertTrue(fake.writes.isEmpty)
+    }
+    func testExitedMemberIsRecheckedAndDropped() throws {
+        let members = [WindowsConsoleMember(pid: 2, start: 10), .init(pid: 3, start: 20)]
+        var refreshed = 0
+        let identity = try WindowsTerminal.requireWindowsLocal(members: members, refresh: { refreshed += 1; return [members[0]] }, read: {
+            $0.pid == 2 ? self.entry(2, 1, "claude.exe") : nil
+        })
+        XCTAssertEqual(identity.0, .init(agent: .claude, pid: 2)); XCTAssertEqual(identity.1, 10); XCTAssertEqual(refreshed, 1)
+    }
+    func testCurrentUnreadableMemberRefusesAsUnreadable() {
+        let members = [WindowsConsoleMember(pid: 2, start: 10)]
+        XCTAssertThrowsError(try WindowsTerminal.requireWindowsLocal(members: members, refresh: { members }, read: { _ in nil })) {
+            XCTAssertEqual(String(describing: $0), String(describing: WindowsTerminal.unreadable))
+        }
+    }
+    func testReusedMemberPIDRefusesWithChangedStartTime() {
+        XCTAssertThrowsError(try WindowsTerminal.requireWindowsLocal(members: [.init(pid: 2, start: 10)], refresh: { [.init(pid: 2, start: 20)] }, read: { _ in nil })) {
+            XCTAssertEqual(String(describing: $0), String(describing: WindowsTerminal.changed))
+        }
+    }
+    func testUnreadableMemberWithoutStartTimeCannotBecomeIdentity() {
+        XCTAssertThrowsError(try WindowsTerminal.requireWindowsLocal(members: [.init(pid: 2, start: 0)], refresh: { [.init(pid: 2, start: 0)] }, read: { _ in XCTFail("no start time must never be read"); return nil }))
+    }
+    func testMissingInputBoxExplainsNotSwitchedRatherThanStopped() {
+        L10n.use(language: "en", directory: nil)
+        XCTAssertThrowsError(try WindowsTerminal.requireInput(text: "Permission required\n1. Allow\n2. Deny", agent: .claude)) {
+            XCTAssertEqual(String(describing: $0), "Not switched: the Claude Code input box is not visible. If a permission prompt or a picker is showing, deal with that first.")
+        }
+    }
+    func testMissingWTWindowHasSpecificDiagnostic() {
+        L10n.use(language: "en", directory: nil)
+        XCTAssertThrowsError(try WindowsTerminal.requireWindow(nil)) { XCTAssertEqual(String(describing: $0), "No Windows Terminal window is open.") }
+    }
     private func entry(_ pid: Int32, _ parent: Int32, _ command: String, _ image: String? = nil) -> ProcessTable.Entry {
         .init(pid: pid, parent: parent, arguments: [command], environment: [], executable: image ?? command.split(separator: " ").first.map(String.init) ?? "")
     }
@@ -180,7 +311,7 @@ final class WindowsTerminalTests: XCTestCase {
         }
         return (try XCTUnwrap(child, "create our own pseudoconsole"), result)
     }
-    private func waitReady(_ bridge: WindowsConsoleBridge) throws -> (text: String, members: [UInt32]) {
+    private func waitReady(_ bridge: WindowsConsoleBridge) throws -> WindowsConsoleScreen {
         for _ in 0..<100 {
             if let screen = try? bridge.read(), screen.text.contains("READY") { return screen }
             Thread.sleep(forTimeInterval: 0.02)
@@ -195,10 +326,21 @@ final class WindowsTerminalTests: XCTestCase {
     }
     private func fixtureIO(_ target: Target, bridge: WindowsConsoleBridge, foreground: @escaping () -> UInt?,
                            focused: @escaping (UInt) throws -> WindowsTerminal.Pane) throws -> WindowsConsoleIO {
-        try WindowsConsoleIO(target: target, bridge: bridge, foreground: foreground, focused: focused, validate: { members, agent in
-            guard case .windowsConsole(let pid, let start) = target.host, members.contains(UInt32(bitPattern: pid)) else { throw WindowsTerminal.changed }
+        try WindowsConsoleIO(target: target, bridge: bridge, foreground: foreground, focused: focused, validate: { members, agent, _ in
+            guard case .windowsConsole(let pid, let start) = target.host, members.contains(where: { $0.pid == UInt32(bitPattern: pid) }) else { throw WindowsTerminal.changed }
             return (.init(agent: agent, pid: pid), start)
         })
+    }
+    func testRealBridgeMembersIncludeTheOwnedProcessStartTime() throws {
+        let (console, result) = try fixture(records: 2)
+        defer { sc_test_console_close(console); try? FileManager.default.removeItem(at: result) }
+        let bridge = try WindowsConsoleBridge(pid: Int32(bitPattern: sc_test_console_pid(console)))
+        defer { bridge.close() }
+        let screen = try waitReady(bridge)
+        guard case .windowsConsole(let pid, let start) = try testTarget(console).host else { return XCTFail("console target") }
+        let member = try XCTUnwrap(screen.members.first { $0.pid == UInt32(bitPattern: pid) })
+        XCTAssertGreaterThan(member.start, 0); XCTAssertEqual(member.start, start)
+        XCTAssertEqual(try bridge.members(), screen.members)
     }
     func testIORechecksFocusedPaneBeforeEveryCharacter() throws {
         let (console, result) = try fixture(records: 2)
@@ -210,7 +352,7 @@ final class WindowsTerminalTests: XCTestCase {
         target.windowsWindow = 123; target.windowsPaneIdentity = "pane"; target.windowsRequiresForeground = true
         var checks = 0
         let io = try fixtureIO(target, bridge: bridge, foreground: { 123 }, focused: { _ in
-            checks += 1; return .init(text: "", identity: checks == 1 ? "pane" : "other")
+            checks += 1; return .init(text: try bridge.read().text, identity: checks == 1 ? "pane" : "other")
         })
         XCTAssertThrowsError(try io.type("ab"))
         XCTAssertEqual(checks, 2); XCTAssertEqual(io.lastFailure, String(describing: WindowsTerminal.changed))
@@ -271,7 +413,7 @@ final class WindowsTerminalTests: XCTestCase {
         defer { bridge.close() }
         let screen = try waitReady(bridge)
         XCTAssertTrue(screen.text.contains("B13 synthetic console")); XCTAssertTrue(screen.text.contains("한글")); XCTAssertTrue(screen.text.contains("e\u{301}"))
-        XCTAssertTrue(screen.members.contains(sc_test_console_pid(console)))
+        XCTAssertTrue(screen.members.contains { $0.pid == sc_test_console_pid(console) })
         for key in keys { try bridge.write(key) }
         XCTAssertTrue(bridge.close(), "bridge must exit normally after stdin EOF")
         for _ in 0..<200 {
