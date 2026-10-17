@@ -317,3 +317,18 @@
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "전환하지 않았습니다: 이 WezTerm 창에서 WSL·tmux·원격 셸도 돌고 있는데, WezTerm 은 어느 칸에서 어떤 프로그램이 도는지 알려 주지 않아 에이전트 자신의 기본값을 보호할 수 없습니다.";
 
 "Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "전환하지 않았습니다: 이 에이전트는 선택을 새 세션의 기본값으로 저장하는데, WezTerm 은 이 칸이 이 컴퓨터에서 도는지 알려 주지 않아 그 기본값을 되돌릴 수 없습니다. Windows Terminal 이나 Orca 를 쓰거나 keepDefaults 를 끄세요.";
+
+"Stopped: could not read the Windows Terminal pane." = "중단했습니다. Windows Terminal 창을 읽을 수 없습니다.";
+
+"The Windows Terminal pane or its agent changed. Press the shortcut again." = "Windows Terminal 창이나 에이전트가 바뀌었습니다. 단축키를 다시 누르세요.";
+
+"Could not uniquely match the focused Windows Terminal pane to a readable console. Keep at least three non-blank rows or 60 non-whitespace characters visible, return to the live screen, and try again." = "포커스된 Windows Terminal 창과 읽을 수 있는 콘솔을 하나로 특정하지 못했습니다. 비어 있지 않은 줄을 최소 세 줄 또는 공백을 제외한 문자 60개를 표시하고 실시간 화면으로 돌아온 뒤 다시 시도하세요.";
+
+"This Windows Terminal pane runs as administrator. Run it without administrator privileges to switch its agent." = "이 Windows Terminal 창은 관리자 권한으로 실행 중입니다. 에이전트를 전환하려면 관리자 권한 없이 실행하세요.";
+
+"Could not tell which Windows Terminal pane is in front. Close any palette or dialog and focus the agent's input box." = "어느 Windows Terminal 창에 포커스가 있는지 알 수 없습니다. 팔레트나 대화상자를 닫고 에이전트 입력란에 포커스를 두세요.";
+
+"Not switched: this Windows Terminal pane's agent could not be identified as a local Windows process, so its own defaults cannot be protected (WSL, tmux and remote shells are not supported)." = "전환하지 않았습니다. 이 Windows Terminal 창의 에이전트를 로컬 Windows 프로세스로 확인할 수 없어 기본값을 보호할 수 없습니다(WSL, tmux 및 원격 셸은 지원하지 않음).";
+
+"Use --console with a positive process ID and --agent <agent>." = "--console에 양의 프로세스 ID와 --agent <agent>를 지정하세요.";
+"No Windows Terminal window is open." = "열린 Windows Terminal 창이 없습니다.";

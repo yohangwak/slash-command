@@ -84,7 +84,7 @@ final class Resident {
             let captured = Foreground.capture(window: observedWindow, pid: pid)
             let loaded = Result { try ConfigStore().load() }
             let lookupTarget = canLookup && WindowsAppModel.looksUpTarget(app: captured.app, reason: reason)
-            let found = captured.supported && lookupTarget ? try? Detector.target(app: captured.app, frontPID: captured.pid) : nil
+            let found = captured.supported && lookupTarget ? try? Detector.target(app: captured.app, frontPID: captured.pid, frontWindow: captured.window.map { UInt(bitPattern: $0) }) : nil
             self.mailbox.post {
                 self.refreshes -= 1
                 let (currentWindow, currentPID) = Foreground.identity()
@@ -131,11 +131,11 @@ final class Resident {
         guard !menuLookupPending else { return }
         let captured = front
         // The tray owns foreground now; resolve the cached terminal's pinned GUI, for display only.
-        if captured.app == "wezterm", !worker.busy,
+        if ["wezterm", "windowsterminal"].contains(captured.app), !worker.busy,
            WindowsAppModel.looksUpTarget(app: captured.app, reason: .menu) {
             menuLookupPending = true
             refreshQueue.async {
-                let found = try? Detector.windowsMenuTarget(app: captured.app, frontPID: captured.pid)
+                let found = try? Detector.windowsMenuTarget(app: captured.app, frontPID: captured.pid, frontWindow: captured.window.map { UInt(bitPattern: $0) })
                 self.mailbox.post {
                     self.menuLookupPending = false
                     if self.front.pid == captured.pid && self.front.app == captured.app { self.target = found }
@@ -148,7 +148,7 @@ final class Resident {
         // Foreground events already cached the terminal before Explorer/our tray took focus.
         tray?.show(lines: WindowsAppModel.menu(config: config, supported: front.supported, agent: target?.agent,
                                               terminal: target?.label, failures: failures, warning: warning,
-                                              appName: front.app == "wezterm" ? "WezTerm" : "Orca"))
+                                              appName: front.app == "windowsterminal" ? "Windows Terminal" : front.app == "wezterm" ? "WezTerm" : "Orca"))
     }
     func tick(_ id: Int) {
         if id == 3 { tray?.restore(); return }
@@ -187,12 +187,12 @@ let args = Array(CommandLine.arguments.dropFirst())
 // GUI-subsystem launches create no console. Explicit command modes reuse the caller's console.
 if !args.isEmpty { _ = AttachConsole(DWORD(bitPattern: -1)) }
 if args == ["--version"] { output(WindowsAppModel.version); exit(0) }
-if args == ["--menu-text"] || args == ["--menu-text", "--as-if", "orca"] || args == ["--menu-text", "--as-if", "wezterm"] {
+if args == ["--menu-text"] || args == ["--menu-text", "--as-if", "orca"] || args == ["--menu-text", "--as-if", "wezterm"] || args == ["--menu-text", "--as-if", "windowsterminal"] {
     let config = try? ConfigStore().load()
     let supported = args.count == 3
     output(WindowsAppModel.menu(config: config, supported: supported, agent: nil,
                                warning: config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning },
-                               appName: args.last == "wezterm" ? "WezTerm" : "Orca").joined(separator: "\n"))
+                               appName: args.last == "windowsterminal" ? "Windows Terminal" : args.last == "wezterm" ? "WezTerm" : "Orca").joined(separator: "\n"))
     exit(0)
 }
 if args.first == "--press" {

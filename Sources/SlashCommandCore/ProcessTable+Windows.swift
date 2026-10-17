@@ -111,6 +111,53 @@ enum ProcessTable {
         }
     }
 
+    /// Snapshot only parent IDs, without reading any environment or command line.
+    private static func parentIDs() throws -> [Int32: Int32] {
+        let snapshot = CreateToolhelp32Snapshot(DWORD(TH32CS_SNAPPROCESS), 0)
+        guard snapshot != INVALID_HANDLE_VALUE, let snapshot else { throw WindowsTerminal.unmatched }
+        defer { CloseHandle(snapshot) }
+        var entry = PROCESSENTRY32W(), parents: [Int32: Int32] = [:]
+        entry.dwSize = DWORD(MemoryLayout<PROCESSENTRY32W>.size)
+        var more = Process32FirstW(snapshot, &entry)
+        guard more else { throw WindowsTerminal.unmatched }
+        while more {
+            parents[Int32(bitPattern: entry.th32ProcessID)] = Int32(bitPattern: entry.th32ParentProcessID)
+            more = Process32NextW(snapshot, &entry)
+        }
+        guard GetLastError() == ERROR_NO_MORE_FILES else { throw WindowsTerminal.unmatched }
+        return parents
+    }
+
+    /// Only direct children created after WT itself. No command-line reads during candidate discovery.
+    static func consoleCandidates(of root: Int32) throws -> [Entry] {
+        guard let process = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, DWORD(bitPattern: root)) else { throw WindowsTerminal.unmatched }
+        defer { CloseHandle(process) }
+        guard let rootStart = Proc.startTime(process) else { throw WindowsTerminal.unmatched }
+        return try parentIDs().compactMap { pid, parent in
+            guard parent == root, pid != root else { return nil }
+            guard let child = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, DWORD(bitPattern: pid)) else { throw WindowsTerminal.unmatched }
+            defer { CloseHandle(child) }
+            guard let start = Proc.startTime(child) else { throw WindowsTerminal.unmatched }
+            guard start >= rootStart else { return nil }
+            let executable = image(child)
+            guard !executable.isEmpty else { throw WindowsTerminal.unmatched }
+            return Entry(pid: pid, parent: parent, arguments: [], environment: [], executable: executable)
+        }
+    }
+
+    /// Read exactly the console members. An unreadable member remains visible to fail-closed identity checks.
+    static func consoleMember(_ member: WindowsConsoleMember) -> Entry? {
+        guard let parents = try? parentIDs(),
+              let process = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, member.pid) else { return nil }
+        defer { CloseHandle(process) }
+        guard member.start > 0, Proc.startTime(process) == member.start,
+              let command = commandLine(process), !command.isEmpty else { return nil }
+        let executable = image(process)
+        guard !executable.isEmpty else { return nil }
+        let pid = Int32(bitPattern: member.pid)
+        return Entry(pid: pid, parent: parents[pid] ?? 0, arguments: [command], environment: [], executable: executable)
+    }
+
     static func read(_ process: HANDLE, address: UInt, count: Int) -> [UInt8]? {
         guard address > 0, count > 0 else { return nil }
         var buffer = [UInt8](repeating: 0, count: count)

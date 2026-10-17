@@ -317,3 +317,18 @@
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "未切换：此 WezTerm 窗口中还运行着 WSL、tmux 或远程 shell，而 WezTerm 不会告知哪个窗格运行哪个程序，因此无法保护代理自身的默认设置。";
 
 "Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "未切换：此代理会把选择保存为新会话的默认值，而 WezTerm 不显示此窗格是否在这台电脑上运行，因此无法恢复该默认值。请使用 Windows Terminal 或 Orca，或关闭 keepDefaults。";
+
+"Stopped: could not read the Windows Terminal pane." = "已停止：无法读取 Windows Terminal 窗格。";
+
+"The Windows Terminal pane or its agent changed. Press the shortcut again." = "Windows Terminal 窗格或其代理已更改。请再次按快捷键。";
+
+"Could not uniquely match the focused Windows Terminal pane to a readable console. Keep at least three non-blank rows or 60 non-whitespace characters visible, return to the live screen, and try again." = "无法将获得焦点的 Windows Terminal 窗格唯一匹配到可读取的控制台。请至少显示三行非空白内容或 60 个非空白字符，返回实时屏幕后重试。";
+
+"This Windows Terminal pane runs as administrator. Run it without administrator privileges to switch its agent." = "此 Windows Terminal 窗格以管理员身份运行。请使用非管理员权限运行后再切换代理。";
+
+"Could not tell which Windows Terminal pane is in front. Close any palette or dialog and focus the agent's input box." = "无法确定哪个 Windows Terminal 窗格获得焦点。请关闭命令面板或对话框，并将焦点移至代理输入框。";
+
+"Not switched: this Windows Terminal pane's agent could not be identified as a local Windows process, so its own defaults cannot be protected (WSL, tmux and remote shells are not supported)." = "未切换：无法确认此 Windows Terminal 窗格中的代理是本地 Windows 进程，因此无法保护其默认设置（不支持 WSL、tmux 和远程 shell）。";
+
+"Use --console with a positive process ID and --agent <agent>." = "请为 --console 指定正的进程 ID，并指定 --agent <agent>。";
+"No Windows Terminal window is open." = "没有打开的 Windows Terminal 窗口。";
