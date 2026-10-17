@@ -65,11 +65,16 @@ enum WindowsWezTerm {
         screen.flatMap { Detector.agent(onScreen: $0) }
     }
 
-    /// A local pane's directory as WezTerm reports it on Windows: `file:///C:/…`, with no host.
-    /// A pane of an SSH or mux domain (WezTerm's own SSH library starts no local process) has a host or no directory at all.
-    static func isLocalWindowsDirectory(_ cwd: String) -> Bool {
-        guard cwd.hasPrefix("file:///") else { return false }
-        let path = Array(cwd.dropFirst("file:///".count))
+    /// A local pane's directory as WezTerm reports it on Windows: `file:///C:/…` (from the pane's process), or `file://<this computer>/C:/…`
+    /// (PowerShell's OSC 7 shell integration). A pane of an SSH or mux domain (WezTerm's own SSH library starts no local process)
+    /// names another host, a POSIX path, or no directory at all.
+    static func isLocalWindowsDirectory(_ cwd: String, computerName: String) -> Bool {
+        guard cwd.lowercased().hasPrefix("file://") else { return false }
+        let rest = cwd.dropFirst("file://".count)
+        guard let slash = rest.firstIndex(of: "/") else { return false }
+        let host = rest[..<slash].lowercased()
+        guard host.isEmpty || host == "localhost" || (!computerName.isEmpty && host == computerName.lowercased()) else { return false }
+        let path = Array(rest[rest.index(after: slash)...])
         return path.count >= 3 && path[0].isASCII && path[0].isLetter && path[1] == ":" && path[2] == "/"
     }
 
@@ -161,10 +166,18 @@ extension Detector {
         return Target(host: .wezterm(socket: pinned, pane: pane.id), agent: agent, label: pane.title)
     }
 
+    /// The NetBIOS name, as `%COMPUTERNAME%` and PowerShell's OSC 7 report it.
+    static func localComputerName() -> String {
+        var size = DWORD(256)
+        var buffer = [WCHAR](repeating: 0, count: Int(size))
+        guard GetComputerNameW(&buffer, &size) else { return "" }
+        return String(decoding: buffer.prefix(Int(size)), as: UTF16.self)
+    }
+
     /// See `WindowsWezTerm.locality`. The processes are those of the GUI that owns the socket; the selected pane itself must be a local one.
     static func requireWindowsLocal(_ agent: Agent, socket: String, pane: WindowsWezTerm.Pane) throws {
         let label = pane.title
-        let locality: WindowsWezTerm.Locality = !WindowsWezTerm.isLocalWindowsDirectory(pane.cwd) ? .mixed
+        let locality: WindowsWezTerm.Locality = !WindowsWezTerm.isLocalWindowsDirectory(pane.cwd, computerName: localComputerName()) ? .mixed
             : WindowsWezTerm.guiPID(socket: socket).map { WindowsWezTerm.locality(of: agent, gui: $0, entries: ProcessTable.descendants(of: $0)) } ?? .mixed
         switch locality {
         case .local: return

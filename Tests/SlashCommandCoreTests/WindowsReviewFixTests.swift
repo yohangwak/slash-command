@@ -77,12 +77,15 @@ final class WindowsReviewFixTests: XCTestCase {
     }
 
     func testOnlyALocalDrivePathCountsAsALocalPane() {
-        XCTAssertTrue(WindowsWezTerm.isLocalWindowsDirectory("file:///C:/test/"))
-        XCTAssertTrue(WindowsWezTerm.isLocalWindowsDirectory("file:///d:/"))
-        // SSH and mux domains: a host, a POSIX path or no directory at all.
-        for cwd in ["file://devbox/home/u/", "file:///home/u/", "file://wsl.localhost/Ubuntu/home/u", "", "C:/test", "file:///1:/x"] {
-            XCTAssertFalse(WindowsWezTerm.isLocalWindowsDirectory(cwd), cwd)
+        for cwd in ["file:///C:/test/", "file:///d:/", "file://MYPC/C:/repo/", "file://mypc/C:/repo/", "file://localhost/C:/x"] {
+            XCTAssertTrue(WindowsWezTerm.isLocalWindowsDirectory(cwd, computerName: "MYPC"), cwd)
         }
+        // SSH and mux domains: another host, a POSIX path or no directory at all.
+        for cwd in ["file://devbox/home/u/", "file://devbox/C:/repo/", "file:///home/u/", "file://wsl.localhost/Ubuntu/home/u",
+                    "file://MYPC/home/u", "", "C:/test", "file:///1:/x", "file://MYPC"] {
+            XCTAssertFalse(WindowsWezTerm.isLocalWindowsDirectory(cwd, computerName: "MYPC"), cwd)
+        }
+        XCTAssertFalse(WindowsWezTerm.isLocalWindowsDirectory("file://MYPC/C:/repo/", computerName: ""))
         let pane = WindowsWezTerm.pane(in: Data(#"[{"pane_id":3,"title":"t","cwd":"file://devbox/home/u/"}]"#.utf8), id: 3)
         XCTAssertEqual(pane?.cwd, "file://devbox/home/u/")
     }
