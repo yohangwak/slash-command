@@ -315,3 +315,5 @@
 "The presets file could not be read — choose Open presets file to fix it." = "프리셋 파일을 읽을 수 없습니다 — «프리셋 파일 열기» 를 눌러 고치세요.";
 
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "전환하지 않았습니다: 이 WezTerm 창에서 WSL·tmux·원격 셸도 돌고 있는데, WezTerm 은 어느 칸에서 어떤 프로그램이 도는지 알려 주지 않아 에이전트 자신의 기본값을 보호할 수 없습니다.";
+
+"Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "전환하지 않았습니다: 이 에이전트는 선택을 새 세션의 기본값으로 저장하는데, WezTerm 은 이 칸이 이 컴퓨터에서 도는지 알려 주지 않아 그 기본값을 되돌릴 수 없습니다. Windows Terminal 이나 Orca 를 쓰거나 keepDefaults 를 끄세요.";

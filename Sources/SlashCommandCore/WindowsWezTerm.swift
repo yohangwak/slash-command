@@ -130,6 +130,8 @@ extension Detector {
         try requireWindowsLocal(agent, socket: socket, pane: pane)
         var target = Target(host: .wezterm(socket: socket, pane: pane.id), agent: agent, label: pane.title)
         target.windowsFrontPID = frontPID
+        // The checks above make a remote pane unlikely, not impossible (a remote Windows mux pane reports a drive path too).
+        target.defaultsAreLocal = false
         return target
     }
 
@@ -163,7 +165,9 @@ extension Detector {
             throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "WezTerm", "cli list"))
         }
         try requireWindowsLocal(agent, socket: pinned, pane: pane)
-        return Target(host: .wezterm(socket: pinned, pane: pane.id), agent: agent, label: pane.title)
+        var target = Target(host: .wezterm(socket: pinned, pane: pane.id), agent: agent, label: pane.title)
+        target.defaultsAreLocal = false
+        return target
     }
 
     /// The NetBIOS name, as `%COMPUTERNAME%` and PowerShell's OSC 7 report it.

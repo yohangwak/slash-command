@@ -315,3 +315,5 @@
 "The presets file could not be read — choose Open presets file to fix it." = "Impossible de lire le fichier des préréglages — choisissez « Ouvrir le fichier des préréglages » pour le corriger.";
 
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "Changement non effectué : cette fenêtre WezTerm exécute aussi WSL, tmux ou un shell distant, et WezTerm n’indique pas quel panneau exécute quel programme ; les valeurs par défaut propres à l’agent ne peuvent donc pas être protégées.";
+
+"Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "Changement non effectué : cet agent enregistre le choix comme valeur par défaut des nouvelles sessions, et WezTerm n’indique pas si ce panneau s’exécute sur cet ordinateur ; cette valeur par défaut ne pourrait donc pas être rétablie. Utilisez Windows Terminal ou Orca, ou désactivez keepDefaults.";

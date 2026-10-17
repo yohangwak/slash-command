@@ -280,6 +280,12 @@ public struct Switcher {
     }
 
     /// If `deferFinalCheck` is true, puts the default back only once and returns; the caller shows the notification and then calls `verifyRestore`.
+    /// A switch that writes the agent's defaults file, with keepDefaults on, needs that file to be the one this app restores.
+    private func requireRestorableDefaults(_ target: Target) throws {
+        guard config.keepDefaults, !target.defaultsAreLocal else { return }
+        throw SlashCommandError(loc("Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off."))
+    }
+
     public func apply(slot: Int, to target: Target, deferFinalCheck: Bool = false) throws -> SwitchResult {
         trace?.mark("ready")
         let planned = try plan(slot: slot, agent: target.agent)
@@ -288,6 +294,7 @@ public struct Switcher {
         let io: TerminalIO = trace.map { TracingIO(base: raw, trace: $0) } ?? raw
 
         if target.agent.usesDriver {
+            try requireRestorableDefaults(target)
             let traced = trace
             let timed: (Int) -> Void = { ms in self.sleep(ms); traced?.mark("wait(\(ms))") }
             let warning: String?
@@ -319,6 +326,7 @@ public struct Switcher {
         // In a terminal whose screen lags behind (Ghostty), the claude picker takes 0.5 seconds per step (measured 2.4 to 3.8 seconds).
         // There, the command approach, which uses the defaults file changing as the signal instead of the screen, is faster.
         if target.agent == .claude, io.screenLagMs > 0, planned.fallback != nil {
+            try requireRestorableDefaults(target)
             return try applyCommands(planned, io: io, target: target, screen: first, sleep: timedSleep, deferFinalCheck: deferFinalCheck)
         }
         do {
@@ -334,6 +342,7 @@ public struct Switcher {
             // The picker closed and we are back at the input box. Nothing changed, so do it again with commands.
             trace?.mark("command instead of picker (\(error.message))")
         }
+        try requireRestorableDefaults(target)
         return try applyCommands(planned, io: io, target: target, screen: try readyScreen(io, target: target),
                                  sleep: timedSleep, deferFinalCheck: deferFinalCheck)
     }
@@ -346,6 +355,7 @@ public struct Switcher {
         let traced = trace
         let timedSleep: (Int) -> Void = { ms in self.sleep(ms); traced?.mark("wait(\(ms))") }
         if target.agent.usesDriver {
+            try requireRestorableDefaults(target)
             let warning: String?
             let confirmations: [String]
             if target.agent == .grok {

@@ -32,6 +32,8 @@ public struct Target: Equatable, Sendable {
     #if os(Windows)
     var windowsFrontPID: Int32? = nil
     #endif
+    /// Whether the defaults file this app reads and restores is the agent's own, that is, the agent is known to run on this computer.
+    public var defaultsAreLocal = true
 
     public init(host: TerminalHost, agent: Agent, label: String) {
         self.host = host

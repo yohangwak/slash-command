@@ -136,6 +136,20 @@ final class WindowsReviewFixTests: XCTestCase {
         XCTAssertTrue(io.keys.isEmpty)
     }
 
+    func testDefaultsWritingSwitchNeedsALocalAgentWhenDefaultsAreKept() {
+        for agent in [Agent.grok, .cursor, .antigravity, .opencode] {
+            let io = FailedIO()
+            let switcher = Switcher(config: .starter, makeIO: { _ in io })
+            var target = Target(host: .wezterm(socket: "test", pane: "7"), agent: agent, label: "test")
+            target.defaultsAreLocal = false
+            XCTAssertThrowsError(try switcher.stepEffort(up: true, on: target)) {
+                XCTAssertTrue(String(describing: $0).contains("that default could not be put back"), "\(agent)")
+            }
+            XCTAssertTrue(io.keys.isEmpty)
+        }
+        XCTAssertTrue(Target(host: .wezterm(socket: "test", pane: "7"), agent: .grok, label: "test").defaultsAreLocal)
+    }
+
     func testRunnerPreservesTargetFailureAndDoesNotEscape() {
         let io = FailedIO()
         let runner = Runner(io: io, sleep: { _ in })
