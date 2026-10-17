@@ -317,3 +317,17 @@
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "Nicht gewechselt: In diesem WezTerm-Fenster laufen auch WSL, tmux oder eine entfernte Shell, und WezTerm sagt nicht, welcher Bereich welches Programm ausführt, daher lassen sich die eigenen Standardwerte des Agenten nicht schützen.";
 
 "Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "Nicht gewechselt: Dieser Agent speichert die Auswahl als Standard für neue Sitzungen, und WezTerm zeigt nicht, ob dieser Bereich auf diesem Computer läuft, daher ließe sich dieser Standard nicht zurücksetzen. Verwende Windows Terminal oder Orca, oder schalte keepDefaults aus.";
+
+"Stopped: could not read the Windows Terminal pane." = "Angehalten: Der Windows-Terminal-Bereich konnte nicht gelesen werden.";
+
+"The Windows Terminal pane or its agent changed. Press the shortcut again." = "Der Windows-Terminal-Bereich oder sein Agent hat sich geändert. Drücken Sie die Tastenkombination erneut.";
+
+"Could not uniquely match the focused Windows Terminal pane to a readable console. Keep at least three non-blank rows visible, return to the live screen, and try again." = "Der fokussierte Windows-Terminal-Bereich konnte keiner lesbaren Konsole eindeutig zugeordnet werden. Zeigen Sie mindestens drei nicht leere Zeilen an, kehren Sie zur aktuellen Bildschirmausgabe zurück und versuchen Sie es erneut.";
+
+"This Windows Terminal pane runs as administrator. Run it without administrator privileges to switch its agent." = "Dieser Windows-Terminal-Bereich wird als Administrator ausgeführt. Starten Sie ihn ohne Administratorrechte, um seinen Agenten zu wechseln.";
+
+"Could not tell which Windows Terminal pane is in front. Close any palette or dialog and focus the agent's input box." = "Der fokussierte Windows-Terminal-Bereich konnte nicht bestimmt werden. Schließen Sie Paletten oder Dialoge und fokussieren Sie das Eingabefeld des Agenten.";
+
+"Not switched: this Windows Terminal pane's agent could not be identified as a local Windows process, so its own defaults cannot be protected (WSL, tmux and remote shells are not supported)." = "Nicht gewechselt: Der Agent dieses Windows-Terminal-Bereichs konnte nicht als lokaler Windows-Prozess erkannt werden, daher lassen sich seine Standardwerte nicht schützen (WSL, tmux und Remote-Shells werden nicht unterstützt).";
+
+"Use --console with a positive process ID and --agent <agent>." = "Verwenden Sie --console mit einer positiven Prozess-ID und --agent <agent>.";

@@ -317,3 +317,17 @@
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "No se cambió: esta ventana de WezTerm también ejecuta WSL, tmux o un shell remoto, y WezTerm no indica qué panel ejecuta cada programa, así que no se pueden proteger los valores predeterminados del propio agente.";
 
 "Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "No se cambió: este agente guarda la elección como valor predeterminado de las sesiones nuevas, y WezTerm no indica si este panel se ejecuta en este equipo, así que ese valor no se podría restaurar. Usa Windows Terminal u Orca, o desactiva keepDefaults.";
+
+"Stopped: could not read the Windows Terminal pane." = "Se detuvo: no se pudo leer el panel de Windows Terminal.";
+
+"The Windows Terminal pane or its agent changed. Press the shortcut again." = "El panel de Windows Terminal o su agente ha cambiado. Vuelva a pulsar el atajo.";
+
+"Could not uniquely match the focused Windows Terminal pane to a readable console. Keep at least three non-blank rows visible, return to the live screen, and try again." = "No se pudo asociar de forma única el panel enfocado de Windows Terminal con una consola legible. Muestre al menos tres líneas no vacías, vuelva a la pantalla en vivo e inténtelo de nuevo.";
+
+"This Windows Terminal pane runs as administrator. Run it without administrator privileges to switch its agent." = "Este panel de Windows Terminal se ejecuta como administrador. Ejecútelo sin privilegios de administrador para cambiar su agente.";
+
+"Could not tell which Windows Terminal pane is in front. Close any palette or dialog and focus the agent's input box." = "No se pudo determinar qué panel de Windows Terminal tiene el foco. Cierre las paletas o los diálogos y enfoque el cuadro de entrada del agente.";
+
+"Not switched: this Windows Terminal pane's agent could not be identified as a local Windows process, so its own defaults cannot be protected (WSL, tmux and remote shells are not supported)." = "No se cambió: no se pudo identificar al agente de este panel de Windows Terminal como un proceso local de Windows, por lo que no se pueden proteger sus valores predeterminados (no se admiten WSL, tmux ni shells remotos).";
+
+"Use --console with a positive process ID and --agent <agent>." = "Use --console con un ID de proceso positivo y --agent <agent>.";

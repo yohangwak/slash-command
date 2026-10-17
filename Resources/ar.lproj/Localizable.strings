@@ -317,3 +317,17 @@
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "لم يتم التبديل: تشغّل نافذة WezTerm هذه أيضًا WSL أو tmux أو صدفة بعيدة، ولا يخبر WezTerm بالبرنامج الذي يعمل في كل جزء، لذا لا يمكن حماية الإعدادات الافتراضية الخاصة بالوكيل.";
 
 "Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "لم يتم التبديل: يحفظ هذا الوكيل الاختيار كقيمة افتراضية للجلسات الجديدة، ولا يُظهر WezTerm ما إذا كان هذا الجزء يعمل على هذا الحاسوب، لذا لا يمكن إرجاع تلك القيمة الافتراضية. استخدم Windows Terminal أو Orca، أو أوقف keepDefaults.";
+
+"Stopped: could not read the Windows Terminal pane." = "توقف: تعذرت قراءة جزء Windows Terminal.";
+
+"The Windows Terminal pane or its agent changed. Press the shortcut again." = "تغيّر جزء Windows Terminal أو وكيله. اضغط الاختصار مرة أخرى.";
+
+"Could not uniquely match the focused Windows Terminal pane to a readable console. Keep at least three non-blank rows visible, return to the live screen, and try again." = "تعذرت مطابقة جزء Windows Terminal الذي عليه التركيز بوحدة تحكم واحدة قابلة للقراءة. أظهر ثلاثة أسطر غير فارغة على الأقل، وعد إلى الشاشة الحالية ثم أعد المحاولة.";
+
+"This Windows Terminal pane runs as administrator. Run it without administrator privileges to switch its agent." = "يعمل جزء Windows Terminal هذا بصلاحيات المسؤول. شغّله دون صلاحيات المسؤول لتبديل وكيله.";
+
+"Could not tell which Windows Terminal pane is in front. Close any palette or dialog and focus the agent's input box." = "تعذر تحديد جزء Windows Terminal الذي عليه التركيز. أغلق أي لوحة أو مربع حوار وضع التركيز في حقل إدخال الوكيل.";
+
+"Not switched: this Windows Terminal pane's agent could not be identified as a local Windows process, so its own defaults cannot be protected (WSL, tmux and remote shells are not supported)." = "لم يتم التبديل: تعذر تحديد وكيل جزء Windows Terminal هذا كعملية Windows محلية، لذلك لا يمكن حماية إعداداته الافتراضية (WSL وtmux والأصداف البعيدة غير مدعومة).";
+
+"Use --console with a positive process ID and --agent <agent>." = "استخدم --console مع معرّف عملية موجب و--agent <agent>.";

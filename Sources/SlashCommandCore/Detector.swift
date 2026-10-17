@@ -11,6 +11,9 @@ public enum TerminalHost: Equatable, Sendable {
     case wezterm(socket: String?, pane: String)
     /// The `unique id` of an iTerm2 session.
     case iterm(sessionID: String)
+    #if os(Windows)
+    case windowsConsole(pid: Int32, start: UInt64)
+    #endif
 
     public var appName: String {
         switch self {
@@ -20,6 +23,9 @@ public enum TerminalHost: Equatable, Sendable {
         case .kitty: return "kitty"
         case .wezterm: return "WezTerm"
         case .iterm: return "iTerm2"
+        #if os(Windows)
+        case .windowsConsole: return "Windows Terminal"
+        #endif
         }
     }
 }
@@ -31,6 +37,9 @@ public struct Target: Equatable, Sendable {
     public let label: String
     #if os(Windows)
     var windowsFrontPID: Int32? = nil
+    var windowsWindow: UInt? = nil
+    var windowsPaneIdentity: String? = nil
+    var windowsRequiresForeground = false
     #endif
     /// Whether the defaults file this app reads and restores is the agent's own, that is, the agent is known to run on this computer.
     public var defaultsAreLocal = true

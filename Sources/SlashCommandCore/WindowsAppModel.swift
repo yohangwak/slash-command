@@ -8,7 +8,7 @@ public enum WindowsAppModel {
     public static func looksUpTarget(app: String, reason: RefreshReason) -> Bool {
         switch app {
         case "orca": return true
-        case "wezterm": return reason != .tick
+        case "wezterm", "windowsterminal": return reason != .tick
         default: return false
         }
     }
@@ -48,6 +48,7 @@ public enum WindowsAppModel {
         switch image.replacingOccurrences(of: "\\", with: "/").split(separator: "/").last?.lowercased() {
         case "orca.exe": return "orca"
         case "wezterm-gui.exe": return "wezterm"
+        case "windowsterminal.exe": return "windowsterminal"
         default: return nil
         }
     }

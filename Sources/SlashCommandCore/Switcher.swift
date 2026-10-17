@@ -169,6 +169,9 @@ public struct Switcher {
 
     public static func terminalIO(for target: Target) throws -> TerminalIO {
         switch target.host {
+        #if os(Windows)
+        case .windowsConsole: return try WindowsConsoleIO(target: target)
+        #endif
         case .ghostty(let terminalID):
             #if os(macOS)
             return GhosttyIO(terminalID: terminalID)
@@ -216,6 +219,9 @@ public struct Switcher {
 
     static func unreadable(_ host: TerminalHost) -> String {
         switch host {
+        #if os(Windows)
+        case .windowsConsole: return String(describing: WindowsTerminal.unreadable)
+        #endif
         case .ghostty:
             return loc("Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → %@.", SettingsNames.accessibility)
         case .orca:

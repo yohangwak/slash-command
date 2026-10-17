@@ -111,6 +111,48 @@ enum ProcessTable {
         }
     }
 
+    /// Snapshot only parent IDs, without reading any environment or command line.
+    private static func parentIDs() -> [Int32: Int32] {
+        let snapshot = CreateToolhelp32Snapshot(DWORD(TH32CS_SNAPPROCESS), 0)
+        guard snapshot != INVALID_HANDLE_VALUE, let snapshot else { return [:] }
+        defer { CloseHandle(snapshot) }
+        var entry = PROCESSENTRY32W(), parents: [Int32: Int32] = [:]
+        entry.dwSize = DWORD(MemoryLayout<PROCESSENTRY32W>.size)
+        var more = Process32FirstW(snapshot, &entry)
+        while more {
+            parents[Int32(bitPattern: entry.th32ProcessID)] = Int32(bitPattern: entry.th32ParentProcessID)
+            more = Process32NextW(snapshot, &entry)
+        }
+        return parents
+    }
+
+    /// Only direct children created after WT itself. No command-line reads during candidate discovery.
+    static func consoleCandidates(of root: Int32) -> [Entry] {
+        guard let process = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, DWORD(bitPattern: root)) else { return [] }
+        defer { CloseHandle(process) }
+        guard let rootStart = Proc.startTime(process) else { return [] }
+        return parentIDs().compactMap { pid, parent in
+            guard parent == root, pid != root,
+                  let child = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, DWORD(bitPattern: pid)) else { return nil }
+            defer { CloseHandle(child) }
+            guard let start = Proc.startTime(child), start >= rootStart else { return nil }
+            return Entry(pid: pid, parent: parent, arguments: [], environment: [], executable: image(child))
+        }
+    }
+
+    /// Read exactly the console members. An unreadable member remains visible to fail-closed identity checks.
+    static func members(_ ids: [UInt32]) -> [Entry] {
+        let parents = parentIDs()
+        return ids.map { id in
+            let pid = Int32(bitPattern: id)
+            guard let process = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, id) else {
+                return Entry(pid: pid, parent: parents[pid] ?? 0, arguments: [], environment: [], executable: "")
+            }
+            defer { CloseHandle(process) }
+            return Entry(pid: pid, parent: parents[pid] ?? 0, arguments: [commandLine(process) ?? ""], environment: [], executable: image(process))
+        }
+    }
+
     static func read(_ process: HANDLE, address: UInt, count: Int) -> [UInt8]? {
         guard address > 0, count > 0 else { return nil }
         var buffer = [UInt8](repeating: 0, count: count)

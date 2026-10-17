@@ -8,10 +8,11 @@ extension Detector {
         var pid: DWORD = 0
         GetWindowThreadProcessId(window, &pid)
         let image = WindowsPaths.normalized(ProcessTable.executablePath(of: Int32(bitPattern: pid)))
-        return try target(app: image.split(separator: "/").last.map(String.init) ?? "", frontPID: pid)
+        return try target(app: image.split(separator: "/").last.map(String.init) ?? "", frontPID: pid, frontWindow: UInt(bitPattern: window))
     }
 
     public static func target(app: String) throws -> Target {
+        if ["windowsterminal", "windowsterminal.exe"].contains(app.lowercased()) { return try windowsTerminal() }
         if ["wezterm", "wezterm.exe", "wezterm-gui.exe"].contains(app.lowercased()) {
             return try windowsWezTerm()
         }

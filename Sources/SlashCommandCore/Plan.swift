@@ -10,6 +10,9 @@ public enum Key: Equatable, Sendable {
     case backspace
     case tab
     case ctrl(Character)
+    #if os(Windows)
+    case home, end, pageUp, pageDown
+    #endif
 
     /// The bytes written to the pty as-is.
     public var bytes: String {
@@ -25,6 +28,12 @@ public enum Key: Equatable, Sendable {
         case .ctrl(let c):
             let value = (c.asciiValue ?? 0x40) & 0x1F
             return String(UnicodeScalar(value))
+        #if os(Windows)
+        case .home: return "\u{1B}[H"
+        case .end: return "\u{1B}[F"
+        case .pageUp: return "\u{1B}[5~"
+        case .pageDown: return "\u{1B}[6~"
+        #endif
         }
     }
 }
@@ -127,6 +136,9 @@ public enum Launch {
         case .kitty(let socket, let window): return ["--kitty", window, "--kitty-socket", socket] + named
         case .wezterm(let socket, let pane): return ["--wezterm", pane] + (socket.map { ["--wezterm-socket", $0] } ?? []) + named
         case .iterm(let id): return ["--iterm", id] + named
+        #if os(Windows)
+        case .windowsConsole(let pid, _): return ["--console", String(pid)] + named
+        #endif
         }
     }
 

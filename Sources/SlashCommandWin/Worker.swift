@@ -43,7 +43,7 @@ final class Worker {
                     let targetDetail = target.map { "\n" + WindowsAppModel.targetLine($0) } ?? ""
                     self.mailbox.post { completion(.init(loc("Press Enter to confirm") + targetDetail + "\n" + loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation).", model), kind: .awaiting)) }
                 }
-                let found = try Detector.target(app: foreground.app, frontPID: foreground.pid)
+                let found = try Detector.target(app: foreground.app, frontPID: foreground.pid, frontWindow: foreground.window.map { UInt(bitPattern: $0) })
                 target = found
                 trace.mark("find target")
                 let result = try id <= 9 ? switcher.apply(slot: id, to: found, deferFinalCheck: true)

@@ -56,6 +56,12 @@ func explicitTarget(_ args: [String]) throws -> Target? {
     }
     #if os(Windows)
     if let app = value(after: "--app", in: args) { return try Detector.target(app: app) }
+    if let id = value(after: "--console", in: args) {
+        guard let pid = Int32(id), pid > 0, let agent = value(after: "--agent", in: args).flatMap(Agent.init(rawValue:)) else {
+            throw SlashCommandError(loc("Use --console with a positive process ID and --agent <agent>."))
+        }
+        return try Detector.windowsConsoleExplicit(pid: pid, agent: agent)
+    }
     #endif
     let orca = value(after: "--orca", in: args)
     let ghostty = value(after: "--ghostty", in: args)
@@ -151,6 +157,12 @@ func describe(_ step: Step) -> String {
 }
 
 let args = Array(CommandLine.arguments.dropFirst())
+#if os(Windows)
+if args.first == "__console-bridge" {
+    guard args.count == 2, let pid = UInt32(args[1]), pid > 0 else { exit(1) }
+    exit(WindowsConsoleCommand.run(pid: pid))
+}
+#endif
 let store = ConfigStore()
 
 do {

@@ -317,3 +317,17 @@
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "切り替えませんでした: この WezTerm ウィンドウでは WSL・tmux・リモートシェルも動いていますが、WezTerm はどのペインでどのプログラムが動いているかを教えないため、エージェント自身の既定値を保護できません。";
 
 "Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "切り替えませんでした: このエージェントは選択を新しいセッションの既定値として保存しますが、WezTerm はこのペインがこのコンピューターで動いているかを示さないため、その既定値を元に戻せません。Windows Terminal か Orca を使うか、keepDefaults をオフにしてください。";
+
+"Stopped: could not read the Windows Terminal pane." = "停止しました：Windows Terminal のペインを読み取れませんでした。";
+
+"The Windows Terminal pane or its agent changed. Press the shortcut again." = "Windows Terminal のペインまたはエージェントが変わりました。ショートカットをもう一度押してください。";
+
+"Could not uniquely match the focused Windows Terminal pane to a readable console. Keep at least three non-blank rows visible, return to the live screen, and try again." = "フォーカスされた Windows Terminal のペインを読み取り可能なコンソールと一意に照合できませんでした。空白でない行を3行以上表示し、最新の画面に戻って再試行してください。";
+
+"This Windows Terminal pane runs as administrator. Run it without administrator privileges to switch its agent." = "この Windows Terminal のペインは管理者として実行されています。エージェントを切り替えるには管理者権限なしで実行してください。";
+
+"Could not tell which Windows Terminal pane is in front. Close any palette or dialog and focus the agent's input box." = "どの Windows Terminal ペインがフォーカスされているか判別できませんでした。パレットやダイアログを閉じ、エージェントの入力欄にフォーカスしてください。";
+
+"Not switched: this Windows Terminal pane's agent could not be identified as a local Windows process, so its own defaults cannot be protected (WSL, tmux and remote shells are not supported)." = "切り替えませんでした。この Windows Terminal ペインのエージェントをローカル Windows プロセスとして識別できず、既定値を保護できません（WSL、tmux、リモートシェルは未対応）。";
+
+"Use --console with a positive process ID and --agent <agent>." = "--console には正のプロセス ID と --agent <agent> を指定してください。";
