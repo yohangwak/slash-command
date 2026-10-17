@@ -10,10 +10,14 @@ swift build -c release
 if ($LASTEXITCODE -ne 0) { throw "swift build failed ($LASTEXITCODE)" }
 $bin = (swift build -c release --show-bin-path | Select-Object -Last 1).Trim()
 
-# The Swift runtime of the toolchain that built the programs.
-$runtimes = Join-Path $env:LOCALAPPDATA 'Programs\Swift\Runtimes'
+# The Swift runtime of the toolchain that built the programs. The installer puts
+# Toolchains\<version>+Asserts\usr\bin\swift.exe and Runtimes\<version>\usr\bin in one folder,
+# %LOCALAPPDATA%\Programs\Swift for a per-user install.
 $version = (swift --version 2>&1 | Select-String -Pattern 'Swift version (\d+\.\d+(\.\d+)?)').Matches[0].Groups[1].Value
-$runtime = Join-Path $runtimes "$version\usr\bin"
+$swift = (Get-Command swift).Source
+$root = $swift
+foreach ($i in 1..5) { $root = Split-Path -Parent $root }
+$runtime = Join-Path $root "Runtimes\$version\usr\bin"
 if (-not (Test-Path $runtime)) { throw "Swift runtime not found: $runtime" }
 
 $dist = Join-Path (Get-Location) 'dist'

@@ -1,0 +1,101 @@
+# Builds Slash-Command-Windows-x64.zip from the tagged source on a GitHub-hosted runner.
+# A pushed tag v<version> attaches the zip and its .sha256 to the release of that tag, creating a draft
+# when there is none yet. Run by hand (workflow_dispatch) it only builds and keeps the zip as an artifact.
+name: Windows release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      SWIFT_VERSION: 6.4.1
+      # From the winget manifest Swift.Toolchain 6.4.1 (x64).
+      SWIFT_INSTALLER_SHA256: 9382E14919EEAE5E7B5DBFE0575452FE2154178E089A595C8B44D03960D91D59
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Swift
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          $v = $env:SWIFT_VERSION
+          $url = "https://download.swift.org/swift-$v-release/windows10/swift-$v-RELEASE/swift-$v-RELEASE-windows10.exe"
+          $exe = Join-Path $env:RUNNER_TEMP 'swift-installer.exe'
+          Invoke-WebRequest -Uri $url -OutFile $exe
+          $hash = (Get-FileHash -Algorithm SHA256 $exe).Hash
+          if ($hash -ne $env:SWIFT_INSTALLER_SHA256) { throw "Swift installer sha256 is $hash" }
+          $p = Start-Process -FilePath $exe -ArgumentList '/quiet', '/norestart' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Swift installer exited with $($p.ExitCode)" }
+          # The installer sets Path and SDKROOT for later sessions; hand them to the next steps.
+          foreach ($scope in 'User', 'Machine') {
+            foreach ($dir in ([Environment]::GetEnvironmentVariable('Path', $scope) -split ';')) {
+              if ($dir -match '\\Swift\\') { Add-Content -Path $env:GITHUB_PATH -Value $dir }
+            }
+            $sdk = [Environment]::GetEnvironmentVariable('SDKROOT', $scope)
+            if ($sdk) { Add-Content -Path $env:GITHUB_ENV -Value "SDKROOT=$sdk" }
+          }
+
+      - name: Check the version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          swift --version
+          if ($LASTEXITCODE -ne 0) { throw "swift --version failed" }
+          $m = Select-String -Path Sources\SlashCommandCore\WindowsAppModel.swift -Pattern 'static let version = "([^"]+)"'
+          if (-not $m) { throw "no version in WindowsAppModel.swift" }
+          $version = $m.Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "tag $env:GITHUB_REF_NAME does not match version $version"
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$version"
+
+      - name: Build and package
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package-windows.ps1
+          if ($LASTEXITCODE -ne 0) { throw "package-windows.ps1 failed ($LASTEXITCODE)" }
+          Get-Content dist\Slash-Command-Windows-x64.zip.sha256
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Slash-Command-Windows-x64
+          path: |
+            dist/Slash-Command-Windows-x64.zip
+            dist/Slash-Command-Windows-x64.zip.sha256
+          if-no-files-found: error
+
+      - name: Attach to the release
+        # A manual run can target a tag too; only a tag push publishes.
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # A missing release is an exit code here, not an exception.
+          $PSNativeCommandUseErrorActionPreference = $false
+          $tag = $env:GITHUB_REF_NAME
+          gh release view $tag --json tagName | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --draft --verify-tag --title "Slash Command $env:APP_VERSION" --notes "Draft created by the Windows release workflow."
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
+          }
+          gh release upload $tag dist\Slash-Command-Windows-x64.zip dist\Slash-Command-Windows-x64.zip.sha256 --clobber
+          if ($LASTEXITCODE -ne 0) { throw "gh release upload failed" }
