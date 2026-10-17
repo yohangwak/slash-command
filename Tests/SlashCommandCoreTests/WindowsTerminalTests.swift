@@ -80,11 +80,22 @@ final class WindowsTerminalTests: XCTestCase {
         }
         for image in ["wt.exe", "OpenConsole.exe", "WindowsTerminal.exe.bak"] { XCTAssertNil(WindowsAppModel.app(image: image)) }
     }
-    /// The menu cannot see which pane has focus once the tray holds the foreground, so it keeps the target found earlier.
-    func testWindowsTerminalIsResolvedOnlyWhenItComesToTheFront() {
+    func testWindowsTerminalIdleTickDoesNotResolveTarget() {
         XCTAssertFalse(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .tick))
-        XCTAssertFalse(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .menu))
+        XCTAssertTrue(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .menu))
         XCTAssertTrue(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .foregroundChanged))
+    }
+    func testOnlyAWindowStillInFrontReplacesTheTerminal() {
+        XCTAssertTrue(WindowsAppModel.adoptsForeground(stillFront: true, keepsSnapshot: false))
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false), "a short-lived window already gone")
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: true, keepsSnapshot: true), "the tray or hidden icons")
+    }
+    /// A tab or pane switch inside the window is seen by the next tick, so the menu resolves the pane as it is now.
+    func testMenuUsesThePaneLastSeenInTheSameWindow() {
+        XCTAssertEqual(WindowsAppModel.menuPane(seen: (7, "42/1/"), window: 7), "42/1/")
+        XCTAssertNil(WindowsAppModel.menuPane(seen: (7, "42/1/"), window: 8))
+        XCTAssertNil(WindowsAppModel.menuPane(seen: nil, window: 7))
+        XCTAssertNil(WindowsAppModel.menuPane(seen: (7, "42/1/"), window: nil))
     }
     func testWindowsTerminalMenuHasStatusAndNinePresets() {
         L10n.use(language: "en", directory: nil)
@@ -98,6 +109,7 @@ final class WindowsTerminalTests: XCTestCase {
     func testUIASuccessWithNullOutPointersRefusesWithoutDereference() {
         for stage in 1...9 { XCTAssertEqual(sc_test_uia_null(Int32(stage)), 1, "NULL stage \(stage)") }
     }
+    func testUIASelectsPaneByRuntimeIDWithoutFocusAndReadsIdentityAlone() { XCTAssertEqual(sc_test_uia_select(), 1) }
     func testUIAClientIsReusedAndReleasedOncePerIO() {
         var milliseconds: Double = 0
         XCTAssertEqual(sc_test_uia_reuse(1000, &milliseconds), 1)

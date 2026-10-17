@@ -9,4 +9,5 @@ void sc_test_console_close(SCTestConsole *);
 int sc_test_console_reader(const uint16_t *result, int records);
 int sc_test_uia_null(int stage);
 int sc_test_uia_reuse(int reads, double *milliseconds);
+int sc_test_uia_select(void);
 #endif

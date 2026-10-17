@@ -243,6 +243,24 @@ enum WindowsTerminal {
             }
             return Pane(text: String(decodingCString: text, as: UTF16.self), identity: String(decodingCString: identity, as: UTF16.self))
         }
+        /// The pane with this runtime ID, whether or not it has keyboard focus (UI Automation reports focus only while the window is in front).
+        func pane(window: UInt, identity want: String) throws -> Pane {
+            var text: UnsafeMutablePointer<UInt16>?, identity: UnsafeMutablePointer<UInt16>?
+            var panes: Int32 = 0, matched: Int32 = 0
+            let ok = want.withCString(encodedAs: UTF16.self) { sc_pane(context, window, $0, &text, &identity, &panes, &matched) }
+            defer { sc_free(text); sc_free(identity) }
+            guard ok == 1, matched == 1, let text, let identity else { throw changed }
+            return Pane(text: String(decodingCString: text, as: UTF16.self), identity: String(decodingCString: identity, as: UTF16.self))
+        }
+        /// Only the runtime ID of the focused pane: no text is read.
+        func focusedIdentity(window: UInt) -> String? {
+            var identity: UnsafeMutablePointer<UInt16>?
+            var panes: Int32 = 0, matched: Int32 = 0
+            let ok = sc_pane(context, window, nil, nil, &identity, &panes, &matched)
+            defer { sc_free(identity) }
+            guard ok == 1, matched == 1, let identity else { return nil }
+            return String(decodingCString: identity, as: UTF16.self)
+        }
     }
     static func focused(window: UInt) throws -> Pane { try FocusReader().focused(window: window) }
     struct Identity: Equatable { let agent: Agent; let pid: Int32 }
@@ -334,7 +352,13 @@ extension Detector {
         try WindowsTerminal.requireInput(text: screen.text, agent: agent)
         return Target(host: .windowsConsole(pid: identity.pid, start: start), agent: agent, label: String(pid))
     }
-    static func windowsTerminal(window: UInt? = nil, requireForeground: Bool = false) throws -> Target {
+    /// Display only: the runtime ID of the pane that has keyboard focus while Windows Terminal is in front. Reads no text.
+    public static func windowsTerminalFocusedPane(window: UInt) -> String? {
+        guard let reader = try? WindowsTerminal.FocusReader() else { return nil }
+        return reader.focusedIdentity(window: window)
+    }
+    /// With `pane`, resolves that pane (seen with focus earlier) instead of the one with focus now; for display only.
+    static func windowsTerminal(window: UInt? = nil, requireForeground: Bool = false, pane wanted: String? = nil) throws -> Target {
         let window = try WindowsTerminal.requireWindow(window ?? WindowsTerminal.window())
         guard let hwnd = HWND(bitPattern: window) else { throw WindowsTerminal.unreadable }
         var pid: DWORD = 0; GetWindowThreadProcessId(hwnd, &pid)
@@ -342,7 +366,8 @@ extension Detector {
         if requireForeground, GetForegroundWindow() != hwnd { throw WindowsTerminal.changed }
         let pane: WindowsTerminal.Pane
         let focusReader = try WindowsTerminal.FocusReader()
-        do { pane = try focusReader.focused(window: window) }
+        let read = { try wanted.map { try focusReader.pane(window: window, identity: $0) } ?? focusReader.focused(window: window) }
+        do { pane = try read() }
         catch {
             if WindowsTerminal.elevated(pid: Int32(bitPattern: pid)) { throw WindowsTerminal.failure(pid: Int32(bitPattern: pid)) }
             throw error
@@ -363,7 +388,7 @@ extension Detector {
         defer { bridge.close() }
         let (identity, start) = try WindowsTerminal.requireWindowsLocal(members: selected.members, refresh: bridge.members)
         try WindowsTerminal.requireInput(text: selected.text, agent: identity.agent)
-        let current = try focusReader.focused(window: window)
+        let current = try read()
         guard current.identity == pane.identity, WindowsTerminalMatching.equal(console: selected.text, visible: current.text) else { throw WindowsTerminal.changed }
         if requireForeground, GetForegroundWindow() != hwnd { throw WindowsTerminal.changed }
         var title = [WCHAR](repeating: 0, count: 32768)

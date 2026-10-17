@@ -4,16 +4,24 @@ import Foundation
 public enum WindowsAppModel {
     public enum RefreshReason { case foregroundChanged, menu, tick }
 
-    /// A WezTerm lookup launches CLI children; idle ticks must remain in-process.
-    /// Windows Terminal is resolved only when it comes to the front: UI Automation reports which pane has keyboard focus
-    /// only while its window is in front, and the tray holds the foreground when its menu opens. The menu keeps that target.
+    /// A WezTerm or Windows Terminal lookup launches CLI children; idle ticks must remain in-process.
     public static func looksUpTarget(app: String, reason: RefreshReason) -> Bool {
         switch app {
         case "orca": return true
-        case "wezterm": return reason != .tick
-        case "windowsterminal": return reason == .foregroundChanged
+        case "wezterm", "windowsterminal": return reason != .tick
         default: return false
         }
+    }
+    /// A capture of a window that has already left the front is dropped: opening hidden tray icons passes through
+    /// short-lived Explorer windows (measured 2026-10-17), and adopting one replaced the terminal the menu describes.
+    /// The next foreground event or the 1-second tick captures whatever is in front.
+    public static func adoptsForeground(stillFront: Bool, keepsSnapshot: Bool) -> Bool { stillFront && !keepsSnapshot }
+    /// UI Automation reports which Windows Terminal pane has keyboard focus only while its window is in front, and the tray
+    /// holds the foreground when its menu opens. So each tick notes the focused pane (in-process, no text), and the menu
+    /// resolves that pane, as it is then. Nil when the pane was seen in another window.
+    public static func menuPane(seen: (window: UInt, pane: String)?, window: UInt?) -> String? {
+        guard let seen, let window, seen.window == window else { return nil }
+        return seen.pane
     }
 
     public static let version = "0.2.0" // scripts/Info.plist

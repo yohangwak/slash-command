@@ -12,6 +12,7 @@ typedef struct { uint16_t vk, scan, character; uint32_t modifiers; } SCKey;
 SCUIA *sc_uia_create(void);
 void sc_uia_close(SCUIA *);
 int sc_focused_pane(SCUIA *, uintptr_t window, uint16_t **text, uint16_t **identity, int *panes, int *focused);
+int sc_pane(SCUIA *, uintptr_t window, const uint16_t *want, uint16_t **text, uint16_t **identity, int *panes, int *matched);
 SCChannel *sc_channel_start(const uint16_t *exe, uint32_t pid);
 char *sc_channel_request(SCChannel *, const char *request, uint32_t timeout_ms);
 int sc_channel_close(SCChannel *);
