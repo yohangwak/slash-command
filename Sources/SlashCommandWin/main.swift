@@ -54,6 +54,8 @@ final class Resident {
     private var target: Target?
     /// The Windows Terminal pane last seen with keyboard focus, for the menu (see WindowsAppModel.menuPane).
     private var seenPane: (window: UInt, pane: String)?
+    /// The last window seen in front that is not the tray, hidden icons or this app (see WindowsAppModel.adoptsForeground).
+    private var lastReal: (window: HWND?, pid: DWORD) = (nil, 0)
     private var failures: [Int] = []
     private var warning: String?
 
@@ -75,8 +77,11 @@ final class Resident {
     func scheduleTrayRetry(needed: Bool) {
         if needed { SetTimer(window, 3, 5000, nil) } else { KillTimer(window, 3) }
     }
-    func refreshForeground(retry: Bool = false, reason: WindowsAppModel.RefreshReason = .foregroundChanged) {
-        let (observedWindow, pid) = Foreground.identity()
+    func refreshForeground(retry: Bool = false, reason: WindowsAppModel.RefreshReason = .foregroundChanged,
+                           identity: (HWND?, DWORD)? = nil) {
+        let (observedWindow, pid) = identity ?? Foreground.identity()
+        // Noted here, not in the refresh: a refresh still running drops the events that arrive meanwhile.
+        if identity == nil, !Foreground.capture(window: observedWindow, pid: pid).keepsSnapshot { lastReal = (observedWindow, pid) }
         // Do not leave global keys active while asynchronous process checks run.
         if pid != front.pid || !front.supported { hotKeys.unregister(window: self.window) }
         guard retry || refreshes == 0 else { return }
@@ -101,11 +106,8 @@ final class Resident {
                     self.configError = text; self.config = nil
                 }
                 if stillFront { self.hotKeys.update(window: self.window, foreground: captured, config: self.config, retry: retry) }
-                // Only when the capture is already out of date: what replaced it, read here and now.
-                let replacement = stillFront ? nil : Foreground.capture(window: currentWindow, pid: currentPID)
-                let adopt = WindowsAppModel.adoptsForeground(stillFront: stillFront, keepsSnapshot: captured.keepsSnapshot,
-                                                             supported: captured.supported,
-                                                             replacedBySnapshotKeeper: replacement?.keepsSnapshot == true,
+                let latest = self.lastReal.window == captured.window && self.lastReal.pid == captured.pid
+                let adopt = WindowsAppModel.adoptsForeground(keepsSnapshot: captured.keepsSnapshot, latest: latest,
                                                              windowExists: captured.window.map { IsWindow($0) } ?? false)
                 if adopt, let frontWindow, let pane { self.seenPane = (frontWindow, pane) }
                 if adopt {
@@ -113,6 +115,10 @@ final class Resident {
                     if stillFront { self.failures = self.hotKeys.failed; self.warning = self.hotKeys.warning }
                     else { self.failures = []; self.warning = self.config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning } }
                     self.front = captured
+                }
+                // Another window came to the front while this refresh ran, and its own refresh was dropped.
+                if !latest, !captured.keepsSnapshot, self.refreshes == 0 {
+                    self.refreshForeground(retry: true, reason: .foregroundChanged, identity: self.lastReal)
                 }
             }
         }

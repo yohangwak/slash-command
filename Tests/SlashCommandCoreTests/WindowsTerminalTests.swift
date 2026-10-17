@@ -85,20 +85,22 @@ final class WindowsTerminalTests: XCTestCase {
         XCTAssertTrue(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .menu))
         XCTAssertTrue(WindowsAppModel.looksUpTarget(app: "windowsterminal", reason: .foregroundChanged))
     }
+    /// Replays foreground events as the tray sees them: `lastReal` follows every event that is not the tray, hidden
+    /// icons or this app, and each refresh, finishing later, asks whether its capture is still that window.
     func testWhichCaptureTheMenuDescribes() {
-        XCTAssertTrue(WindowsAppModel.adoptsForeground(stillFront: true, keepsSnapshot: false))
-        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: true, keepsSnapshot: true), "the tray or hidden icons")
-        // A terminal brought to the front, then the tray opened before its lookup finished.
-        XCTAssertTrue(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false, supported: true,
-                                                       replacedBySnapshotKeeper: true, windowExists: true))
-        // A short-lived Explorer window seen on the way to the hidden icons.
-        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false, supported: false,
-                                                        replacedBySnapshotKeeper: true, windowExists: true))
-        // A terminal another app has replaced, or one whose window has closed.
-        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false, supported: true,
-                                                        replacedBySnapshotKeeper: false, windowExists: true))
-        XCTAssertFalse(WindowsAppModel.adoptsForeground(stillFront: false, keepsSnapshot: false, supported: true,
-                                                        replacedBySnapshotKeeper: true, windowExists: false))
+        let explorer = "C:\\Windows\\explorer.exe"
+        func keeps(_ windowClass: String) -> Bool { WindowsAppModel.keepsSnapshot(pid: 2, ownPID: 9, image: explorer, windowClass: windowClass) }
+        // The way to the hidden tray icons (measured 2026-10-17): InputSite, then the overflow window.
+        XCTAssertTrue(keeps("Windows.UI.Input.InputSite.WindowClass")); XCTAssertTrue(keeps("TopLevelWindowForOverflowXamlIsland"))
+        XCTAssertFalse(keeps("CabinetWClass"), "a File Explorer window is an app like any other")
+        // Terminal A, then the tray before A's lookup finished: A is still the latest real window.
+        XCTAssertTrue(WindowsAppModel.adoptsForeground(keepsSnapshot: false, latest: true, windowExists: true))
+        // Terminal A, then app B, then the tray: A's late capture is dropped and B's refresh follows.
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(keepsSnapshot: false, latest: false, windowExists: true))
+        // A window that closed before its refresh finished.
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(keepsSnapshot: false, latest: true, windowExists: false))
+        // The tray itself never replaces the terminal.
+        XCTAssertFalse(WindowsAppModel.adoptsForeground(keepsSnapshot: true, latest: false, windowExists: true))
     }
     /// A tab or pane switch inside the window is seen by the next tick, so the menu resolves the pane as it is now.
     func testMenuUsesThePaneLastSeenInTheSameWindow() {
