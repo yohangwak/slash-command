@@ -9,13 +9,14 @@ enum WindowsWezTerm {
     struct Pane: Equatable {
         let id: String
         let title: String
+        var cwd: String = ""
     }
 
     static func pane(in data: Data, id: Int) -> Pane? {
         guard id >= 0, let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
         let matches = rows.filter { integer($0["pane_id"]) == id }
         guard matches.count == 1, let row = matches.first else { return nil }
-        return Pane(id: String(id), title: row["title"] as? String ?? "")
+        return Pane(id: String(id), title: row["title"] as? String ?? "", cwd: row["cwd"] as? String ?? "")
     }
 
     private static func integer(_ value: Any?) -> Int? {
@@ -62,6 +63,14 @@ enum WindowsWezTerm {
 
     static func agent(screen: [String]?) -> Agent? {
         screen.flatMap { Detector.agent(onScreen: $0) }
+    }
+
+    /// A local pane's directory as WezTerm reports it on Windows: `file:///C:/…`, with no host.
+    /// A pane of an SSH or mux domain (WezTerm's own SSH library starts no local process) has a host or no directory at all.
+    static func isLocalWindowsDirectory(_ cwd: String) -> Bool {
+        guard cwd.hasPrefix("file:///") else { return false }
+        let path = Array(cwd.dropFirst("file:///".count))
+        return path.count >= 3 && path[0].isASCII && path[0].isLetter && path[1] == ":" && path[2] == "/"
     }
 
     /// `gui-sock-<pid>` → pid. nil for any other socket name.
@@ -113,7 +122,7 @@ extension Detector {
         guard let agent = WindowsWezTerm.agent(screen: io.base.screen()) else {
             throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", pane.title))
         }
-        try requireWindowsLocal(agent, socket: socket, label: pane.title)
+        try requireWindowsLocal(agent, socket: socket, pane: pane)
         var target = Target(host: .wezterm(socket: socket, pane: pane.id), agent: agent, label: pane.title)
         target.windowsFrontPID = frontPID
         return target
@@ -148,13 +157,15 @@ extension Detector {
               let pane = WindowsWezTerm.pane(in: Data(panes.out.utf8), id: number) else {
             throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "WezTerm", "cli list"))
         }
-        try requireWindowsLocal(agent, socket: pinned, label: pane.title)
+        try requireWindowsLocal(agent, socket: pinned, pane: pane)
         return Target(host: .wezterm(socket: pinned, pane: pane.id), agent: agent, label: pane.title)
     }
 
-    /// See `WindowsWezTerm.locality`. The processes are those of the GUI that owns the socket.
-    static func requireWindowsLocal(_ agent: Agent, socket: String, label: String) throws {
-        let locality = WindowsWezTerm.guiPID(socket: socket).map { WindowsWezTerm.locality(of: agent, gui: $0, entries: ProcessTable.descendants(of: $0)) } ?? .mixed
+    /// See `WindowsWezTerm.locality`. The processes are those of the GUI that owns the socket; the selected pane itself must be a local one.
+    static func requireWindowsLocal(_ agent: Agent, socket: String, pane: WindowsWezTerm.Pane) throws {
+        let label = pane.title
+        let locality: WindowsWezTerm.Locality = !WindowsWezTerm.isLocalWindowsDirectory(pane.cwd) ? .mixed
+            : WindowsWezTerm.guiPID(socket: socket).map { WindowsWezTerm.locality(of: agent, gui: $0, entries: ProcessTable.descendants(of: $0)) } ?? .mixed
         switch locality {
         case .local: return
         case .mixed:

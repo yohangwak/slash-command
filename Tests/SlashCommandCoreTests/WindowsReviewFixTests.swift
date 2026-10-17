@@ -76,6 +76,17 @@ final class WindowsReviewFixTests: XCTestCase {
         XCTAssertEqual(Proc.windowsQuote("x\"\u{301}y"), "\"x\\\"\u{301}y\"")
     }
 
+    func testOnlyALocalDrivePathCountsAsALocalPane() {
+        XCTAssertTrue(WindowsWezTerm.isLocalWindowsDirectory("file:///C:/test/"))
+        XCTAssertTrue(WindowsWezTerm.isLocalWindowsDirectory("file:///d:/"))
+        // SSH and mux domains: a host, a POSIX path or no directory at all.
+        for cwd in ["file://devbox/home/u/", "file:///home/u/", "file://wsl.localhost/Ubuntu/home/u", "", "C:/test", "file:///1:/x"] {
+            XCTAssertFalse(WindowsWezTerm.isLocalWindowsDirectory(cwd), cwd)
+        }
+        let pane = WindowsWezTerm.pane(in: Data(#"[{"pane_id":3,"title":"t","cwd":"file://devbox/home/u/"}]"#.utf8), id: 3)
+        XCTAssertEqual(pane?.cwd, "file://devbox/home/u/")
+    }
+
     func testGUIPIDComesOnlyFromAGUISocketName() {
         XCTAssertEqual(WindowsWezTerm.guiPID(socket: #"C:\Users\u\.local\share\wezterm\gui-sock-6708"#), 6708)
         XCTAssertNil(WindowsWezTerm.guiPID(socket: #"C:\Users\u\.local\share\wezterm\sock"#))

@@ -13,7 +13,7 @@ final class WindowsWezTermTests: XCTestCase {
     // variations of the installed version's list-clients serialization (pid/focused_pane_id).
     func testRealWindowsPaneHasNoTTYOrProcessID() throws {
         let data = try fixture("windows-wezterm-panes")
-        XCTAssertEqual(WindowsWezTerm.pane(in: data, id: 0), .init(id: "0", title: "Test shell"))
+        XCTAssertEqual(WindowsWezTerm.pane(in: data, id: 0), .init(id: "0", title: "Test shell", cwd: "file:///C:/test/"))
         let rows = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
         XCTAssertTrue(rows[0]["tty_name"] is NSNull)
         XCTAssertNil(rows[0]["pid"])
