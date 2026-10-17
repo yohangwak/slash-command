@@ -88,6 +88,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          # A missing release is an exit code here, not an exception.
+          $PSNativeCommandUseErrorActionPreference = $false
           $tag = $env:GITHUB_REF_NAME
           gh release view $tag --json tagName | Out-Null
           if ($LASTEXITCODE -ne 0) {
