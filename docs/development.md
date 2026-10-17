@@ -106,16 +106,19 @@ Then publish both files:
 
 ```sh
 gh release create v0.2.0 dist/Slash-Command.dmg dist/Slash-Command.zip --draft --title "Slash Command 0.2.0" --notes-file notes.md
+# or, when the Windows workflow below has already made the draft:
+gh release upload v0.2.0 dist/Slash-Command.dmg dist/Slash-Command.zip && gh release edit v0.2.0 --notes-file notes.md
 ```
 
 Keep the asset names `Slash-Command.dmg` and `Slash-Command.zip`. The README links to `releases/latest/download/Slash-Command.dmg`, which works only while the name stays the same. The disk image is what people download; the zip is what the Homebrew cask installs. `scripts/make-dmg.sh` builds the disk image from an app that is already signed and notarized.
 
-The Windows zip is built on a Windows PC (see [Windows](#windows)) and goes into the same release:
+The Windows zip is built by GitHub Actions ([`windows-release.yml`](../.github/workflows/windows-release.yml)) from the tagged source. Pushing the tag starts it:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package-windows.ps1
-gh release upload v0.2.0 dist\Slash-Command-Windows-x64.zip dist\Slash-Command-Windows-x64.zip.sha256
+```sh
+git tag v0.2.0 && git push origin v0.2.0
 ```
+
+The workflow installs Swift for Windows (the installer's SHA-256 is pinned), checks that the tag matches the version in `WindowsAppModel.swift`, runs `scripts/package-windows.ps1` and uploads `Slash-Command-Windows-x64.zip` and its `.sha256` to the release of that tag, creating a draft when there is none yet. Run by hand (`gh workflow run windows-release.yml`) it builds without touching a release and keeps the zip as a workflow artifact. To build on a Windows PC instead, see [Windows](#windows) and upload with `gh release upload v0.2.0 dist\Slash-Command-Windows-x64.zip dist\Slash-Command-Windows-x64.zip.sha256 --clobber`.
 
 Keep the name `Slash-Command-Windows-x64.zip`; the README links to `releases/latest/download/Slash-Command-Windows-x64.zip`. Every release needs all three files (disk image, zip, Windows zip), because `latest` moves to the newest release.
 
