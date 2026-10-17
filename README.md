@@ -4,13 +4,14 @@
 
 [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
-**[Download for macOS](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 or later · Apple silicon and Intel
+**[Download for macOS](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 or later · Apple silicon and Intel  
+**[Download for Windows](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip)** · Windows 11 · x64
 
 ![Pressing a hotkey switches Claude Code between Sonnet, Fable and Opus and raises the effort, with a notice for each change](docs/assets/demo.gif)
 
-Slash Command is a macOS menu bar app. Press **⇧⌥1 … ⇧⌥9** in your terminal and the agent in the frontmost session switches to that preset's **model + effort**. **⇧⌥=** and **⇧⌥-** move the effort one level up or down.
+Slash Command is a macOS menu bar app and a Windows tray app. Press **⇧⌥1 … ⇧⌥9** (**Shift+Alt+1 … 9** on Windows) in your terminal and the agent in the frontmost session switches to that preset's **model + effort**. **⇧⌥=** and **⇧⌥-** move the effort one level up or down.
 
-It works with **Claude Code, Codex, Grok, Cursor Agent, Antigravity and OpenCode**, in **Ghostty, Orca, iTerm2, WezTerm and kitty**.
+It works with **Claude Code, Codex, Grok, Cursor Agent, Antigravity and OpenCode**, in **Ghostty, Orca, iTerm2, WezTerm and kitty** on macOS and **Windows Terminal, Orca and WezTerm** on Windows.
 
 - **One keystroke** instead of typing `/model`, finding the row, and setting the effort.
 - **Mid-conversation.** Whatever you were typing stays in the input box.
@@ -19,6 +20,8 @@ It works with **Claude Code, Codex, Grok, Cursor Agent, Antigravity and OpenCode
 - **Careful by design.** It sends keys only when it can see the agent's input box, and it stops when it is unsure.
 
 ## Install
+
+### macOS
 
 Requires macOS 13 or later.
 
@@ -59,6 +62,19 @@ You need the Swift toolchain (Xcode or the Command Line Tools). Without a signin
 
 </details>
 
+### Windows
+
+Requires Windows 11 on x64.
+
+1. Download [**Slash-Command-Windows-x64.zip**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip).
+2. Right-click it, choose **Extract All…**, and extract it to a folder you keep, for example `%LOCALAPPDATA%\Programs`.
+3. Open **Slash Command.exe** in the extracted **Slash Command** folder. A `/` key icon appears in the notification area. It may be hidden under the **^** arrow.
+4. To start it at login, click the icon and choose **Open at login**.
+
+The Windows app is not code-signed yet, so SmartScreen may say "Windows protected your PC" the first time. Choose **More info**, then **Run anyway**. Each release lists the zip's SHA-256 in `Slash-Command-Windows-x64.zip.sha256`.
+
+No permissions are needed. The command line tool `slashcommand.exe` is in the same folder.
+
 ## Use
 
 | Keys | What happens |
@@ -70,9 +86,11 @@ A small notice at the bottom of the screen shows what the agent answered, for ex
 
 The menu bar icon shows the agent in the frontmost session and what each preset would do for it.
 
+**On Windows** the keys are **Shift+Alt+1 … 9**, **Shift+Alt+=** and **Shift+Alt+-**, and the tray icon's menu shows the same. In Windows Terminal, Shift+Alt+= and Shift+Alt+- are also its "Duplicate pane" keys; while Windows Terminal is in front, Slash Command takes them. To leave them to Windows Terminal, set `"effortKeys": false` or other `modifiers` in the presets file.
+
 ## Presets
 
-Edit presets under **Settings… → Presets**, or edit `~/.config/slashcommand/presets.json` directly.
+Edit presets under **Settings… → Presets**, or edit `~/.config/slashcommand/presets.json` directly. On Windows the file is `%USERPROFILE%\.config\slashcommand\presets.json`; choose **Open presets file** in the tray menu. Windows has no settings window yet.
 
 ```json
 {
@@ -95,6 +113,8 @@ The app ships a command line tool with the same switching logic. Homebrew links 
 sudo mkdir -p /usr/local/bin
 sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
 ```
+
+On Windows, `slashcommand.exe` is next to `Slash Command.exe`. Add that folder to your `PATH` to call it as `slashcommand`.
 
 Then:
 
@@ -119,6 +139,16 @@ slashcommand run 2 claude      # open a new session with preset 2
 
 Terminal.app and the VS Code terminal are not supported.
 
+On Windows:
+
+| Terminal | Notes |
+|---|---|
+| Windows Terminal | No setup. A pane opened from outside Windows Terminal (a shell started from the Start menu that Windows hands to Windows Terminal) is not supported |
+| Orca | No setup |
+| WezTerm | No setup. Panes that run WSL, tmux or SSH are not supported. Grok, Cursor Agent, Antigravity and OpenCode switch there only with `keepDefaults` off |
+
+Windows running as administrator, WSL, tmux, Warp and the VS Code terminal are not supported on Windows.
+
 | Agent | Versions checked |
 |---|---|
 | Claude Code | 2.1.283 – 2.1.296 |
@@ -132,7 +162,7 @@ Slash Command drives each agent's own model picker by reading the screen, so it 
 
 ## Privacy
 
-Slash Command has no network code. It reads the terminal screen only to decide what to send. Its log (`~/Library/Logs/SlashCommand/slashcommand.log`) records the keys you pressed, the result and the timings. It never records what was on the screen.
+Slash Command has no network code. It reads the terminal screen only to decide what to send. Its log (`~/Library/Logs/SlashCommand/slashcommand.log` on macOS, `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` on Windows) records the keys you pressed, the result and the timings. It never records what was on the screen.
 
 ## Documentation
 

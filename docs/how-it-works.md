@@ -6,7 +6,7 @@
 4. **Switch.** The app opens the agent's own model picker and drives it while reading the screen: it reads which row the cursor is on, moves exactly that far, reads again to confirm it arrived, and confirms with "this session only".
 5. **Report.** The notice shows what the agent itself answered, read from the line under the command just typed.
 
-Text and keys are written to the terminal as bytes (Ghostty `perform action "text:…"`, Orca's runtime socket, `wezterm cli send-text --no-paste`, `kitty @ send-text`, iTerm2 `write text`, `tmux send-keys`). They are not synthetic keyboard events, so they cannot land in another app.
+Text and keys are written to the terminal as bytes (Ghostty `perform action "text:…"`, Orca's runtime socket, `wezterm cli send-text --no-paste`, `kitty @ send-text`, iTerm2 `write text`, `tmux send-keys`). They are not synthetic keyboard events, so they cannot land in another app. On Windows, Windows Terminal panes get key records written into the pane's own console; see [Terminals](terminals.md#windows).
 
 ## Claude Code and Codex
 
