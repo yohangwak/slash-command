@@ -119,6 +119,8 @@ gh release upload v0.2.0 dist\Slash-Command-Windows-x64.zip dist\Slash-Command-W
 
 Keep the name `Slash-Command-Windows-x64.zip`; the README links to `releases/latest/download/Slash-Command-Windows-x64.zip`. Every release needs all three files (disk image, zip, Windows zip), because `latest` moves to the newest release.
 
+When all three are uploaded, publish the draft with `gh release edit v0.2.0 --draft=false`.
+
 Then update the Homebrew cask in [yohangwak/homebrew-tap](https://github.com/yohangwak/homebrew-tap): set `version` and the zip's `sha256` that `release.sh` printed in `Casks/slash-command.rb`, and check it before pushing:
 
 ```sh
