@@ -4,13 +4,14 @@
 
 [English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md)
 
-**[Descargar para macOS](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 o posterior · Apple silicon e Intel
+**[Descargar para macOS](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 o posterior · Apple silicon e Intel  
+**[Descargar para Windows](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip)** · Windows 11 · x64
 
 ![Cada atajo cambia Claude Code entre Sonnet, Fable y Opus y sube el effort, con un aviso en cada cambio](docs/assets/demo.gif)
 
-Slash Command es una app de la barra de menús de macOS. Pulsa **⇧⌥1 … ⇧⌥9** en tu terminal y el agente de la sesión en primer plano cambia al **modelo + effort** de ese preajuste. **⇧⌥=** y **⇧⌥-** suben o bajan el effort un nivel.
+Slash Command es una app de la barra de menús de macOS y una app de la bandeja de Windows. Pulsa **⇧⌥1 … ⇧⌥9** (**Shift+Alt+1 … 9** en Windows) en tu terminal y el agente de la sesión en primer plano cambia al **modelo + effort** de ese preajuste. **⇧⌥=** y **⇧⌥-** suben o bajan el effort un nivel.
 
-Funciona con **Claude Code, Codex, Grok, Cursor Agent, Antigravity y OpenCode**, en **Ghostty, Orca, iTerm2, WezTerm y kitty**.
+Funciona con **Claude Code, Codex, Grok, Cursor Agent, Antigravity y OpenCode**, en **Ghostty, Orca, iTerm2, WezTerm y kitty** en macOS y en **Windows Terminal, Orca y WezTerm** en Windows.
 
 - **Una sola pulsación** en lugar de escribir `/model`, buscar la fila y fijar el effort.
 - **En plena conversación.** Lo que estabas escribiendo se queda en el cuadro de entrada.
@@ -19,6 +20,8 @@ Funciona con **Claude Code, Codex, Grok, Cursor Agent, Antigravity y OpenCode**,
 - **Cuidadosa por diseño.** Solo envía teclas cuando ve el cuadro de entrada del agente, y se detiene cuando no está segura.
 
 ## Instalación
+
+### macOS
 
 Requiere macOS 13 o posterior.
 
@@ -59,6 +62,19 @@ Necesitas la cadena de herramientas de Swift (Xcode o las Command Line Tools). S
 
 </details>
 
+### Windows
+
+Requiere Windows 11 en x64.
+
+1. Descarga [**Slash-Command-Windows-x64.zip**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip).
+2. Haz clic derecho, elige **Extraer todo…** y extráelo en una carpeta que vayas a conservar, por ejemplo `%LOCALAPPDATA%\Programs`.
+3. Abre **Slash Command.exe** en la carpeta **Slash Command** extraída. Aparece un icono de tecla `/` en el área de notificación. Puede estar oculto bajo la flecha **^**.
+4. Para que se abra al iniciar sesión, haz clic en el icono y elige **Abrir al iniciar sesión**.
+
+La app de Windows aún no tiene firma de código, así que SmartScreen puede mostrar «Windows protegió tu PC» la primera vez. Elige **Más información** y luego **Ejecutar de todas formas**. Cada versión indica el SHA-256 del zip en `Slash-Command-Windows-x64.zip.sha256`.
+
+No necesita permisos. La herramienta de línea de comandos `slashcommand.exe` está en la misma carpeta.
+
 ## Uso
 
 | Teclas | Qué ocurre |
@@ -70,9 +86,11 @@ Un pequeño aviso en la parte inferior de la pantalla muestra lo que respondió 
 
 El icono de la barra de menús muestra el agente de la sesión en primer plano y lo que haría cada preajuste con él.
 
+**En Windows** las teclas son **Shift+Alt+1 … 9**, **Shift+Alt+=** y **Shift+Alt+-**, y el menú del icono de la bandeja muestra lo mismo. En Windows Terminal, Shift+Alt+= y Shift+Alt+- también son sus teclas de «Duplicar panel»; mientras Windows Terminal está en primer plano, Slash Command las usa. Para dejárselas a Windows Terminal, pon `"effortKeys": false` u otros `modifiers` en el archivo de preajustes.
+
 ## Preajustes
 
-Edita los preajustes en **Ajustes… → Preajustes**, o edita directamente `~/.config/slashcommand/presets.json`.
+Edita los preajustes en **Ajustes… → Preajustes**, o edita directamente `~/.config/slashcommand/presets.json`. En Windows el archivo es `%USERPROFILE%\.config\slashcommand\presets.json`; elige **Abrir archivo de preajustes** en el menú de la bandeja. Windows aún no tiene ventana de ajustes.
 
 ```json
 {
@@ -95,6 +113,8 @@ La app incluye una herramienta de línea de comandos con la misma lógica de cam
 sudo mkdir -p /usr/local/bin
 sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
 ```
+
+En Windows, `slashcommand.exe` está junto a `Slash Command.exe`. Añade esa carpeta a tu `PATH` para llamarlo como `slashcommand`.
 
 Después:
 
@@ -119,6 +139,16 @@ slashcommand run 2 claude      # open a new session with preset 2
 
 Terminal.app y la terminal de VS Code no son compatibles.
 
+En Windows:
+
+| Terminal | Notas |
+|---|---|
+| Windows Terminal | Sin configuración. No es compatible un panel abierto fuera de Windows Terminal y entregado a él (por ejemplo, un shell abierto desde el menú Inicio que Windows pasa a Windows Terminal) |
+| Orca | Sin configuración |
+| WezTerm | Sin configuración. No son compatibles los paneles que ejecutan WSL, tmux o SSH. Grok, Cursor Agent, Antigravity y OpenCode solo cambian allí con `keepDefaults` desactivado |
+
+En Windows no son compatibles las ventanas ejecutadas como administrador, WSL, tmux, Warp ni la terminal de VS Code.
+
 | Agente | Versiones comprobadas |
 |---|---|
 | Claude Code | 2.1.283 – 2.1.296 |
@@ -132,7 +162,7 @@ Slash Command maneja el selector de modelos de cada agente leyendo la pantalla, 
 
 ## Privacidad
 
-Slash Command no tiene código de red. Lee la pantalla de la terminal solo para decidir qué enviar. Su registro (`~/Library/Logs/SlashCommand/slashcommand.log`) anota las teclas que pulsaste, el resultado y los tiempos. Nunca anota lo que había en la pantalla.
+Slash Command no tiene código de red. Lee la pantalla de la terminal solo para decidir qué enviar. Su registro (`~/Library/Logs/SlashCommand/slashcommand.log` en macOS, `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` en Windows) anota las teclas que pulsaste, el resultado y los tiempos. Nunca anota lo que había en la pantalla.
 
 ## Documentación
 

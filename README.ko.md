@@ -4,13 +4,14 @@
 
 [English](README.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
-**[macOS 용 내려받기](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 이상 · Apple 실리콘과 Intel
+**[macOS 용 내려받기](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 이상 · Apple 실리콘과 Intel  
+**[Windows 용 내려받기](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip)** · Windows 11 · x64
 
 ![단축키를 누를 때마다 Claude Code 가 Sonnet, Fable, Opus 로 바뀌고 effort 가 올라가며, 바뀔 때마다 알림이 뜹니다](docs/assets/demo.gif)
 
-Slash Command 는 macOS 메뉴 막대 앱입니다. 터미널에서 **⇧⌥1 … ⇧⌥9** 를 누르면 맨 앞 세션의 에이전트가 그 번호 프리셋의 **모델 + effort** 로 바뀝니다. **⇧⌥=** 와 **⇧⌥-** 는 effort 만 한 단계 올리고 내립니다.
+Slash Command 는 macOS 메뉴 막대 앱이자 Windows 트레이 앱입니다. 터미널에서 **⇧⌥1 … ⇧⌥9**(Windows 에서는 **Shift+Alt+1 … 9**) 를 누르면 맨 앞 세션의 에이전트가 그 번호 프리셋의 **모델 + effort** 로 바뀝니다. **⇧⌥=** 와 **⇧⌥-** 는 effort 만 한 단계 올리고 내립니다.
 
-**Claude Code, Codex, Grok, Cursor Agent, Antigravity, OpenCode** 를 **Ghostty, Orca, iTerm2, WezTerm, kitty** 에서 지원합니다.
+**Claude Code, Codex, Grok, Cursor Agent, Antigravity, OpenCode** 를 macOS 에서는 **Ghostty, Orca, iTerm2, WezTerm, kitty**, Windows 에서는 **Windows Terminal, Orca, WezTerm** 에서 지원합니다.
 
 - **키 한 번.** `/model` 을 치고, 행을 찾고, effort 를 맞추는 일을 대신합니다.
 - **대화 도중에도 됩니다.** 쓰던 글은 입력창에 그대로 남습니다.
@@ -19,6 +20,8 @@ Slash Command 는 macOS 메뉴 막대 앱입니다. 터미널에서 **⇧⌥1 �
 - **조심스럽게 설계했습니다.** 에이전트의 입력창이 보일 때만 키를 보내고, 확실하지 않으면 멈춥니다.
 
 ## 설치
+
+### macOS
 
 macOS 13 이상이 필요합니다.
 
@@ -59,6 +62,19 @@ Swift 도구(Xcode 또는 Command Line Tools)가 필요합니다. 서명 인증�
 
 </details>
 
+### Windows
+
+x64 Windows 11 이 필요합니다.
+
+1. [**Slash-Command-Windows-x64.zip**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip) 을 내려받습니다.
+2. 파일을 오른쪽 클릭해 **압축 풀기…** 를 고르고, 계속 둘 폴더(예: `%LOCALAPPDATA%\Programs`)에 풉니다.
+3. 풀린 **Slash Command** 폴더의 **Slash Command.exe** 를 엽니다. 알림 영역에 `/` 키 아이콘이 생깁니다. **^** 화살표 안에 숨어 있을 수 있습니다.
+4. 로그인할 때 켜지게 하려면 아이콘을 눌러 **로그인할 때 실행** 를 고릅니다.
+
+Windows 앱은 아직 코드 서명이 없어서, 처음 열 때 SmartScreen 이 «Windows의 PC 보호» 를 띄울 수 있습니다. **추가 정보** → **실행** 을 고르세요. 릴리스마다 zip 의 SHA-256 을 `Slash-Command-Windows-x64.zip.sha256` 에 적어 둡니다.
+
+권한은 필요 없습니다. 명령줄 도구 `slashcommand.exe` 는 같은 폴더에 있습니다.
+
 ## 쓰기
 
 | 키 | 하는 일 |
@@ -70,9 +86,11 @@ Swift 도구(Xcode 또는 Command Line Tools)가 필요합니다. 서명 인증�
 
 메뉴 막대 아이콘을 누르면 맨 앞 세션의 에이전트와, 각 프리셋이 그 에이전트에 무엇을 하는지 보입니다.
 
+**Windows 에서는** 키가 **Shift+Alt+1 … 9**, **Shift+Alt+=**, **Shift+Alt+-** 이고, 트레이 아이콘 메뉴에 같은 내용이 보입니다. Windows Terminal 에서는 Shift+Alt+= 와 Shift+Alt+- 가 «창 복제(Duplicate pane)» 키이기도 한데, Windows Terminal 이 맨 앞인 동안에는 Slash Command 가 가져갑니다. Windows Terminal 에 남겨 두려면 프리셋 파일에서 `"effortKeys": false` 로 두거나 `modifiers` 를 바꾸세요.
+
 ## 프리셋
 
-**설정… → 프리셋** 에서 편집하거나 `~/.config/slashcommand/presets.json` 을 직접 고칩니다.
+**설정… → 프리셋** 에서 편집하거나 `~/.config/slashcommand/presets.json` 을 직접 고칩니다. Windows 에서는 `%USERPROFILE%\.config\slashcommand\presets.json` 이고, 트레이 메뉴의 **프리셋 파일 열기** 로 엽니다. Windows 에는 아직 설정 창이 없습니다.
 
 ```json
 {
@@ -95,6 +113,8 @@ Swift 도구(Xcode 또는 Command Line Tools)가 필요합니다. 서명 인증�
 sudo mkdir -p /usr/local/bin
 sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
 ```
+
+Windows 에서는 `slashcommand.exe` 가 `Slash Command.exe` 옆에 있습니다. 그 폴더를 `PATH` 에 넣으면 `slashcommand` 로 부를 수 있습니다.
 
 그다음:
 
@@ -119,6 +139,16 @@ slashcommand run 2 claude      # 프리셋 2 로 새 세션을 엽니다
 
 Terminal.app 과 VS Code 터미널은 지원하지 않습니다.
 
+Windows:
+
+| 터미널 | 참고 |
+|---|---|
+| Windows Terminal | 설정할 것 없음. Windows Terminal 밖에서 열어 넘겨받은 칸(시작 메뉴에서 연 셸을 Windows 가 Windows Terminal 에 넘긴 경우)은 지원하지 않습니다 |
+| Orca | 설정할 것 없음 |
+| WezTerm | 설정할 것 없음. WSL·tmux·SSH 를 돌리는 칸은 지원하지 않습니다. Grok, Cursor Agent, Antigravity, OpenCode 는 `keepDefaults` 를 꺼야 전환합니다 |
+
+Windows 에서는 관리자 권한으로 띄운 창, WSL, tmux, Warp, VS Code 터미널을 지원하지 않습니다.
+
 | 에이전트 | 확인한 버전 |
 |---|---|
 | Claude Code | 2.1.283 – 2.1.296 |
@@ -132,7 +162,7 @@ Slash Command 는 화면을 읽으며 각 에이전트의 모델 선택창을 �
 
 ## 개인정보
 
-Slash Command 에는 네트워크 코드가 없습니다. 터미널 화면은 무엇을 보낼지 정할 때만 읽습니다. 기록 파일(`~/Library/Logs/SlashCommand/slashcommand.log`)에는 누른 키, 결과, 걸린 시간이 남습니다. 화면에 있던 글은 남기지 않습니다.
+Slash Command 에는 네트워크 코드가 없습니다. 터미널 화면은 무엇을 보낼지 정할 때만 읽습니다. 기록 파일(macOS `~/Library/Logs/SlashCommand/slashcommand.log`, Windows `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)에는 누른 키, 결과, 걸린 시간이 남습니다. 화면에 있던 글은 남기지 않습니다.
 
 ## 문서
 

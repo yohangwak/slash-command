@@ -4,13 +4,14 @@
 
 [English](README.md) · [한국어](README.ko.md) · [简体中文](README.zh-CN.md) · [Español](README.es.md)
 
-**[macOS 版をダウンロード](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 以降 · Apple シリコンと Intel
+**[macOS 版をダウンロード](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 以降 · Apple シリコンと Intel  
+**[Windows 版をダウンロード](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip)** · Windows 11 · x64
 
 ![ホットキーを押すたびに Claude Code が Sonnet、Fable、Opus に切り替わり、effort が上がり、そのつど通知が表示されます](docs/assets/demo.gif)
 
-Slash Command は macOS のメニューバーアプリです。ターミナルで **⇧⌥1 … ⇧⌥9** を押すと、最前面のセッションのエージェントがそのプリセットの **モデル + effort** に切り替わります。**⇧⌥=** と **⇧⌥-** は effort を一段階上げ下げします。
+Slash Command は macOS のメニューバーアプリ、そして Windows のトレイアプリです。ターミナルで **⇧⌥1 … ⇧⌥9**(Windows では **Shift+Alt+1 … 9**)を押すと、最前面のセッションのエージェントがそのプリセットの **モデル + effort** に切り替わります。**⇧⌥=** と **⇧⌥-** は effort を一段階上げ下げします。
 
-**Claude Code、Codex、Grok、Cursor Agent、Antigravity、OpenCode** に対応し、**Ghostty、Orca、iTerm2、WezTerm、kitty** で動作します。
+**Claude Code、Codex、Grok、Cursor Agent、Antigravity、OpenCode** に対応し、macOS では **Ghostty、Orca、iTerm2、WezTerm、kitty**、Windows では **Windows Terminal、Orca、WezTerm** で動作します。
 
 - `/model` を入力して、該当の行を探し、effort を設定する代わりに、**キー一つ**で済みます。
 - **会話の途中でも使えます。** 入力中のテキストは入力欄にそのまま残ります。
@@ -19,6 +20,8 @@ Slash Command は macOS のメニューバーアプリです。ターミナル�
 - **慎重な設計です。** エージェントの入力欄が見えているときだけキーを送り、確信が持てないときは止まります。
 
 ## インストール
+
+### macOS
 
 macOS 13 以降が必要です。
 
@@ -59,6 +62,19 @@ Swift ツールチェーン(Xcode または Command Line Tools)が必要です�
 
 </details>
 
+### Windows
+
+x64 の Windows 11 が必要です。
+
+1. [**Slash-Command-Windows-x64.zip**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip) をダウンロードします。
+2. 右クリックして **すべて展開…** を選び、残しておくフォルダー(例: `%LOCALAPPDATA%\Programs`)に展開します。
+3. 展開した **Slash Command** フォルダーの **Slash Command.exe** を開きます。通知領域に `/` キーのアイコンが表示されます。**^** の矢印の中に隠れていることがあります。
+4. ログイン時に起動するには、アイコンをクリックして **ログイン時に開く** を選びます。
+
+Windows 版はまだコード署名されていないため、初回に SmartScreen が「Windows によって PC が保護されました」と表示することがあります。**詳細情報** → **実行** を選んでください。各リリースでは zip の SHA-256 を `Slash-Command-Windows-x64.zip.sha256` に記載しています。
+
+権限は不要です。コマンドラインツール `slashcommand.exe` は同じフォルダーにあります。
+
 ## 使い方
 
 | キー | 動作 |
@@ -70,9 +86,11 @@ Swift ツールチェーン(Xcode または Command Line Tools)が必要です�
 
 メニューバーのアイコンには、最前面のセッションのエージェントと、各プリセットがそのエージェントに対して何をするかが表示されます。
 
+**Windows では** キーは **Shift+Alt+1 … 9**、**Shift+Alt+=**、**Shift+Alt+-** で、トレイアイコンのメニューにも同じ内容が表示されます。Windows Terminal では Shift+Alt+= と Shift+Alt+- は「ペインを複製」のキーでもありますが、Windows Terminal が最前面の間は Slash Command が使います。Windows Terminal に残すには、プリセットファイルで `"effortKeys": false` にするか `modifiers` を変更してください。
+
 ## プリセット
 
-プリセットは **設定… → プリセット** で編集するか、`~/.config/slashcommand/presets.json` を直接編集します。
+プリセットは **設定… → プリセット** で編集するか、`~/.config/slashcommand/presets.json` を直接編集します。Windows では `%USERPROFILE%\.config\slashcommand\presets.json` で、トレイメニューの **プリセットファイルを開く** から開けます。Windows にはまだ設定ウィンドウがありません。
 
 ```json
 {
@@ -95,6 +113,8 @@ Swift ツールチェーン(Xcode または Command Line Tools)が必要です�
 sudo mkdir -p /usr/local/bin
 sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
 ```
+
+Windows では `slashcommand.exe` が `Slash Command.exe` の隣にあります。そのフォルダーを `PATH` に追加すると `slashcommand` として呼び出せます。
 
 その後:
 
@@ -119,6 +139,16 @@ slashcommand run 2 claude      # open a new session with preset 2
 
 Terminal.app と VS Code のターミナルには対応していません。
 
+Windows:
+
+| ターミナル | 備考 |
+|---|---|
+| Windows Terminal | 設定不要。Windows Terminal の外から引き渡されたペイン(スタートメニューから開いたシェルを Windows が Windows Terminal に渡した場合)には対応していません |
+| Orca | 設定不要 |
+| WezTerm | 設定不要。WSL・tmux・SSH を実行しているペインには対応していません。Grok、Cursor Agent、Antigravity、OpenCode は `keepDefaults` をオフにした場合のみ切り替えます |
+
+Windows では、管理者として実行したウィンドウ、WSL、tmux、Warp、VS Code のターミナルには対応していません。
+
 | エージェント | 確認済みのバージョン |
 |---|---|
 | Claude Code | 2.1.283 – 2.1.296 |
@@ -132,7 +162,7 @@ Slash Command は画面を読み取って各エージェント自身のモデル
 
 ## プライバシー
 
-Slash Command にはネットワーク通信のコードがありません。ターミナルの画面は、何を送るかを判断するためだけに読み取ります。ログ(`~/Library/Logs/SlashCommand/slashcommand.log`)には、押したキー、結果、所要時間が記録されます。画面に表示されていた内容は一切記録されません。
+Slash Command にはネットワーク通信のコードがありません。ターミナルの画面は、何を送るかを判断するためだけに読み取ります。ログ(macOS は `~/Library/Logs/SlashCommand/slashcommand.log`、Windows は `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)には、押したキー、結果、所要時間が記録されます。画面に表示されていた内容は一切記録されません。
 
 ## ドキュメント
 

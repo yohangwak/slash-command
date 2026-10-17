@@ -2,6 +2,12 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.0
+
+- **Windows app.** A tray app for Windows 11 (x64): Shift+Alt+1 … 9 and Shift+Alt+= / - while Windows Terminal, Orca or WezTerm is in front, a notice that never takes focus, and a tray menu with the presets. Download `Slash-Command-Windows-x64.zip`.
+- The command line tool runs on Windows too, with `--app windowsterminal`, `--console <pid>`, `--app orca` and `--wezterm <pane>` targets.
+- On Windows, child processes start without a console window.
+
 ## 0.1.0
 
 First public release.

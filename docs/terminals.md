@@ -75,3 +75,17 @@ slashcommand apply 2 --iterm <session unique id> --agent claude
 slashcommand apply 2 --orca <handle> --agent claude
 slashcommand where --bundle com.mitchellh.ghostty   # as if that app were in front
 ```
+
+## Windows
+
+The Windows app supports **Windows Terminal, Orca and WezTerm**. Nothing needs to be set up, and no permission is asked for.
+
+| Terminal | How the pane is found | How keys are written | Not supported |
+|---|---|---|---|
+| Windows Terminal | The pane with keyboard focus (UI Automation), matched to the one console among Windows Terminal's shells that shows the same text | Key records written into that pane's own console by a helper process (`slashcommand.exe`). They reach that pane only, whichever pane has focus | A pane handed over from outside Windows Terminal, identical screens in two panes, Windows Terminal running as administrator |
+| Orca | Orca's runtime named pipe | The same pipe | — |
+| WezTerm | `wezterm cli list-clients` of the frontmost WezTerm window | `wezterm cli send-text --no-paste` to that pane | Panes running WSL, tmux or SSH, and panes of SSH or mux domains |
+
+- **Windows Terminal never receives synthetic keyboard input or window messages from the app.** Its window input follows focus and its "broadcast input" copies keys to every pane of a tab, so the app writes to the pane's console instead.
+- **WezTerm** on Windows does not say which program runs in which pane, so the agent is told from the screen, and the app checks that an agent of that kind runs under that WezTerm window and that nothing there runs WSL, tmux, SSH or a container. Because it still cannot prove that the pane runs on this computer, Grok, Cursor Agent, Antigravity and OpenCode, which save the choice as their default, switch in WezTerm only with `keepDefaults` off.
+- In Windows Terminal, Shift+Alt+= and Shift+Alt+- are also the default "Duplicate pane" keys. While Windows Terminal is in front, Slash Command takes them.

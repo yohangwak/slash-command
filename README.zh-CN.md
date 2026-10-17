@@ -4,13 +4,14 @@
 
 [English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [Español](README.es.md)
 
-**[下载 macOS 版](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 或更高版本 · Apple 芯片和 Intel
+**[下载 macOS 版](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command.dmg)** · macOS 13 或更高版本 · Apple 芯片和 Intel  
+**[下载 Windows 版](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip)** · Windows 11 · x64
 
 ![每按一次快捷键,Claude Code 就在 Sonnet、Fable、Opus 之间切换并提高 effort,每次变更都会显示通知](docs/assets/demo.gif)
 
-Slash Command 是一款 macOS 菜单栏应用。在终端里按下 **⇧⌥1 … ⇧⌥9**,最前面会话中的智能体就会切换到对应预设的 **模型 + effort**。**⇧⌥=** 和 **⇧⌥-** 可以把 effort 调高或调低一级。
+Slash Command 是一款 macOS 菜单栏应用,也是一款 Windows 托盘应用。在终端里按下 **⇧⌥1 … ⇧⌥9**(Windows 上为 **Shift+Alt+1 … 9**),最前面会话中的智能体就会切换到对应预设的 **模型 + effort**。**⇧⌥=** 和 **⇧⌥-** 可以把 effort 调高或调低一级。
 
-它支持 **Claude Code、Codex、Grok、Cursor Agent、Antigravity 和 OpenCode**,可在 **Ghostty、Orca、iTerm2、WezTerm 和 kitty** 中使用。
+它支持 **Claude Code、Codex、Grok、Cursor Agent、Antigravity 和 OpenCode**,在 macOS 上可用于 **Ghostty、Orca、iTerm2、WezTerm 和 kitty**,在 Windows 上可用于 **Windows Terminal、Orca 和 WezTerm**。
 
 - **一次按键**,不必再输入 `/model`、找到对应的选项、再设置 effort。
 - **对话进行中也能用。** 你正在输入的内容会原样保留在输入框里。
@@ -19,6 +20,8 @@ Slash Command 是一款 macOS 菜单栏应用。在终端里按下 **⇧⌥1 …
 - **设计上很谨慎。** 只有在能看到智能体输入框时才会发送按键,拿不准时就会停下。
 
 ## 安装
+
+### macOS
 
 需要 macOS 13 或更高版本。
 
@@ -59,6 +62,19 @@ cd slash-command
 
 </details>
 
+### Windows
+
+需要 x64 的 Windows 11。
+
+1. 下载 [**Slash-Command-Windows-x64.zip**](https://github.com/yohangwak/slash-command/releases/latest/download/Slash-Command-Windows-x64.zip)。
+2. 右键点击它,选择 **全部解压缩…**,解压到一个会长期保留的文件夹,例如 `%LOCALAPPDATA%\Programs`。
+3. 打开解压出的 **Slash Command** 文件夹中的 **Slash Command.exe**。通知区域会出现一个 `/` 键图标,它可能藏在 **^** 箭头里。
+4. 要在登录时启动,点击该图标并选择 **登录时打开**。
+
+Windows 版目前还没有代码签名,第一次打开时 SmartScreen 可能会显示“Windows 已保护你的电脑”。请选择 **更多信息**,然后选择 **仍要运行**。每个版本都会在 `Slash-Command-Windows-x64.zip.sha256` 中列出 zip 的 SHA-256。
+
+不需要任何权限。命令行工具 `slashcommand.exe` 位于同一文件夹。
+
 ## 使用
 
 | 按键 | 效果 |
@@ -70,9 +86,11 @@ cd slash-command
 
 菜单栏图标会显示最前面会话中的智能体,以及每个预设对它会执行什么操作。
 
+**在 Windows 上**,按键为 **Shift+Alt+1 … 9**、**Shift+Alt+=** 和 **Shift+Alt+-**,托盘图标的菜单中也会显示相同内容。在 Windows Terminal 中,Shift+Alt+= 和 Shift+Alt+- 也是它的“复制窗格”快捷键;当 Windows Terminal 位于最前面时,Slash Command 会占用它们。若想把它们留给 Windows Terminal,请在预设文件中设置 `"effortKeys": false` 或更改 `modifiers`。
+
 ## 预设
 
-在 **设置… → 预设** 中编辑预设,也可以直接编辑 `~/.config/slashcommand/presets.json`。
+在 **设置… → 预设** 中编辑预设,也可以直接编辑 `~/.config/slashcommand/presets.json`。在 Windows 上,该文件为 `%USERPROFILE%\.config\slashcommand\presets.json`,可在托盘菜单中选择 **打开预设文件**。Windows 上目前还没有设置窗口。
 
 ```json
 {
@@ -95,6 +113,8 @@ cd slash-command
 sudo mkdir -p /usr/local/bin
 sudo ln -sf "/Applications/Slash Command.app/Contents/MacOS/slashcommand-cli" /usr/local/bin/slashcommand
 ```
+
+在 Windows 上,`slashcommand.exe` 位于 `Slash Command.exe` 旁边。把该文件夹加入 `PATH` 后即可用 `slashcommand` 调用。
 
 然后:
 
@@ -119,6 +139,16 @@ slashcommand run 2 claude      # open a new session with preset 2
 
 不支持 Terminal.app 和 VS Code 终端。
 
+Windows:
+
+| 终端 | 说明 |
+|---|---|
+| Windows Terminal | 无需设置。不支持从 Windows Terminal 外部移交过来的窗格(例如从开始菜单打开、由 Windows 交给 Windows Terminal 的 shell) |
+| Orca | 无需设置 |
+| WezTerm | 无需设置。不支持运行 WSL、tmux 或 SSH 的窗格。Grok、Cursor Agent、Antigravity 和 OpenCode 只有在关闭 `keepDefaults` 时才会在这里切换 |
+
+在 Windows 上,不支持以管理员身份运行的窗口、WSL、tmux、Warp 和 VS Code 终端。
+
 | 智能体 | 已验证的版本 |
 |---|---|
 | Claude Code | 2.1.283 – 2.1.296 |
@@ -132,7 +162,7 @@ Slash Command 通过读取屏幕来操作每个智能体自带的模型选择器
 
 ## 隐私
 
-Slash Command 不包含任何网络代码。它读取终端屏幕只是为了决定发送什么。它的日志(`~/Library/Logs/SlashCommand/slashcommand.log`)会记录你按下的键、结果和耗时,但从不记录屏幕上的内容。
+Slash Command 不包含任何网络代码。它读取终端屏幕只是为了决定发送什么。它的日志(macOS 为 `~/Library/Logs/SlashCommand/slashcommand.log`,Windows 为 `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)会记录你按下的键、结果和耗时,但从不记录屏幕上的内容。
 
 ## 文档
 

@@ -13,6 +13,18 @@ The package has three targets: `SlashCommandCore` (all logic), `slashcommand` (c
 
 There is no macOS CI. Run `swift test` locally before opening a pull request.
 
+### Windows
+
+The same package builds on Windows 11 with Swift 6.4 for Windows and the Visual Studio 2022 Build Tools (C++ workload and a Windows SDK). On Windows the targets are `SlashCommandCore`, `slashcommand`, `SlashCommandWin` (the tray app, a GUI-subsystem program) and `CWindowsTerminal` (UI Automation and console access in C).
+
+```powershell
+swift build
+swift test
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package-windows.ps1   # dist\Slash-Command-Windows-x64.zip and its .sha256
+```
+
+`package-windows.ps1` builds the release configuration and puts `Slash Command.exe` (the tray app), `slashcommand.exe`, the translations, the icon and the Swift runtime DLLs those two programs load into one folder. The zip runs on a PC without Swift installed.
+
 ## Trying a change
 
 ```sh
@@ -97,6 +109,15 @@ gh release create v0.1.0 dist/Slash-Command.dmg dist/Slash-Command.zip --title "
 ```
 
 Keep the asset names `Slash-Command.dmg` and `Slash-Command.zip`. The README links to `releases/latest/download/Slash-Command.dmg`, which works only while the name stays the same. The disk image is what people download; the zip is what the Homebrew cask installs. `scripts/make-dmg.sh` builds the disk image from an app that is already signed and notarized.
+
+The Windows zip is built on a Windows PC (see [Windows](#windows)) and goes into the same release:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package-windows.ps1
+gh release upload v0.2.0 dist\Slash-Command-Windows-x64.zip dist\Slash-Command-Windows-x64.zip.sha256
+```
+
+Keep the name `Slash-Command-Windows-x64.zip`; the README links to `releases/latest/download/Slash-Command-Windows-x64.zip`. Every release needs all three files (disk image, zip, Windows zip), because `latest` moves to the newest release.
 
 Then update the Homebrew cask in [yohangwak/homebrew-tap](https://github.com/yohangwak/homebrew-tap): set `version` and the zip's `sha256` that `release.sh` printed in `Casks/slash-command.rb`, and check it before pushing:
 
