@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Question or idea
+    url: https://github.com/yohangwak/slash-command/discussions
+    about: Ask a question or share an idea in Discussions.
   - name: Security problem
     url: https://github.com/yohangwak/slash-command/security/advisories/new
     about: Report privately. Please do not open a public issue.

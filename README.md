@@ -149,16 +149,7 @@ On Windows:
 
 Windows running as administrator, WSL, tmux, Warp and the VS Code terminal are not supported on Windows.
 
-| Agent | Versions checked |
-|---|---|
-| Claude Code | 2.1.283 – 2.1.296 |
-| Codex | 0.156.0 – 0.162.0 |
-| Grok | 1.0.46, 1.0.50 |
-| Cursor Agent | 2026.10.01 |
-| Antigravity | 1.3.1, 1.3.3 |
-| OpenCode | 1.18.35, 2.0.25 |
-
-Slash Command drives each agent's own model picker by reading the screen, so it depends on the text those pickers show. When an agent changes that text, switching stops and sends nothing further. `slashcommand doctor` tells you when the version you run has not been checked.
+Slash Command drives each agent's own model picker by reading the screen, so it depends on the text those pickers show. When an agent changes that text, switching stops and sends nothing further. `slashcommand doctor` tells you when the version you run has not been checked. The versions checked so far are listed in [Agents](docs/agents.md#versions).
 
 ## Privacy
 
