@@ -10,13 +10,13 @@ Not supported: Terminal.app, the VS Code terminal, Orca's floating terminal, and
 | WezTerm | No | No | None | about 0.3 s |
 | kitty | No | No | Remote control on | about 0.7 s |
 | iTerm2 | Yes | Yes | None | 1.3 – 2.6 s |
-| Ghostty | Yes | Yes | None | 0.6 – 4.6 s, see below |
+| Ghostty | Yes | Yes | None | 1.2 – 4.6 s, see below |
 
 ## Ghostty
 
 Slash Command reads the frontmost terminal's id, title and folder over AppleScript, and reads the screen through Accessibility.
 
-Ghostty hands out screen text that is up to half a second old. Every step that has to confirm what is on screen therefore costs half a second, which is why a Codex switch takes 3 to 4.6 seconds here. For Claude Code the app uses the `/model` and `/effort` commands instead of the picker and takes about 0.6 seconds. See [How it works](how-it-works.md#when-the-picker-cannot-be-used).
+Ghostty hands out screen text that is up to half a second old. Every step that has to confirm what is on screen therefore costs half a second, which is why a Codex switch takes 3 to 4.6 seconds here. For Claude Code the app uses the `/model` and `/effort` commands instead of the picker and takes about 1.2 seconds: about 0.6 seconds for the commands and about 0.6 seconds to see the input box again before the second one. See [How it works](how-it-works.md#when-the-picker-cannot-be-used).
 
 Ghostty 1.3.1 does not expose a terminal's tty, so tmux inside Ghostty cannot be followed yet.
 

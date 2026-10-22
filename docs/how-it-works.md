@@ -44,6 +44,8 @@ Measured on 2026-10-06 with Claude Code 2.1.283 – 2.1.289, Codex 0.156.0 – 0
 | Ghostty, Claude Code, one effort step | | 1.8 – 2.5 s |
 | Ghostty, Codex | | 3.0 – 4.6 s |
 
+The input-box check between the two Claude Code commands in Ghostty adds about 0.6 s: on 2026-10-22 (Claude Code 2.1.302, Ghostty 1.3.1, four runs each) a whole switch took 1.53 s without it and 2.10 s with it.
+
 What made it faster: fixed waits (4.9 s) replaced by reading the screen, the `orca` command (0.2 s a call) replaced by the app's socket (under 1 ms), `ps` and `osascript` child processes replaced by in-process calls.
 
 `slashcommand apply <number> --trace` prints the time each step took.
