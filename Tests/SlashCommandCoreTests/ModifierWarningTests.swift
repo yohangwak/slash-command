@@ -8,10 +8,10 @@ final class ModifierWarningTests: KoreanMessagesTestCase {
     }
 
     func testUnknownModifiersWarnAboutTheActualFallback() throws {
-        let config = try decode(["ctrl", "alt"])
+        let config = try decode(["hyper", "meta"])
         XCTAssertEqual(config.modifiers, SlashCommandConfig.defaultModifiers)
-        XCTAssertEqual(config.ignoredModifiers, ["ctrl", "alt"])
-        XCTAssertEqual(config.modifierWarning, loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "ctrl, alt", "⌥⇧"))
+        XCTAssertEqual(config.ignoredModifiers, ["hyper", "meta"])
+        XCTAssertEqual(config.modifierWarning, loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "hyper, meta", "⌥⇧"))
     }
 
     func testRecognizedModifiersDoNotWarn() throws {
@@ -22,10 +22,10 @@ final class ModifierWarningTests: KoreanMessagesTestCase {
     }
 
     func testPartlyFilteredModifiersRetainTheOriginalNames() throws {
-        let config = try decode(["ctrl", "option"])
+        let config = try decode(["hyper", "option"])
         XCTAssertEqual(config.modifiers, ["option"])
-        XCTAssertEqual(config.ignoredModifiers, ["ctrl"], "option was recognized, so it is not named as unrecognized")
-        XCTAssertEqual(config.modifierWarning, loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "ctrl", "⌥"))
+        XCTAssertEqual(config.ignoredModifiers, ["hyper"], "option was recognized, so it is not named as unrecognized")
+        XCTAssertEqual(config.modifierWarning, loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "hyper", "⌥"))
     }
 
     func testUnusableModifiersWarnEvenForAnEmptyArray() throws {
@@ -43,7 +43,7 @@ final class ModifierWarningTests: KoreanMessagesTestCase {
 
     func testWarningStateDoesNotMakeAnUneditedDraftDirty() throws {
         // The settings window builds its draft with the public initializer and compares it with the loaded file.
-        for names in [["ctrl", "alt"], ["shift"]] as [[String]] {
+        for names in [["hyper", "meta"], ["shift"]] as [[String]] {
             let loaded = try decode(names)
             let draft = SlashCommandConfig(version: loaded.version, keepDefaults: loaded.keepDefaults, acceptSwitchPrompt: loaded.acceptSwitchPrompt,
                                            effortKeys: loaded.effortKeys, modifiers: loaded.modifiers, slots: loaded.slots)
@@ -53,7 +53,7 @@ final class ModifierWarningTests: KoreanMessagesTestCase {
     }
 
     func testWarningDoesNotAddStoredKeys() throws {
-        let config = try decode(["ctrl", "alt"])
+        let config = try decode(["hyper", "meta"])
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(config)) as? [String: Any])
         XCTAssertEqual(Set(object.keys), ["version", "keepDefaults", "acceptSwitchPrompt", "effortKeys", "modifiers", "slots"])
     }
@@ -90,13 +90,24 @@ final class ModifierWarningTests: KoreanMessagesTestCase {
 
     func testWindowsPrioritizesTheFileWarningAndKeepsPlatformWarnings() throws {
         // The file warning names the keys Windows actually registers, not Mac symbols.
-        XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["ctrl", "alt"])),
-                       loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "ctrl, alt", "Alt+Shift"))
+        XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["hyper", "meta"])),
+                       loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "hyper, meta", "Alt+Shift"))
         XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["shift"])),
                        loc("The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command.", "Alt+Shift"))
-        XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["ctrl", "control", "shift"])),
-                       loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "ctrl", "Ctrl+Shift"))
+        XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["hyper", "control", "shift"])),
+                       loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "hyper", "Ctrl+Shift"))
         XCTAssertNil(WindowsAppModel.modifierWarning(for: try decode(["option", "shift"])))
         XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["command"])), loc("Command is unavailable on Windows. Using Alt+Shift."))
+    }
+
+    func testShortNamesAreReadAsTheSameKeys() throws {
+        let config = try decode(["Ctrl", "alt", "cmd"])
+        XCTAssertEqual(config.modifiers, ["control", "option", "command"])
+        XCTAssertNil(config.modifierWarning)
+        XCTAssertEqual(try decode(["opt", "shift"]).modifiers, ["option", "shift"])
+        XCTAssertEqual(WindowsAppModel.modifiers(try decode(["alt", "shift"]).modifiers), WindowsAppModel.modifiers(["option", "shift"]))
+        // Saving writes the long names.
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(config)) as? [String: Any])
+        XCTAssertEqual(object["modifiers"] as? [String], ["control", "option", "command"])
     }
 }

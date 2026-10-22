@@ -26,7 +26,7 @@ The file is `~/.config/slashcommand/presets.json`. Set `SLASHCOMMAND_CONFIG` to 
 | Key | Default | Meaning |
 |---|---|---|
 | `slots` | required | The presets, in order. The first is preset 1 |
-| `modifiers` | `["option", "shift"]` | The keys held with the number. Any of `control`, `option`, `shift`, `command`. Shift alone is not accepted, because you could no longer type `!` `@` `#` |
+| `modifiers` | `["option", "shift"]` | The keys held with the number. Any of `control`, `option`, `shift`, `command`; `ctrl`, `alt`, `opt` and `cmd` are read as the same keys (`alt` is Option on a Mac). Shift alone is not accepted, because you could no longer type `!` `@` `#` |
 | `effortKeys` | `true` | Whether `=` and `-` with the same modifiers change the effort |
 | `keepDefaults` | `true` | Change this session only. See [Agents](agents.md) for what that means per agent |
 | `acceptSwitchPrompt` | `true` | Accept Claude Code's confirmation dialog automatically. See [How it works](how-it-works.md#claude-codes-confirmation-dialog) |

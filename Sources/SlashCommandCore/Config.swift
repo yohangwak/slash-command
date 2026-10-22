@@ -247,6 +247,18 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
     public static let defaultModifiers = ["option", "shift"]
     public static let knownModifiers = ["control", "option", "shift", "command"]
 
+    /// The modifier a name in the file stands for. Besides the four names, the short forms people write by habit
+    /// (`ctrl`, `alt`, `opt`, `cmd` — `alt` especially on Windows, where the key is labeled Alt), in any letter case.
+    public static func modifierName(_ name: String) -> String? {
+        switch name.lowercased() {
+        case "control", "ctrl": return "control"
+        case "option", "opt", "alt": return "option"
+        case "shift": return "shift"
+        case "command", "cmd": return "command"
+        default: return nil
+        }
+    }
+
     public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = true, effortKeys: Bool = true,
                 modifiers: [String] = SlashCommandConfig.defaultModifiers, slots: [Slot]) {
         self.version = version
@@ -287,13 +299,14 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         acceptSwitchPrompt = try c.decodeIfPresent(Bool.self, forKey: .acceptSwitchPrompt) ?? true
         effortKeys = try c.decodeIfPresent(Bool.self, forKey: .effortKeys) ?? true
         let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? SlashCommandConfig.defaultModifiers
-        modifiers = SlashCommandConfig.knownModifiers.filter(wanted.contains)
+        let named = wanted.compactMap(SlashCommandConfig.modifierName)
+        modifiers = SlashCommandConfig.knownModifiers.filter(named.contains)
         // Grabbing bare digits without a modifier would make it impossible to type digits in the terminal. The same goes for Shift alone (`!`, `@`, `#` could not be typed).
         if !SlashCommandConfig.modifiersAreUsable(modifiers) {
             modifiers = SlashCommandConfig.defaultModifiers
             modifiersWereReplaced = true
         }
-        ignoredModifiers = wanted.filter { !SlashCommandConfig.knownModifiers.contains($0) }
+        ignoredModifiers = wanted.filter { SlashCommandConfig.modifierName($0) == nil }
         slots = try c.decode([Slot].self, forKey: .slots)
         extra = try DynamicKey.unknown(in: decoder, known: SlashCommandConfig.known)
     }

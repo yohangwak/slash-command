@@ -731,7 +731,7 @@ final class ConfigTests: KoreanMessagesTestCase {
         XCTAssertTrue(SlashCommandConfig.modifiersAreUsable(["option"]))
         XCTAssertTrue(SlashCommandConfig.modifiersAreUsable(["shift", "control"]))
         // If the file lists only Shift (even after filtering out unknown names), read it as the default combination — it must be possible to type `!` in a terminal.
-        for written in [#"["shift"]"#, #"["ctrl", "shift"]"#, "[]"] {
+        for written in [#"["shift"]"#, #"["hyper", "shift"]"#, "[]"] {
             let json = #"{"version": 1, "modifiers": \#(written), "slots": []}"#
             let config = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(json.utf8))
             XCTAssertEqual(config.modifiers, SlashCommandConfig.defaultModifiers, written)
@@ -3756,10 +3756,10 @@ final class LaunchSupportTests: KoreanMessagesTestCase {
         XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "gemini-3.1-pro", effort: "low"), listing: listing).model,
                        "gemini-3.1-pro-low", "Case and symbols are ignored")
         XCTAssertThrowsError(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 3.1 Pro", effort: "medium"), listing: listing)) {
-            XCTAssertEqual("\($0)", "antigravity 'Gemini 3.1 Pro' 에는 effort 'medium' 가 없습니다(high, low).")
+            XCTAssertEqual("\($0)", "antigravity 'Gemini 3.1 Pro'에는 effort 'medium'이(가) 없습니다(high, low).")
         }
         XCTAssertThrowsError(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 9", effort: "high"), listing: listing)) {
-            XCTAssertEqual("\($0)", "antigravity 모델 목록에 'Gemini 9' 이 없습니다.")
+            XCTAssertEqual("\($0)", "antigravity 모델 목록에 'Gemini 9'이(가) 없습니다.")
         }
         XCTAssertThrowsError(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 3.8 Flash", effort: "high"),
                                                 listing: "Error: Please sign in to view available models."), "If the list could not be obtained, it does not guess")
