@@ -89,8 +89,13 @@ final class ModifierWarningTests: KoreanMessagesTestCase {
     }
 
     func testWindowsPrioritizesTheFileWarningAndKeepsPlatformWarnings() throws {
-        let unknown = try decode(["ctrl", "alt"])
-        XCTAssertEqual(WindowsAppModel.modifierWarning(for: unknown), unknown.modifierWarning)
+        // The file warning names the keys Windows actually registers, not Mac symbols.
+        XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["ctrl", "alt"])),
+                       loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "ctrl, alt", "Alt+Shift"))
+        XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["shift"])),
+                       loc("The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command.", "Alt+Shift"))
+        XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["ctrl", "control", "shift"])),
+                       loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", "ctrl", "Ctrl+Shift"))
         XCTAssertNil(WindowsAppModel.modifierWarning(for: try decode(["option", "shift"])))
         XCTAssertEqual(WindowsAppModel.modifierWarning(for: try decode(["command"])), loc("Command is unavailable on Windows. Using Alt+Shift."))
     }

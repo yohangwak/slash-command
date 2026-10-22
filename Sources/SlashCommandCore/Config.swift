@@ -239,7 +239,7 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
     /// Names in the file that are not modifier keys, dropped when decoding. Not written to the file.
     public private(set) var ignoredModifiers: [String] = []
     /// The file's modifiers could not be used (no control, option or command) and were replaced. Not written to the file.
-    private var modifiersWereReplaced = false
+    public private(set) var modifiersWereReplaced = false
     public var slots: [Slot]
     /// Keys this version does not know (written back exactly as read).
     public var extra: [String: JSONValue] = [:]
@@ -263,12 +263,15 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         return SlashCommandConfig.knownModifiers.filter(modifiers.contains).compactMap { symbols[$0] }.joined()
     }
 
-    public var modifierWarning: String? {
+    public var modifierWarning: String? { modifierWarning(using: modifierSymbols) }
+
+    /// The warning about the file's modifiers, naming the keys actually used as `used` (Mac symbols here, `Alt+Shift` on Windows).
+    public func modifierWarning(using used: String) -> String? {
         if !ignoredModifiers.isEmpty {
-            return loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", ignoredModifiers.joined(separator: ", "), modifierSymbols)
+            return loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", ignoredModifiers.joined(separator: ", "), used)
         }
         guard modifiersWereReplaced else { return nil }
-        return loc("The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command.", modifierSymbols)
+        return loc("The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command.", used)
     }
 
     /// What the warning remembers about the file is not part of the settings: a draft built from these values is equal to the loaded file.
