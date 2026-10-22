@@ -2,8 +2,10 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
-## Unreleased
+## 0.2.1
 
+- The presets file accepts `ctrl`, `alt`, `opt` and `cmd` as modifier names (`alt` is Option on a Mac), in any letter case.
+- Korean: particles after names and values are attached and use the forms that fit either ending (`이(가)`, `을(를)`).
 - Codex: the first switch in a fresh session works again. The welcome text's `/model - choose what model …` line was taken for the command popup, so Enter went out too early, the picker never opened and `/model` was left in the input box.
 - Ghostty + Claude Code: the second command (`/effort`) is sent only after a fresh screen shows the input box again, preventing Enter from reaching a dialog that opened in between.
 - A timed-out switch no longer quotes unrelated conversation output in the error message or log; only a reply directly below our command is quoted.
