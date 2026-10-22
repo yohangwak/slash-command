@@ -1,0 +1,2 @@
+# Test fixtures are compared byte for byte; keep them as committed (no CRLF on Windows checkouts).
+Tests/SlashCommandCoreTests/Fixtures/** -text

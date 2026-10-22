@@ -16,7 +16,9 @@ final class AgentDefaultsFileTests: KoreanMessagesTestCase {
     }
 
     private func assertLinkAndPermissions(_ link: URL, _ target: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), target.path, file: file, line: line)
+        // Windows reports the link target with backslashes and the URL path with slashes.
+        let destination = try FileManager.default.destinationOfSymbolicLink(atPath: link.path).replacingOccurrences(of: "\\", with: "/")
+        XCTAssertEqual(destination, target.path.replacingOccurrences(of: "\\", with: "/"), file: file, line: line)
         let permissions = try FileManager.default.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber
         XCTAssertEqual(permissions?.intValue, 0o600, file: file, line: line)
     }

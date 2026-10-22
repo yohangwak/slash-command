@@ -232,7 +232,8 @@ final class WindowsReviewFixTests: XCTestCase {
 
     func testNativeProcessDrainsBothPipesAndPassesEnvironmentAndDirectory() throws {
         let powershell = try XCTUnwrap(Proc.locate("powershell"))
-        let directory = FileManager.default.temporaryDirectory
+        // Not the temp folder: on a runner it is given in its 8.3 short form (RUNNER~1) while the child reports the long one.
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         var env = ProcessInfo.processInfo.environment
         env["SC_PROC_TEST"] = "present"
         let result = Proc.run(powershell, ["-NoProfile", "-Command",
