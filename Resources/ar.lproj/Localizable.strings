@@ -161,7 +161,6 @@
 "Nothing was sent: the command did not appear in the OpenCode input box." = "لم يُرسل شيء: لم يظهر الأمر في مربع إدخال OpenCode.";
 "Off" = "إيقاف";
 "On" = "تشغيل";
-"Open Settings…" = "فتح الإعدادات…";
 "Open at login" = "فتح عند تسجيل الدخول";
 "OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "لا يوفّر OpenCode خيارًا لتحديد variant عند الفتح، لذلك يُفتح بهذا النموذج وبآخر variant استخدمه النموذج. استخدم الاختصار بعد ذلك لتعيين '%@'.";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "في Orca عدة مساحات عمل بعناوين علامات تبويب متطابقة وبالترتيب نفسه، لذا لا يمكن التمييز بين الطرفيات الظاهرة. امنح علامات التبويب أسماء مختلفة.";
@@ -253,7 +252,6 @@
 "Unsaved changes" = "تغييرات غير محفوظة";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "تُستخدم لقراءة شاشة Ghostty، ومتابعة تغيّر علامات التبويب في Orca، والتأكد من أن بثّ الإدخال (Broadcast Input) في iTerm2 متوقف.";
 "Used to type the switch commands into %@." = "يُستخدم لإدخال أوامر التبديل في %@.";
-"Works in Ghostty and Orca" = "يعمل في Ghostty وOrca";
 "installed %@" = "مثبّت %@";
 "macOS asks once, the first time you press a shortcut in %@." = "يسأل macOS مرة واحدة، عند أول ضغط على اختصار في %@.";
 "no rows" = "لا صفوف";
@@ -332,3 +330,13 @@
 
 "Use --console with a positive process ID and --agent <agent>." = "استخدم --console مع معرّف عملية موجب و--agent <agent>.";
 "No Windows Terminal window is open." = "لا توجد نافذة Windows Terminal مفتوحة.";
+
+"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "لم يتم التبديل: يحتوي الإعداد المسبق %1$@ لـ %2$@ على محرف تحكم. أصلحه في الإعدادات أو ملف الإعدادات المسبقة.";
+
+"Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "لم يتم الإرسال: لوحة tmux هذه في وضع النسخ، لذا لن تصل المفاتيح إلى الوكيل. اضغط q للخروج منه، ثم اضغط مجددًا.";
+
+"The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command." = "لم يتم التعرف على مفاتيح التعديل في ملف الإعدادات المسبقة (%1$@)، لذا يُستخدم %2$@. استخدم control أو option أو shift أو command.";
+
+"Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "يعمل في Ghostty وOrca وiTerm2 وWezTerm وkitty";
+"Open System Settings…" = "فتح إعدادات النظام…";
+"The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "لا يمكن استخدام مفاتيح التعديل في ملف الإعدادات المسبقة بمفردها، لذا يُستخدم %@. أضف control أو option أو command.";

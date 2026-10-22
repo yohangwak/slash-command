@@ -150,7 +150,7 @@ func describe(_ step: Step) -> String {
     case .stepRow(let up, let timeoutMs, _): return "row     cursor one row \(up ? "above" : "below") the current value (up to \(timeoutMs)ms)"
     case .expectCurrentRow: return "expect  the cursor is on the current model's row (✔)"
     case .stepEffort(let up, let timeoutMs, _): return "effort  one level \(up ? "up (→)" : "down (←)") (up to \(timeoutMs)ms)"
-    case .expectInput(let agent, _, let timeoutMs, _, _): return "expect  the picker closed and the \(agent.rawValue) input box is visible (up to \(timeoutMs)ms)"
+    case .expectInput(let agent, _, _, let timeoutMs, _, _): return "expect  the picker closed and the \(agent.rawValue) input box is visible (up to \(timeoutMs)ms)"
     case .closePicker: return "close   Esc, only while the picker is showing"
     case .capture(let prefixes, _): return "capture result text (\(prefixes.joined(separator: " / "))…)"
     }
@@ -163,6 +163,7 @@ if args.first == "__console-bridge" {
     exit(WindowsConsoleCommand.run(pid: pid))
 }
 #endif
+if let problem = CommandLineCheck.problem(in: args) { fail(problem) }
 let store = ConfigStore()
 
 do {
@@ -330,9 +331,12 @@ do {
             // When making a test sample: save the screen exactly as the product reads it to a file (the tail of `orca terminal read` can drop the bottom lines).
             if let path = value(after: "--dump", in: args), let snapshot = io.snapshot() {
                 let object: [String: Any] = ["draft": snapshot.draft as Any, "tail": snapshot.lines]
-                if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted]) {
-                    try? data.write(to: URL(fileURLWithPath: path))
+                do {
+                    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted])
+                    try data.write(to: URL(fileURLWithPath: path))
                     print("screen saved: \(path)")
+                } catch {
+                    fail("could not save screen dump: \(error.localizedDescription)")
                 }
             }
             if args.contains("--screen") {
@@ -368,7 +372,8 @@ do {
         print(store.url.path)
     default:
         #if os(Windows)
-        print(usage.replacingOccurrences(of: "--bundle <bundle id>", with: "--app orca"))
+        print(usage.replacingOccurrences(of: "  --bundle <bundle id>   as if that app were the frontmost one (the path a hotkey takes)",
+                                         with: "  --app windowsterminal|orca|wezterm   as if that app were the frontmost one\n  --console <pid> --agent <agent>   target a console process directly"))
         #else
         print(usage)
         #endif

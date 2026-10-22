@@ -219,7 +219,7 @@ public struct ITermIO: TerminalIO {
     /// The lines of the current screen from `"<rows>\n<columns>\n<contents>"`. nil if the row and column counts cannot be read (text mixed with scrollback is not used as the current screen).
     ///
     /// `rows` is the «physical» row count but `contents` is in units of text lines, so a long line may wrap and take several rows (so there are fewer lines in total).
-    /// So, from the bottom, add up each line's «rows taken» (width ÷ column count, rounded up) and take lines only until `rows` is filled.
+    /// So, from the bottom, add up each line's «rows taken», including space left before a wide character wraps, and take lines only until `rows` is filled.
     ///
     /// Width must be counted according to that session's profile — a miscount either way causes trouble (both from the PR #27 review):
     /// - Counting too wide: a line that exactly fits the column count (`› 1. …`, hint line, claude's separator) is counted as 2 rows and drops a «visible» upper line. In an 11-line pane the codex picker's
@@ -236,11 +236,24 @@ public struct ITermIO: TerminalIO {
         var used = 0
         var kept: [String] = []
         for line in lines.reversed() {
-            used += max(1, (displayWidth(line, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth) + columns - 1) / columns)
+            used += rowsTaken(line, columns: columns, ambiguousIsDoubleWidth: ambiguousIsDoubleWidth)
             if used > rows { break }
             kept.append(line)
         }
         return kept.reversed()
+    }
+
+    static func rowsTaken(_ line: String, columns: Int, ambiguousIsDoubleWidth: Bool) -> Int {
+        var rows = 1, col = 0
+        for character in line {
+            let width = displayWidth(String(character), ambiguousIsDoubleWidth: ambiguousIsDoubleWidth)
+            if col + width > columns {
+                rows += 1
+                col = 0
+            }
+            col += width
+        }
+        return rows
     }
 
     /// Width in terminal cells (the `CharacterWidth` table): wide characters 2 cells, combining characters 0, «ambiguous-width» characters (`─`, `·`, `●` …) 1 or 2 cells depending on the profile setting,

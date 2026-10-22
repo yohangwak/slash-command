@@ -73,7 +73,7 @@ public enum Step: Equatable, Sendable {
     /// — a notice that the conversation history will be re-read). By default nothing is sent to that dialog and the user decides.
     /// If `acceptSwitchTo` is set (when turned on in settings), it is accepted with Enter only when the dialog asks to switch to «one of these values» and the cursor is on Yes.
     /// `Step.steppedEffort` means "the step that `stepEffort` just moved to".
-    case expectInput(agent: Agent, acceptSwitchTo: [String] = [], timeoutMs: Int, abort: [Step], failure: String)
+    case expectInput(agent: Agent, acceptSwitchTo: [String] = [], fresh: Bool = false, timeoutMs: Int, abort: [Step], failure: String)
 
     public static let steppedEffort = "{stepped-effort}"
     /// Closes with Esc only «while the picker is visible». If there is no picker, nothing is sent: Esc on a working codex interrupts the work.
@@ -417,6 +417,8 @@ public enum Plans {
             .text("\u{13}/model \(preset.model)\r"),
             .expectResult(prefix: "Set model to", command: "/model", acceptSwitchTo: acceptSwitch ? [ClaudeModels.rowLabel(preset.model)] : [], timeoutMs: 3000,
                           failure: loc("Claude Code did not respond to /model %@.", preset.model)),
+            .expectInput(agent: .claude, acceptSwitchTo: acceptSwitch ? [ClaudeModels.rowLabel(preset.model)] : [], fresh: true, timeoutMs: 3000, abort: [],
+                         failure: loc("Stopped: the Claude Code input box did not come back.")),
             .arm,
             .text("\u{13}/effort \(preset.effort)\r"),
             .expectResult(prefix: "Set effort level", command: "/effort", acceptSwitchTo: acceptSwitch ? [preset.effort] : [], timeoutMs: 3000,

@@ -202,7 +202,7 @@ public struct GrokDefaults: Sendable {
         }
         guard FileManager.default.fileExists(atPath: url.path) else {
             if wasAbsent { return .unchanged }
-            do { try before.write(to: url, atomically: true, encoding: .utf8); return .restored } catch { return .failed(error.localizedDescription) }
+            do { try DefaultsFile.write(Data(before.utf8), to: url); return .restored } catch { return .failed(error.localizedDescription) }
         }
         guard let current = (try? Data(contentsOf: url)).flatMap({ String(data: $0, encoding: .utf8) }) else {
             return .failed(loc("Could not read the Grok settings file"))
@@ -213,7 +213,7 @@ public struct GrokDefaults: Sendable {
             if wasAbsent, fixed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 try FileManager.default.removeItem(at: url)
             } else {
-                try fixed.write(to: url, atomically: true, encoding: .utf8)
+                try DefaultsFile.write(Data(fixed.utf8), to: url)
             }
             return .restored
         } catch {

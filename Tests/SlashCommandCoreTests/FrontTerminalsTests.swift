@@ -131,9 +131,11 @@ final class FrontTerminalsTests: XCTestCase {
     func testTmuxWriteRefusesSynchronizedPanes() {
         // The check (`#{pane_synchronized}`) and the write are one tmux command — when it is on, it does not write and prints a marker.
         let arguments = TmuxIO.sendArguments(pane: "%5", bytes: "/m\r")
-        XCTAssertEqual(arguments, ["if-shell", "-F", "-t", "%5", "#{pane_synchronized}",
-                                   "display-message -p \(TmuxIO.synchronizedMark)", "send-keys -t '%5' -H 2f 6d 0d"])
-        XCTAssertEqual(TmuxIO.sendArguments(pane: "my work:0.1", bytes: "a").last, "send-keys -t 'my work:0.1' -H 61")
+        XCTAssertEqual(arguments, ["if-shell", "-F", "-t", "%5", "#{pane_in_mode}",
+                                   "display-message -p \(TmuxIO.inModeMark)",
+                                   "if-shell -F -t '%5' '#{pane_synchronized}' 'display-message -p \(TmuxIO.synchronizedMark)' \(TmuxIO.quoted("send-keys -t '%5' -H 2f 6d 0d"))"])
+        XCTAssertEqual(TmuxIO.sendArguments(pane: "my work:0.1", bytes: "a").last,
+                       "if-shell -F -t 'my work:0.1' '#{pane_synchronized}' 'display-message -p \(TmuxIO.synchronizedMark)' \(TmuxIO.quoted("send-keys -t 'my work:0.1' -H 61"))")
         XCTAssertEqual(TmuxIO.quoted("it's"), "'it'\\''s'")
     }
 

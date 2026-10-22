@@ -151,16 +151,6 @@ public enum ClaudeScreen {
         return nil
     }
 
-    /// The content of the last conversation result line (`⎿ …`) on screen, or nil. Used to show what claude said when something failed.
-    public static func lastResult(_ lines: [String]) -> String? {
-        for line in lines.reversed() {
-            let text = line.trimmingCharacters(in: .whitespaces)
-            if text.hasPrefix("⎿") {
-                return String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
-            }
-        }
-        return nil
-    }
 }
 
 /// Reads the `/model` pickers of claude and codex from the screen.

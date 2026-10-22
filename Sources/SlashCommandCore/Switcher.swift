@@ -247,6 +247,12 @@ public struct Switcher {
         guard let preset = config.slots[slot - 1].preset(for: agent) else {
             throw SlashCommandError(loc("Preset %@ has no %@ entry.", slot, agent.displayName))
         }
+        // Shared by switching and launching: reject terminal control bytes before either path can send them.
+        guard ![preset.model, preset.effort].contains(where: { value in
+            value.unicodeScalars.contains { $0.value <= 0x1F || $0.value == 0x7F }
+        }) else {
+            throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file.", slot, agent.displayName))
+        }
         return preset
     }
 
@@ -396,7 +402,7 @@ public struct Switcher {
             steps = Plans.codexEffortStep(up: up)
             preset = AgentPreset(model: "codex", effort: up ? loc("one level up") : loc("one level down"))
         case .grok, .cursor, .antigravity, .opencode:
-            return try stepEffort(up: up, on: target)   // handled above (not reached)
+            preconditionFailure("driver agents are handled above")
         }
         var runner = Runner(io: io, sleep: timedSleep, initial: first)
         runner.onAwaitingUser = onAwaitingUser
@@ -603,8 +609,8 @@ public struct Runner {
                     error.nothingToDo = atEdge
                     throw error
                 }
-            case .expectInput(let agent, let acceptSwitchTo, let timeoutMs, let abort, let failure):
-                switch try waitForInput(agent: agent, acceptSwitchTo: wanted(acceptSwitchTo), timeoutMs: timeoutMs) {
+            case .expectInput(let agent, let acceptSwitchTo, let fresh, let timeoutMs, let abort, let failure):
+                switch try waitForInput(agent: agent, acceptSwitchTo: wanted(acceptSwitchTo), fresh: fresh, timeoutMs: timeoutMs) {
                 case .ready:
                     break
                 case .declined:
@@ -744,7 +750,6 @@ public struct Runner {
         // If the same phrase was on screen from before the command, count it as this command's result only when that line is «new» or the defaults file «changed».
         let matchedBefore = ClaudeScreen.results(armedLines, prefix: prefix)
         let repliedBefore = ClaudeScreen.commandReply(armedLines, command: command)
-        let saidBefore = ClaudeScreen.lastResult(armedLines)
         // A terminal that gives the draft separately (Orca) uses that value; otherwise look at the input box line on the screen.
         func draft(_ snap: ScreenSnapshot) -> String {
             snap.draft ?? ClaudeScreen.promptText(snap.lines) ?? ""
@@ -784,9 +789,9 @@ public struct Runner {
             }
             if elapsed >= deadline, let awaiting { throw Runner.awaitingSwitch(awaiting) }
             if elapsed >= deadline {
-                // If claude said something new (e.g. Model 'x' not found), append it.
-                let said = ClaudeScreen.lastResult(snap.lines)
-                let detail = said.flatMap { $0 != saidBefore ? " (claude: \($0.prefix(80)))" : nil } ?? ""
+                // Only quote a new reply directly below our command, never unrelated conversation output.
+                let reply = command != nil ? ClaudeScreen.commandReply(snap.lines, command: command) : nil
+                let detail = reply.flatMap { $0 != repliedBefore ? " (claude: \($0.prefix(80)))" : nil } ?? ""
                 throw SlashCommandError(failure + detail)
             }
             sleep(40)
@@ -797,9 +802,16 @@ public struct Runner {
     private func waitFor(_ needle: String, bottom: Int?, timeoutMs: Int) throws -> Bool {
         try poll(timeoutMs: timeoutMs) { lines in
             guard let bottom else { return lines.contains { $0.contains(needle) } }
-            let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            // A fresh codex session lists commands as `/model - choose what model …` under "To get started"; with blank lines dropped that help text
+            // is among the last lines above the input box. It is not the popup, so it does not count (measured 2026-10-22, codex 0.162.1).
+            let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty && !Runner.isCommandHelpLine($0) }
             return Runner.contains(needle, in: Array(shown.suffix(bottom)))
         }
+    }
+
+    /// A line of codex's command list in the welcome text (`/name - description`). Popup rows have no ` - ` after the name.
+    static func isCommandHelpLine(_ line: String) -> Bool {
+        line.trimmingCharacters(in: .whitespaces).range(of: #"^/[a-z][a-z-]* - "#, options: .regularExpression) != nil
     }
 
     /// Whether `needle` is in those lines. In a narrow pane one line wraps into two (codex at 38 columns: `/model  choose what model and` / `reasoning effort to use`
@@ -1071,7 +1083,7 @@ public struct Runner {
     /// Waits until the picker closes and the input box is visible again.
     enum InputOutcome { case ready, declined, timedOut }
 
-    private func waitForInput(agent: Agent, acceptSwitchTo: [String], timeoutMs: Int) throws -> InputOutcome {
+    private func waitForInput(agent: Agent, acceptSwitchTo: [String], fresh: Bool, timeoutMs: Int) throws -> InputOutcome {
         func draft(_ snap: ScreenSnapshot) -> String {
             snap.draft ?? ClaudeScreen.promptText(snap.lines) ?? ""
         }
@@ -1081,8 +1093,11 @@ public struct Runner {
         var accepted = false
         var awaiting = false
         var deadline = timeoutMs
+        var firstRead = true
         while true {
-            guard let snap = io.snapshot() else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen.")) }
+            let snapshot = firstRead && fresh ? freshSnapshot() : io.snapshot()
+            firstRead = false
+            guard let snap = snapshot else { throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen.")) }
             let draftBack = draftBefore.isEmpty || !draft(snap).isEmpty
             if !Picker.isOpen(snap.lines), Readiness.inputVisible(agent: agent, screen: snap.lines), draftBack { return .ready }
             if !accepted, try acceptSwitch(snap.lines, to: acceptSwitchTo) { accepted = true }

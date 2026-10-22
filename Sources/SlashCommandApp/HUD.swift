@@ -71,6 +71,9 @@ final class HUD {
                               width: size.width, height: size.height), display: true)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: [titleText, detailText].filter { !$0.isEmpty }.joined(separator: "\n"),
+                                        .priority: NSAccessibilityPriorityLevel.high.rawValue])
 
         guard let seconds else { return }
         let work = DispatchWorkItem { [weak self] in

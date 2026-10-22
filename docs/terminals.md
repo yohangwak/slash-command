@@ -10,13 +10,13 @@ Not supported: Terminal.app, the VS Code terminal, Orca's floating terminal, and
 | WezTerm | No | No | None | about 0.3 s |
 | kitty | No | No | Remote control on | about 0.7 s |
 | iTerm2 | Yes | Yes | None | 1.3 – 2.6 s |
-| Ghostty | Yes | Yes | None | 0.6 – 4.6 s, see below |
+| Ghostty | Yes | Yes | None | 1.2 – 4.6 s, see below |
 
 ## Ghostty
 
 Slash Command reads the frontmost terminal's id, title and folder over AppleScript, and reads the screen through Accessibility.
 
-Ghostty hands out screen text that is up to half a second old. Every step that has to confirm what is on screen therefore costs half a second, which is why a Codex switch takes 3 to 4.6 seconds here. For Claude Code the app uses the `/model` and `/effort` commands instead of the picker and takes about 0.6 seconds. See [How it works](how-it-works.md#when-the-picker-cannot-be-used).
+Ghostty hands out screen text that is up to half a second old. Every step that has to confirm what is on screen therefore costs half a second, which is why a Codex switch takes 3 to 4.6 seconds here. For Claude Code the app uses the `/model` and `/effort` commands instead of the picker and takes about 1.2 seconds: about 0.6 seconds for the commands and about 0.6 seconds to see the input box again before the second one. See [How it works](how-it-works.md#when-the-picker-cannot-be-used).
 
 Ghostty 1.3.1 does not expose a terminal's tty, so tmux inside Ghostty cannot be followed yet.
 
@@ -59,6 +59,7 @@ The app does not guess the socket from the config file. It takes the socket the 
 
 When the frontmost pane of Orca, iTerm2, WezTerm or kitty is running a tmux client, the app goes to the tmux pane that client is showing, and reads and writes through tmux.
 
+- A pane in copy mode is not written to. The same applies to any other pane mode.
 - A client suspended with `suspend-client` or Ctrl-Z is not followed. The screen is showing the shell.
 - If the window has `synchronize-panes` on, the text would go to the other panes too. The app sends nothing and says so.
 - In Orca, a tmux client counts as belonging to a terminal only when it was started in that terminal itself, not from inside a tmux pane.
@@ -73,12 +74,16 @@ slashcommand apply 2 --kitty <window id> --kitty-socket unix:/path --agent codex
 slashcommand apply 2 --wezterm <pane id> --agent codex
 slashcommand apply 2 --iterm <session unique id> --agent claude
 slashcommand apply 2 --orca <handle> --agent claude
+slashcommand apply 2 --app windowsterminal
+slashcommand apply 2 --console <pid> --agent codex
 slashcommand where --bundle com.mitchellh.ghostty   # as if that app were in front
 ```
 
 ## Windows
 
 The Windows app supports **Windows Terminal, Orca and WezTerm**. Nothing needs to be set up, and no permission is asked for.
+
+Orca is supported when installed in `%LOCALAPPDATA%\Programs\orca`.
 
 | Terminal | How the pane is found | How keys are written | Not supported |
 |---|---|---|---|

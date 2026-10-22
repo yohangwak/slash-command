@@ -236,6 +236,10 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
     public var effortKeys: Bool
     /// The modifier keys pressed together with the number keys. From `shift`, `option`, `control`, `command`.
     public var modifiers: [String]
+    /// Names in the file that are not modifier keys, dropped when decoding. Not written to the file.
+    public private(set) var ignoredModifiers: [String] = []
+    /// The file's modifiers could not be used (no control, option or command) and were replaced. Not written to the file.
+    public private(set) var modifiersWereReplaced = false
     public var slots: [Slot]
     /// Keys this version does not know (written back exactly as read).
     public var extra: [String: JSONValue] = [:]
@@ -259,6 +263,23 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         return SlashCommandConfig.knownModifiers.filter(modifiers.contains).compactMap { symbols[$0] }.joined()
     }
 
+    public var modifierWarning: String? { modifierWarning(using: modifierSymbols) }
+
+    /// The warning about the file's modifiers, naming the keys actually used as `used` (Mac symbols here, `Alt+Shift` on Windows).
+    public func modifierWarning(using used: String) -> String? {
+        if !ignoredModifiers.isEmpty {
+            return loc("The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command.", ignoredModifiers.joined(separator: ", "), used)
+        }
+        guard modifiersWereReplaced else { return nil }
+        return loc("The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command.", used)
+    }
+
+    /// What the warning remembers about the file is not part of the settings: a draft built from these values is equal to the loaded file.
+    public static func == (a: SlashCommandConfig, b: SlashCommandConfig) -> Bool {
+        a.version == b.version && a.keepDefaults == b.keepDefaults && a.acceptSwitchPrompt == b.acceptSwitchPrompt
+            && a.effortKeys == b.effortKeys && a.modifiers == b.modifiers && a.slots == b.slots && a.extra == b.extra
+    }
+
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
@@ -268,7 +289,11 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? SlashCommandConfig.defaultModifiers
         modifiers = SlashCommandConfig.knownModifiers.filter(wanted.contains)
         // Grabbing bare digits without a modifier would make it impossible to type digits in the terminal. The same goes for Shift alone (`!`, `@`, `#` could not be typed).
-        if !SlashCommandConfig.modifiersAreUsable(modifiers) { modifiers = SlashCommandConfig.defaultModifiers }
+        if !SlashCommandConfig.modifiersAreUsable(modifiers) {
+            modifiers = SlashCommandConfig.defaultModifiers
+            modifiersWereReplaced = true
+        }
+        ignoredModifiers = wanted.filter { !SlashCommandConfig.knownModifiers.contains($0) }
         slots = try c.decode([Slot].self, forKey: .slots)
         extra = try DynamicKey.unknown(in: decoder, known: SlashCommandConfig.known)
     }
@@ -363,6 +388,9 @@ public struct ConfigStore: Sendable {
     }
 
     public func save(_ config: SlashCommandConfig) throws {
+        guard config.slots.count <= SlashCommandConfig.maxSlots else {
+            throw SlashCommandError(loc("At most %@ presets are allowed (there are %@): %@", SlashCommandConfig.maxSlots, config.slots.count, url.path))
+        }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
         let encoder = JSONEncoder()

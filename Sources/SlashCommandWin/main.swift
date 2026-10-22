@@ -113,7 +113,7 @@ final class Resident {
                 if adopt {
                     if found != nil || captured.pid != self.front.pid || !captured.supported || lookupTarget { self.target = found }
                     if stillFront { self.failures = self.hotKeys.failed; self.warning = self.hotKeys.warning }
-                    else { self.failures = []; self.warning = self.config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning } }
+                    else { self.failures = []; self.warning = self.config.flatMap(WindowsAppModel.modifierWarning(for:)) }
                     self.front = captured
                 }
                 // Another window came to the front while this refresh ran, and its own refresh was dropped.
@@ -207,7 +207,7 @@ if args == ["--menu-text"] || args == ["--menu-text", "--as-if", "orca"] || args
     let config = try? ConfigStore().load()
     let supported = args.count == 3
     output(WindowsAppModel.menu(config: config, supported: supported, agent: nil,
-                               warning: config.flatMap { WindowsAppModel.modifiers($0.modifiers).warning },
+                               warning: config.flatMap(WindowsAppModel.modifierWarning(for:)),
                                appName: args.last == "windowsterminal" ? "Windows Terminal" : args.last == "wezterm" ? "WezTerm" : "Orca").joined(separator: "\n"))
     exit(0)
 }

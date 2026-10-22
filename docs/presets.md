@@ -31,6 +31,8 @@ The file is `~/.config/slashcommand/presets.json`. Set `SLASHCOMMAND_CONFIG` to 
 | `keepDefaults` | `true` | Change this session only. See [Agents](agents.md) for what that means per agent |
 | `acceptSwitchPrompt` | `true` | Accept Claude Code's confirmation dialog automatically. See [How it works](how-it-works.md#claude-codes-confirmation-dialog) |
 
+`command` is not available on Windows. Unrecognized modifier names are reported in the menu.
+
 Keys the app does not know are kept when it saves the file, so a file written by a newer version survives an older one.
 
 ### A slot

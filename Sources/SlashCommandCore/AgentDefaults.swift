@@ -25,6 +25,17 @@ enum DefaultsFile {
         case failed(String)
     }
 
+    /// Atomic replacement must replace the linked file, not the link, and keep its permissions.
+    static func write(_ data: Data, to url: URL) throws {
+        let target = url.resolvingSymlinksInPath()
+        let permissions = FileManager.default.fileExists(atPath: target.path)
+            ? try FileManager.default.attributesOfItem(atPath: target.path)[.posixPermissions] : nil
+        try data.write(to: target, options: .atomic)
+        if let permissions {
+            try FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: target.path)
+        }
+    }
+
     /// Restores only `keys` in the JSON config file to their values before the switch (keys that did not exist are removed).
     /// If everything outside those keys is the same as before the switch, the original bytes are written back (and a file that did not exist is removed); if it changed (written by another session), that value is kept and only the keys are changed.
     static func restoreJSON(url: URL, keys: [String], to snapshot: DefaultsSnapshot, pretty: Bool, name: String) -> Result {
@@ -36,7 +47,7 @@ enum DefaultsFile {
         }
         guard FileManager.default.fileExists(atPath: url.path) else {
             guard let before else { return .unchanged }
-            do { try before.write(to: url, options: .atomic); return .restored } catch { return .failed(error.localizedDescription) }
+            do { try write(before, to: url); return .restored } catch { return .failed(error.localizedDescription) }
         }
         guard let current = try? Data(contentsOf: url) else { return .failed(loc("Could not read the %@ settings file", name)) }
         if current == before { return .unchanged }
@@ -63,7 +74,7 @@ enum DefaultsFile {
             #endif
             if restEqual {
                 if let before {
-                    try before.write(to: url, options: .atomic)
+                    try write(before, to: url)
                 } else {
                     // The file did not exist and nothing is left — it is the file the agent created this time.
                     try FileManager.default.removeItem(at: url)
@@ -84,7 +95,7 @@ enum DefaultsFile {
                 for key in keys { now[key] = old[key] }
                 var options: JSONSerialization.WritingOptions = [.withoutEscapingSlashes]
                 if pretty { options.insert(.prettyPrinted) }
-                try JSONSerialization.data(withJSONObject: now, options: options).write(to: url, options: .atomic)
+                try write(JSONSerialization.data(withJSONObject: now, options: options), to: url)
             }
             return .restored
         } catch {
@@ -111,7 +122,15 @@ enum DefaultsFile {
 
     /// If `keepDefaults` is set but the state before the switch could not be read, stops before sending anything, since the value to restore is unknown.
     static func refuseIfUnreadable(_ snapshot: DefaultsSnapshot?, name: String) throws {
-        if case .unreadable(let reason)? = snapshot {
+        let reason: String?
+        switch snapshot {
+        case .unreadable(let message)?: reason = message
+        case .content(let data)? where name != "grok":
+            reason = (try? JSONSerialization.jsonObject(with: data)) is [String: Any]
+                ? nil : loc("Could not parse the %@ settings file", name)
+        default: reason = nil
+        }
+        if let reason {
             throw SlashCommandError(loc("Not switched: the %@ settings file could not be read (%@), so the default for new sessions could not be protected.", name, reason))
         }
     }

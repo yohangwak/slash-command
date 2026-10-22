@@ -46,6 +46,17 @@ public enum WindowsAppModel {
         return Modifiers(flags: Set(names).compactMap { bits[$0] }.reduce(0x4000, |), warning: nil)
     }
 
+    /// The warning the tray shows: what was wrong in the presets file (naming the keys Windows actually uses), else a Windows-only limit.
+    public static func modifierWarning(for config: SlashCommandConfig) -> String? {
+        let platform = modifiers(config.modifiers)
+        return config.modifierWarning(using: modifierLabel(platform.flags)) ?? platform.warning
+    }
+
+    /// `Ctrl+Alt+Shift` style names for RegisterHotKey flags.
+    public static func modifierLabel(_ flags: UInt32) -> String {
+        [(2, "Ctrl"), (1, "Alt"), (4, "Shift")].filter { flags & $0.0 != 0 }.map(\.1).joined(separator: "+")
+    }
+
     public static func scanCode(for id: Int) -> UInt32? {
         if (1...9).contains(id) { return UInt32(id + 1) }
         if id == effortUp { return 0x0D }
