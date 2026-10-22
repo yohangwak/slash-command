@@ -802,9 +802,16 @@ public struct Runner {
     private func waitFor(_ needle: String, bottom: Int?, timeoutMs: Int) throws -> Bool {
         try poll(timeoutMs: timeoutMs) { lines in
             guard let bottom else { return lines.contains { $0.contains(needle) } }
-            let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            // A fresh codex session lists commands as `/model - choose what model …` under "To get started"; with blank lines dropped that help text
+            // is among the last lines above the input box. It is not the popup, so it does not count (measured 2026-10-22, codex 0.162.1).
+            let shown = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty && !Runner.isCommandHelpLine($0) }
             return Runner.contains(needle, in: Array(shown.suffix(bottom)))
         }
+    }
+
+    /// A line of codex's command list in the welcome text (`/name - description`). Popup rows have no ` - ` after the name.
+    static func isCommandHelpLine(_ line: String) -> Bool {
+        line.trimmingCharacters(in: .whitespaces).range(of: #"^/[a-z][a-z-]* - "#, options: .regularExpression) != nil
     }
 
     /// Whether `needle` is in those lines. In a narrow pane one line wraps into two (codex at 38 columns: `/model  choose what model and` / `reasoning effort to use`
