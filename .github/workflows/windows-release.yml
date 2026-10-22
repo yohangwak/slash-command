@@ -66,6 +66,12 @@ jobs:
           }
           Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$version"
 
+      - name: Test
+        shell: pwsh
+        run: |
+          swift test
+          if ($LASTEXITCODE -ne 0) { throw "Tests failed ($LASTEXITCODE)" }
+
       - name: Build and package
         shell: pwsh
         run: |

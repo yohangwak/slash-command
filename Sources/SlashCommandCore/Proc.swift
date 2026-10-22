@@ -10,6 +10,42 @@ public struct ProcResult: Sendable {
 }
 
 public enum Proc {
+    #if !os(Windows)
+    /// Captures only data that is ready to read; a descendant holding the pipe open must not keep the caller waiting for EOF.
+    private final class PipeCapture {
+        let eof = DispatchSemaphore(value: 0)
+        private let handle: FileHandle
+        private let lock = NSLock()
+        private var data = Data()
+        private var closed = false
+
+        init(_ handle: FileHandle) {
+            self.handle = handle
+            handle.readabilityHandler = { [self] handle in
+                lock.lock()
+                defer { lock.unlock() }
+                guard !closed else { return }
+                let chunk = handle.availableData
+                if chunk.isEmpty {
+                    handle.readabilityHandler = nil
+                    eof.signal()
+                } else {
+                    data.append(chunk)
+                }
+            }
+        }
+
+        func finish() -> Data {
+            handle.readabilityHandler = nil
+            lock.lock()
+            defer { lock.unlock() }
+            closed = true
+            try? handle.close()
+            return data
+        }
+    }
+    #endif
+
     /// Runs a child process and waits for it to finish. On timeout it terminates the child and sets `timedOut`.
     public static func run(_ exe: String,
                            _ args: [String],
@@ -30,11 +66,6 @@ public enum Proc {
         process.standardError = errPipe
         process.standardInput = FileHandle.nullDevice
 
-        var outData = Data()
-        var errData = Data()
-        let group = DispatchGroup()
-        let queue = DispatchQueue(label: "slashcommand.proc", attributes: .concurrent)
-
         // Completion is learned through `terminationHandler`. `waitUntilExit()` waits by spinning that thread's run loop, and on the worker threads of a long-running app
         // it sometimes does not wake up even after the child has finished (2026-10-12 on a test Mac: `wezterm cli` finished its work but
         // we waited until the 5 s limit and ended with "could not read"; a sample showed a thread stuck in `waitUntilExit` with no child left).
@@ -49,16 +80,8 @@ public enum Proc {
         }
 
         // Drain both streams at the same time so the child does not stall on a full pipe buffer.
-        group.enter()
-        queue.async {
-            outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-            group.leave()
-        }
-        group.enter()
-        queue.async {
-            errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            group.leave()
-        }
+        let out = PipeCapture(outPipe.fileHandleForReading)
+        let err = PipeCapture(errPipe.fileHandleForReading)
 
         var timedOut = false
         if !waitForExit(process, done, seconds: timeout) {
@@ -70,7 +93,7 @@ public enum Proc {
             #else
             process.terminate()
             #endif
-            // If it ignores SIGTERM, kill it forcibly: the pipes must close for the reads below to finish.
+            // If it ignores SIGTERM, kill it forcibly before collecting the remaining output.
             if !waitForExit(process, done, seconds: 2) {
                 #if os(Windows)
                 process.terminate()   // TerminateProcess: already forcible on Windows
@@ -80,7 +103,12 @@ public enum Proc {
                 _ = waitForExit(process, done, seconds: 1)
             }
         }
-        group.wait()
+        // Both streams share one deadline, so inherited pipes add at most one second after the child exits.
+        let drainDeadline = DispatchTime.now() + 1
+        _ = out.eof.wait(timeout: drainDeadline)
+        _ = err.eof.wait(timeout: drainDeadline)
+        let outData = out.finish()
+        let errData = err.finish()
 
         // Reading `terminationStatus` of a process that is still alive raises an exception.
         return ProcResult(status: process.isRunning ? -1 : process.terminationStatus,

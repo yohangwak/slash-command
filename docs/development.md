@@ -9,9 +9,9 @@ swift test                                  # needs Xcode; the Command Line Tool
 ./scripts/build-app.sh --install            # also copies it to ~/Applications and restarts it
 ```
 
-The package has three targets: `SlashCommandCore` (all logic), `slashcommand` (command line tool) and `SlashCommandApp` (menu bar app). Tests live in `Tests/SlashCommandCoreTests`. Screen samples taken from real sessions are in `Fixtures`, and the pickers are imitated by `FakeClaude` and `FakePicker` inside the tests.
+On macOS, the package has three targets: `SlashCommandCore` (all logic), `slashcommand` (command line tool) and `SlashCommandApp` (menu bar app). Tests live in `Tests/SlashCommandCoreTests`. Screen samples taken from real sessions are in `Fixtures`, and the pickers are imitated by `FakeClaude` and `FakePicker` inside the tests.
 
-There is no macOS CI. Run `swift test` locally before opening a pull request.
+On Windows, [`.github/workflows/windows-ci.yml`](../.github/workflows/windows-ci.yml) builds and tests on a GitHub-hosted Windows runner for pull requests and pushes to main; there is still no macOS CI. Run `swift test` locally before opening a pull request.
 
 ### Windows
 
@@ -118,7 +118,7 @@ The Windows zip is built by GitHub Actions ([`windows-release.yml`](../.github/w
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-The workflow installs Swift for Windows (the installer's SHA-256 is pinned), checks that the tag matches the version in `WindowsAppModel.swift`, runs `scripts/package-windows.ps1` and uploads `Slash-Command-Windows-x64.zip` and its `.sha256` to the release of that tag, creating a draft when there is none yet. Run by hand (`gh workflow run windows-release.yml`) it builds without touching a release and keeps the zip as a workflow artifact. To build on a Windows PC instead, see [Windows](#windows) and upload with `gh release upload v0.2.0 dist\Slash-Command-Windows-x64.zip dist\Slash-Command-Windows-x64.zip.sha256 --clobber`.
+The workflow installs Swift for Windows (the installer's SHA-256 is pinned), checks that the tag matches the version in `WindowsAppModel.swift`, runs the tests before `scripts/package-windows.ps1` and uploads `Slash-Command-Windows-x64.zip` and its `.sha256` to the release of that tag, creating a draft when there is none yet. Run by hand (`gh workflow run windows-release.yml`) it builds without touching a release and keeps the zip as a workflow artifact. To build on a Windows PC instead, see [Windows](#windows) and upload with `gh release upload v0.2.0 dist\Slash-Command-Windows-x64.zip dist\Slash-Command-Windows-x64.zip.sha256 --clobber`.
 
 Keep the name `Slash-Command-Windows-x64.zip`; the README links to `releases/latest/download/Slash-Command-Windows-x64.zip`. Every release needs all three files (disk image, zip, Windows zip), because `latest` moves to the newest release.
 

@@ -161,7 +161,6 @@
 "Nothing was sent: the command did not appear in the OpenCode input box." = "Rien n’a été envoyé : la commande n’est pas apparue dans la zone de saisie d’OpenCode.";
 "Off" = "Désactivé";
 "On" = "Activé";
-"Open Settings…" = "Ouvrir les Réglages…";
 "Open at login" = "Ouvrir à la connexion";
 "OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "OpenCode n’a pas d’option pour définir la variant à l’ouverture : il s’ouvre avec ce modèle et la variant que le modèle a utilisée en dernier. Utilisez ensuite le raccourci pour définir « %@ ».";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "Orca contient au moins deux espaces de travail dont les onglets ont les mêmes titres dans le même ordre ; impossible de distinguer le terminal visible. Donnez des noms différents aux onglets.";
@@ -253,7 +252,6 @@
 "Unsaved changes" = "Modifications non enregistrées";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Sert à lire l’écran de Ghostty, à suivre les changements d’onglet dans Orca et à vérifier que la diffusion de la saisie (Broadcast Input) d’iTerm2 est désactivée.";
 "Used to type the switch commands into %@." = "Sert à saisir les commandes de changement dans %@.";
-"Works in Ghostty and Orca" = "Fonctionne dans Ghostty et Orca";
 "installed %@" = "installé %@";
 "macOS asks once, the first time you press a shortcut in %@." = "macOS demande l’autorisation une seule fois, la première fois que vous utilisez un raccourci dans %@.";
 "no rows" = "aucune ligne";
@@ -332,3 +330,13 @@
 
 "Use --console with a positive process ID and --agent <agent>." = "Utilisez --console avec un identifiant de processus positif et --agent <agent>.";
 "No Windows Terminal window is open." = "Aucune fenêtre Windows Terminal n’est ouverte.";
+
+"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "Changement non effectué : le préréglage %1$@ pour %2$@ contient un caractère de contrôle. Corrigez-le dans les réglages ou dans le fichier des préréglages.";
+
+"Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "Non envoyé : ce volet tmux est en mode copie, les touches ne parviendraient donc pas à l’agent. Appuyez sur q pour en sortir, puis réessayez.";
+
+"The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command." = "Les touches de modification du fichier de préréglages ne sont pas reconnues (%1$@), donc %2$@ est utilisé. Utilisez control, option, shift ou command.";
+
+"Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "Fonctionne dans Ghostty, Orca, iTerm2, WezTerm et kitty";
+"Open System Settings…" = "Ouvrir les Réglages Système…";
+"The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "Les touches de modification du fichier de préréglages ne suffisent pas seules, donc %@ est utilisé. Ajoutez control, option ou command.";

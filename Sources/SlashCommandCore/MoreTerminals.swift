@@ -15,6 +15,7 @@ public struct TmuxIO: TerminalIO {
     }
 
     static let synchronizedMark = "SLASHCOMMAND-PANES-SYNCHRONIZED"
+    static let inModeMark = "SLASHCOMMAND-PANE-IN-MODE"
 
     /// The target name to put inside a tmux command string (a session name can contain blanks and quotes).
     static func quoted(_ text: String) -> String {
@@ -25,14 +26,19 @@ public struct TmuxIO: TerminalIO {
     /// even though a target is given (measured 2026-10-12, PR #25 review). Check and write are combined in one tmux command (`if-shell -F`); if it is on, nothing is written and a marker is printed.
     static func sendArguments(pane: String, bytes: String) -> [String] {
         let hex = Array(bytes.utf8).map { String(format: "%02x", $0) }.joined(separator: " ")
-        return ["if-shell", "-F", "-t", pane, "#{pane_synchronized}",
-                "display-message -p \(synchronizedMark)", "send-keys -t \(quoted(pane)) -H \(hex)"]
+        let send = "send-keys -t \(quoted(pane)) -H \(hex)"
+        let synchronizedCheck = "if-shell -F -t \(quoted(pane)) '#{pane_synchronized}' \(quoted("display-message -p \(synchronizedMark)")) \(quoted(send))"
+        return ["if-shell", "-F", "-t", pane, "#{pane_in_mode}",
+                "display-message -p \(inModeMark)", synchronizedCheck]
     }
 
     private func write(_ bytes: String) throws {
         let result = run(TmuxIO.sendArguments(pane: pane, bytes: bytes))
         guard result.ok else {
             throw SlashCommandError(loc("Could not type into tmux: %@", result.err.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }
+        if result.out.contains(TmuxIO.inModeMark) {
+            throw SlashCommandError(loc("Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again."))
         }
         if result.out.contains(TmuxIO.synchronizedMark) {
             throw SlashCommandError(loc("Not sent: tmux `synchronize-panes` is on in this window, so the keys would go to its other panes too. Turn it off, then press again."))

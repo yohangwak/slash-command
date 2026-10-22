@@ -293,6 +293,7 @@ struct SettingsView: View {
                             set: { on in if on { model.modifiers.insert(key) } else { model.modifiers.remove(key) } }))
                             .toggleStyle(.button)
                             .help(key.capitalized)
+                            .accessibilityLabel(Text(key.capitalized))
                     }
                     Text(loc("+ number")).foregroundStyle(.secondary)
                 }
@@ -400,6 +401,7 @@ private struct PresetRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 TextField("", text: $slot.name, prompt: Text(loc("Name (optional)")))
                     .textFieldStyle(.roundedBorder).labelsHidden()
+                    .accessibilityLabel(Text(loc("Name (optional)")))
                 ForEach(agents, id: \.self) { agent in
                     AgentRow(agent: agent,
                              preset: Binding(get: { slot.presets[agent] ?? catalog.starter(for: agent) },
@@ -450,6 +452,7 @@ private struct AgentRow: View {
             Text(agent.displayName).frame(width: 96, alignment: .leading)
             TextField("", text: $preset.model, prompt: Text(loc("Model")))
                 .textFieldStyle(.roundedBorder).labelsHidden()
+                .accessibilityLabel(Text(loc("Model")))
             Menu {
                 ForEach(models, id: \.self) { name in Button(name) { preset.model = name } }
             } label: {
@@ -458,6 +461,7 @@ private struct AgentRow: View {
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             .disabled(models.isEmpty)
             .help(models.isEmpty ? loc("No model list for this agent. Type the name it shows on screen.") : loc("Choose a model"))
+            .accessibilityLabel(Text(loc("Choose a model")))
             Picker(loc("Effort"), selection: $preset.effort) {
                 ForEach(efforts.contains(preset.effort) ? efforts : efforts + [preset.effort], id: \.self) { Text($0).tag($0) }
             }
@@ -465,6 +469,7 @@ private struct AgentRow: View {
             Button(action: onRemove) { Image(systemName: "minus.circle") }
                 .buttonStyle(.borderless)
                 .help(loc("Remove %@ from this preset", agent.displayName))
+                .accessibilityLabel(Text(loc("Remove %@ from this preset", agent.displayName)))
         }
     }
 }

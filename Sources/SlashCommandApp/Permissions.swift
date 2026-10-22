@@ -138,7 +138,7 @@ struct PermissionsSection: View {
                 Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Button(loc("Open Settings…"), action: action)
+            Button(loc("Open System Settings…"), action: action)
         }
     }
 }

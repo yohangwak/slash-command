@@ -161,7 +161,6 @@
 "Nothing was sent: the command did not appear in the OpenCode input box." = "OpenCode の入力欄にコマンドが表示されなかったため、送信しませんでした。";
 "Off" = "オフ";
 "On" = "オン";
-"Open Settings…" = "設定を開く…";
 "Open at login" = "ログイン時に開く";
 "OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "OpenCode には起動時に variant を指定するオプションがないため、このモデルで最後に使った variant のまま開きます。開いた後、ショートカットで「%@」に設定してください。";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "Orca に、タブのタイトルとその順序が同じワークスペースが2つ以上あるため、表示中のターミナルを区別できません。タブに異なる名前を付けてください。";
@@ -253,7 +252,6 @@
 "Unsaved changes" = "未保存の変更があります";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Ghostty の画面を読み取り、Orca のタブの切り替えに追従し、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するために使います。";
 "Used to type the switch commands into %@." = "%@ に切り替えコマンドを入力するために使います。";
-"Works in Ghostty and Orca" = "GhosttyとOrcaで動作します";
 "installed %@" = "インストール済み %@";
 "macOS asks once, the first time you press a shortcut in %@." = "%@ で初めてショートカットを押したときに、macOS が一度確認します。";
 "no rows" = "行なし";
@@ -332,3 +330,13 @@
 
 "Use --console with a positive process ID and --agent <agent>." = "--console には正のプロセス ID と --agent <agent> を指定してください。";
 "No Windows Terminal window is open." = "Windows Terminal のウィンドウが開いていません。";
+
+"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "切り替えませんでした：%2$@ 用のプリセット %1$@ に制御文字が含まれています。設定またはプリセットファイルで修正してください。";
+
+"Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "送信しませんでした：この tmux ペインはコピーモードのため、キーがエージェントに届きません。q を押して終了してから、もう一度押してください。";
+
+"The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command." = "プリセットファイルの修飾キー（%1$@）を認識できなかったため、%2$@を使用します。control、option、shift、commandを使用してください。";
+
+"Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "Ghostty・Orca・iTerm2・WezTerm・kittyで動作します";
+"Open System Settings…" = "システム設定を開く…";
+"The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "プリセットファイルの修飾キーだけでは使えないため、%@を使用します。control、option、commandのいずれかを含めてください。";

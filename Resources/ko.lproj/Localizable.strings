@@ -161,7 +161,6 @@
 "Nothing was sent: the command did not appear in the OpenCode input box." = "opencode 입력창에 명령이 나타나지 않아 보내지 않았습니다.";
 "Off" = "꺼짐";
 "On" = "켜짐";
-"Open Settings…" = "설정 열기…";
 "Open at login" = "로그인할 때 실행";
 "OpenCode has no option to set the variant when it opens: it opens with this model and whichever variant the model used last. Use the shortcut afterwards to set '%@'." = "OpenCode 는 열 때 variant 를 정하는 옵션이 없어, 이 모델이 마지막으로 쓴 variant 로 열립니다. 연 뒤에 단축키로 '%@' 를 맞춰 주세요.";
 "Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names." = "Orca 에 탭 제목 순서가 똑같은 워크스페이스가 둘 이상이라 지금 보이는 터미널을 구분할 수 없습니다. 탭 이름을 서로 다르게 해 주세요.";
@@ -253,7 +252,6 @@
 "Unsaved changes" = "저장하지 않은 변경이 있습니다";
 "Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Ghostty 화면을 읽고, Orca 의 탭 전환을 따라가고, iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하는 데 씁니다.";
 "Used to type the switch commands into %@." = "%@ 에 전환 명령을 입력하는 데 씁니다.";
-"Works in Ghostty and Orca" = "Ghostty 와 Orca 에서 동작합니다";
 "installed %@" = "설치된 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "%@ 에서 단축키를 처음 누를 때 macOS 가 한 번 묻습니다.";
 "no rows" = "행 없음";
@@ -332,3 +330,13 @@
 
 "Use --console with a positive process ID and --agent <agent>." = "--console에 양의 프로세스 ID와 --agent <agent>를 지정하세요.";
 "No Windows Terminal window is open." = "열린 Windows Terminal 창이 없습니다.";
+
+"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "전환하지 않았습니다: %2$@용 프리셋 %1$@에 제어 문자가 있습니다. 설정이나 프리셋 파일에서 수정하세요.";
+
+"Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "보내지 않았습니다: 이 tmux 패널은 복사 모드여서 키가 에이전트에 전달되지 않습니다. q를 눌러 모드를 종료한 뒤 다시 누르세요.";
+
+"The modifier keys in the presets file were not recognized (%@), so %@ is used. Use control, option, shift or command." = "프리셋 파일의 수정키(%1$@)를 인식하지 못해 %2$@를 사용합니다. control, option, shift 또는 command를 사용하세요.";
+
+"Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "Ghostty · Orca · iTerm2 · WezTerm · kitty에서 동작합니다";
+"Open System Settings…" = "시스템 설정 열기…";
+"The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "프리셋 파일의 수정키만으로는 쓸 수 없어 %@를 사용합니다. control, option, command 중 하나를 넣으세요.";

@@ -239,13 +239,15 @@ public struct AntigravityDriver {
             return SlashCommandError(message)
         }
         try openPicker(failure: fail)
-        guard var picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw fail(loc("Could not read the Antigravity picker.")) }
+        guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw fail(loc("Could not read the Antigravity picker.")) }
         guard let target = picker.rows.first(where: { AgyScreen.key($0.name) == AgyScreen.key(preset.model) }) else {
             throw fail(loc("'%@' is not in the Antigravity model list.", preset.model))
         }
         try moveCursor(to: target.name, failure: fail)
-        picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) ?? picker
-        if let slider = picker.slider {
+        guard let fresh = io.freshSnapshot(), let movedPicker = AgyScreen.picker(fresh.lines) else {
+            throw fail(loc("Could not read the Antigravity picker."))
+        }
+        if let slider = movedPicker.slider {
             guard let wanted = slider.labels.firstIndex(where: { AgyScreen.key($0) == AgyScreen.key(preset.effort) || (preset.effort == "xhigh" && AgyScreen.key($0) == "extrahigh") }) else {
                 throw fail(loc("Antigravity '%@' has no effort '%@' (%@).", target.name, preset.effort, slider.labels.joined(separator: ", ")))
             }
@@ -328,7 +330,13 @@ public struct AntigravityDriver {
     }
 
     private func confirm(name: String, before: DefaultsSnapshot?, failure: (String, String?) -> SlashCommandError) throws -> Outcome {
-        let repliesBefore = AgyScreen.replies(io.freshSnapshot()?.lines ?? [])
+        guard let fresh = io.freshSnapshot(), let picker = AgyScreen.picker(fresh.lines) else {
+            throw failure(loc("Could not read the Antigravity picker."), nil)
+        }
+        guard let cursor = picker.rows.first(where: \.cursor), cursor.name == name else {   // the same test `moveCursor` uses
+            throw failure(loc("Could not move the cursor to the '%@' row in the Antigravity picker.", name), nil)
+        }
+        let repliesBefore = AgyScreen.replies(fresh.lines)
         try io.press(.enter)
         guard let lines = try poll(timeoutMs: 4000, { lines in
             guard AgyScreen.idle(lines) else { return false }

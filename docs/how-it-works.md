@@ -27,7 +27,7 @@ With `acceptSwitchPrompt` off, the app sends nothing to that dialog. The notice 
 ## When the picker cannot be used
 
 - If Claude Code's picker has no row for the model (an older model, a custom id), the app closes the picker and uses the `/model X` and `/effort Y` commands. Those commands also change the defaults for new sessions in `~/.claude/settings.json`, so the app captures the file first and afterwards restores only the default entries.
-- **Claude Code in Ghostty always uses the command form.** Ghostty's screen text is up to half a second old, so confirming every picker step would take 2.4 to 3.8 seconds. Instead the app takes "Claude Code rewrote its settings file" as the sign that the command ran. For a command that does not rewrite the file (`/effort max` applies to the session only), it waits for a fresh screen and reads the answer line.
+- **Claude Code in Ghostty always uses the command form.** Ghostty's screen text is up to half a second old, so confirming every picker step would take 2.4 to 3.8 seconds. Instead the app takes "Claude Code rewrote its settings file" as the sign that the command ran. For a command that does not rewrite the file (`/effort max` applies to the session only), it waits for a fresh screen and reads the answer line. Before the second command the app waits for a fresh screen that shows the input box.
 - In Ghostty, when the title names no agent and two agents run in the same folder, the app tells them apart by which input box is on screen.
 
 ## Timings
@@ -55,5 +55,7 @@ What made it faster: fixed waits (4.9 s) replaced by reading the screen, the `or
 | `SlashCommandCore` | Presets, detection, terminal I/O, reading the screen, the step runner, restoring defaults |
 | `slashcommand` | The command line tool |
 | `SlashCommandApp` | Menu bar item, hotkeys, notices, the Settings window |
+| `SlashCommandWin` | Windows tray app |
+| `CWindowsTerminal` | UI Automation and console access in C |
 
 The contract a terminal connection has to meet is in [CONTRACT.md](CONTRACT.md).

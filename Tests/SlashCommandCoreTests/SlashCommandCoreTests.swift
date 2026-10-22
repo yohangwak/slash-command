@@ -243,9 +243,14 @@ final class RunnerTests: KoreanMessagesTestCase {
 
     func testExpectResultFailureCarriesWhatTheScreenSaid() {
         let io = FakeIO()
-        io.screens = [["  ⎿  Model 'xyz' not found", rule, "❯"]]
-        XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }).run([.expectResult(prefix: "Set model to", timeoutMs: 200, failure: "응답 없음")])) {
+        io.screens = [["❯ /model xyz", "  ⎿  Model 'xyz' not found", rule, "❯"]]
+        XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }).run([.expectResult(prefix: "Set model to", command: "/model", timeoutMs: 200, failure: "응답 없음")])) {
             XCTAssertTrue("\($0)".contains("Model 'xyz' not found"))
+        }
+        // A result elsewhere in the conversation is not a reply to our command.
+        io.screens = [["  ⎿  Model 'xyz' not found", rule, "❯"]]
+        XCTAssertThrowsError(try Runner(io: io, sleep: { _ in }).run([.expectResult(prefix: "Set model to", command: "/model", timeoutMs: 200, failure: "응답 없음")])) {
+            XCTAssertEqual($0 as? SlashCommandError, SlashCommandError("응답 없음"))
         }
         // A line that was there before the command is not this command's reply — do not attach it.
         let old = ["  ⎿  $ sleep 20", rule, "❯"]

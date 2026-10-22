@@ -46,6 +46,10 @@ public enum WindowsAppModel {
         return Modifiers(flags: Set(names).compactMap { bits[$0] }.reduce(0x4000, |), warning: nil)
     }
 
+    public static func modifierWarning(for config: SlashCommandConfig) -> String? {
+        config.modifierWarning ?? modifiers(config.modifiers).warning
+    }
+
     public static func scanCode(for id: Int) -> UInt32? {
         if (1...9).contains(id) { return UInt32(id + 1) }
         if id == effortUp { return 0x0D }

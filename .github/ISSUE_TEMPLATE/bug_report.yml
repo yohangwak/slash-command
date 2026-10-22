@@ -16,14 +16,14 @@ body:
   - type: input
     id: macos
     attributes:
-      label: macOS version
+      label: macOS or Windows version
     validations:
       required: true
   - type: dropdown
     id: terminal
     attributes:
       label: Terminal
-      options: [Ghostty, Orca, iTerm2, WezTerm, kitty, Other]
+      options: [Ghostty, Orca, iTerm2, WezTerm, kitty, Windows Terminal, Other]
     validations:
       required: true
   - type: input
@@ -48,7 +48,7 @@ body:
     id: log
     attributes:
       label: Log lines
-      description: The lines for that key press from `~/Library/Logs/SlashCommand/slashcommand.log`. The log holds no screen text.
+      description: The lines for that key press from `~/Library/Logs/SlashCommand/slashcommand.log` on macOS or `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` on Windows. The log holds no screen text.
       render: text
   - type: textarea
     id: doctor

@@ -59,6 +59,7 @@ The app does not guess the socket from the config file. It takes the socket the 
 
 When the frontmost pane of Orca, iTerm2, WezTerm or kitty is running a tmux client, the app goes to the tmux pane that client is showing, and reads and writes through tmux.
 
+- A pane in copy mode is not written to. The same applies to any other pane mode.
 - A client suspended with `suspend-client` or Ctrl-Z is not followed. The screen is showing the shell.
 - If the window has `synchronize-panes` on, the text would go to the other panes too. The app sends nothing and says so.
 - In Orca, a tmux client counts as belonging to a terminal only when it was started in that terminal itself, not from inside a tmux pane.
@@ -73,12 +74,16 @@ slashcommand apply 2 --kitty <window id> --kitty-socket unix:/path --agent codex
 slashcommand apply 2 --wezterm <pane id> --agent codex
 slashcommand apply 2 --iterm <session unique id> --agent claude
 slashcommand apply 2 --orca <handle> --agent claude
+slashcommand apply 2 --app windowsterminal
+slashcommand apply 2 --console <pid> --agent codex
 slashcommand where --bundle com.mitchellh.ghostty   # as if that app were in front
 ```
 
 ## Windows
 
 The Windows app supports **Windows Terminal, Orca and WezTerm**. Nothing needs to be set up, and no permission is asked for.
+
+Orca is supported when installed in `%LOCALAPPDATA%\Programs\orca`.
 
 | Terminal | How the pane is found | How keys are written | Not supported |
 |---|---|---|---|
