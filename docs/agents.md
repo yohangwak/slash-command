@@ -53,7 +53,7 @@ Slash Command reads each agent's screen, so a new agent version can change what 
 | Codex | 0.156.0, 0.160.0, 0.160.1, 0.162.0 |
 | Grok | 1.0.46, 1.0.50 |
 | Cursor Agent | 2026.10.01 (14929f9, e373342) |
-| Antigravity | 1.3.1, 1.3.3 |
+| Antigravity | 1.3.1, 1.3.3, 1.4.5 |
 | OpenCode | 1.18.35, 2.0.25 |
 
 `slashcommand doctor` reports the installed and running versions and flags any that are not on this list. An unchecked version is not known to be broken. If its screen text has changed, switching stops instead of guessing.

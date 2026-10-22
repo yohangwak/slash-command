@@ -8,6 +8,7 @@
 "%@ — not set for %@" = "%@ — غير مضبوط لـ %@";
 "%@= and %@- raise and lower the effort only" = "%@= و %@- يرفعان مستوى effort أو يخفضانه فقط";
 "'%@' is not in the Antigravity model list." = "'%@' غير موجود في قائمة نماذج Antigravity.";
+"'%@' is not in the Antigravity model list. Available: %@" = "'%@' غير موجود في قائمة نماذج Antigravity. المتاح: %@";
 "'%@' is not in the Cursor model list." = "'%@' غير موجود في قائمة نماذج Cursor.";
 "'%@' is not in the Grok model list." = "'%@' غير موجود في قائمة نماذج Grok.";
 "'%@' is not in the OpenCode model list." = "'%@' غير موجود في قائمة نماذج OpenCode.";

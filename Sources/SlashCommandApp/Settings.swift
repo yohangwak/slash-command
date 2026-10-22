@@ -10,7 +10,7 @@ struct AgentCatalog {
 
     static let claudeModels = ["fable", "opus", "sonnet", "haiku"]
     static let cursorModels = ["Grok 4.7", "Claude Opus 5.5", "Claude Fable 5.1", "GPT-5.6 Sol", "Composer 2.5"]
-    static let antigravityModels = ["Gemini 3.8 Flash", "Gemini 3.7 Flash", "Gemini 3.6 Flash", "Gemini 3.1 Pro", "Claude Opus 5.5", "Claude Sonnet 5.5"]
+    static let antigravityModels = ["Gemini 4 Argon", "Gemini 3.8 Flash", "Claude Opus 5.5", "Claude Sonnet 5.5"]
 
     /// The codex and grok lists are read from what those tools keep on disk (empty if there is none).
     static func load() -> AgentCatalog {
