@@ -2861,7 +2861,10 @@ final class AntigravityDriverTests: KoreanMessagesTestCase {
 
     func testUnknownModelAndEffortAreRefusedAndThePickerIsClosed() {
         let a = FakeAgy(configURL: url)
-        XCTAssertThrowsError(try driver(a).apply(AgentPreset(model: "No Such", effort: "high")))
+        XCTAssertThrowsError(try driver(a).apply(AgentPreset(model: "No Such", effort: "high"))) {
+            XCTAssertEqual("\($0)", "antigravity 모델 목록에 'No Such'이(가) 없습니다. 가능한 값: Gemini 3.8 Flash, Gemini 3.7 Flash, GPT-OSS 120B (Medium)",
+                           "The refusal names the models the picker offers, so the preset can be fixed without opening the picker")
+        }
         XCTAssertFalse(a.picker)
         XCTAssertEqual(a.current, 0)
         let b = FakeAgy(configURL: url)

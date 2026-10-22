@@ -241,7 +241,7 @@ public struct AntigravityDriver {
         try openPicker(failure: fail)
         guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw fail(loc("Could not read the Antigravity picker.")) }
         guard let target = picker.rows.first(where: { AgyScreen.key($0.name) == AgyScreen.key(preset.model) }) else {
-            throw fail(loc("'%@' is not in the Antigravity model list.", preset.model))
+            throw fail(loc("'%@' is not in the Antigravity model list. Available: %@", preset.model, picker.rows.map(\.name).joined(separator: ", ")))
         }
         try moveCursor(to: target.name, failure: fail)
         guard let fresh = io.freshSnapshot(), let movedPicker = AgyScreen.picker(fresh.lines) else {

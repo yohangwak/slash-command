@@ -2,6 +2,12 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.2
+
+- Antigravity: a preset whose model is no longer offered is refused with the list of models the picker does offer, so you can fix the preset without opening the picker.
+- Settings: the Antigravity model suggestions follow what Antigravity 1.4.5 offers (Gemini 4 Argon, Gemini 3.8 Flash, Claude Opus 5.5, Claude Sonnet 5.5).
+- Antigravity 1.4.5 is on the checked list (`slashcommand doctor`).
+
 ## 0.2.1
 
 - The presets file accepts `ctrl`, `alt`, `opt` and `cmd` as modifier names (`alt` is Option on a Mac), in any letter case.

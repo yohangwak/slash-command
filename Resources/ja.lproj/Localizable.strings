@@ -8,6 +8,7 @@
 "%@ — not set for %@" = "%1$@ — %2$@ の設定がありません";
 "%@= and %@- raise and lower the effort only" = "%@= と %@- で effort だけを1段階上げ下げ";
 "'%@' is not in the Antigravity model list." = "'%@' は Antigravity のモデル一覧にありません。";
+"'%@' is not in the Antigravity model list. Available: %@" = "'%@' は Antigravity のモデル一覧にありません。使用できる値: %@";
 "'%@' is not in the Cursor model list." = "'%@' は Cursor のモデル一覧にありません。";
 "'%@' is not in the Grok model list." = "'%@' は Grok のモデル一覧にありません。";
 "'%@' is not in the OpenCode model list." = "'%@' は OpenCode のモデル一覧にありません。";

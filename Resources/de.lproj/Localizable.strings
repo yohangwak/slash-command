@@ -8,6 +8,7 @@
 "%@ — not set for %@" = "%1$@ – nicht festgelegt für %2$@";
 "%@= and %@- raise and lower the effort only" = "%@= und %@- erhöhen bzw. senken nur den effort";
 "'%@' is not in the Antigravity model list." = "„%@“ steht nicht in der Antigravity-Modellliste.";
+"'%@' is not in the Antigravity model list. Available: %@" = "„%@“ steht nicht in der Antigravity-Modellliste. Verfügbar: %@";
 "'%@' is not in the Cursor model list." = "„%@“ steht nicht in der Cursor-Modellliste.";
 "'%@' is not in the Grok model list." = "„%@“ steht nicht in der Grok-Modellliste.";
 "'%@' is not in the OpenCode model list." = "„%@“ steht nicht in der OpenCode-Modellliste.";
