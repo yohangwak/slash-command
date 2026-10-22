@@ -26,7 +26,7 @@ public enum WindowsAppModel {
         return seen.pane
     }
 
-    public static let version = "0.2.0" // scripts/Info.plist
+    public static let version = "0.2.1" // scripts/Info.plist
     public static let effortUp = 101
     public static let effortDown = 102
 
