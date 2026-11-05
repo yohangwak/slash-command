@@ -1,6 +1,6 @@
 import Foundation
 
-// Switches the model and effort with the Antigravity CLI (`agy` 1.3.1).
+// Switches the model and effort with the Antigravity CLI (`agy`; checked versions are in docs/agents.md).
 //
 // Measured 2026-10-07 (in a separately opened test terminal):
 // - `/model` opens a "Switch Model" picker: `>` is the cursor, `(current)` marks the current model, below it an `Effort ◂ ●━●━◉ ▸` slider (left/right arrows) and

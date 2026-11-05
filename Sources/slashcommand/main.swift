@@ -333,8 +333,12 @@ do {
                 let object: [String: Any] = ["draft": snapshot.draft as Any, "tail": snapshot.lines]
                 do {
                     let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted])
-                    try data.write(to: URL(fileURLWithPath: path))
-                    print("screen saved: \(path)")
+                    let url = URL(fileURLWithPath: path)
+                    try data.write(to: url, options: .atomic)
+                    #if !os(Windows)
+                    try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                    #endif
+                    print("screen saved: \(path) (it contains the screen and your draft; do not share it unedited)")
                 } catch {
                     fail("could not save screen dump: \(error.localizedDescription)")
                 }
