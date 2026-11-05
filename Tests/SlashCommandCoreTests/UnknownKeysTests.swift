@@ -89,4 +89,40 @@ final class UnknownKeysTests: XCTestCase {
         XCTAssertEqual(Set(slots[0].keys), ["claude", "codex"])
         XCTAssertEqual(Set((slots[0]["claude"] as? [String: Any] ?? [:]).keys), ["model", "effort"])
     }
+
+    private func decode(_ json: String) throws -> SlashCommandConfig {
+        try JSONDecoder().decode(SlashCommandConfig.self, from: Data(json.utf8))
+    }
+
+    func testTypoedKeysAreNamedWithTheirPath() throws {
+        let config = try decode(#"{"acceptSwitchPromt": false, "slots": [{"claud": {"model": "opus", "effort": "high"}}]}"#)
+        XCTAssertEqual(config.unknownKeys, ["acceptSwitchPromt", "slots[1].claud"])
+        XCTAssertEqual(config.unknownKeyWarning, loc("This version does not use these keys in the presets file (they are kept): %@", "acceptSwitchPromt, slots[1].claud"))
+        XCTAssertTrue(config.acceptSwitchPrompt, "The typo leaves the default in place; the warning is how it gets noticed")
+    }
+
+    func testTypoInsideAPresetIsNamedWithSlotAndAgent() throws {
+        let config = try decode(#"{"slots": [{"claude": {"model": "opus", "effort": "high"}}, {"name": "b", "codex": {"model": "m", "effort": "low", "efort": "x"}}]}"#)
+        XCTAssertEqual(config.unknownKeys, ["slots[2].codex.efort"])
+    }
+
+    func testAFileWithOnlyKnownKeysHasNoWarning() throws {
+        let config = try decode(#"{"slots": [{"name": "a", "claude": {"model": "opus", "effort": "high"}, "codex": {"model": "m", "effort": "low"}}]}"#)
+        XCTAssertEqual(config.unknownKeys, [])
+        XCTAssertNil(config.unknownKeyWarning)
+        XCTAssertNil(SlashCommandConfig.starter.unknownKeyWarning)
+    }
+
+    func testKeysAreListedTopLevelFirstThenBySlot() throws {
+        let config = try decode(newer)
+        XCTAssertEqual(config.unknownKeys, ["theme", "slots[1].gemini", "slots[1].note", "slots[1].claude.fast", "slots[2].pinned"])
+    }
+
+    func testReportingDoesNotChangeWhatIsKeptOrCompared() throws {
+        let config = try decode(newer)
+        var plain = config
+        plain.extra = [:]
+        XCTAssertNotEqual(config, plain, "Unknown keys are still part of the file's content")
+        XCTAssertNotNil(try object(JSONEncoder().encode(config))["theme"], "Still written back")
+    }
 }

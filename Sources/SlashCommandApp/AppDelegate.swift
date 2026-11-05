@@ -380,9 +380,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var supported = true
         if case .unsupported = front { supported = false }
         var modifierWarning: String?
+        var unknownKeyWarning: String?
         do {
             let config = try store.load()
             modifierWarning = config.modifierWarning
+            unknownKeyWarning = config.unknownKeyWarning
             let mask = modifierMask(config)
             for (index, slot) in config.slots.enumerated() {
                 let item = NSMenuItem(title: "", action: #selector(menuApply(_:)), keyEquivalent: "\(index + 1)")
@@ -413,6 +415,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var problems: [NSMenuItem] = []
         if let modifierWarning {
             problems.append(warning(modifierWarning, #selector(openSettings)))
+        }
+        if let unknownKeyWarning {
+            problems.append(warning(unknownKeyWarning, #selector(openSettings)))
         }
         if !hotKeys.failed.isEmpty {
             let keys = hotKeys.failed.map { id -> String in

@@ -341,3 +341,4 @@
 "Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "Funciona en Ghostty, Orca, iTerm2, WezTerm y kitty";
 "Open System Settings…" = "Abrir Configuración del Sistema…";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "Las teclas modificadoras del archivo de preajustes no sirven por sí solas, por lo que se usa %@. Incluye control, option o command.";
+"This version does not use these keys in the presets file (they are kept): %@" = "Esta versión no usa estas claves del archivo de preajustes (se conservan): %@";

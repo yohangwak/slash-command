@@ -341,3 +341,4 @@
 "Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "Ghostty · Orca · iTerm2 · WezTerm · kitty에서 동작합니다";
 "Open System Settings…" = "시스템 설정 열기…";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "프리셋 파일의 수정키만으로는 쓸 수 없어 %@을(를) 사용합니다. control, option, command 중 하나를 넣으세요.";
+"This version does not use these keys in the presets file (they are kept): %@" = "이 버전은 프리셋 파일의 다음 키를 사용하지 않습니다(그대로 보존됩니다): %@";

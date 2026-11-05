@@ -357,6 +357,7 @@ do {
         for (index, slot) in config.slots.enumerated() {
             print("\(index + 1)  \(slot.listing)")
         }
+        if let warning = config.unknownKeyWarning { print("⚠️ \(warning)") }
     case "plan":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
             fail("slashcommand plan <number> <claude|codex>")

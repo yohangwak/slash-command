@@ -341,3 +341,4 @@
 "Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "يعمل في Ghostty وOrca وiTerm2 وWezTerm وkitty";
 "Open System Settings…" = "فتح إعدادات النظام…";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "لا يمكن استخدام مفاتيح التعديل في ملف الإعدادات المسبقة بمفردها، لذا يُستخدم %@. أضف control أو option أو command.";
+"This version does not use these keys in the presets file (they are kept): %@" = "لا يستخدم هذا الإصدار هذه المفاتيح في ملف الإعدادات المسبقة (يتم الاحتفاظ بها): %@";

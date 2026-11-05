@@ -341,3 +341,4 @@
 "Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "适用于 Ghostty、Orca、iTerm2、WezTerm 和 kitty";
 "Open System Settings…" = "打开系统设置…";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "预设文件中的修饰键不能单独使用，因此使用 %@。请包含 control、option 或 command。";
+"This version does not use these keys in the presets file (they are kept): %@" = "此版本不使用预设文件中的这些键（会保留）：%@";

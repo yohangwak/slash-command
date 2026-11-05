@@ -286,6 +286,28 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         return loc("The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command.", used)
     }
 
+    /// Keys in the file that this version does not use, as a path each: `acceptSwitchPromt`, `slots[1].claud`, `slots[1].claude.efort` (slot numbers start at 1).
+    /// Top-level keys come first, then each slot in order. They are kept when the file is saved; this only names them so a typo does not pass silently.
+    public var unknownKeys: [String] {
+        var keys = extra.keys.sorted()
+        for (index, slot) in slots.enumerated() {
+            let prefix = "slots[\(index + 1)]"
+            keys += slot.extra.keys.sorted().map { "\(prefix).\($0)" }
+            for agent in slot.agents {
+                guard let preset = slot.presets[agent] else { continue }
+                keys += preset.extra.keys.sorted().map { "\(prefix).\(agent.rawValue).\($0)" }
+            }
+        }
+        return keys
+    }
+
+    /// The warning about keys in the file that this version does not use. nil when there are none.
+    public var unknownKeyWarning: String? {
+        let keys = unknownKeys
+        guard !keys.isEmpty else { return nil }
+        return loc("This version does not use these keys in the presets file (they are kept): %@", keys.joined(separator: ", "))
+    }
+
     /// What the warning remembers about the file is not part of the settings: a draft built from these values is equal to the loaded file.
     public static func == (a: SlashCommandConfig, b: SlashCommandConfig) -> Bool {
         a.version == b.version && a.keepDefaults == b.keepDefaults && a.acceptSwitchPrompt == b.acceptSwitchPrompt
