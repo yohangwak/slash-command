@@ -425,7 +425,7 @@ public struct Switcher {
         } catch let error as SlashCommandError where error.awaitingUser {
             // No reply came while waiting. If Yes is chosen later, claude writes the default then, and we have already let go; report it as it is.
             // Keep what the first error quoted from the screen (the model claude asks about), so the log still leaves it out.
-            var wrapped = SlashCommandError(error.message + " " + loc("If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both).")).quoting(error.quoted)
+            var wrapped = SlashCommandError(error.message + " " + loc("If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both).")).quoting(error.quoted).quotingOutput(error.quotedOutput)
             wrapped.awaitingUser = true
             throw wrapped
         } catch {

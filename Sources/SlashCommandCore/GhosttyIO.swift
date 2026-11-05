@@ -88,7 +88,7 @@ public struct GhosttyIO: TerminalIO {
         guard result.ok, result.out.trimmingCharacters(in: .whitespacesAndNewlines) == "true" else {
             let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
             let reason = detail.isEmpty ? loc("The target terminal is no longer in the front window") : detail
-            throw SlashCommandError(loc("Could not type into Ghostty: %@", reason))
+            throw SlashCommandError(loc("Could not type into Ghostty: %@", reason)).quotingOutput(detail.isEmpty ? [] : [detail])
         }
     }
 

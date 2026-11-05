@@ -46,6 +46,51 @@ final class ErrorTextSafetyTests: KoreanMessagesTestCase {
         XCTAssertFalse(SlashCommandError.logText(error).contains("SECRET-REPLY-1"))
     }
 
+    // MARK: the log file never gets what an external command printed
+
+    func testCommandOutputIsInTheMessageButNotInTheLog() {
+        let error = SlashCommandError("Could not type into tmux: SECRET-PANE-TITLE (no such pane)").quotingOutput(["SECRET-PANE-TITLE (no such pane)"])
+        XCTAssertTrue(error.message.contains("SECRET-PANE-TITLE"))
+        XCTAssertFalse(error.logDescription.contains("SECRET-PANE-TITLE"))
+        XCTAssertTrue(error.logDescription.contains("‹command output›"))
+        XCTAssertEqual(error.logDescription, "Could not type into tmux: ‹command output›")
+        XCTAssertEqual(error, SlashCommandError("Could not type into tmux: SECRET-PANE-TITLE (no such pane)"), "Quoted output does not change equality")
+    }
+
+    #if !os(Windows)
+    /// A fake external command that prints a window title on stderr and fails — what tmux or wezterm can do.
+    private func failingScript() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("fake-terminal-\(UUID().uuidString).sh")
+        try "#!/bin/sh\necho 'SECRET-PANE-TITLE' >&2\nexit 1\n".write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url
+    }
+
+    func testTmuxFailureOutputIsInTheMessageButNotInTheLog() throws {
+        let script = try failingScript()
+        defer { try? FileManager.default.removeItem(at: script) }
+        let io = TmuxIO(tmux: script.path, socket: nil, pane: "%1")
+        XCTAssertThrowsError(try io.type("x")) {
+            guard let error = $0 as? SlashCommandError else { return XCTFail("Unexpected error type") }
+            XCTAssertTrue(error.message.contains("SECRET-PANE-TITLE"))
+            XCTAssertFalse(error.logDescription.contains("SECRET-PANE-TITLE"))
+            XCTAssertTrue(error.logDescription.contains("‹command output›"))
+        }
+    }
+
+    func testWezTermFailureOutputIsInTheMessageButNotInTheLog() throws {
+        let script = try failingScript()
+        defer { try? FileManager.default.removeItem(at: script) }
+        let io = WezTermIO(wezterm: script.path, socket: nil, pane: "1")
+        XCTAssertThrowsError(try io.type("x")) {
+            guard let error = $0 as? SlashCommandError else { return XCTFail("Unexpected error type") }
+            XCTAssertTrue(error.message.contains("SECRET-PANE-TITLE"))
+            XCTAssertFalse(error.logDescription.contains("SECRET-PANE-TITLE"))
+            XCTAssertTrue(error.logDescription.contains("‹command output›"))
+        }
+    }
+    #endif
+
     func testLogDescriptionMasksLongestFirstAndSkipsOneCharacterValues() {
         let error = SlashCommandError("a: tab-title-1 / tab-title-1-extra / x").quoting(["tab-title-1", "tab-title-1-extra", "x"])
         XCTAssertEqual(error.logDescription, "a: ‹screen text› / ‹screen text› / x")

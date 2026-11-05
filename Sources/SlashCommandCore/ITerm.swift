@@ -183,7 +183,8 @@ public struct ITermIO: TerminalIO {
         let result = GhosttyIO.osascript(ITermIO.script(sessionID: sessionID, frontWindowOnly: true, body: body))
         if result.ok, result.out == ITermIO.missing { throw notFront }
         guard result.ok, result.out == "true" else {
-            throw SlashCommandError(loc("Could not type into iTerm2: %@", result.err.trimmingCharacters(in: .whitespacesAndNewlines)))
+            let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SlashCommandError(loc("Could not type into iTerm2: %@", detail)).quotingOutput([detail])
         }
     }
 
@@ -348,7 +349,8 @@ extension Detector {
         """
         let result = GhosttyIO.osascript(script)
         guard result.ok else {
-            throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "iTerm2", result.err.trimmingCharacters(in: .whitespacesAndNewlines)))
+            let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "iTerm2", detail)).quotingOutput([detail])
         }
         guard let found = itermSession(from: result.out) else { throw SlashCommandError(loc("iTerm2 has no open window.")) }
         guard let device = TTYProcesses.device(ofTTY: found.tty) else {

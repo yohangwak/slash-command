@@ -86,7 +86,7 @@ public enum Detector {
         #if os(Windows)
         switch OrcaRuntime.call("terminal.list", ["includeVisualLayouts": true]) {
         case .success(let payload): return payload
-        case .failure(.failed(let message)): throw SlashCommandError(message)
+        case .failure(.failed(let message)): throw SlashCommandError(message).quotingOutput([message])
         case .failure(.unavailable): break
         }
         #else
@@ -107,7 +107,8 @@ public enum Detector {
         guard result.ok,
               let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
               let payload = json["result"] as? [String: Any] else {
-            throw SlashCommandError(loc("Could not read the Orca terminal list: %@", OrcaIO.errorSummary(result)))
+            let summary = OrcaIO.errorSummary(result)
+            throw SlashCommandError(loc("Could not read the Orca terminal list: %@", summary)).quotingOutput(result.timedOut ? [] : [summary])
         }
         return payload
     }
