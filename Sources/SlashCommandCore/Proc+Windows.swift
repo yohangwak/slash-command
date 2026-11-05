@@ -2,10 +2,9 @@
 import Foundation
 import WinSDK
 
-/// One pipe's reader: the bytes read so far, and the read handle, which only this object closes.
-/// The caller can `stop` it: nothing more is kept, and a ReadFile still waiting on the handle is cancelled so the reader
-/// thread ends. Closing and cancelling happen under the same lock, so a cancel never reaches a handle that is already closed
-/// (whose value Windows may have given to something else).
+/// One pipe's reader: the bytes read so far, and the read handle, which only its own thread uses and closes.
+/// It never blocks in ReadFile: it reads only what PeekNamedPipe says is there and otherwise naps briefly, so `stop` is just a
+/// flag that the thread sees within a few milliseconds, and no other thread ever touches the handle.
 final class PipeReader: @unchecked Sendable {
     /// Readers whose thread has not ended yet (for tests).
     static var live: Int { counter.lock(); defer { counter.unlock() }; return liveCount }
@@ -13,9 +12,7 @@ final class PipeReader: @unchecked Sendable {
     nonisolated(unsafe) private static var liveCount = 0
 
     private let lock = NSLock()
-    private var handle: HANDLE?
-    /// The reader's own thread while `run` is on it, for `CancelSynchronousIo` (the documented way to end a synchronous ReadFile).
-    private var thread: HANDLE?
+    private let handle: HANDLE
     private var data = Data()
     private var stopped = false
 
@@ -24,32 +21,29 @@ final class PipeReader: @unchecked Sendable {
         PipeReader.counter.lock(); PipeReader.liveCount += 1; PipeReader.counter.unlock()
     }
 
-    /// Reads until the pipe ends or `stop` is called, then closes the handle. Runs on its own thread.
+    /// Reads until every writer has closed the pipe or `stop` is called, then closes the handle. Runs on its own thread.
     func run() {
-        lock.lock(); thread = OpenThread(DWORD(THREAD_TERMINATE), false, GetCurrentThreadId()); lock.unlock()
+        defer {
+            CloseHandle(handle)
+            PipeReader.counter.lock(); PipeReader.liveCount -= 1; PipeReader.counter.unlock()
+        }
         var buffer = [UInt8](repeating: 0, count: 16384)
-        var count: DWORD = 0
-        while true {
-            lock.lock(); let current = stopped ? nil : handle; lock.unlock()
-            guard let current else { break }
-            guard buffer.withUnsafeMutableBytes({ ReadFile(current, $0.baseAddress, DWORD($0.count), &count, nil) }), count > 0 else { break }
+        while !isStopped {
+            var available: DWORD = 0
+            // Fails with ERROR_BROKEN_PIPE once all write ends are closed and the pipe is empty: the end of the output.
+            guard PeekNamedPipe(handle, nil, 0, nil, &available, nil) else { break }
+            if available == 0 { Sleep(5); continue }
+            var count: DWORD = 0
+            let wanted = DWORD(min(Int(available), buffer.count))
+            guard buffer.withUnsafeMutableBytes({ ReadFile(handle, $0.baseAddress, wanted, &count, nil) }), count > 0 else { break }
             lock.lock(); if !stopped { data.append(contentsOf: buffer.prefix(Int(count))) }; lock.unlock()
         }
-        lock.lock()
-        if let handle { CloseHandle(handle) }
-        if let thread { CloseHandle(thread) }
-        handle = nil; thread = nil
-        lock.unlock()
-        PipeReader.counter.lock(); PipeReader.liveCount -= 1; PipeReader.counter.unlock()
     }
 
-    /// Keeps nothing more and cancels a ReadFile that is still waiting. Safe to call more than once.
-    func stop() {
-        lock.lock(); defer { lock.unlock() }
-        stopped = true
-        if let handle { _ = CancelIoEx(handle, nil) }
-        if let thread { _ = CancelSynchronousIo(thread) }
-    }
+    private var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
+
+    /// Keeps nothing more; the reader thread ends at its next check.
+    func stop() { lock.lock(); stopped = true; lock.unlock() }
 
     func snapshot() -> Data { lock.lock(); defer { lock.unlock() }; return data }
 }
@@ -152,11 +146,8 @@ extension Proc {
             // pipes add at most one second here; what was read by then is returned, and the readers are stopped
             // so they do not stay behind (with their handles and buffers) for as long as the grandchild lives.
             if group.wait(timeout: .now() + 1) == .timedOut {
-                // A reader between its check and its next ReadFile misses one cancel, so cancel a few times.
-                for _ in 0..<20 {
-                    output.stop(); errors.stop()
-                    if group.wait(timeout: .now() + 0.05) == .success { break }
-                }
+                output.stop(); errors.stop()
+                _ = group.wait(timeout: .now() + 0.5)
             }
             var code: DWORD = 0
             let status = GetExitCodeProcess(process.hProcess, &code) ? Int32(bitPattern: code) : -1
