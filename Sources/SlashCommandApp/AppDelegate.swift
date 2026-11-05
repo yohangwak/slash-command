@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
+    /// While claude's "Switch model?" dialog waits for the user's Enter, the "Press Enter to confirm" notification stays (main thread only).
+    private var awaitingConfirmation = false
     /// The notice about Accessibility being off in Orca is given only once per run.
     private var nudgedOrcaAccessibility = false
     /// The last preset-file error reported — the same error is not reported again each time you switch terminals.
@@ -183,6 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func perform(_ action: Action) {
         guard !busy else {
+            if awaitingConfirmation { return }
             hud.show(loc("Still switching"), detail: loc("Press again when it is done."))
             return
         }
@@ -212,6 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 made.onAwaitingUser = { model in
                     Log.write("awaiting confirmation \(action.label)")
                     DispatchQueue.main.async {
+                        self.awaitingConfirmation = true
                         self.hud.show(loc("Press Enter to confirm"),
                                       detail: loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation).", model), seconds: nil)
                     }
@@ -228,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             // Show the notification first — the re-check of the defaults (0.25 s) comes after.
             DispatchQueue.main.async {
+                self.awaitingConfirmation = false
                 switch outcome {
                 case .success(let result):
                     Log.write("applied \(action.label): \(result.summary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
@@ -269,7 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 DispatchQueue.main.async { self.hud.show(result.summary, detail: "⚠️ \(late)", seconds: 4) }
             }
             Log.write("timing \(action.label): \(trace.report)")
-            DispatchQueue.main.async { self.busy = false }
+            DispatchQueue.main.async { self.awaitingConfirmation = false; self.busy = false }
         }
     }
 

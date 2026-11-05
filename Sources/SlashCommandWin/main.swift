@@ -123,6 +123,7 @@ final class Resident {
             }
         }
     }
+    private var awaitingConfirmation = false // main thread only
     func notice(_ text: String, foreground: Foreground? = nil, seconds: TimeInterval? = 5) {
         hud.show(text, foreground: foreground ?? front, seconds: seconds)
     }
@@ -131,11 +132,14 @@ final class Resident {
         let supported = front.supported && window == front.window && pid == front.pid
         if let reason = WindowsAppModel.refusal(id: id, supported: supported, busy: worker.busy, registered: hotKeys.registered) {
             Log.write("ignored \(WindowsAppModel.actionLabel(id)): \(reason)")
-            if worker.busy { notice(loc("Still switching") + "\n" + loc("Press again when it is done."), seconds: 1.6) }
+            if WindowsAppModel.showsStillSwitching(busy: worker.busy, awaiting: awaitingConfirmation) { notice(loc("Still switching") + "\n" + loc("Press again when it is done."), seconds: 1.6) }
             return false
         }
         let captured = front
+        awaitingConfirmation = false
         worker.press(id, foreground: captured) { [weak self] notice in
+            // The awaiting notice is the only one without a timeout; every later notice of this press ends the wait.
+            self?.awaitingConfirmation = notice.seconds == nil
             self?.notice(notice.text, foreground: captured, seconds: notice.seconds)
         }
         return true
