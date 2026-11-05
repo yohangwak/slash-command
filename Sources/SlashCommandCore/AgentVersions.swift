@@ -5,11 +5,11 @@ import Foundation
 /// Switching relies on the text the agent draws (`Select model`, `Set model to`, and so on). If a version changes that text, the screen is not recognized and
 /// nothing is sent; it stops (the safe side). Even so, `doctor` should be able to say "why it does not work" first.
 public enum AgentVersions {
-    /// Versions whose picker text and key behavior were checked in a real session (the table in docs/agents.md).
-    /// Not being in the list does not mean it does not work; it means it was not checked.
     /// What is shown when the version could not be read from the running process.
     static var unknown: String { loc("unknown") }
 
+    /// Versions whose picker text and key behavior were checked in a real session (the table in docs/agents.md).
+    /// Not being in the list does not mean it does not work; it means it was not checked.
     public static let tested: [Agent: Set<String>] = [
         .claude: ["2.1.283", "2.1.288", "2.1.289", "2.1.291", "2.1.292", "2.1.296"],
         .codex: ["0.156.0", "0.160.0", "0.160.1", "0.162.0"],

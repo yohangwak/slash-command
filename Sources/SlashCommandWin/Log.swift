@@ -17,18 +17,7 @@ enum Log {
     }
     private static func append(_ message: String) {
         guard let folder else { return }
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let url = folder.appendingPathComponent("slashcommand.log")
-        if let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int, size > 2_000_000 {
-            let old = url.appendingPathExtension("1")
-            try? FileManager.default.removeItem(at: old)
-            try? FileManager.default.moveItem(at: url, to: old)
-        }
-        let data = Data(WindowsAppModel.logLine(message).utf8)
-        if let handle = try? FileHandle(forWritingTo: url) {
-            defer { try? handle.close() }
-            _ = try? handle.seekToEnd(); try? handle.write(contentsOf: data)
-        } else { try? data.write(to: url) }
+        LogFile.append(WindowsAppModel.logLine(message), to: folder.appendingPathComponent("slashcommand.log"))
     }
 }
 #endif

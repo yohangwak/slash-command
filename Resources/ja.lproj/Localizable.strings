@@ -332,7 +332,7 @@
 "Use --console with a positive process ID and --agent <agent>." = "--console には正のプロセス ID と --agent <agent> を指定してください。";
 "No Windows Terminal window is open." = "Windows Terminal のウィンドウが開いていません。";
 
-"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "切り替えませんでした：%2$@ 用のプリセット %1$@ に制御文字が含まれています。設定またはプリセットファイルで修正してください。";
+"Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file." = "切り替えませんでした：%2$@ 用のプリセット %1$@ に制御文字またはバックスラッシュが含まれています。設定またはプリセットファイルで修正してください。";
 
 "Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "送信しませんでした：この tmux ペインはコピーモードのため、キーがエージェントに届きません。q を押して終了してから、もう一度押してください。";
 
@@ -341,3 +341,4 @@
 "Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "Ghostty・Orca・iTerm2・WezTerm・kittyで動作します";
 "Open System Settings…" = "システム設定を開く…";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "プリセットファイルの修飾キーだけでは使えないため、%@を使用します。control、option、commandのいずれかを含めてください。";
+"This version does not use these keys in the presets file (they are kept): %@" = "このバージョンはプリセットファイルの次のキーを使いません（保持されます）：%@";

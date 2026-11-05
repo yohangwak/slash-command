@@ -274,7 +274,7 @@ enum WindowsTerminal {
         let agents = entries.compactMap { entry -> (ProcessTable.Entry, Agent)? in
             AgentProcesses.agent(forCommandLine: entry.arguments.joined(separator: " ")).map { (entry, $0) }
         }
-        let parents = Dictionary(uniqueKeysWithValues: entries.map { ($0.pid, $0.parent) })
+        let parents = Dictionary(entries.map { ($0.pid, $0.parent) }, uniquingKeysWith: { a, _ in a })
         let pids = Set(agents.map { $0.0.pid })
         let outermost = agents.filter { entry, _ in
             var current = parents[entry.pid], seen: Set<Int32> = [entry.pid]

@@ -112,8 +112,8 @@ final class Resident {
                 if adopt, let frontWindow, let pane { self.seenPane = (frontWindow, pane) }
                 if adopt {
                     if found != nil || captured.pid != self.front.pid || !captured.supported || lookupTarget { self.target = found }
-                    if stillFront { self.failures = self.hotKeys.failed; self.warning = self.hotKeys.warning }
-                    else { self.failures = []; self.warning = self.config.flatMap(WindowsAppModel.modifierWarning(for:)) }
+                    if stillFront { self.failures = self.hotKeys.failed; self.warning = trayWarning(self.hotKeys.warning, self.config) }
+                    else { self.failures = []; self.warning = trayWarning(self.config.flatMap(WindowsAppModel.modifierWarning(for:)), self.config) }
                     self.front = captured
                 }
                 // Another window came to the front while this refresh ran, and its own refresh was dropped.
@@ -123,6 +123,7 @@ final class Resident {
             }
         }
     }
+    private var awaitingConfirmation = false // main thread only
     func notice(_ text: String, foreground: Foreground? = nil, seconds: TimeInterval? = 5) {
         hud.show(text, foreground: foreground ?? front, seconds: seconds)
     }
@@ -131,11 +132,14 @@ final class Resident {
         let supported = front.supported && window == front.window && pid == front.pid
         if let reason = WindowsAppModel.refusal(id: id, supported: supported, busy: worker.busy, registered: hotKeys.registered) {
             Log.write("ignored \(WindowsAppModel.actionLabel(id)): \(reason)")
-            if worker.busy { notice(loc("Still switching") + "\n" + loc("Press again when it is done."), seconds: 1.6) }
+            if WindowsAppModel.showsStillSwitching(busy: worker.busy, awaiting: awaitingConfirmation) { notice(loc("Still switching") + "\n" + loc("Press again when it is done."), seconds: 1.6) }
             return false
         }
         let captured = front
+        awaitingConfirmation = false
         worker.press(id, foreground: captured) { [weak self] notice in
+            // The awaiting notice is the only one without a timeout; every later notice of this press ends the wait.
+            self?.awaitingConfirmation = notice.seconds == nil
             self?.notice(notice.text, foreground: captured, seconds: notice.seconds)
         }
         return true
@@ -179,6 +183,12 @@ final class Resident {
     }
 }
 
+/// The tray's warning text: the modifier warning plus the note about keys in the presets file that this version does not use (one per line; nil when both are empty).
+func trayWarning(_ modifierWarning: String?, _ config: SlashCommandConfig?) -> String? {
+    let text = [modifierWarning, config?.unknownKeyWarning].compactMap { $0 }.joined(separator: "\n")
+    return text.isEmpty ? nil : text
+}
+
 func die(_ text: String) -> Never {
     Log.write("fatal: " + text)
     if let resident, IsWindow(resident.window) { DestroyWindow(resident.window) }
@@ -207,7 +217,7 @@ if args == ["--menu-text"] || args == ["--menu-text", "--as-if", "orca"] || args
     let config = try? ConfigStore().load()
     let supported = args.count == 3
     output(WindowsAppModel.menu(config: config, supported: supported, agent: nil,
-                               warning: config.flatMap(WindowsAppModel.modifierWarning(for:)),
+                               warning: trayWarning(config.flatMap(WindowsAppModel.modifierWarning(for:)), config),
                                appName: args.last == "windowsterminal" ? "Windows Terminal" : args.last == "wezterm" ? "WezTerm" : "Orca").joined(separator: "\n"))
     exit(0)
 }

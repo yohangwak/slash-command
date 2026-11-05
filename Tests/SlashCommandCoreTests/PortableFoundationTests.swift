@@ -12,6 +12,18 @@ final class PortableFoundationTests: XCTestCase {
         XCTAssertEqual(Proc.descendants(of: 1, parents: [1: 1, 2: 1]), [2], "A self-parented entry does not loop")
     }
 
+    func testTrustedParentsDropEdgesWhoseChildStartedBeforeItsParent() {
+        // 2 started after its parent 1 (real); 3 started before 1 (the parent pid was reused).
+        XCTAssertEqual(ProcessTree.trustedParents([2: 1, 3: 1], starts: [1: 100, 2: 150, 3: 50]), [2: 1])
+    }
+
+    func testTrustedParentsKeepEdgesWithAnUnknownStartTime() {
+        XCTAssertEqual(ProcessTree.trustedParents([2: 1, 3: 1], starts: [1: 100]), [2: 1, 3: 1], "No child start time: keep")
+        XCTAssertEqual(ProcessTree.trustedParents([2: 1], starts: [2: 50]), [2: 1], "No parent start time: keep")
+        XCTAssertEqual(ProcessTree.trustedParents([2: 1], starts: [1: 0, 2: 50]), [2: 1], "A start time of 0 means it could not be read: keep")
+        XCTAssertEqual(ProcessTree.trustedParents([2: 1], starts: [1: 100, 2: 100]), [2: 1], "Same start: keep")
+    }
+
     func testTreeCleanupLeavesProcessesThatOnlyInheritedAPid() {
         // Times: parent started at 100, the snapshot was taken at 200.
         XCTAssertFalse(Proc.skipsChild(childStart: 150, parentStart: 100, snapshotTime: 200), "A real child is ended")

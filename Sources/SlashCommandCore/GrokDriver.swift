@@ -113,7 +113,11 @@ public enum GrokScreen {
     /// Lines in the last few lines where grok answers in the «unknown» vein. Lines from earlier attempts may remain on screen, so the caller compares «before and after» and looks only at new lines.
     public static func errorLines(_ screen: [String], bottom: Int = 14) -> [String] {
         let tail = screen.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.suffix(bottom)
-        return tail.map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0.hasPrefix("Unknown model") || $0.hasPrefix("Invalid ") || $0.contains("not available") }
+        return tail.map { $0.trimmingCharacters(in: .whitespaces) }.filter { line in
+            // Only grok's own refusal lines: a conversation line that merely says "not available" is not one, and a missed refusal
+            // ends in the timeout below instead (nothing more is sent).
+            ["Unknown model", "Invalid model", "Invalid effort"].contains { line.hasPrefix($0) }
+        }
     }
 }
 
@@ -392,7 +396,7 @@ public struct GrokDriver {
         }
         let (name, current) = GrokScreen.parse(label: label)
         guard let model = models.model(named: name), !model.efforts.isEmpty, let current, let at = model.efforts.firstIndex(of: current) else {
-            throw SlashCommandError(loc("Nothing was changed: the effort levels of the current Grok model (%@) are not known.", label))
+            throw SlashCommandError(loc("Nothing was changed: the effort levels of the current Grok model (%@) are not known.", label)).quoting([label])
         }
         let next = at + (up ? 1 : -1)
         guard model.efforts.indices.contains(next) else {
@@ -436,7 +440,8 @@ public struct GrokDriver {
         }
         if let failure {
             clear(command)
-            throw finish(SlashCommandError(loc("Grok did not accept '%@': %@", command, failure)))
+            let shown = String(failure.prefix(80))
+            throw finish(SlashCommandError(loc("Grok did not accept '%@': %@", command, shown)).quoting([shown]))
         }
         guard let landed, let label = GrokScreen.box(landed)?.label else {
             clear(command)

@@ -332,7 +332,7 @@
 "Use --console with a positive process ID and --agent <agent>." = "--console에 양의 프로세스 ID와 --agent <agent>를 지정하세요.";
 "No Windows Terminal window is open." = "열린 Windows Terminal 창이 없습니다.";
 
-"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "전환하지 않았습니다: %2$@용 프리셋 %1$@에 제어 문자가 있습니다. 설정이나 프리셋 파일에서 수정하세요.";
+"Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file." = "전환하지 않았습니다: %2$@용 프리셋 %1$@에 제어 문자나 역슬래시가 있습니다. 설정이나 프리셋 파일에서 수정하세요.";
 
 "Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "보내지 않았습니다: 이 tmux 패널은 복사 모드여서 키가 에이전트에 전달되지 않습니다. q를 눌러 모드를 종료한 뒤 다시 누르세요.";
 
@@ -341,3 +341,4 @@
 "Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "Ghostty · Orca · iTerm2 · WezTerm · kitty에서 동작합니다";
 "Open System Settings…" = "시스템 설정 열기…";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "프리셋 파일의 수정키만으로는 쓸 수 없어 %@을(를) 사용합니다. control, option, command 중 하나를 넣으세요.";
+"This version does not use these keys in the presets file (they are kept): %@" = "이 버전은 프리셋 파일의 다음 키를 사용하지 않습니다(그대로 보존됩니다): %@";

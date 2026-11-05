@@ -342,12 +342,13 @@ public struct CursorDriver {
         try io.press(.tab)
         guard let editor = try poll(timeoutMs: 2000, { CursorScreen.editor($0)?.title.lowercased() == current.name.lowercased() }),
               let options = CursorScreen.editor(editor)?.options.filter({ $0.section == "Effort" }), !options.isEmpty else {
-            throw fail(loc("Cursor '%@' has no effort to change.", current.name))
+            throw fail(loc("Cursor '%@' has no effort to change.", current.name)).quoting([current.name])
         }
         guard let at = options.firstIndex(where: \.chosen) else { throw fail(loc("Nothing was changed: Cursor does not show the current effort.")) }
         let next = at + (up ? 1 : -1)
         guard options.indices.contains(next) else {
             var error = fail(up ? loc("Already at the highest level (%@).", options[at].label) : loc("Already at the lowest level (%@).", options[at].label))
+                .quoting([options[at].label])
             error.nothingToDo = true
             if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
@@ -407,13 +408,13 @@ public struct CursorDriver {
         for _ in 0..<12 {
             guard let list = CursorScreen.list(io.freshSnapshot()?.lines ?? []) else { throw failure(loc("The Cursor model list closed."), nil) }
             guard let from = list.rows.firstIndex(where: \.cursor), let to = list.rows.firstIndex(where: { $0.name == name }) else {
-                throw failure(loc("Could not find the '%@' row in the Cursor model list.", name), nil)
+                throw failure(loc("Could not find the '%@' row in the Cursor model list.", name), nil).quoting([name])
             }
             if from == to { return }
             try io.press(to > from ? .down : .up)
             sleep(40)
         }
-        throw failure(loc("Could not move the cursor to the '%@' row in the Cursor model list.", name), nil)
+        throw failure(loc("Could not move the cursor to the '%@' row in the Cursor model list.", name), nil).quoting([name])
     }
 
     /// Sets effort in parameter editing and returns to the list. Returns the label chosen, or nil for a model with no Effort group.
@@ -421,7 +422,7 @@ public struct CursorDriver {
         try io.press(.tab)
         guard let lines = try poll(timeoutMs: 2000, { CursorScreen.editor($0)?.title.lowercased() == name.lowercased() }),
               let options = CursorScreen.editor(lines)?.options else {
-            throw failure(loc("The parameter editor for Cursor '%@' did not open.", name), nil)
+            throw failure(loc("The parameter editor for Cursor '%@' did not open.", name), nil).quoting([name])
         }
         let efforts = options.filter { $0.section == "Effort" }
         if efforts.isEmpty {
@@ -433,7 +434,8 @@ public struct CursorDriver {
             return nil
         }
         guard let option = efforts.first(where: { CursorScreen.effortMatches(effort, label: $0.label) }) else {
-            throw failure(loc("Cursor '%@' has no effort '%@' (%@).", name, effort, efforts.map(\.label).joined(separator: ", ")), nil)
+            let labels = efforts.map(\.label).joined(separator: ", ")
+            throw failure(loc("Cursor '%@' has no effort '%@' (%@).", name, effort, labels), nil).quoting([name, labels])
         }
         if !option.chosen { try pick(optionLabel: option.label, section: "Effort", failure: failure) }
         try io.press(.escape)
@@ -451,17 +453,17 @@ public struct CursorDriver {
             }
             guard let to = options.firstIndex(where: { $0.section == section && $0.label == optionLabel }),
                   let from = options.firstIndex(where: \.cursor) else {
-                throw failure(loc("Could not find the '%@' line in the Cursor parameters.", optionLabel), nil)
+                throw failure(loc("Could not find the '%@' line in the Cursor parameters.", optionLabel), nil).quoting([optionLabel])
             }
             if from == to {
                 try io.press(.enter)
                 if (try poll(timeoutMs: 1500) { CursorScreen.editor($0)?.options.contains { $0.section == section && $0.label == optionLabel && $0.chosen } == true }) != nil { return }
-                throw failure(loc("Cursor did not apply the '%@' choice.", optionLabel), nil)
+                throw failure(loc("Cursor did not apply the '%@' choice.", optionLabel), nil).quoting([optionLabel])
             }
             try io.press(to > from ? .down : .up)
             sleep(40)
         }
-        throw failure(loc("Could not move the cursor to the '%@' line in the Cursor parameters.", optionLabel), nil)
+        throw failure(loc("Could not move the cursor to the '%@' line in the Cursor parameters.", optionLabel), nil).quoting([optionLabel])
     }
 
     /// If `effortLabel` is nil the model has no effort: only the model name is checked.
@@ -472,7 +474,7 @@ public struct CursorDriver {
             guard (try poll(timeoutMs: 2000) { CursorScreen.list($0) != nil }) != nil else { throw failure(loc("Could not get back to the Cursor list."), nil) }
         }
         guard let list = CursorScreen.list(io.freshSnapshot()?.lines ?? []), list.rows.first(where: \.cursor)?.name == name else {
-            throw failure(loc("Not confirmed: the cursor in the Cursor list is not on the '%@' row.", name), nil)
+            throw failure(loc("Not confirmed: the cursor in the Cursor list is not on the '%@' row.", name), nil).quoting([name])
         }
         try io.press(.enter)
         func landed(_ lines: [String]) -> Bool {
@@ -485,6 +487,7 @@ public struct CursorDriver {
         }
         guard let lines = try poll(timeoutMs: 4000, landed), let status = CursorScreen.status(lines) else {
             throw failure(loc("Stopped: the Cursor model line did not change to '%@%@'.", name, effortLabel.map { " · " + $0 } ?? ""), nil)
+                .quoting([name] + (effortLabel.map { [$0] } ?? []))
         }
         var warning: String?
         if let before {

@@ -21,6 +21,13 @@ final class WindowsAppTests: XCTestCase {
         }
     }
 
+    func testStillSwitchingIsNotShownWhileAwaitingConfirmation() {
+        XCTAssertTrue(WindowsAppModel.showsStillSwitching(busy: true, awaiting: false))
+        XCTAssertFalse(WindowsAppModel.showsStillSwitching(busy: true, awaiting: true))
+        XCTAssertFalse(WindowsAppModel.showsStillSwitching(busy: false, awaiting: false))
+        XCTAssertFalse(WindowsAppModel.showsStillSwitching(busy: false, awaiting: true))
+    }
+
     func testPhysicalKeyTableAndPressArguments() {
         XCTAssertEqual((1...9).compactMap(WindowsAppModel.scanCode), Array(UInt32(2)...UInt32(10)))
         XCTAssertEqual(WindowsAppModel.scanCode(for: 101), 0x0D)

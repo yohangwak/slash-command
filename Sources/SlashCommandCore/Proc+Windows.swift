@@ -2,6 +2,52 @@
 import Foundation
 import WinSDK
 
+/// One pipe's reader: the bytes read so far, and the read handle, which only its own thread uses and closes.
+/// It never blocks in ReadFile: it reads only what PeekNamedPipe says is there and otherwise naps briefly, so `stop` is just a
+/// flag that the thread sees within a few milliseconds, and no other thread ever touches the handle.
+final class PipeReader: @unchecked Sendable {
+    /// Readers whose thread has not ended yet (for tests).
+    static var live: Int { counter.lock(); defer { counter.unlock() }; return liveCount }
+    private static let counter = NSLock()
+    nonisolated(unsafe) private static var liveCount = 0
+
+    private let lock = NSLock()
+    private let handle: HANDLE
+    private var data = Data()
+    private var stopped = false
+
+    init(_ handle: HANDLE) {
+        self.handle = handle
+        PipeReader.counter.lock(); PipeReader.liveCount += 1; PipeReader.counter.unlock()
+    }
+
+    /// Reads until every writer has closed the pipe or `stop` is called, then closes the handle. Runs on its own thread.
+    func run() {
+        defer {
+            CloseHandle(handle)
+            PipeReader.counter.lock(); PipeReader.liveCount -= 1; PipeReader.counter.unlock()
+        }
+        var buffer = [UInt8](repeating: 0, count: 16384)
+        while !isStopped {
+            var available: DWORD = 0
+            // Fails with ERROR_BROKEN_PIPE once all write ends are closed and the pipe is empty: the end of the output.
+            guard PeekNamedPipe(handle, nil, 0, nil, &available, nil) else { break }
+            if available == 0 { Sleep(5); continue }
+            var count: DWORD = 0
+            let wanted = DWORD(min(Int(available), buffer.count))
+            guard buffer.withUnsafeMutableBytes({ ReadFile(handle, $0.baseAddress, wanted, &count, nil) }), count > 0 else { break }
+            lock.lock(); if !stopped { data.append(contentsOf: buffer.prefix(Int(count))) }; lock.unlock()
+        }
+    }
+
+    private var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
+
+    /// Keeps nothing more; the reader thread ends at its next check.
+    func stop() { lock.lock(); stopped = true; lock.unlock() }
+
+    func snapshot() -> Data { lock.lock(); defer { lock.unlock() }; return data }
+}
+
 extension Proc {
     /// No console allocation, and only the three standard handles are inherited.
     static func runWindows(_ exe: String, _ args: [String], env: [String: String]?, cwd: String?, timeout: TimeInterval) -> ProcResult {
@@ -83,19 +129,11 @@ extension Proc {
             CloseHandle(outWrite); outWrite = nil
             CloseHandle(errWrite); errWrite = nil
             CloseHandle(input); input = nil
-            func drain(_ handle: HANDLE) -> Data {
-                var result = Data(), buffer = [UInt8](repeating: 0, count: 16384)
-                var count: DWORD = 0
-                while buffer.withUnsafeMutableBytes({ ReadFile(handle, $0.baseAddress, DWORD($0.count), &count, nil) }), count > 0 {
-                    result.append(contentsOf: buffer.prefix(Int(count)))
-                }
-                return result
-            }
-            var output = Data(), errors = Data()
+            let output = PipeReader(outRead!), errors = PipeReader(errRead!)
+            outRead = nil; errRead = nil   // from here the readers own and close them
             let group = DispatchGroup(), queue = DispatchQueue(label: "slashcommand.proc.windows", attributes: .concurrent)
-            let outputHandle = outRead!, errorHandle = errRead!
-            group.enter(); queue.async { output = drain(outputHandle); group.leave() }
-            group.enter(); queue.async { errors = drain(errorHandle); group.leave() }
+            group.enter(); queue.async { output.run(); group.leave() }
+            group.enter(); queue.async { errors.run(); group.leave() }
             let milliseconds = DWORD(min(Double(DWORD.max - 1), max(0, timeout * 1000)))
             let wait = WaitForSingleObject(process.hProcess, milliseconds)
             let timedOut = wait == WAIT_TIMEOUT
@@ -104,11 +142,17 @@ extension Proc {
                 _ = TerminateProcess(process.hProcess, 1)
                 _ = WaitForSingleObject(process.hProcess, 1000)
             }
-            group.wait()
+            // A grandchild that inherited the pipes can keep them open after the child exited, so inherited
+            // pipes add at most one second here; what was read by then is returned, and the readers are stopped
+            // so they do not stay behind (with their handles and buffers) for as long as the grandchild lives.
+            if group.wait(timeout: .now() + 1) == .timedOut {
+                output.stop(); errors.stop()
+                _ = group.wait(timeout: .now() + 0.5)
+            }
             var code: DWORD = 0
             let status = GetExitCodeProcess(process.hProcess, &code) ? Int32(bitPattern: code) : -1
-            return ProcResult(status: status, out: String(decoding: output, as: UTF8.self),
-                              err: String(decoding: errors, as: UTF8.self), timedOut: timedOut)
+            return ProcResult(status: status, out: String(decoding: output.snapshot(), as: UTF8.self),
+                              err: String(decoding: errors.snapshot(), as: UTF8.self), timedOut: timedOut)
         }
     }
 

@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
+    /// While claude's "Switch model?" dialog waits for the user's Enter, the "Press Enter to confirm" notification stays (main thread only).
+    private var awaitingConfirmation = false
     /// The notice about Accessibility being off in Orca is given only once per run.
     private var nudgedOrcaAccessibility = false
     /// The last preset-file error reported — the same error is not reported again each time you switch terminals.
@@ -183,6 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func perform(_ action: Action) {
         guard !busy else {
+            if awaitingConfirmation { return }
             hud.show(loc("Still switching"), detail: loc("Press again when it is done."))
             return
         }
@@ -210,8 +213,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 made.trace = trace
                 // If claude asks again whether to change the model, tell the user, wait until they choose, then finish up.
                 made.onAwaitingUser = { model in
-                    Log.write("awaiting confirmation \(action.label): \(model)")
+                    Log.write("awaiting confirmation \(action.label)")
                     DispatchQueue.main.async {
+                        self.awaitingConfirmation = true
                         self.hud.show(loc("Press Enter to confirm"),
                                       detail: loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation).", model), seconds: nil)
                     }
@@ -228,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             // Show the notification first — the re-check of the defaults (0.25 s) comes after.
             DispatchQueue.main.async {
+                self.awaitingConfirmation = false
                 switch outcome {
                 case .success(let result):
                     Log.write("applied \(action.label): \(result.summary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
@@ -242,11 +247,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     }
                     self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 ? 4 : 1.6)
                 case .failure(let error as SlashCommandError) where error.awaitingUser:
-                    Log.write("awaiting confirmation \(action.label): \(error)")
+                    Log.write("awaiting confirmation \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show(loc("Press Enter to confirm"), detail: "\(error)", seconds: 6)
                 case .failure(let error as SlashCommandError) where error.nothingToDo:
                     // There was nothing to change (already at the highest level, etc.) — this is a notice, not a failure.
-                    Log.write("unchanged \(action.label): \(error)")
+                    Log.write("unchanged \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show("\(error)", seconds: 2.5)
                 case .failure(let error as SlashCommandError) where error.needsAccessibility:
                     // Before writing, iTerm2 checks through accessibility whether input broadcast is off — without the permission, open that settings screen right away (nothing was sent).
@@ -259,7 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     Permissions.openAutomation()
                     self.hud.show(loc("Automation permission needed"), detail: "\(error)", seconds: 6)
                 case .failure(let error):
-                    Log.write("failed \(action.label): \(error)")
+                    Log.write("failed \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show(loc("Not switched"), detail: "\(error)", seconds: 5)
                 }
             }
@@ -269,7 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 DispatchQueue.main.async { self.hud.show(result.summary, detail: "⚠️ \(late)", seconds: 4) }
             }
             Log.write("timing \(action.label): \(trace.report)")
-            DispatchQueue.main.async { self.busy = false }
+            DispatchQueue.main.async { self.awaitingConfirmation = false; self.busy = false }
         }
     }
 
@@ -375,9 +380,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var supported = true
         if case .unsupported = front { supported = false }
         var modifierWarning: String?
+        var unknownKeyWarning: String?
         do {
             let config = try store.load()
             modifierWarning = config.modifierWarning
+            unknownKeyWarning = config.unknownKeyWarning
             let mask = modifierMask(config)
             for (index, slot) in config.slots.enumerated() {
                 let item = NSMenuItem(title: "", action: #selector(menuApply(_:)), keyEquivalent: "\(index + 1)")
@@ -408,6 +415,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var problems: [NSMenuItem] = []
         if let modifierWarning {
             problems.append(warning(modifierWarning, #selector(openSettings)))
+        }
+        if let unknownKeyWarning {
+            problems.append(warning(unknownKeyWarning, #selector(openSettings)))
         }
         if !hotKeys.failed.isEmpty {
             let keys = hotKeys.failed.map { id -> String in

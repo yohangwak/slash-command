@@ -25,11 +25,23 @@ public struct ClaudeDefaults: Sendable {
         return Int64(date.timeIntervalSince1970 * 1_000_000)
     }
 
-    public func snapshot() -> Data? {
-        try? Data(contentsOf: url)
+    public func snapshot() -> DefaultsSnapshot {
+        DefaultsFile.snapshot(url)
     }
 
-    public func restore(to original: Data) -> Outcome {
+    public func restore(to snapshot: DefaultsSnapshot) -> Outcome {
+        let original: Data
+        switch snapshot {
+        case .unreadable(let reason):
+            return .failed(loc("Could not read the %@ settings file before switching: %@", "claude", reason))
+        case .absent:
+            if let outcome = removeCreatedFile() { return outcome }
+            // Other settings are in the file now too, so it was not only this switch that wrote it. Compare with an empty file: the usual
+            // rules then report that the default cannot be put back automatically, and nothing is removed.
+            original = Data("{}".utf8)
+        case .content(let data):
+            original = data
+        }
         guard let current = try? Data(contentsOf: url) else {
             return .failed(loc("Could not read the settings file"))
         }
@@ -49,6 +61,34 @@ public struct ClaudeDefaults: Sendable {
             } catch {
                 return .failed(error.localizedDescription)
             }
+        }
+    }
+
+    /// The file did not exist before the switch, so claude created it. Removes it only when nothing but the default keys is in it;
+    /// returns nil when other settings are in it too (another session may have written them), and those must stay.
+    private func removeCreatedFile() -> Outcome? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return .unchanged }
+        guard let current = try? Data(contentsOf: url) else {
+            return .failed(loc("Could not read the settings file"))
+        }
+        guard let json = ClaudeDefaults.object(current) else {
+            return .failed(loc("The settings file is not a JSON object"))
+        }
+        if ClaudeDefaults.stripped(json).count > 0 { return nil }
+        var file = url
+        if (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path)) != nil {
+            // The link pointed at a file that did not exist yet (a dotfiles setup, say). Claude created that file, so it is the file
+            // that goes, never the user's link.
+            file = url.resolvingSymlinksInPath()
+            guard (try? FileManager.default.destinationOfSymbolicLink(atPath: file.path)) == nil else {
+                return .failed(loc("Could not read the settings file"))
+            }
+        }
+        do {
+            try FileManager.default.removeItem(at: file)
+            return .restored
+        } catch {
+            return .failed(error.localizedDescription)
         }
     }
 

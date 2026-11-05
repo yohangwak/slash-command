@@ -333,8 +333,19 @@ do {
                 let object: [String: Any] = ["draft": snapshot.draft as Any, "tail": snapshot.lines]
                 do {
                     let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted])
-                    try data.write(to: URL(fileURLWithPath: path))
-                    print("screen saved: \(path)")
+                    let url = URL(fileURLWithPath: path)
+                    #if os(Windows)
+                    try data.write(to: url, options: .atomic)
+                    #else
+                    // Created 0600 before any byte is in it, then renamed over the target, so the file is never readable by others.
+                    let temporary = url.path + ".tmp-\(getpid())"
+                    guard FileManager.default.createFile(atPath: temporary, contents: data, attributes: [.posixPermissions: 0o600]),
+                          rename(temporary, url.path) == 0 else {
+                        try? FileManager.default.removeItem(atPath: temporary)
+                        throw CocoaError(.fileWriteUnknown)
+                    }
+                    #endif
+                    print("screen saved: \(path) (it contains the screen and your draft; do not share it unedited)")
                 } catch {
                     fail("could not save screen dump: \(error.localizedDescription)")
                 }
@@ -357,6 +368,7 @@ do {
         for (index, slot) in config.slots.enumerated() {
             print("\(index + 1)  \(slot.listing)")
         }
+        if let warning = config.unknownKeyWarning { print("⚠️ \(warning)") }
     case "plan":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
             fail("slashcommand plan <number> <claude|codex>")

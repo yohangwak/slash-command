@@ -8,8 +8,8 @@ public struct SwitchResult: Equatable, Sendable {
     public let warning: String?
     /// The result the agent showed on screen (e.g. "Set model to Sonnet 5.5"): a confirmation that it changed, not just that we sent it.
     public let confirmations: [String]
-    /// The pre-switch file content, when a late write of the default must be checked once more (`Switcher.verifyRestore`).
-    public let pendingRestore: Data?
+    /// The defaults file as it was before the switch (absent, its content, or unreadable), when a late write of the default must be checked once more (`Switcher.verifyRestore`).
+    public let pendingRestore: DefaultsSnapshot?
 
     /// The notification title. Uses the name the agent showed on screen if there is one ("Opus 5.5 · high"), otherwise the preset's values ("opus · high").
     public var summary: String {
@@ -249,9 +249,9 @@ public struct Switcher {
         }
         // Shared by switching and launching: reject terminal control bytes before either path can send them.
         guard ![preset.model, preset.effort].contains(where: { value in
-            value.unicodeScalars.contains { $0.value <= 0x1F || $0.value == 0x7F }
+            value.unicodeScalars.contains { $0.value <= 0x1F || $0.value == 0x7F || (0x80...0x9F).contains($0.value) || $0 == "\\" }
         }) else {
-            throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file.", slot, agent.displayName))
+            throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file.", slot, agent.displayName))
         }
         return preset
     }
@@ -415,16 +415,19 @@ public struct Switcher {
     private func applyCommands(_ planned: Planned, io: TerminalIO, target: Target, screen: ScreenSnapshot,
                                sleep timedSleep: @escaping (Int) -> Void, deferFinalCheck: Bool) throws -> SwitchResult {
         let before = config.keepDefaults ? claudeDefaults.snapshot() : nil
+        // If the defaults file cannot be read, the value to put back is unknown; stop before sending anything.
+        if let before { try DefaultsFile.refuseIfUnreadable(before, name: "claude") }
         var runner = Runner(io: io, sleep: timedSleep, stamp: { claudeDefaults.stamp() }, initial: screen)
         runner.onAwaitingUser = onAwaitingUser
         let confirmations: [String]
         do {
             confirmations = try runner.run(planned.fallback ?? [])
-        } catch var error as SlashCommandError where error.awaitingUser {
+        } catch let error as SlashCommandError where error.awaitingUser {
             // No reply came while waiting. If Yes is chosen later, claude writes the default then, and we have already let go; report it as it is.
-            error = SlashCommandError(error.message + " " + loc("If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both)."))
-            error.awaitingUser = true
-            throw error
+            // Keep what the first error quoted from the screen (the model claude asks about), so the log still leaves it out.
+            var wrapped = SlashCommandError(error.message + " " + loc("If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both).")).quoting(error.quoted)
+            wrapped.awaitingUser = true
+            throw wrapped
         } catch {
             // Even if it stopped midway, an earlier command may already have changed the default; put it back and then report the failure.
             if let before {
@@ -436,7 +439,7 @@ public struct Switcher {
         }
 
         var warning: String?
-        var pending: Data?
+        var pending: DefaultsSnapshot?
         if let before {
             // The result line of the last command was confirmed, so the file has already been written. Put it back right away and look once more to guard against a late write.
             if case .failed(let reason) = claudeDefaults.restore(to: before) {
@@ -454,7 +457,7 @@ public struct Switcher {
     }
 
     /// Waits a moment, checks again that the default is as it was, and puts it back if not. Returns the reason if it cannot be put back.
-    public func verifyRestore(_ before: Data) -> String? {
+    public func verifyRestore(_ before: DefaultsSnapshot) -> String? {
         sleep(250)
         trace?.mark("wait(250)")
         if case .failed(let reason) = claudeDefaults.restore(to: before) {
@@ -715,7 +718,8 @@ public struct Runner {
     static func refused(_ reply: String) -> SlashCommandError {
         // Cancelling in the confirmation dialog makes claude leave "Kept model as …": that is the user's choice, not a refusal.
         if reply.hasPrefix("Kept model as") { return declined() }
-        return SlashCommandError(loc("Claude Code did not accept it: %@", reply.prefix(120)))
+        let shown = String(reply.prefix(120))
+        return SlashCommandError(loc("Claude Code did not accept it: %@", shown)).quoting([shown])
     }
 
     /// The user chose "No, go back" in the confirmation dialog.
@@ -727,7 +731,7 @@ public struct Runner {
 
     /// claude is asking whether to change the model; we do not answer and hand it to the user.
     static func awaitingSwitch(_ model: String) -> SlashCommandError {
-        var error = SlashCommandError(loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation). Press Enter to switch.", model))
+        var error = SlashCommandError(loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation). Press Enter to switch.", model)).quoting([model])
         error.awaitingUser = true
         return error
     }
@@ -791,8 +795,9 @@ public struct Runner {
             if elapsed >= deadline {
                 // Only quote a new reply directly below our command, never unrelated conversation output.
                 let reply = command != nil ? ClaudeScreen.commandReply(snap.lines, command: command) : nil
-                let detail = reply.flatMap { $0 != repliedBefore ? " (claude: \($0.prefix(80)))" : nil } ?? ""
-                throw SlashCommandError(failure + detail)
+                let shown = reply.flatMap { $0 != repliedBefore ? String($0.prefix(80)) : nil }
+                let detail = shown.map { " (claude: \($0))" } ?? ""
+                throw SlashCommandError(failure + detail).quoting(shown.map { [$0] } ?? [])
             }
             sleep(40)
             simulated += 40

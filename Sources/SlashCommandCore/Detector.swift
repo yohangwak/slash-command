@@ -192,7 +192,7 @@ public enum OrcaState {
                        processAgent: (String) -> Agent? = { _ in nil }) throws -> Target {
         let pane = try pane(in: payload, active: active)
         guard let agent = processAgent(pane.handle) ?? pane.listedAgent else {
-            throw SlashCommandError(loc("The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", pane.label))
+            throw SlashCommandError(loc("The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", pane.label)).quoting([pane.label])
         }
         return Target(host: .orca(handle: pane.handle), agent: agent, label: pane.label)
     }

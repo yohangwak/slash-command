@@ -352,7 +352,7 @@ extension Detector {
         }
         guard let found = itermSession(from: result.out) else { throw SlashCommandError(loc("iTerm2 has no open window.")) }
         guard let device = TTYProcesses.device(ofTTY: found.tty) else {
-            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "iTerm2", found.name))
+            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "iTerm2", found.name)).quoting([found.name])
         }
         return try session(host: .iterm(sessionID: found.id), appName: "iTerm2", label: found.name, table: ProcessTable.snapshot(), device: device)
     }

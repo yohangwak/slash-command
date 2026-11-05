@@ -26,7 +26,7 @@ public enum WindowsAppModel {
         return seen.pane
     }
 
-    public static let version = "0.2.2" // scripts/Info.plist
+    public static let version = "0.2.3" // scripts/Info.plist
     public static let effortUp = 101
     public static let effortDown = 102
 
@@ -150,6 +150,8 @@ public enum WindowsAppModel {
         if !registered.contains(id) { return "key not registered" }
         return nil
     }
+    /// While the app waits for the user's Enter on claude's confirmation, the "Press Enter to confirm" notice stays instead of "Still switching".
+    public static func showsStillSwitching(busy: Bool, awaiting: Bool) -> Bool { busy && !awaiting }
     public static func appliedLine(id: Int, result: SwitchResult) -> String {
         "applied \(actionLabel(id)): \(result.summary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")"
     }

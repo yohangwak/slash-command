@@ -23,7 +23,7 @@ final class CommandLineCheckTests: XCTestCase {
 
     func testAcceptsExplicitTargetAndTrace() {
         XCTAssertNil(CommandLineCheck.problem(in: ["apply", "2", "--orca", "h1", "--agent", "claude", "--trace"]))
-        XCTAssertNil(CommandLineCheck.problem(in: ["apply", "2", "--bundle", "com.example.Terminal", "--orca", "h1"]))
+        XCTAssertNil(CommandLineCheck.problem(in: ["apply", "2", "--bundle", "com.example.Terminal"]))
     }
 
     func testAcceptsPositionalArgumentsAndHelp() {
@@ -37,17 +37,69 @@ final class CommandLineCheckTests: XCTestCase {
                       "--app": "windowsterminal", "--console": "42", "--agent": "claude",
                       "--tmux": "%1", "--tmux-socket": "socket", "--kitty": "1",
                       "--kitty-socket": "unix:/tmp/socket", "--wezterm": "1", "--wezterm-socket": "socket",
-                      "--iterm": "id", "--dump": "/tmp/screen.json", "--lines": "20", "--seconds": "1"]
+                      "--iterm": "id", "--dump": "/tmp/screen.json", "--lines": "20"]
+        let helpers: Set<String> = ["--agent", "--tmux-socket", "--kitty-socket", "--wezterm-socket"]
         for (option, value) in values {
-            XCTAssertNil(CommandLineCheck.problem(in: ["doctor", option, value]), option)
+            // A helper option only describes a target, so it is checked next to one.
+            let host = helpers.contains(option) ? ["--tmux", "%1"] : []
+            #if os(Windows)
+            XCTAssertNil(CommandLineCheck.problem(in: ["doctor", option, value] + host), option)
+            #else
+            if ["--app", "--console"].contains(option) {
+                XCTAssertEqual(CommandLineCheck.problem(in: ["doctor", option, value]), "\(option) is only for Windows.")
+            } else {
+                XCTAssertNil(CommandLineCheck.problem(in: ["doctor", option, value] + host), option)
+            }
+            #endif
             XCTAssertNotNil(CommandLineCheck.problem(in: ["doctor", option]), option)
             XCTAssertNotNil(CommandLineCheck.problem(in: ["doctor", option, "--screen"]), option)
         }
+        XCTAssertNil(CommandLineCheck.problem(in: ["probe-orca", "--seconds", "1"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["probe-orca", "--seconds"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["probe-orca", "--seconds", "--screen"]))
     }
 
-    func testValidatesEveryOccurrenceOfAnOption() {
+    func testRejectsTheSameOptionGivenTwice() {
         XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--orca", "h1", "--orca"]))
         XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--agent", "claude", "--agent", "claud"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--agent", "claude", "--agent", "claude"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--trace", "--trace"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["doctor", "--screen", "--screen"]))
+    }
+
+    func testRejectsOptionsTheCommandDoesNotRead() {
+        // `apply` reads only `--trace`, so `--dry-run` would be ignored and the keys would be sent anyway.
+        XCTAssertEqual(CommandLineCheck.problem(in: ["apply", "2", "--dry-run"]), "--dry-run is not used by apply.")
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["effort", "up", "--screen"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["doctor", "--seconds", "1"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["list", "--trace"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["path", "--trace"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["plan", "2", "claude", "--trace"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["where", "--trace"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--detach"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--launched", "1:2"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["probe-orca", "--orca", "h1"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--lines", "5"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["where", "--screen"]))
+    }
+
+    func testRejectsMoreThanOneTargetHost() {
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--orca", "h1", "--tmux", "%1", "--agent", "claude"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["where", "--bundle", "com.example.Terminal", "--orca", "h1"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["doctor", "--ghostty", "id", "--iterm", "id"]))
+        XCTAssertEqual(CommandLineCheck.problem(in: ["apply", "2", "--orca", "h1", "--tmux", "%1"]),
+                       "use only one target option (--orca --tmux).")
+        // The agent and the sockets belong to the host and do not count as a second target.
+        XCTAssertNil(CommandLineCheck.problem(in: ["apply", "2", "--tmux", "%1", "--tmux-socket", "s", "--agent", "claude", "--trace"]))
+        XCTAssertNil(CommandLineCheck.problem(in: ["doctor", "--screen", "--lines", "40"]))
+    }
+
+    func testSecondsMustBeAPositiveFiniteNumber() {
+        for value in ["inf", "nan", "0", "-1", "no"] {
+            XCTAssertEqual(CommandLineCheck.problem(in: ["probe-orca", "--seconds", value]), "--seconds needs a positive number.", value)
+        }
+        XCTAssertNil(CommandLineCheck.problem(in: ["probe-orca", "--seconds", "5"]))
+        XCTAssertNil(CommandLineCheck.problem(in: ["probe-orca", "--seconds", "0.5"]))
     }
 
     func testInternalCommandsAreNotChecked() {
@@ -72,5 +124,14 @@ final class CommandLineCheckTests: XCTestCase {
         XCTAssertNil(CommandLineCheck.problem(in: ["effort", "down", "--trace"]))
         XCTAssertNil(CommandLineCheck.problem(in: ["plan", "2", "claude"]))
         XCTAssertNotNil(CommandLineCheck.problem(in: ["plan", "2", "claude", "x"]))
+    }
+
+    /// Without a target option, `--agent` and the socket options were ignored and the frontmost session was switched.
+    func testHelperOptionsNeedATargetOption() {
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--agent", "codex"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "2", "--tmux-socket", "s", "--agent", "claude"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["where", "--wezterm-socket", "s"]))
+        XCTAssertNil(CommandLineCheck.problem(in: ["apply", "2", "--tmux", "%1", "--tmux-socket", "s", "--agent", "claude"]))
+        XCTAssertNil(CommandLineCheck.problem(in: ["apply", "2", "--orca", "h1", "--agent", "claude"]))
     }
 }

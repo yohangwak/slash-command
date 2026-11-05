@@ -19,6 +19,19 @@ enum WindowsPaths {
     }
 }
 
+/// Parent links from a process snapshot, checked against start times.
+public enum ProcessTree {
+    /// A parent pid can be reused: a child that started before its claimed parent was not started by it, so that link is dropped.
+    /// A start time that is missing or 0 (could not be read) counts as unknown, and the link stays.
+    public static func trustedParents(_ parents: [Int32: Int32], starts: [Int32: UInt64]) -> [Int32: Int32] {
+        parents.filter { child, parent in
+            guard let childStart = starts[child], childStart > 0,
+                  let parentStart = starts[parent], parentStart > 0 else { return true }
+            return childStart >= parentStart
+        }
+    }
+}
+
 extension OrcaRuntime {
     struct PipeMetadata {
         let endpoint: String

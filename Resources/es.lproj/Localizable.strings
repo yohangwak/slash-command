@@ -332,7 +332,7 @@
 "Use --console with a positive process ID and --agent <agent>." = "Use --console con un ID de proceso positivo y --agent <agent>.";
 "No Windows Terminal window is open." = "No hay ninguna ventana de Windows Terminal abierta.";
 
-"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "No se cambió: el preajuste %1$@ para %2$@ contiene un carácter de control. Corríjalo en Ajustes o en el archivo de preajustes.";
+"Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file." = "No se cambió: el preajuste %1$@ para %2$@ contiene un carácter de control o una barra invertida. Corríjalo en Ajustes o en el archivo de preajustes.";
 
 "Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "No se ha enviado: este panel de tmux está en modo de copia, por lo que las teclas no llegarían al agente. Pulsa q para salir y vuelve a pulsar.";
 
@@ -341,3 +341,4 @@
 "Works in Ghostty, Orca, iTerm2, WezTerm and kitty" = "Funciona en Ghostty, Orca, iTerm2, WezTerm y kitty";
 "Open System Settings…" = "Abrir Configuración del Sistema…";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "Las teclas modificadoras del archivo de preajustes no sirven por sí solas, por lo que se usa %@. Incluye control, option o command.";
+"This version does not use these keys in the presets file (they are kept): %@" = "Esta versión no usa estas claves del archivo de preajustes (se conservan): %@";

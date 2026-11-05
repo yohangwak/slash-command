@@ -639,15 +639,62 @@ final class ClaudeDefaultsTests: KoreanMessagesTestCase {
         try Data(original.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         let defaults = ClaudeDefaults(url: url)
-        let before = try XCTUnwrap(defaults.snapshot())
+        let before = defaults.snapshot()
+        XCTAssertEqual(before, .content(Data(original.utf8)))
         try Data(original.replacingOccurrences(of: "\"model\": \"opus\"", with: "\"model\": \"fable\"").utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
 
         XCTAssertEqual(defaults.restore(to: before), .restored)
-        XCTAssertEqual(try Data(contentsOf: url), before)
+        XCTAssertEqual(try Data(contentsOf: url), Data(original.utf8))
         let permissions = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber
         XCTAssertEqual(permissions?.intValue, 0o600)
         XCTAssertEqual(defaults.restore(to: before), .unchanged)
+    }
+
+    private func absentURL() -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-absent-\(UUID().uuidString).json")
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return url
+    }
+
+    func testAbsentSnapshotRemovesAFileHoldingOnlyDefaultKeys() throws {
+        let url = absentURL()
+        let defaults = ClaudeDefaults(url: url)
+        XCTAssertEqual(defaults.snapshot(), .absent)
+        XCTAssertEqual(defaults.restore(to: .absent), .unchanged, "Nothing was created")
+        try Data("{\n  \"model\": \"sonnet\",\n  \"effortLevel\": \"high\",\n  \"modelSettings\": {\"sonnet\": {\"effortLevel\": \"high\"}}\n}".utf8).write(to: url)
+        XCTAssertEqual(defaults.restore(to: .absent), .restored)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    func testAbsentSnapshotKeepsAFileWithAnotherKey() throws {
+        let url = absentURL()
+        let defaults = ClaudeDefaults(url: url)
+        let text = "{\"model\":\"sonnet\",\"theme\":\"dark\"}"
+        try Data(text.utf8).write(to: url)
+        guard case .failed = defaults.restore(to: .absent) else { return XCTFail("A key we did not track means another session wrote it") }
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), text)
+        try Data("not json".utf8).write(to: url)
+        guard case .failed = defaults.restore(to: .absent) else { return XCTFail("A file that cannot be parsed is not deleted") }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    #if !os(Windows)
+    /// settings.json was a link to a file that did not exist yet: the file claude created goes, the link stays.
+    func testAbsentSnapshotThroughADanglingLinkRemovesTheTargetNotTheLink() throws {
+        let link = absentURL(), target = absentURL()
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        let defaults = ClaudeDefaults(url: link)
+        XCTAssertEqual(defaults.snapshot(), .absent)
+        try Data("{\"model\":\"sonnet\"}".utf8).write(to: target)
+        XCTAssertEqual(defaults.restore(to: .absent), .restored)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+        XCTAssertNotNil(try? FileManager.default.destinationOfSymbolicLink(atPath: link.path), "The user's link is kept")
+    }
+    #endif
+
+    func testUnreadableSnapshotFails() {
+        guard case .failed = ClaudeDefaults(url: absentURL()).restore(to: .unreadable("denied")) else { return XCTFail() }
     }
 }
 
@@ -2034,6 +2081,9 @@ final class GrokScreenTests: KoreanMessagesTestCase {
         let before = ["  Unknown model: grok-4.6", "  │ ❯", "  ╰──╯"]
         XCTAssertEqual(GrokScreen.errorLines(before), ["Unknown model: grok-4.6"])
         XCTAssertEqual(GrokScreen.errorLines(["hello"]), [])
+        XCTAssertEqual(GrokScreen.errorLines(["  This feature is not available yet", "  Invalid input is rejected by the parser", "  │ ❯"]), [],
+                       "Conversation lines are not grok's refusals")
+        XCTAssertEqual(GrokScreen.errorLines(["Invalid effort: maximum"]), ["Invalid effort: maximum"])
     }
 }
 

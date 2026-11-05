@@ -30,6 +30,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package-windows.ps1 
 ```sh
 .build/debug/slashcommand plan 1 codex                                   # print the steps; runs nothing
 .build/debug/slashcommand doctor --screen                                # what the app sees; sends nothing
+.build/debug/slashcommand doctor --dump screen.json                      # save that screen for a test fixture (it holds the screen and your draft: edit before sharing)
 .build/debug/slashcommand apply 2 --orca <handle> --agent claude --trace # name the target yourself
 SLASHCOMMAND_CONFIG=/path/presets.json .build/debug/slashcommand list    # use another presets file
 SLASHCOMMAND_SCREEN_LAG_MS=520 .build/debug/slashcommand apply 1 --orca <handle> --agent claude   # take the Ghostty path in another terminal

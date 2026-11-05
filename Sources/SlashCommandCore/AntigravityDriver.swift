@@ -1,6 +1,6 @@
 import Foundation
 
-// Switches the model and effort with the Antigravity CLI (`agy` 1.3.1).
+// Switches the model and effort with the Antigravity CLI (`agy`; checked versions are in docs/agents.md).
 //
 // Measured 2026-10-07 (in a separately opened test terminal):
 // - `/model` opens a "Switch Model" picker: `>` is the cursor, `(current)` marks the current model, below it an `Effort ◂ ●━●━◉ ▸` slider (left/right arrows) and
@@ -241,7 +241,8 @@ public struct AntigravityDriver {
         try openPicker(failure: fail)
         guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw fail(loc("Could not read the Antigravity picker.")) }
         guard let target = picker.rows.first(where: { AgyScreen.key($0.name) == AgyScreen.key(preset.model) }) else {
-            throw fail(loc("'%@' is not in the Antigravity model list. Available: %@", preset.model, picker.rows.map(\.name).joined(separator: ", ")))
+            let available = picker.rows.map(\.name).joined(separator: ", ")
+            throw fail(loc("'%@' is not in the Antigravity model list. Available: %@", preset.model, available)).quoting([available])
         }
         try moveCursor(to: target.name, failure: fail)
         guard let fresh = io.freshSnapshot(), let movedPicker = AgyScreen.picker(fresh.lines) else {
@@ -249,7 +250,8 @@ public struct AntigravityDriver {
         }
         if let slider = movedPicker.slider {
             guard let wanted = slider.labels.firstIndex(where: { AgyScreen.key($0) == AgyScreen.key(preset.effort) || (preset.effort == "xhigh" && AgyScreen.key($0) == "extrahigh") }) else {
-                throw fail(loc("Antigravity '%@' has no effort '%@' (%@).", target.name, preset.effort, slider.labels.joined(separator: ", ")))
+                let labels = slider.labels.joined(separator: ", ")
+                throw fail(loc("Antigravity '%@' has no effort '%@' (%@).", target.name, preset.effort, labels)).quoting([target.name, labels])
             }
             try moveEffort(to: wanted, failure: fail)
         }
@@ -270,10 +272,11 @@ public struct AntigravityDriver {
               let current = picker.rows.first(where: \.current), picker.rows.first(where: \.cursor)?.name == current.name else {
             throw fail(loc("Nothing was changed: the Antigravity picker's cursor is not on the current model."))
         }
-        guard let slider = picker.slider else { throw fail(loc("Antigravity '%@' has no effort to change.", current.name)) }
+        guard let slider = picker.slider else { throw fail(loc("Antigravity '%@' has no effort to change.", current.name)).quoting([current.name]) }
         let next = slider.selected + (up ? 1 : -1)
         guard slider.labels.indices.contains(next) else {
             var error = fail(up ? loc("Already at the highest level (%@).", slider.labels[slider.selected]) : loc("Already at the lowest level (%@).", slider.labels[slider.selected]))
+                .quoting([slider.labels[slider.selected]])
             error.nothingToDo = true
             if let reason = io.lastFailure { throw SlashCommandError(reason) }
             throw error
@@ -309,13 +312,13 @@ public struct AntigravityDriver {
         for _ in 0..<14 {
             guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []) else { throw failure(loc("The Antigravity picker closed."), nil) }
             guard let from = picker.rows.firstIndex(where: \.cursor), let to = picker.rows.firstIndex(where: { $0.name == name }) else {
-                throw failure(loc("Could not find the '%@' row in the Antigravity picker.", name), nil)
+                throw failure(loc("Could not find the '%@' row in the Antigravity picker.", name), nil).quoting([name])
             }
             if from == to { return }
             try io.press(to > from ? .down : .up)
             sleep(40)
         }
-        throw failure(loc("Could not move the cursor to the '%@' row in the Antigravity picker.", name), nil)
+        throw failure(loc("Could not move the cursor to the '%@' row in the Antigravity picker.", name), nil).quoting([name])
     }
 
     /// Sets the slider to the `target`-th step. Re-reads after each press to confirm — it does not press further at the end.
@@ -334,7 +337,7 @@ public struct AntigravityDriver {
             throw failure(loc("Could not read the Antigravity picker."), nil)
         }
         guard let cursor = picker.rows.first(where: \.cursor), cursor.name == name else {   // the same test `moveCursor` uses
-            throw failure(loc("Could not move the cursor to the '%@' row in the Antigravity picker.", name), nil)
+            throw failure(loc("Could not move the cursor to the '%@' row in the Antigravity picker.", name), nil).quoting([name])
         }
         let repliesBefore = AgyScreen.replies(fresh.lines)
         try io.press(.enter)
@@ -347,7 +350,7 @@ public struct AntigravityDriver {
             throw failure(loc("Stopped: Antigravity did not respond to the model switch."), nil)
         }
         guard AgyScreen.key(reply).hasPrefix(AgyScreen.key("Model set to " + name)) else {
-            throw failure(loc("Antigravity says it switched to a different model: %@", reply), nil)
+            throw failure(loc("Antigravity says it switched to a different model: %@", reply), nil).quoting([reply])
         }
         var warning: String?
         if let before {
