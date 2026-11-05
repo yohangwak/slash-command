@@ -11,13 +11,11 @@ public enum CommandLineCheck {
             return nil
         }
 
-        let valueOptions: Set<String> = [
-            "--bundle", "--app", "--console", "--orca", "--ghostty", "--agent",
-            "--tmux", "--tmux-socket", "--kitty", "--kitty-socket",
-            "--wezterm", "--wezterm-socket", "--iterm", "--dump", "--lines", "--seconds",
-            "--launched",
-        ]
-        let flags: Set<String> = ["--trace", "--screen", "--dry-run", "--detach"]
+        // Each public command accepts only the options its handler reads. An option a command ignores is refused,
+        // because `apply 2 --dry-run` would otherwise send the keys that the user believed were being skipped.
+        guard let allowed = allowedOptions[command] else { return nil }
+        var seen: Set<String> = []
+        var hosts: [String] = []
         // How many plain arguments each command takes. A stray one is usually a target whose option was lost (`apply 2 sctest:0.0`)
         // or an empty shell variable (`apply 2 "$T"`), and ignoring it would switch the frontmost session instead.
         let positionalLimit = positionalArguments[command]
@@ -32,8 +30,11 @@ public enum CommandLineCheck {
                 index += 1
                 continue
             }
+            guard flags.contains(option) || valueOptions.contains(option) else { return "unknown option: \(option)" }
+            guard allowed.contains(option) else { return "\(option) is not used by \(command)." }
+            guard seen.insert(option).inserted else { return "\(option) is given more than once." }
+            if hostOptions.contains(option) { hosts.append(option) }
             if flags.contains(option) { index += 1; continue }
-            guard valueOptions.contains(option) else { return "unknown option: \(option)" }
             guard index + 1 < args.count, !args[index + 1].isEmpty, !args[index + 1].hasPrefix("--") else {
                 return "\(option) needs a value."
             }
@@ -44,10 +45,33 @@ public enum CommandLineCheck {
             if option == "--lines", Int(value).map({ $0 > 0 }) != true {
                 return "--lines needs a positive integer."
             }
+            if option == "--seconds", Double(value).map({ $0.isFinite && $0 > 0 }) != true {
+                return "--seconds needs a positive number."
+            }
             index += 2
         }
+        // The target options choose different terminals; `--agent` and the sockets only describe the chosen one.
+        if hosts.count > 1 { return "use only one target option (\(hosts.joined(separator: " ")))." }
         return nil
     }
+
+    private static let hostOptions: Set<String> = [
+        "--bundle", "--app", "--console", "--orca", "--ghostty", "--tmux", "--kitty", "--wezterm", "--iterm",
+    ]
+    private static let targetOptions: Set<String> = hostOptions.union([
+        "--agent", "--tmux-socket", "--kitty-socket", "--wezterm-socket",
+    ])
+    private static let valueOptions: Set<String> = targetOptions.union(["--dump", "--lines", "--seconds", "--launched"])
+    private static let flags: Set<String> = ["--trace", "--screen", "--dry-run", "--detach"]
+    /// The options each public command reads in `main.swift`. `--dry-run` belongs to `run`, and `--detach` and `--launched` to the internal commands.
+    private static let allowedOptions: [String: Set<String>] = [
+        "apply": targetOptions.union(["--trace"]),
+        "effort": targetOptions.union(["--trace"]),
+        "where": targetOptions,
+        "doctor": targetOptions.union(["--screen", "--lines", "--dump"]),
+        "probe-orca": ["--seconds"],
+        "list": [], "path": [], "plan": [],
+    ]
 
     private static let positionalArguments: [String: Int] = [
         "apply": 1, "effort": 1, "plan": 2,
