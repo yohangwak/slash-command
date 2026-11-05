@@ -14,5 +14,19 @@ final class ProcWindowsDrainTests: XCTestCase {
         XCTAssertTrue(result.out.contains("started"), result.out)
         XCTAssertFalse(result.timedOut)
     }
+
+    /// After the deadline the readers are stopped: they do not stay behind, holding handles and buffers, while the grandchild lives on.
+    func testReadersEndAfterTheDeadlineAlthoughTheGrandchildKeepsThePipes() throws {
+        let powershell = try XCTUnwrap(Proc.locate("powershell"))
+        let script = "Start-Process ping.exe -ArgumentList '-n','31','127.0.0.1' -NoNewWindow; [Console]::Out.WriteLine('started')"
+        let before = PipeReader.live
+        for _ in 0..<2 {
+            let result = Proc.run(powershell, ["-NoProfile", "-Command", script], timeout: 20)
+            XCTAssertTrue(result.out.contains("started"), result.out)
+        }
+        let deadline = Date().addingTimeInterval(3)
+        while PipeReader.live > before, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+        XCTAssertEqual(PipeReader.live, before, "Every reader thread ended and closed its handle")
+    }
 }
 #endif

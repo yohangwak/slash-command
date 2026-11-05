@@ -2,11 +2,55 @@
 import Foundation
 import WinSDK
 
-/// Bytes read so far from one pipe; the reader thread appends and the caller copies under the same lock.
-private final class Collected: @unchecked Sendable {
+/// One pipe's reader: the bytes read so far, and the read handle, which only this object closes.
+/// The caller can `stop` it: nothing more is kept, and a ReadFile still waiting on the handle is cancelled so the reader
+/// thread ends. Closing and cancelling happen under the same lock, so a cancel never reaches a handle that is already closed
+/// (whose value Windows may have given to something else).
+final class PipeReader: @unchecked Sendable {
+    /// Readers whose thread has not ended yet (for tests).
+    static var live: Int { counter.lock(); defer { counter.unlock() }; return liveCount }
+    private static let counter = NSLock()
+    nonisolated(unsafe) private static var liveCount = 0
+
     private let lock = NSLock()
+    private var handle: HANDLE?
+    /// The reader's own thread while `run` is on it, for `CancelSynchronousIo` (the documented way to end a synchronous ReadFile).
+    private var thread: HANDLE?
     private var data = Data()
-    func append(_ chunk: ArraySlice<UInt8>) { lock.lock(); data.append(contentsOf: chunk); lock.unlock() }
+    private var stopped = false
+
+    init(_ handle: HANDLE) {
+        self.handle = handle
+        PipeReader.counter.lock(); PipeReader.liveCount += 1; PipeReader.counter.unlock()
+    }
+
+    /// Reads until the pipe ends or `stop` is called, then closes the handle. Runs on its own thread.
+    func run() {
+        lock.lock(); thread = OpenThread(DWORD(THREAD_TERMINATE), false, GetCurrentThreadId()); lock.unlock()
+        var buffer = [UInt8](repeating: 0, count: 16384)
+        var count: DWORD = 0
+        while true {
+            lock.lock(); let current = stopped ? nil : handle; lock.unlock()
+            guard let current else { break }
+            guard buffer.withUnsafeMutableBytes({ ReadFile(current, $0.baseAddress, DWORD($0.count), &count, nil) }), count > 0 else { break }
+            lock.lock(); if !stopped { data.append(contentsOf: buffer.prefix(Int(count))) }; lock.unlock()
+        }
+        lock.lock()
+        if let handle { CloseHandle(handle) }
+        if let thread { CloseHandle(thread) }
+        handle = nil; thread = nil
+        lock.unlock()
+        PipeReader.counter.lock(); PipeReader.liveCount -= 1; PipeReader.counter.unlock()
+    }
+
+    /// Keeps nothing more and cancels a ReadFile that is still waiting. Safe to call more than once.
+    func stop() {
+        lock.lock(); defer { lock.unlock() }
+        stopped = true
+        if let handle { _ = CancelIoEx(handle, nil) }
+        if let thread { _ = CancelSynchronousIo(thread) }
+    }
+
     func snapshot() -> Data { lock.lock(); defer { lock.unlock() }; return data }
 }
 
@@ -91,22 +135,11 @@ extension Proc {
             CloseHandle(outWrite); outWrite = nil
             CloseHandle(errWrite); errWrite = nil
             CloseHandle(input); input = nil
-            // Each reader thread owns its read handle and closes it when ReadFile ends, so a reader that
-            // outlives the deadline below never has its handle closed from under it.
-            func drain(_ handle: HANDLE, into collected: Collected) {
-                defer { CloseHandle(handle) }
-                var buffer = [UInt8](repeating: 0, count: 16384)
-                var count: DWORD = 0
-                while buffer.withUnsafeMutableBytes({ ReadFile(handle, $0.baseAddress, DWORD($0.count), &count, nil) }), count > 0 {
-                    collected.append(buffer.prefix(Int(count)))
-                }
-            }
-            let output = Collected(), errors = Collected()
+            let output = PipeReader(outRead!), errors = PipeReader(errRead!)
+            outRead = nil; errRead = nil   // from here the readers own and close them
             let group = DispatchGroup(), queue = DispatchQueue(label: "slashcommand.proc.windows", attributes: .concurrent)
-            let outputHandle = outRead!, errorHandle = errRead!
-            outRead = nil; errRead = nil   // from here the reader threads own and close them
-            group.enter(); queue.async { drain(outputHandle, into: output); group.leave() }
-            group.enter(); queue.async { drain(errorHandle, into: errors); group.leave() }
+            group.enter(); queue.async { output.run(); group.leave() }
+            group.enter(); queue.async { errors.run(); group.leave() }
             let milliseconds = DWORD(min(Double(DWORD.max - 1), max(0, timeout * 1000)))
             let wait = WaitForSingleObject(process.hProcess, milliseconds)
             let timedOut = wait == WAIT_TIMEOUT
@@ -116,8 +149,15 @@ extension Proc {
                 _ = WaitForSingleObject(process.hProcess, 1000)
             }
             // A grandchild that inherited the pipes can keep them open after the child exited, so inherited
-            // pipes add at most one second here; what was read by then is returned.
-            _ = group.wait(timeout: .now() + 1)
+            // pipes add at most one second here; what was read by then is returned, and the readers are stopped
+            // so they do not stay behind (with their handles and buffers) for as long as the grandchild lives.
+            if group.wait(timeout: .now() + 1) == .timedOut {
+                // A reader between its check and its next ReadFile misses one cancel, so cancel a few times.
+                for _ in 0..<20 {
+                    output.stop(); errors.stop()
+                    if group.wait(timeout: .now() + 0.05) == .success { break }
+                }
+            }
             var code: DWORD = 0
             let status = GetExitCodeProcess(process.hProcess, &code) ? Int32(bitPattern: code) : -1
             return ProcResult(status: status, out: String(decoding: output.snapshot(), as: UTF8.self),
