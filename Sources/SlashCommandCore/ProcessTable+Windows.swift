@@ -34,7 +34,7 @@ enum ProcessTable {
     }
 
     static func snapshot() -> (entries: [Entry], parents: [Int32: Int32]) {
-        var entries: [Entry] = [], parents: [Int32: Int32] = [:]
+        var entries: [Entry] = [], parents: [Int32: Int32] = [:], starts: [Int32: UInt64] = [:]
         let snapshot = CreateToolhelp32Snapshot(DWORD(TH32CS_SNAPPROCESS), 0)
         guard snapshot != INVALID_HANDLE_VALUE, let snapshot else { return (entries, parents) }
         defer { CloseHandle(snapshot) }
@@ -45,6 +45,7 @@ enum ProcessTable {
             let pid = Int32(bitPattern: item.th32ProcessID), parent = Int32(bitPattern: item.th32ParentProcessID)
             parents[pid] = parent
             if let process = OpenProcess(DWORD(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ), false, item.th32ProcessID) {
+                if let start = Proc.startTime(process) { starts[pid] = start }
                 var wow64: WindowsBool = false
                 if IsWow64Process(process, &wow64), !wow64.boolValue,
                    let marker = orcaMarker(process) {
@@ -52,10 +53,17 @@ enum ProcessTable {
                     entries.append(Entry(pid: pid, parent: parent, arguments: [command], environment: [marker], executable: image(process)))
                 }
                 CloseHandle(process)
+            } else if let process = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, item.th32ProcessID) {
+                // A process this user cannot fully open (another user's, or elevated) still gives its start time.
+                if let start = Proc.startTime(process) { starts[pid] = start }
+                CloseHandle(process)
             }
             more = Process32NextW(snapshot, &item)
         }
-        return (entries, parents)
+        // A list that ended for any other reason than reaching the end may be missing processes: report nothing.
+        guard GetLastError() == ERROR_NO_MORE_FILES else { return ([], [:]) }
+        let trusted = ProcessTree.trustedParents(parents, starts: starts)
+        return (entries.map { Entry(pid: $0.pid, parent: trusted[$0.pid] ?? 0, arguments: $0.arguments, environment: $0.environment, executable: $0.executable) }, trusted)
     }
 
     /// Every native process started under `root` (not `root` itself), with its command line and image.
@@ -73,6 +81,7 @@ enum ProcessTable {
             parents[Int32(bitPattern: item.th32ProcessID)] = Int32(bitPattern: item.th32ParentProcessID)
             more = Process32NextW(snapshot, &item)
         }
+        guard GetLastError() == ERROR_NO_MORE_FILES else { return [] }
         var children: [Int32: [Int32]] = [:]
         for (pid, parent) in parents where pid != parent { children[parent, default: []].append(pid) }
         // A pid can be reused: a "child" that started before its parent belongs to someone else, and so does everything under it.
@@ -155,7 +164,13 @@ enum ProcessTable {
         let executable = image(process)
         guard !executable.isEmpty else { return nil }
         let pid = Int32(bitPattern: member.pid)
-        return Entry(pid: pid, parent: parents[pid] ?? 0, arguments: [command], environment: [], executable: executable)
+        // The parent pid may have been reused: a parent that started after this member is not its parent.
+        var parent = parents[pid] ?? 0
+        if parent != 0, let parentProcess = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, DWORD(bitPattern: parent)) {
+            defer { CloseHandle(parentProcess) }
+            if let parentStart = Proc.startTime(parentProcess), parentStart > 0, parentStart > member.start { parent = 0 }
+        }
+        return Entry(pid: pid, parent: parent, arguments: [command], environment: [], executable: executable)
     }
 
     static func read(_ process: HANDLE, address: UInt, count: Int) -> [UInt8]? {
