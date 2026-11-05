@@ -58,4 +58,41 @@ final class GhosttyCommandSafetyTests: KoreanMessagesTestCase {
         XCTAssertEqual(claude.draft, "unfinished draft")
         XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\"model\":\"opus\"}")
     }
+
+    func testSettingsFileCreatedBySwitchingIsRemovedAgain() throws {
+        let settings = FileManager.default.temporaryDirectory.appendingPathComponent("ghostty-absent-\(UUID().uuidString).json")
+        addTeardownBlock { try? FileManager.default.removeItem(at: settings) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: settings.path))
+        let claude = FakeClaude()
+        claude.settings = settings
+        var clock = 0
+        let io = LaggingIO(base: claude, lagMs: 500)
+        io.now = { clock }
+        let switcher = Switcher(
+            config: SlashCommandConfig(slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))]),
+            claudeDefaults: ClaudeDefaults(url: settings), codexModels: { CodexModels(models: []) },
+            makeIO: { _ in io }, sleep: { clock += $0 })
+
+        _ = try switcher.apply(slot: 1, to: target)
+        XCTAssertEqual(claude.sent, ["\u{13}/model sonnet\r", "\u{13}/effort medium\r"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: settings.path), "The file claude created for the switch is gone again")
+    }
+
+    func testUnparsableSettingsFileStopsBeforeSendingAnything() throws {
+        let settings = try settingsFile()
+        try Data("not json".utf8).write(to: settings)
+        let claude = FakeClaude()
+        claude.settings = settings
+        var clock = 0
+        let io = LaggingIO(base: claude, lagMs: 500)
+        io.now = { clock }
+        let switcher = Switcher(
+            config: SlashCommandConfig(slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))]),
+            claudeDefaults: ClaudeDefaults(url: settings), codexModels: { CodexModels(models: []) },
+            makeIO: { _ in io }, sleep: { clock += $0 })
+
+        XCTAssertThrowsError(try switcher.apply(slot: 1, to: target))
+        XCTAssertEqual(claude.sent, [])
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "not json")
+    }
 }

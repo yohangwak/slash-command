@@ -8,8 +8,8 @@ public struct SwitchResult: Equatable, Sendable {
     public let warning: String?
     /// The result the agent showed on screen (e.g. "Set model to Sonnet 5.5"): a confirmation that it changed, not just that we sent it.
     public let confirmations: [String]
-    /// The pre-switch file content, when a late write of the default must be checked once more (`Switcher.verifyRestore`).
-    public let pendingRestore: Data?
+    /// The defaults file as it was before the switch (absent, its content, or unreadable), when a late write of the default must be checked once more (`Switcher.verifyRestore`).
+    public let pendingRestore: DefaultsSnapshot?
 
     /// The notification title. Uses the name the agent showed on screen if there is one ("Opus 5.5 · high"), otherwise the preset's values ("opus · high").
     public var summary: String {
@@ -415,6 +415,8 @@ public struct Switcher {
     private func applyCommands(_ planned: Planned, io: TerminalIO, target: Target, screen: ScreenSnapshot,
                                sleep timedSleep: @escaping (Int) -> Void, deferFinalCheck: Bool) throws -> SwitchResult {
         let before = config.keepDefaults ? claudeDefaults.snapshot() : nil
+        // If the defaults file cannot be read, the value to put back is unknown; stop before sending anything.
+        if let before { try DefaultsFile.refuseIfUnreadable(before, name: "claude") }
         var runner = Runner(io: io, sleep: timedSleep, stamp: { claudeDefaults.stamp() }, initial: screen)
         runner.onAwaitingUser = onAwaitingUser
         let confirmations: [String]
@@ -436,7 +438,7 @@ public struct Switcher {
         }
 
         var warning: String?
-        var pending: Data?
+        var pending: DefaultsSnapshot?
         if let before {
             // The result line of the last command was confirmed, so the file has already been written. Put it back right away and look once more to guard against a late write.
             if case .failed(let reason) = claudeDefaults.restore(to: before) {
@@ -454,7 +456,7 @@ public struct Switcher {
     }
 
     /// Waits a moment, checks again that the default is as it was, and puts it back if not. Returns the reason if it cannot be put back.
-    public func verifyRestore(_ before: Data) -> String? {
+    public func verifyRestore(_ before: DefaultsSnapshot) -> String? {
         sleep(250)
         trace?.mark("wait(250)")
         if case .failed(let reason) = claudeDefaults.restore(to: before) {
