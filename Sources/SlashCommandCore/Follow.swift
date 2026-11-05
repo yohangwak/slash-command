@@ -94,14 +94,6 @@ public enum Follow {
         let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/SlashCommand/slashcommand.log")
         let formatter = ISO8601DateFormatter()
         formatter.timeZone = .current
-        let line = Data("\(formatter.string(from: Date())) \(message)\n".utf8)
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let handle = try? FileHandle(forWritingTo: url) {
-            defer { try? handle.close() }
-            _ = try? handle.seekToEnd()
-            try? handle.write(contentsOf: line)
-        } else {
-            try? line.write(to: url)
-        }
+        LogFile.append("\(formatter.string(from: Date())) \(message)\n", to: url)
     }
 }
