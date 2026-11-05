@@ -249,9 +249,9 @@ public struct Switcher {
         }
         // Shared by switching and launching: reject terminal control bytes before either path can send them.
         guard ![preset.model, preset.effort].contains(where: { value in
-            value.unicodeScalars.contains { $0.value <= 0x1F || $0.value == 0x7F }
+            value.unicodeScalars.contains { $0.value <= 0x1F || $0.value == 0x7F || (0x80...0x9F).contains($0.value) || $0 == "\\" }
         }) else {
-            throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file.", slot, agent.displayName))
+            throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file.", slot, agent.displayName))
         }
         return preset
     }

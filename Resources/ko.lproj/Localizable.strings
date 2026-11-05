@@ -332,7 +332,7 @@
 "Use --console with a positive process ID and --agent <agent>." = "--console에 양의 프로세스 ID와 --agent <agent>를 지정하세요.";
 "No Windows Terminal window is open." = "열린 Windows Terminal 창이 없습니다.";
 
-"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "전환하지 않았습니다: %2$@용 프리셋 %1$@에 제어 문자가 있습니다. 설정이나 프리셋 파일에서 수정하세요.";
+"Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file." = "전환하지 않았습니다: %2$@용 프리셋 %1$@에 제어 문자나 역슬래시가 있습니다. 설정이나 프리셋 파일에서 수정하세요.";
 
 "Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "보내지 않았습니다: 이 tmux 패널은 복사 모드여서 키가 에이전트에 전달되지 않습니다. q를 눌러 모드를 종료한 뒤 다시 누르세요.";
 

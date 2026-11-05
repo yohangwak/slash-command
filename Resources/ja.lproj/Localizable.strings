@@ -332,7 +332,7 @@
 "Use --console with a positive process ID and --agent <agent>." = "--console には正のプロセス ID と --agent <agent> を指定してください。";
 "No Windows Terminal window is open." = "Windows Terminal のウィンドウが開いていません。";
 
-"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "切り替えませんでした：%2$@ 用のプリセット %1$@ に制御文字が含まれています。設定またはプリセットファイルで修正してください。";
+"Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file." = "切り替えませんでした：%2$@ 用のプリセット %1$@ に制御文字またはバックスラッシュが含まれています。設定またはプリセットファイルで修正してください。";
 
 "Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "送信しませんでした：この tmux ペインはコピーモードのため、キーがエージェントに届きません。q を押して終了してから、もう一度押してください。";
 

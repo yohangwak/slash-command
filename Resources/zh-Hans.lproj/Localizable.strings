@@ -332,7 +332,7 @@
 "Use --console with a positive process ID and --agent <agent>." = "请为 --console 指定正的进程 ID，并指定 --agent <agent>。";
 "No Windows Terminal window is open." = "没有打开的 Windows Terminal 窗口。";
 
-"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "未切换：%2$@ 的预设 %1$@ 包含控制字符。请在设置或预设文件中修正。";
+"Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file." = "未切换：%2$@ 的预设 %1$@ 包含控制字符或反斜杠。请在设置或预设文件中修正。";
 
 "Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "未发送：此 tmux 窗格处于复制模式，按键无法传递给代理。请按 q 退出该模式，然后重试。";
 

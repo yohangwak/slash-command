@@ -13,7 +13,7 @@ final class PresetControlCharacterTests: KoreanMessagesTestCase {
     }
 
     private func expectedError(_ agent: Agent) -> String {
-        loc("Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file.", 1, agent.displayName)
+        loc("Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file.", 1, agent.displayName)
     }
 
     func testClaudeModelCarriageReturnStopsBeforeAnyKeyIsSent() {
@@ -34,6 +34,28 @@ final class PresetControlCharacterTests: KoreanMessagesTestCase {
 
         XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
             XCTAssertEqual(($0 as? SlashCommandError)?.message, self.expectedError(.codex))
+        }
+        XCTAssertEqual(io.sent, [])
+    }
+
+    func testBackslashInModelStopsBeforeAnyKeyIsSent() {
+        let io = FakeClaude()
+        let switcher = switcher(AgentPreset(model: "opus\\r", effort: "high"), agent: .claude, io: io)
+        let target = Target(host: .orca(handle: "test"), agent: .claude, label: "test")
+
+        XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
+            XCTAssertEqual(($0 as? SlashCommandError)?.message, self.expectedError(.claude))
+        }
+        XCTAssertEqual(io.sent, [])
+    }
+
+    func testC1ControlInEffortStopsBeforeAnyKeyIsSent() {
+        let io = FakeClaude()
+        let switcher = switcher(AgentPreset(model: "opus", effort: "high\u{9B}"), agent: .claude, io: io)
+        let target = Target(host: .orca(handle: "test"), agent: .claude, label: "test")
+
+        XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
+            XCTAssertEqual(($0 as? SlashCommandError)?.message, self.expectedError(.claude))
         }
         XCTAssertEqual(io.sent, [])
     }

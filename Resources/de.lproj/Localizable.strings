@@ -332,7 +332,7 @@
 "Use --console with a positive process ID and --agent <agent>." = "Verwenden Sie --console mit einer positiven Prozess-ID und --agent <agent>.";
 "No Windows Terminal window is open." = "Kein Windows-Terminal-Fenster ist geöffnet.";
 
-"Not switched: preset %@ for %@ contains a control character. Fix it in Settings or the presets file." = "Nicht gewechselt: Preset %1$@ für %2$@ enthält ein Steuerzeichen. Korrigieren Sie es in den Einstellungen oder in der Preset-Datei.";
+"Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file." = "Nicht gewechselt: Preset %1$@ für %2$@ enthält ein Steuerzeichen oder einen Backslash. Korrigieren Sie es in den Einstellungen oder in der Preset-Datei.";
 
 "Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again." = "Nicht gesendet: Dieses tmux-Fenster befindet sich im Kopiermodus, daher würden die Tasten den Agenten nicht erreichen. Drücke q, um ihn zu verlassen, und drücke dann erneut.";
 
