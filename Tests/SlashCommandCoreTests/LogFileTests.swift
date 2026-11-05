@@ -77,4 +77,33 @@ final class LogFileTests: XCTestCase {
         XCTAssertEqual(try mode(url), 0o600)
     }
     #endif
+
+    func testRetireOldLogsRemovesLogAndRotatedFileAndMakesMarker() throws {
+        let folder = root.appendingPathComponent("Logs")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("slashcommand.log"), old = url.appendingPathExtension("1")
+        try Data("old\n".utf8).write(to: url)
+        try Data("older\n".utf8).write(to: old)
+        let removed = LogFile.retireOldLogs(at: url, discard: { try FileManager.default.removeItem(at: $0) })
+        XCTAssertEqual(removed, 2)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent(".log-format-2").path))
+    }
+
+    func testRetireOldLogsDoesNothingTheSecondTime() throws {
+        let folder = root.appendingPathComponent("Logs")
+        let url = folder.appendingPathComponent("slashcommand.log")
+        XCTAssertEqual(LogFile.retireOldLogs(at: url, discard: { try FileManager.default.removeItem(at: $0) }), 0)
+        LogFile.append("new\n", to: url)
+        XCTAssertEqual(LogFile.retireOldLogs(at: url, discard: { try FileManager.default.removeItem(at: $0) }), 0)
+        XCTAssertEqual(try lines(url), ["new"])
+    }
+
+    func testRetireOldLogsWithNoLogStillMakesMarker() throws {
+        let folder = root.appendingPathComponent("Logs")
+        let url = folder.appendingPathComponent("slashcommand.log")
+        XCTAssertEqual(LogFile.retireOldLogs(at: url, discard: { try FileManager.default.removeItem(at: $0) }), 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent(".log-format-2").path))
+    }
 }

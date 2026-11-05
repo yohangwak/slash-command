@@ -48,7 +48,7 @@ body:
     id: log
     attributes:
       label: Log lines
-      description: The lines for that key press from `~/Library/Logs/SlashCommand/slashcommand.log` on macOS or `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` on Windows. The log holds no screen text.
+      description: The lines for that key press from `~/Library/Logs/SlashCommand/slashcommand.log` on macOS or `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` on Windows. The log holds no screen text (0.2.4 and later clear logs that older versions wrote).
       render: text
   - type: textarea
     id: doctor

@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var checkingAutomation = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Log.retireOldLogs()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = StatusIcon.image()
         let menu = NSMenu()
