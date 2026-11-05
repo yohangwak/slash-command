@@ -65,7 +65,7 @@ public enum Follow {
                 do {
                     return "applied — \(try apply())"
                 } catch {
-                    return "not applied — \(error)"
+                    return "not applied — \(SlashCommandError.logText(error))"
                 }
             }
             sleep(pollMs)

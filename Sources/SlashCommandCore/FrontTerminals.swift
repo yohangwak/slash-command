@@ -240,7 +240,7 @@ extension Detector {
             return try TmuxFront.target(client: client, table: table, outer: appName)
         }
         guard let agent = TTYProcesses.agent(in: attached, parents: table.parents) else {
-            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", appName, label))
+            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", appName, label)).quoting([label])
         }
         return Target(host: host, agent: agent, label: label)
     }
@@ -284,7 +284,7 @@ extension Detector {
         }
         // The window's tty: the terminal its processes are attached to.
         guard let device = table.entries.first(where: { window.pids.contains($0.pid) })?.terminalDevice else {
-            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "kitty", window.title))
+            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "kitty", window.title)).quoting([window.title])
         }
         return try session(host: .kitty(socket: socket, window: window.id), appName: "kitty", label: window.title, table: table, device: device)
     }

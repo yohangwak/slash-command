@@ -39,7 +39,7 @@ final class Worker {
                 var switcher = Switcher(config: config)
                 switcher.trace = trace
                 switcher.onAwaitingUser = { model in
-                    Log.write("awaiting confirmation \(label): \(model)")
+                    Log.write("awaiting confirmation \(label)")
                     let targetDetail = target.map { "\n" + WindowsAppModel.targetLine($0) } ?? ""
                     self.mailbox.post { completion(.init(loc("Press Enter to confirm") + targetDetail + "\n" + loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation).", model), kind: .awaiting)) }
                 }
@@ -57,7 +57,7 @@ final class Worker {
                     self.mailbox.post { completion(.init(result.summary + "\n" + WindowsAppModel.targetLine(found) + "\n⚠️ " + late, kind: .multiline)) }
                 }
             } catch {
-                Log.write("\(WindowsAppModel.errorPrefix(error)) \(label): \(error)")
+                Log.write("\(WindowsAppModel.errorPrefix(error)) \(label): \(SlashCommandError.logText(error))")
                 var detail = target.map { "\n" + WindowsAppModel.targetLine($0) } ?? ""
                 if target != nil && foreground.app == "orca" && !self.nudgedTabLag {
                     self.nudgedTabLag = true

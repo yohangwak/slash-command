@@ -210,7 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 made.trace = trace
                 // If claude asks again whether to change the model, tell the user, wait until they choose, then finish up.
                 made.onAwaitingUser = { model in
-                    Log.write("awaiting confirmation \(action.label): \(model)")
+                    Log.write("awaiting confirmation \(action.label)")
                     DispatchQueue.main.async {
                         self.hud.show(loc("Press Enter to confirm"),
                                       detail: loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation).", model), seconds: nil)
@@ -242,11 +242,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     }
                     self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 ? 4 : 1.6)
                 case .failure(let error as SlashCommandError) where error.awaitingUser:
-                    Log.write("awaiting confirmation \(action.label): \(error)")
+                    Log.write("awaiting confirmation \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show(loc("Press Enter to confirm"), detail: "\(error)", seconds: 6)
                 case .failure(let error as SlashCommandError) where error.nothingToDo:
                     // There was nothing to change (already at the highest level, etc.) — this is a notice, not a failure.
-                    Log.write("unchanged \(action.label): \(error)")
+                    Log.write("unchanged \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show("\(error)", seconds: 2.5)
                 case .failure(let error as SlashCommandError) where error.needsAccessibility:
                     // Before writing, iTerm2 checks through accessibility whether input broadcast is off — without the permission, open that settings screen right away (nothing was sent).
@@ -259,7 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     Permissions.openAutomation()
                     self.hud.show(loc("Automation permission needed"), detail: "\(error)", seconds: 6)
                 case .failure(let error):
-                    Log.write("failed \(action.label): \(error)")
+                    Log.write("failed \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show(loc("Not switched"), detail: "\(error)", seconds: 5)
                 }
             }

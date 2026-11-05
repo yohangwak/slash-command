@@ -125,7 +125,7 @@ extension Detector {
         let pane = try windowsWezTermPane(executable: executable, socket: socket, frontPID: frontPID)
         let io = WindowsWezTermIO(base: WezTermIO(wezterm: executable, socket: socket, pane: pane.id), frontPID: frontPID)
         guard let agent = WindowsWezTerm.agent(screen: io.base.screen()) else {
-            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", pane.title))
+            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", pane.title)).quoting([pane.title])
         }
         try requireWindowsLocal(agent, socket: socket, pane: pane)
         var target = Target(host: .wezterm(socket: socket, pane: pane.id), agent: agent, label: pane.title)
@@ -188,7 +188,7 @@ extension Detector {
         case .mixed:
             throw SlashCommandError(loc("Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected."))
         case .noAgentProcess:
-            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", label))
+            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "WezTerm", label)).quoting([label])
         }
     }
 

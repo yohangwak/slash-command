@@ -435,8 +435,9 @@ public struct OpenCodeDriver {
     /// The caller checks what was picked with the input box's model line.
     private func choose(row text: String, in dialog: Dialog, failure: (String, String?) -> SlashCommandError) throws {
         guard let at = dialog.rows.firstIndex(where: { OpenCodeScreen.key($0.text) == OpenCodeScreen.key(text) }) else {
-            let top = dialog.rows.first?.text ?? loc("no rows")
-            throw failure(loc("Not chosen: the OpenCode dialog has no row '%@' (top row: %@).", text, top), nil)
+            let shownTop = dialog.rows.first?.text
+            let top = shownTop ?? loc("no rows")
+            throw failure(loc("Not chosen: the OpenCode dialog has no row '%@' (top row: %@).", text, top), nil).quoting(shownTop.map { [$0] } ?? [])
         }
         if at > 0 {
             for _ in 0..<at { try io.press(.down) }
@@ -471,7 +472,7 @@ public struct OpenCodeDriver {
         try erase(typed.count)
         try io.type(current)
         guard try settled(search: current) != nil else {
-            throw failure(loc("The OpenCode dialog was not filtered to '%@'.", current), nil)
+            throw failure(loc("The OpenCode dialog was not filtered to '%@'.", current), nil).quoting([current])
         }
         var words = current.split(separator: " ").map(String.init)
         var provider: [String] = []
@@ -481,7 +482,7 @@ public struct OpenCodeDriver {
             try erase(word.count + 1)
             let name = words.joined(separator: " ")
             guard let dialog = try settled(search: name) else {
-                throw failure(loc("The OpenCode dialog was not filtered to '%@'.", name), nil)
+                throw failure(loc("The OpenCode dialog was not filtered to '%@'.", name), nil).quoting([name])
             }
             if dialog.rows.contains(where: { $0.current && OpenCodeScreen.key($0.text) == OpenCodeScreen.key(name) }) {
                 try erase(name.count)
@@ -533,7 +534,8 @@ public struct OpenCodeDriver {
         }
         guard let dialog = OpenCodeScreen.dialog(io.freshSnapshot()?.lines ?? []) else { throw failure(loc("Could not read the OpenCode variant dialog."), nil) }
         guard let wanted = dialog.rows.first(where: { OpenCodeScreen.key($0.text) == OpenCodeScreen.key(variant) }) else {
-            throw failure(loc("This OpenCode model has no variant '%@' (%@).", variant, dialog.rows.map(\.text).joined(separator: ", ")), nil)
+            let rows = dialog.rows.map(\.text).joined(separator: ", ")
+            throw failure(loc("This OpenCode model has no variant '%@' (%@).", variant, rows), nil).quoting([rows])
         }
         if wanted.current { try io.press(.escape); return true }
         try chooseInOpenDialog(text: wanted.text, failure: failure)

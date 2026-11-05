@@ -396,7 +396,7 @@ public struct GrokDriver {
         }
         let (name, current) = GrokScreen.parse(label: label)
         guard let model = models.model(named: name), !model.efforts.isEmpty, let current, let at = model.efforts.firstIndex(of: current) else {
-            throw SlashCommandError(loc("Nothing was changed: the effort levels of the current Grok model (%@) are not known.", label))
+            throw SlashCommandError(loc("Nothing was changed: the effort levels of the current Grok model (%@) are not known.", label)).quoting([label])
         }
         let next = at + (up ? 1 : -1)
         guard model.efforts.indices.contains(next) else {
@@ -440,7 +440,8 @@ public struct GrokDriver {
         }
         if let failure {
             clear(command)
-            throw finish(SlashCommandError(loc("Grok did not accept '%@': %@", command, String(failure.prefix(80)))))
+            let shown = String(failure.prefix(80))
+            throw finish(SlashCommandError(loc("Grok did not accept '%@': %@", command, shown)).quoting([shown]))
         }
         guard let landed, let label = GrokScreen.box(landed)?.label else {
             clear(command)

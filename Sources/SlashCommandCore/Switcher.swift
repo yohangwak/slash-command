@@ -717,7 +717,8 @@ public struct Runner {
     static func refused(_ reply: String) -> SlashCommandError {
         // Cancelling in the confirmation dialog makes claude leave "Kept model as …": that is the user's choice, not a refusal.
         if reply.hasPrefix("Kept model as") { return declined() }
-        return SlashCommandError(loc("Claude Code did not accept it: %@", reply.prefix(120)))
+        let shown = String(reply.prefix(120))
+        return SlashCommandError(loc("Claude Code did not accept it: %@", shown)).quoting([shown])
     }
 
     /// The user chose "No, go back" in the confirmation dialog.
@@ -729,7 +730,7 @@ public struct Runner {
 
     /// claude is asking whether to change the model; we do not answer and hand it to the user.
     static func awaitingSwitch(_ model: String) -> SlashCommandError {
-        var error = SlashCommandError(loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation). Press Enter to switch.", model))
+        var error = SlashCommandError(loc("Claude Code is asking whether to switch to %@ (it re-reads the conversation). Press Enter to switch.", model)).quoting([model])
         error.awaitingUser = true
         return error
     }
@@ -793,8 +794,9 @@ public struct Runner {
             if elapsed >= deadline {
                 // Only quote a new reply directly below our command, never unrelated conversation output.
                 let reply = command != nil ? ClaudeScreen.commandReply(snap.lines, command: command) : nil
-                let detail = reply.flatMap { $0 != repliedBefore ? " (claude: \($0.prefix(80)))" : nil } ?? ""
-                throw SlashCommandError(failure + detail)
+                let shown = reply.flatMap { $0 != repliedBefore ? String($0.prefix(80)) : nil }
+                let detail = shown.map { " (claude: \($0))" } ?? ""
+                throw SlashCommandError(failure + detail).quoting(shown.map { [$0] } ?? [])
             }
             sleep(40)
             simulated += 40

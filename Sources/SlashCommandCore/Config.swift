@@ -429,9 +429,44 @@ public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
     /// Not sent because the Automation permission is off — the app opens the settings screen where it can be turned on.
     public var needsAutomation = false
 
+    /// Pieces of `message` that came from the screen or a window title. The log file never gets them (see `logDescription`).
+    public var quoted: [String] = []
+
     public init(_ message: String) {
         self.message = message
     }
 
     public var description: String { message }
+
+    /// A copy that remembers which exact strings inside `message` were read from the screen or a window title.
+    public func quoting(_ values: [String]) -> SlashCommandError {
+        var copy = self
+        copy.quoted += values
+        return copy
+    }
+
+    /// `message` with the screen-derived pieces replaced, for the log file. The notification and the command line still show `message`.
+    public var logDescription: String {
+        var text = message
+        for value in quoted.filter({ $0.count >= 2 }).sorted(by: { $0.count > $1.count }) {
+            text = text.replacingOccurrences(of: value, with: "‹screen text›")
+        }
+        return text
+    }
+
+    /// What to write to the log file for any error.
+    public static func logText(_ error: Error) -> String {
+        if let error = error as? SlashCommandError { return error.logDescription }
+        return "\(error)"
+    }
+
+    public static func == (a: SlashCommandError, b: SlashCommandError) -> Bool {
+        a.message == b.message && a.cleanlyAborted == b.cleanlyAborted && a.awaitingUser == b.awaitingUser
+            && a.nothingToDo == b.nothingToDo && a.needsAccessibility == b.needsAccessibility
+            && a.needsAutomation == b.needsAutomation
+    }
+}
+
+extension SlashCommandError: LocalizedError {
+    public var errorDescription: String? { message }
 }

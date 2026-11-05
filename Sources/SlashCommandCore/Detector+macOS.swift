@@ -82,7 +82,7 @@ extension Detector {
         guard kinds.count == 1, let agent = kinds.first else {
             throw SlashCommandError(kinds.isEmpty
                 ? loc("The frontmost Ghostty terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", name)
-                : loc("The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder.", name))
+                : loc("The frontmost Ghostty terminal (%@) cannot be told apart: Claude Code and Codex are both running in the same folder.", name)).quoting([name])
         }
         return Target(host: .ghostty(terminalID: id), agent: agent, label: name)
     }
