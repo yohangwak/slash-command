@@ -2067,6 +2067,9 @@ final class GrokScreenTests: KoreanMessagesTestCase {
         let before = ["  Unknown model: grok-4.6", "  │ ❯", "  ╰──╯"]
         XCTAssertEqual(GrokScreen.errorLines(before), ["Unknown model: grok-4.6"])
         XCTAssertEqual(GrokScreen.errorLines(["hello"]), [])
+        XCTAssertEqual(GrokScreen.errorLines(["  This feature is not available yet", "  Invalid input is rejected by the parser", "  │ ❯"]), [],
+                       "Conversation lines are not grok's refusals")
+        XCTAssertEqual(GrokScreen.errorLines(["Invalid effort: maximum"]), ["Invalid effort: maximum"])
     }
 }
 
