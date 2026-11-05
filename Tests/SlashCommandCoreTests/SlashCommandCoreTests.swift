@@ -679,6 +679,20 @@ final class ClaudeDefaultsTests: KoreanMessagesTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
     }
 
+    #if !os(Windows)
+    /// settings.json was a link to a file that did not exist yet: the file claude created goes, the link stays.
+    func testAbsentSnapshotThroughADanglingLinkRemovesTheTargetNotTheLink() throws {
+        let link = absentURL(), target = absentURL()
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        let defaults = ClaudeDefaults(url: link)
+        XCTAssertEqual(defaults.snapshot(), .absent)
+        try Data("{\"model\":\"sonnet\"}".utf8).write(to: target)
+        XCTAssertEqual(defaults.restore(to: .absent), .restored)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+        XCTAssertNotNil(try? FileManager.default.destinationOfSymbolicLink(atPath: link.path), "The user's link is kept")
+    }
+    #endif
+
     func testUnreadableSnapshotFails() {
         guard case .failed = ClaudeDefaults(url: absentURL()).restore(to: .unreadable("denied")) else { return XCTFail() }
     }

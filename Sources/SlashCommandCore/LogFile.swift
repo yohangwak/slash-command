@@ -7,8 +7,12 @@ public enum LogFile {
     public static func append(_ line: String, to url: URL, limit: Int = 2_000_000) {
         let manager = FileManager.default
         #if !os(Windows)
-        try? manager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
-                                     attributes: [.posixPermissions: 0o700])
+        let folder = url.deletingLastPathComponent()
+        try? manager.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        // A folder made by an earlier version keeps its old mode unless it is set here.
+        if let mode = (try? manager.attributesOfItem(atPath: folder.path))?[.posixPermissions] as? NSNumber, mode.intValue != 0o700 {
+            try? manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path)
+        }
         #else
         try? manager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         #endif
@@ -30,8 +34,11 @@ public enum LogFile {
             #endif
         }
         #if !os(Windows)
-        if let mode = (try? manager.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber, mode.intValue != 0o600 {
-            try? manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        // The current file and the rotated one, which an earlier version may have left readable by others.
+        for file in [url, url.appendingPathExtension("1")] {
+            if let mode = (try? manager.attributesOfItem(atPath: file.path))?[.posixPermissions] as? NSNumber, mode.intValue != 0o600 {
+                try? manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            }
         }
         #endif
     }

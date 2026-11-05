@@ -4,16 +4,16 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 
 ## 0.2.3
 
-- `slashcommand apply` and `effort` refuse options they do not read, so `apply 2 --dry-run` no longer switches (only `run` has `--dry-run`). A repeated option or two target options are refused instead of one being ignored.
+- `slashcommand apply` and `effort` refuse options they do not read, so `apply 2 --dry-run` no longer switches (only `run` has `--dry-run`). A repeated option, two target options, `--agent` or a socket option without a target option, and the Windows-only `--app` and `--console` on a Mac are refused instead of being ignored.
 - Claude Code: when `~/.claude/settings.json` did not exist, the file that `/model` creates is removed again after the switch, so the default for new sessions stays as it was. An unreadable or non-JSON settings file stops the switch before any key is sent.
-- The log file no longer holds text read from the screen or a window title: error messages quote it in the notification, and the log gets a placeholder instead. The log folder and file are private to you (0700 and 0600), and the CLI's log is rotated at 2 MB like the app's.
+- The log file no longer holds text read from the screen or a window title: error messages quote it in the notification, and the log gets a placeholder instead. The log folder and files are private to you (0700 and 0600, also for those an earlier version made), and the CLI's log is rotated at 2 MB like the app's.
 - Grok: a conversation line containing "not available" is no longer taken for Grok refusing the model.
 - Presets whose model or effort contains a backslash or a C1 control character are refused before any key is sent.
 - "Press Enter to confirm" stays on screen when a hotkey is pressed again while Claude Code asks to switch.
 - Keys in the presets file that this version does not use (a misspelt name, say) are named in the menu and by `slashcommand list`.
 - Settings shows the actual error sentence instead of a generic one.
 - `slashcommand doctor --dump` writes its file with mode 0600 and says that it holds the screen and your draft.
-- Windows: a background process that keeps a child's output open no longer blocks the tray app, and a reused parent process id is no longer trusted when finding the agent.
+- Windows: a background process that keeps a child's output open no longer blocks the tray app, and neither a reused parent process id nor a process list that ended early is trusted when finding the agent.
 
 ## 0.2.2
 

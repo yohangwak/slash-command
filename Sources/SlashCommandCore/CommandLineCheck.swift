@@ -32,6 +32,9 @@ public enum CommandLineCheck {
             }
             guard flags.contains(option) || valueOptions.contains(option) else { return "unknown option: \(option)" }
             guard allowed.contains(option) else { return "\(option) is not used by \(command)." }
+            #if !os(Windows)
+            if windowsOnly.contains(option) { return "\(option) is only for Windows." }
+            #endif
             guard seen.insert(option).inserted else { return "\(option) is given more than once." }
             if hostOptions.contains(option) { hosts.append(option) }
             if flags.contains(option) { index += 1; continue }
@@ -52,15 +55,26 @@ public enum CommandLineCheck {
         }
         // The target options choose different terminals; `--agent` and the sockets only describe the chosen one.
         if hosts.count > 1 { return "use only one target option (\(hosts.joined(separator: " ")))." }
+        // Without a target option these are ignored and the frontmost session would be switched instead.
+        if hosts.isEmpty, let helper = args.first(where: { helperOptions.contains($0) }) {
+            #if os(Windows)
+            let choices = hostOptions
+            #else
+            let choices = hostOptions.subtracting(windowsOnly)
+            #endif
+            return "\(helper) needs a target option (\(choices.sorted().joined(separator: ", ")))."
+        }
         return nil
     }
 
     private static let hostOptions: Set<String> = [
         "--bundle", "--app", "--console", "--orca", "--ghostty", "--tmux", "--kitty", "--wezterm", "--iterm",
     ]
-    private static let targetOptions: Set<String> = hostOptions.union([
-        "--agent", "--tmux-socket", "--kitty-socket", "--wezterm-socket",
-    ])
+    /// Options that only describe the target that a host option chose.
+    private static let helperOptions: Set<String> = ["--agent", "--tmux-socket", "--kitty-socket", "--wezterm-socket"]
+    private static let targetOptions: Set<String> = hostOptions.union(helperOptions)
+    /// Read only by the Windows build of `main.swift`.
+    private static let windowsOnly: Set<String> = ["--app", "--console"]
     private static let valueOptions: Set<String> = targetOptions.union(["--dump", "--lines", "--seconds", "--launched"])
     private static let flags: Set<String> = ["--trace", "--screen", "--dry-run", "--detach"]
     /// The options each public command reads in `main.swift`. `--dry-run` belongs to `run`, and `--detach` and `--launched` to the internal commands.

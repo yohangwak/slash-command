@@ -62,4 +62,19 @@ final class LogFileTests: XCTestCase {
         XCTAssertEqual(try mode(url), 0o600)
     }
     #endif
+
+    #if !os(Windows)
+    /// A folder and a rotated file left by an earlier version are made owner-only too.
+    func testExistingFolderAndRotatedFileBecomeOwnerOnly() throws {
+        let folder = root.appendingPathComponent("Logs")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o755])
+        let url = folder.appendingPathComponent("app.log"), old = url.appendingPathExtension("1")
+        XCTAssertTrue(FileManager.default.createFile(atPath: old.path, contents: Data("x\n".utf8), attributes: [.posixPermissions: 0o644]))
+        LogFile.append("line\n", to: url)
+        func mode(_ u: URL) throws -> Int { try XCTUnwrap(FileManager.default.attributesOfItem(atPath: u.path)[.posixPermissions] as? NSNumber).intValue }
+        XCTAssertEqual(try mode(folder), 0o700)
+        XCTAssertEqual(try mode(old), 0o600)
+        XCTAssertEqual(try mode(url), 0o600)
+    }
+    #endif
 }

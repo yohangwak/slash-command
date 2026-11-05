@@ -334,9 +334,16 @@ do {
                 do {
                     let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted])
                     let url = URL(fileURLWithPath: path)
+                    #if os(Windows)
                     try data.write(to: url, options: .atomic)
-                    #if !os(Windows)
-                    try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                    #else
+                    // Created 0600 before any byte is in it, then renamed over the target, so the file is never readable by others.
+                    let temporary = url.path + ".tmp-\(getpid())"
+                    guard FileManager.default.createFile(atPath: temporary, contents: data, attributes: [.posixPermissions: 0o600]),
+                          rename(temporary, url.path) == 0 else {
+                        try? FileManager.default.removeItem(atPath: temporary)
+                        throw CocoaError(.fileWriteUnknown)
+                    }
                     #endif
                     print("screen saved: \(path) (it contains the screen and your draft; do not share it unedited)")
                 } catch {

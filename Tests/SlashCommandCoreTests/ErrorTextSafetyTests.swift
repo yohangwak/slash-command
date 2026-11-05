@@ -35,7 +35,7 @@ final class ErrorTextSafetyTests: KoreanMessagesTestCase {
             XCTAssertFalse(error.logDescription.contains("Gemini 3.8 Flash"))
             XCTAssertTrue(error.logDescription.contains("‹screen text›"))
             XCTAssertTrue(error.logDescription.contains("No Such"), "The preset's own value is not screen text")
-            XCTAssertFalse(SlashCommandError.logText(error).contains("Gemini 3.7 Flash"))
+            XCTAssertEqual(SlashCommandError.logText(error), error.logDescription)
         }
     }
 

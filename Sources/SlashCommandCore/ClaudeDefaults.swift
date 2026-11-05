@@ -36,7 +36,8 @@ public struct ClaudeDefaults: Sendable {
             return .failed(loc("Could not read the %@ settings file before switching: %@", "claude", reason))
         case .absent:
             if let outcome = removeCreatedFile() { return outcome }
-            // Other settings are in the file now too: take out only the default lines, as if it had been empty before.
+            // Other settings are in the file now too, so it was not only this switch that wrote it. Compare with an empty file: the usual
+            // rules then report that the default cannot be put back automatically, and nothing is removed.
             original = Data("{}".utf8)
         case .content(let data):
             original = data
@@ -74,8 +75,17 @@ public struct ClaudeDefaults: Sendable {
             return .failed(loc("The settings file is not a JSON object"))
         }
         if ClaudeDefaults.stripped(json).count > 0 { return nil }
+        var file = url
+        if (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path)) != nil {
+            // The link pointed at a file that did not exist yet (a dotfiles setup, say). Claude created that file, so it is the file
+            // that goes, never the user's link.
+            file = url.resolvingSymlinksInPath()
+            guard (try? FileManager.default.destinationOfSymbolicLink(atPath: file.path)) == nil else {
+                return .failed(loc("Could not read the settings file"))
+            }
+        }
         do {
-            try FileManager.default.removeItem(at: url)
+            try FileManager.default.removeItem(at: file)
             return .restored
         } catch {
             return .failed(error.localizedDescription)
