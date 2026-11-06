@@ -107,6 +107,7 @@ public enum AgyScreen {
         }
         guard !names.isEmpty else { return nil }
         var labels: [String] = []
+        guard dots.filter({ $0.element == "◉" }).count == 1 else { return nil }
         var selected = 0
         for (position, dot) in dots.enumerated() {
             guard let nearest = names.min(by: { abs($0.center - Double(dot.offset)) < abs($1.center - Double(dot.offset)) }) else { return nil }

@@ -194,6 +194,14 @@ public enum Picker {
         return shown[(at + 1)...].contains { row($0)?.selected == true }
     }
 
+    /// Whether the header read from the screen is the header we wanted. The shown header may continue after the wanted text (the description sentence, a wrapped line),
+    /// but not into a longer name: "…for GPT-6.1-Sol-Mini" is not "…for GPT-6.1-Sol".
+    public static func header(_ shown: String, matches wanted: String) -> Bool {
+        if shown == wanted { return true }
+        guard shown.hasPrefix(wanted), let next = shown.dropFirst(wanted.count).first else { return false }
+        return !(next.isLetter || next.isNumber || next == "." || next == "-" || next == "_")
+    }
+
     /// The picker open at the «bottom» of the screen.
     public struct Open: Equatable, Sendable {
         /// Text from the header line down to just above the rows (including the description sentence). In a narrow pane the header wraps, so the pieces are joined; compare by its beginning.

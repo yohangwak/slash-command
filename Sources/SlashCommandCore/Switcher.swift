@@ -253,6 +253,9 @@ public struct Switcher {
         }) else {
             throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file.", slot, agent.displayName))
         }
+        guard !preset.model.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw SlashCommandError(loc("Preset %@: enter a model for %@.", slot, agent.displayName))
+        }
         return preset
     }
 
@@ -543,7 +546,7 @@ public struct Runner {
             case .expectPicker(let header, let footer, let timeoutMs, let abort, let failure):
                 let shown = try poll(timeoutMs: timeoutMs) { lines in
                     guard let open = Picker.open(lines) else { return false }
-                    return (header.map { open.header.hasPrefix($0) } ?? true) && (footer.map { open.footer.contains($0) } ?? true)
+                    return (header.map { Picker.header(open.header, matches: $0) } ?? true) && (footer.map { open.footer.contains($0) } ?? true)
                 }
                 if !shown {
                     // If the window is low, the picker's bottom hint line is cut off and we cannot recognize it although it is open. If the header and the cursor row are visible, it is that picker:
@@ -1131,8 +1134,7 @@ public struct Runner {
         for _ in 0..<4 {
             if let reason = io.lastFailure { throw SlashCommandError(reason) }
             guard let lines = io.screen() else {
-                if let reason = io.lastFailure { throw SlashCommandError(reason) }
-                return
+                throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen."))
             }
             let before = Picker.rows(lines)
             if before.isEmpty {
