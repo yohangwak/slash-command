@@ -746,8 +746,10 @@ public struct Runner {
         let row = Picker.Row(number: 1, label: asked, selected: true, current: false)
         guard wanted.contains(where: { Picker.index(of: $0, in: [row]) != nil }) else { return false }
         // In a terminal whose screen can be out of date (Ghostty), the dialog may already be gone: press Enter only if a fresh screen still shows the same dialog.
+        // The terminal's own fresh read is used: it knows when it last read, whereas this Runner's clock is not reset by every read.
         if io.screenLagMs > 0 {
-            guard let fresh = freshSnapshot(), ClaudeScreen.switchPrompt(fresh.lines) == asked else { return false }
+            defer { clock.reset() }
+            guard let fresh = io.freshSnapshot(), ClaudeScreen.switchPrompt(fresh.lines) == asked else { return false }
         }
         try io.press(.enter)
         return true

@@ -18,6 +18,21 @@ private final class LaggyIO: TerminalIO {
     }
 }
 
+/// Like Ghostty: an ordinary read returns the cached (old) screen; only the terminal's own fresh read returns the current one.
+private final class CachingIO: TerminalIO {
+    var sent: [String] = []
+    let cached: [String]
+    let current: [String]
+
+    init(cached: [String], current: [String]) { self.cached = cached; self.current = current }
+
+    var screenLagMs: Int { 500 }
+    func type(_ text: String) throws { sent.append(text) }
+    func press(_ key: Key) throws { sent.append(key.bytes) }
+    func screen() -> [String]? { cached }
+    func freshSnapshot() -> ScreenSnapshot? { ScreenSnapshot(lines: current, draft: nil) }
+}
+
 final class SwitchPromptAnchorTests: XCTestCase {
     private let dialog = [
         "   Switch model?",
@@ -86,5 +101,14 @@ final class SwitchPromptAnchorTests: XCTestCase {
             .expectInput(agent: .claude, acceptSwitchTo: ["sonnet"], timeoutMs: 200, abort: [], failure: "f"),
         ])
         XCTAssertEqual(io.sent, ["\r"])
+    }
+
+    func testEnterUsesTheTerminalsOwnFreshReadNotACachedScreen() throws {
+        // The cache still shows the dialog; the terminal's fresh read shows the input box (the dialog was closed meanwhile).
+        let io = CachingIO(cached: dialog, current: inputBox)
+        _ = try? Runner(io: io, sleep: { _ in }).run([
+            .expectInput(agent: .claude, acceptSwitchTo: ["sonnet"], timeoutMs: 200, abort: [], failure: "f"),
+        ])
+        XCTAssertFalse(io.sent.contains("\r"))
     }
 }

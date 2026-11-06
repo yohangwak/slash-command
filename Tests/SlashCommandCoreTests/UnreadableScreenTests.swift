@@ -55,4 +55,9 @@ final class UnreadableScreenTests: KoreanMessagesTestCase {
         XCTAssertThrowsError(try driver.apply(AgentPreset(model: "grok-4.7", effort: "xhigh")))
         XCTAssertEqual(io.backspaces, 1, "Once the screen cannot be read, no more Backspace is pressed")
     }
+
+    func testAnEffortLineWhoseSliderCannotBeReadIsToldApartFromNoEffort() {
+        XCTAssertTrue(AgyScreen.hasEffortLine(["  Effort ◂ ●──●──● ▸"]))
+        XCTAssertFalse(AgyScreen.hasEffortLine(["  Gemini 4 Argon (current)", "  Keyboard: ↑↓ Navigate · enter Select"]))
+    }
 }

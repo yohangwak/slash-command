@@ -16,7 +16,7 @@ enum Log {
     static func retireOldLogs() {
         queue.async {
             if LogFile.retireOldLogs(at: url) > 0 {
-                LogFile.append("\(formatter.string(from: Date())) earlier log moved to the Trash: versions before 0.2.3 could write screen text into it\n", to: url)
+                LogFile.append("\(formatter.string(from: Date())) earlier log moved to the Trash or deleted: versions before 0.2.3 could write screen text into it\n", to: url)
             }
         }
     }
