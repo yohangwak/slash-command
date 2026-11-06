@@ -2,6 +2,17 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.4
+
+- The first time this version starts, it moves the log that an earlier version wrote (`slashcommand.log` and `.1`) to the Trash (deletes it on Windows): versions before 0.2.3 could write screen text into it. It happens once.
+- Errors from tmux, kitty, WezTerm, osascript and Orca still quote what the command printed in the notification and on the command line, but the log file gets a placeholder instead, since that output can include window titles.
+- Claude Code: "Switch model?" is accepted only when it is the dialog at the bottom of the screen, with no picker open; text shaped like it in the conversation is never answered. In Ghostty the dialog is read once more right before Enter.
+- Codex: the effort list for one model is no longer taken for that of a model whose name only starts the same way (GPT-6.1-Sol and GPT-6.1-Sol-Mini).
+- When the screen cannot be read while a picker is being closed, the app stops instead of sending the rest of the cleanup keys. Grok stops erasing the draft when the screen cannot be read, and an Antigravity effort slider without exactly one selected step is not read.
+- A preset whose model is empty is refused before any key is sent, in the menu, the hotkeys and `slashcommand run` alike.
+- Windows release: only a separate publish job can write to the repository; the build and tests run read-only.
+- Docs: Orca on Windows can send a hotkey to the tab you just left right after a tab switch; which terminals check the focus before each write; how the end of a Claude Code effort range is found.
+
 ## 0.2.3
 
 - `slashcommand apply` and `effort` refuse options they do not read, so `apply 2 --dry-run` no longer switches (only `run` has `--dry-run`). A repeated option, two target options, `--agent` or a socket option without a target option, and the Windows-only `--app` and `--console` on a Mac are refused instead of being ignored.
