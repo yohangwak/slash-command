@@ -35,7 +35,8 @@ public struct TmuxIO: TerminalIO {
     private func write(_ bytes: String) throws {
         let result = run(TmuxIO.sendArguments(pane: pane, bytes: bytes))
         guard result.ok else {
-            throw SlashCommandError(loc("Could not type into tmux: %@", result.err.trimmingCharacters(in: .whitespacesAndNewlines)))
+            let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SlashCommandError(loc("Could not type into tmux: %@", detail)).quotingOutput([detail])
         }
         if result.out.contains(TmuxIO.inModeMark) {
             throw SlashCommandError(loc("Not sent: this tmux pane is in copy mode, so the keys would not reach the agent. Press q to leave it, then press again."))
@@ -76,7 +77,8 @@ public struct KittyIO: TerminalIO {
         guard exists else { throw SlashCommandError(loc("Could not find kitty window %@.", window)) }
         let result = run(["send-text", "--match", "id:\(window)", "--", bytes])
         guard result.ok else {
-            throw SlashCommandError(loc("Could not type into kitty: %@", result.err.trimmingCharacters(in: .whitespacesAndNewlines)))
+            let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SlashCommandError(loc("Could not type into kitty: %@", detail)).quotingOutput([detail])
         }
     }
 
@@ -109,7 +111,8 @@ public struct WezTermIO: TerminalIO {
     private func write(_ bytes: String) throws {
         let result = run(["send-text", "--pane-id", pane, "--no-paste", "--", bytes])
         guard result.ok else {
-            throw SlashCommandError(loc("Could not type into WezTerm: %@", result.err.trimmingCharacters(in: .whitespacesAndNewlines).suffix(120)))
+            let detail = String(result.err.trimmingCharacters(in: .whitespacesAndNewlines).suffix(120))
+            throw SlashCommandError(loc("Could not type into WezTerm: %@", detail)).quotingOutput([detail])
         }
     }
 

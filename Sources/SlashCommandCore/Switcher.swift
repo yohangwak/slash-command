@@ -253,6 +253,9 @@ public struct Switcher {
         }) else {
             throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file.", slot, agent.displayName))
         }
+        guard !preset.model.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw SlashCommandError(loc("Preset %@: enter a model for %@.", slot, agent.displayName))
+        }
         return preset
     }
 
@@ -425,7 +428,7 @@ public struct Switcher {
         } catch let error as SlashCommandError where error.awaitingUser {
             // No reply came while waiting. If Yes is chosen later, claude writes the default then, and we have already let go; report it as it is.
             // Keep what the first error quoted from the screen (the model claude asks about), so the log still leaves it out.
-            var wrapped = SlashCommandError(error.message + " " + loc("If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both).")).quoting(error.quoted)
+            var wrapped = SlashCommandError(error.message + " " + loc("If you confirm now, this model also becomes the default for new sessions and the effort has to be set separately (cancel and press again to get both).")).quoting(error.quoted).quotingOutput(error.quotedOutput)
             wrapped.awaitingUser = true
             throw wrapped
         } catch {
@@ -543,7 +546,7 @@ public struct Runner {
             case .expectPicker(let header, let footer, let timeoutMs, let abort, let failure):
                 let shown = try poll(timeoutMs: timeoutMs) { lines in
                     guard let open = Picker.open(lines) else { return false }
-                    return (header.map { open.header.hasPrefix($0) } ?? true) && (footer.map { open.footer.contains($0) } ?? true)
+                    return (header.map { Picker.header(open.header, matches: $0) } ?? true) && (footer.map { open.footer.contains($0) } ?? true)
                 }
                 if !shown {
                     // If the window is low, the picker's bottom hint line is cut off and we cannot recognize it although it is open. If the header and the cursor row are visible, it is that picker:
@@ -742,6 +745,12 @@ public struct Runner {
         guard !wanted.isEmpty, let asked = ClaudeScreen.switchPrompt(lines) else { return false }
         let row = Picker.Row(number: 1, label: asked, selected: true, current: false)
         guard wanted.contains(where: { Picker.index(of: $0, in: [row]) != nil }) else { return false }
+        // In a terminal whose screen can be out of date (Ghostty), the dialog may already be gone: press Enter only if a fresh screen still shows the same dialog.
+        // The terminal's own fresh read is used: it knows when it last read, whereas this Runner's clock is not reset by every read.
+        if io.screenLagMs > 0 {
+            defer { clock.reset() }
+            guard let fresh = io.freshSnapshot(), ClaudeScreen.switchPrompt(fresh.lines) == asked else { return false }
+        }
         try io.press(.enter)
         return true
     }
@@ -1127,8 +1136,7 @@ public struct Runner {
         for _ in 0..<4 {
             if let reason = io.lastFailure { throw SlashCommandError(reason) }
             guard let lines = io.screen() else {
-                if let reason = io.lastFailure { throw SlashCommandError(reason) }
-                return
+                throw SlashCommandError(io.lastFailure ?? loc("Stopped: could not read the terminal screen."))
             }
             let before = Picker.rows(lines)
             if before.isEmpty {

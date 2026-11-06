@@ -323,7 +323,8 @@ public struct GrokDriver {
         guard let lines = io.freshSnapshot()?.lines, let now = GrokScreen.draft(lines), !now.isEmpty, text.hasPrefix(now) || now.hasPrefix(text) else { return }
         for _ in 0..<(now.count + 2) {
             try? io.press(.backspace)
-            if let lines = io.freshSnapshot()?.lines, GrokScreen.draft(lines)?.isEmpty == true { return }
+            guard let lines = io.freshSnapshot()?.lines else { return }
+            if GrokScreen.draft(lines)?.isEmpty == true { return }
         }
     }
 

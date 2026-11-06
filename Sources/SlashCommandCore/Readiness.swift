@@ -86,15 +86,24 @@ public enum ClaudeScreen {
     ///       2. No, go back
     ///
     /// Returns the value only when the cursor (`❯`) is on the "Yes" item, because this decides whether pressing Enter is safe.
+    ///
+    /// Like the pickers, the dialog counts only at the bottom of the screen (docs/safety.md): text in the conversation that looks like it is never read,
+    /// and neither is a dialog that has already gone from a screen that is out of date. All of these must hold:
+    /// - the "Yes" row is the last one on screen that starts with `❯ 1. Yes, switch to `;
+    /// - at most 6 non-blank lines follow it (the "No" row and a hint line; generous because no real capture of the lines below it exists);
+    /// - none of the lines below it has the cursor (`❯`), which would be an input box or another row;
+    /// - no picker is open (a picker's hint line is the last line of its screen);
+    /// - a header, exactly `Switch model?` or `Change effort level?`, is within the 8 lines above it (the description takes two or three lines, more if narrow).
     public static func switchPrompt(_ lines: [String]) -> String? {
         let headers = ["Switch model?", "Change effort level?"]
-        guard let header = lines.lastIndex(where: { headers.contains($0.trimmingCharacters(in: .whitespaces)) }) else { return nil }
         let marker = "❯ 1. Yes, switch to "
-        for line in lines[(header + 1)...] {
-            let text = line.trimmingCharacters(in: .whitespaces)
-            if text.hasPrefix(marker) { return String(text.dropFirst(marker.count)) }
-        }
-        return nil
+        let shown = lines.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard let yes = shown.lastIndex(where: { $0.hasPrefix(marker) }) else { return nil }
+        guard shown.count - 1 - yes <= 6 else { return nil }
+        guard !shown[(yes + 1)...].contains(where: { $0.hasPrefix("❯") }) else { return nil }
+        guard !Picker.isOpen(lines) else { return nil }
+        guard shown[max(0, yes - 8)..<yes].contains(where: { headers.contains($0) }) else { return nil }
+        return String(shown[yes].dropFirst(marker.count))
     }
 
     /// The reply (`⎿ …`) attached directly below the last command typed (`❯ /model …`). When idle, a command's result stays in this form.
@@ -183,6 +192,14 @@ public enum Picker {
         let shown = lines.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard let at = shown.suffix(12).lastIndex(where: { $0 == header }) else { return false }
         return shown[(at + 1)...].contains { row($0)?.selected == true }
+    }
+
+    /// Whether the header read from the screen is the header we wanted. The shown header may continue after the wanted text (the description sentence, a wrapped line),
+    /// but not into a longer name: "…for GPT-6.1-Sol-Mini" is not "…for GPT-6.1-Sol".
+    public static func header(_ shown: String, matches wanted: String) -> Bool {
+        if shown == wanted { return true }
+        guard shown.hasPrefix(wanted), let next = shown.dropFirst(wanted.count).first else { return false }
+        return !(next.isLetter || next.isNumber || next == "." || next == "-" || next == "_")
     }
 
     /// The picker open at the «bottom» of the screen.

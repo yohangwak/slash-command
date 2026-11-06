@@ -78,7 +78,7 @@ public struct OrcaIO: TerminalIO {
             return
         case .failure(.failed(let message)):
             // It may already have gone in — do not send it again by another route.
-            throw SlashCommandError(loc("Could not type into the Orca terminal: %@", message))
+            throw SlashCommandError(loc("Could not type into the Orca terminal: %@", message)).quotingOutput([message])
         case .failure(.unavailable):
             break
         }
@@ -86,7 +86,8 @@ public struct OrcaIO: TerminalIO {
         let result = Proc.run(orca, ["terminal", "send", "--terminal", handle, "--text", text, "--json"],
                               env: OrcaIO.cleanEnv, cwd: OrcaIO.runtimeWorkingDirectory, timeout: 15)
         guard result.ok else {
-            throw SlashCommandError(loc("Could not type into the Orca terminal: %@", Self.errorSummary(result)))
+            let summary = Self.errorSummary(result)
+            throw SlashCommandError(loc("Could not type into the Orca terminal: %@", summary)).quotingOutput(result.timedOut ? [] : [summary])
         }
     }
 

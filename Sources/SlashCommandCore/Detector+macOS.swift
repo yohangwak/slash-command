@@ -60,7 +60,7 @@ extension Detector {
         let result = GhosttyIO.osascript(script)
         guard result.ok else {
             let detail = result.err.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw SlashCommandError(loc("Could not read the frontmost Ghostty terminal: %@", detail))
+            throw SlashCommandError(loc("Could not read the frontmost Ghostty terminal: %@", detail)).quotingOutput([detail])
         }
         let parts = result.out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 2, !parts[0].isEmpty else {

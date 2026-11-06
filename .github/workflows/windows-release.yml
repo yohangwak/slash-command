@@ -1,6 +1,7 @@
 # Builds Slash-Command-Windows-x64.zip from the tagged source on a GitHub-hosted runner.
 # A pushed tag v<version> attaches the zip and its .sha256 to the release of that tag, creating a draft
 # when there is none yet. Run by hand (workflow_dispatch) it only builds and keeps the zip as an artifact.
+# The build job only reads the repository; the separate publish job is the only one that can write to it.
 name: Windows release
 
 on:
@@ -19,8 +20,8 @@ jobs:
   build:
     runs-on: windows-2025
     timeout-minutes: 60
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       SWIFT_VERSION: 6.4.1
       # From the winget manifest Swift.Toolchain 6.4.1 (x64).
@@ -53,6 +54,7 @@ jobs:
           }
 
       - name: Check the version
+        id: version
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -65,6 +67,7 @@ jobs:
             throw "tag $env:GITHUB_REF_NAME does not match version $version"
           }
           Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
 
       - name: Test
         shell: pwsh
@@ -87,21 +90,30 @@ jobs:
             dist/Slash-Command-Windows-x64.zip.sha256
           if-no-files-found: error
 
+  publish:
+    needs: build
+    # A manual run can target a tag too; only a tag push publishes.
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: Slash-Command-Windows-x64
+          path: dist
+
       - name: Attach to the release
-        # A manual run can target a tag too; only a tag push publishes.
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        shell: pwsh
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          APP_VERSION: ${{ needs.build.outputs.version }}
         run: |
-          # A missing release is an exit code here, not an exception.
-          $PSNativeCommandUseErrorActionPreference = $false
-          $tag = $env:GITHUB_REF_NAME
-          gh release view $tag --json tagName | Out-Null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --draft --verify-tag --title "Slash Command $env:APP_VERSION" --notes "Draft created by the Windows release workflow."
-            if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
-          }
-          gh release upload $tag dist\Slash-Command-Windows-x64.zip dist\Slash-Command-Windows-x64.zip.sha256 --clobber
-          if ($LASTEXITCODE -ne 0) { throw "gh release upload failed" }
+          set -euo pipefail
+          if ! gh release view "$TAG" --json tagName > /dev/null; then
+            gh release create "$TAG" --draft --verify-tag --title "Slash Command $APP_VERSION" --notes "Draft created by the Windows release workflow."
+          fi
+          gh release upload "$TAG" dist/Slash-Command-Windows-x64.zip dist/Slash-Command-Windows-x64.zip.sha256 --clobber

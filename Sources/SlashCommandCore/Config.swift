@@ -454,6 +454,10 @@ public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
     /// Pieces of `message` that came from the screen or a window title. The log file never gets them (see `logDescription`).
     public var quoted: [String] = []
 
+    /// Pieces of `message` that an external command (tmux, kitty, WezTerm, osascript, the orca command…) printed — they can carry window titles or screen text.
+    /// Like `quoted`, the log file never gets them.
+    public var quotedOutput: [String] = []
+
     public init(_ message: String) {
         self.message = message
     }
@@ -467,11 +471,21 @@ public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
         return copy
     }
 
+    /// A copy that remembers which exact strings inside `message` were printed by an external command.
+    public func quotingOutput(_ values: [String]) -> SlashCommandError {
+        var copy = self
+        copy.quotedOutput += values
+        return copy
+    }
+
     /// `message` with the screen-derived pieces replaced, for the log file. The notification and the command line still show `message`.
     public var logDescription: String {
         var text = message
         for value in quoted.filter({ $0.count >= 2 }).sorted(by: { $0.count > $1.count }) {
             text = text.replacingOccurrences(of: value, with: "‹screen text›")
+        }
+        for value in quotedOutput.filter({ $0.count >= 2 }).sorted(by: { $0.count > $1.count }) {
+            text = text.replacingOccurrences(of: value, with: "‹command output›")
         }
         return text
     }

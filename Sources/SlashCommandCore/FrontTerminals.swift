@@ -208,7 +208,8 @@ public enum TmuxFront {
         let socket = self.socket(clientArguments: client.arguments)
         let listed = run(tmux, socket: socket, ["list-clients", "-F", format])
         guard listed.ok, let found = clients(listOutput: listed.out).first(where: { $0.pid == client.pid }) else {
-            throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "tmux", listed.err.trimmingCharacters(in: .whitespacesAndNewlines)))
+            let detail = listed.err.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "tmux", detail)).quotingOutput([detail])
         }
         return try target(found, socket: socket, table: table, outer: outer)
     }
@@ -258,7 +259,8 @@ extension Detector {
               let pane = WezTermFront.focusedPane(clients: Data(clients.out.utf8), panes: Data(panes.out.utf8), frontPID: frontPID),
               let device = TTYProcesses.device(ofTTY: pane.tty) else {
             let detail = (clients.ok ? panes.err : clients.err).trimmingCharacters(in: .whitespacesAndNewlines)
-            throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "WezTerm", String(detail.suffix(160))))
+            let shown = String(detail.suffix(160))
+            throw SlashCommandError(loc("Could not read the frontmost %@ terminal: %@", "WezTerm", shown)).quotingOutput([shown])
         }
         return try session(host: .wezterm(socket: socket, pane: pane.id), appName: "WezTerm", label: pane.title, table: ProcessTable.snapshot(), device: device)
     }

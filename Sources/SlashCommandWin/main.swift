@@ -260,6 +260,7 @@ let window: HWND? = residentClass.withCString(encodedAs: UTF16.self) { name in
 guard let window, let app = Resident(window: window, wake: wake) else { die(loc("Could not start Slash Command.")) }
 resident = app
 guard app.start() else { die(loc("Could not start Slash Command.")) }
+Log.retireOldLogs()
 Log.write("started \(WindowsAppModel.version)")
 // WinSDK imports GetMessageW as Bool, which loses its documented -1 error.
 typealias RawGetMessage = @convention(c) (UnsafeMutablePointer<MSG>?, HWND?, UINT, UINT) -> Int32

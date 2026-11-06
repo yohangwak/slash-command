@@ -73,6 +73,24 @@ final class PresetControlCharacterTests: KoreanMessagesTestCase {
         }
     }
 
+    func testEmptyModelStopsBeforeAnyKeyIsSent() {
+        for agent in [Agent.claude, .codex] {
+            for model in ["", "  "] {
+                let io = FakeClaude()
+                let switcher = switcher(AgentPreset(model: model, effort: "high"), agent: agent, io: io)
+                let target = Target(host: .orca(handle: "test"), agent: agent, label: "test")
+
+                XCTAssertThrowsError(try switcher.apply(slot: 1, to: target)) {
+                    XCTAssertEqual(($0 as? SlashCommandError)?.message, loc("Preset %@: enter a model for %@.", 1, agent.displayName))
+                }
+                XCTAssertThrowsError(try switcher.plan(slot: 1, agent: agent)) {
+                    XCTAssertEqual(($0 as? SlashCommandError)?.message, loc("Preset %@: enter a model for %@.", 1, agent.displayName))
+                }
+                XCTAssertEqual(io.sent, [])
+            }
+        }
+    }
+
     func testPrintableAndUnicodePresetValuesRemainAvailable() throws {
         let preset = AgentPreset(model: "provider/모델 α ~", effort: "custom effort")
         XCTAssertEqual(try switcher(preset, agent: .claude).preset(slot: 1, agent: .claude), preset)

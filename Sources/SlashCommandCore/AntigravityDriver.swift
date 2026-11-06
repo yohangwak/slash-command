@@ -90,6 +90,11 @@ public enum AgyScreen {
         return (rows, effort.flatMap { _ in slider(screen) })
     }
 
+    /// Whether the screen shows an `Effort ◂ … ▸` line. When it does but `picker(_:).slider` is nil, the slider could not be read — that is not a model without effort.
+    public static func hasEffortLine(_ screen: [String]) -> Bool {
+        trimmed(screen).contains { $0.hasPrefix("Effort") && $0.contains("◂") }
+    }
+
     /// Aligns the dots of the slider line (`Effort ◂ ●━━●━━◉ ▸`) with the names in the line below it by column position. The selected step is `◉`.
     static func slider(_ screen: [String]) -> Slider? {
         guard let at = screen.lastIndex(where: { $0.contains("Effort") && $0.contains("◂") }), at + 1 < screen.count else { return nil }
@@ -107,6 +112,7 @@ public enum AgyScreen {
         }
         guard !names.isEmpty else { return nil }
         var labels: [String] = []
+        guard dots.filter({ $0.element == "◉" }).count == 1 else { return nil }
         var selected = 0
         for (position, dot) in dots.enumerated() {
             guard let nearest = names.min(by: { abs($0.center - Double(dot.offset)) < abs($1.center - Double(dot.offset)) }) else { return nil }
@@ -254,6 +260,8 @@ public struct AntigravityDriver {
                 throw fail(loc("Antigravity '%@' has no effort '%@' (%@).", target.name, preset.effort, labels)).quoting([target.name, labels])
             }
             try moveEffort(to: wanted, failure: fail)
+        } else if AgyScreen.hasEffortLine(fresh.lines) {
+            throw fail(loc("Could not read the Antigravity effort slider."))
         }
         return try confirm(name: target.name, before: before, failure: fail)
     }
@@ -268,11 +276,15 @@ public struct AntigravityDriver {
             return SlashCommandError(message)
         }
         try openPicker(failure: fail)
-        guard let picker = AgyScreen.picker(io.freshSnapshot()?.lines ?? []),
+        let screen = io.freshSnapshot()?.lines ?? []
+        guard let picker = AgyScreen.picker(screen),
               let current = picker.rows.first(where: \.current), picker.rows.first(where: \.cursor)?.name == current.name else {
             throw fail(loc("Nothing was changed: the Antigravity picker's cursor is not on the current model."))
         }
-        guard let slider = picker.slider else { throw fail(loc("Antigravity '%@' has no effort to change.", current.name)).quoting([current.name]) }
+        guard let slider = picker.slider else {
+            if AgyScreen.hasEffortLine(screen) { throw fail(loc("Could not read the Antigravity effort slider.")) }
+            throw fail(loc("Antigravity '%@' has no effort to change.", current.name)).quoting([current.name])
+        }
         let next = slider.selected + (up ? 1 : -1)
         guard slider.labels.indices.contains(next) else {
             var error = fail(up ? loc("Already at the highest level (%@).", slider.labels[slider.selected]) : loc("Already at the lowest level (%@).", slider.labels[slider.selected]))
