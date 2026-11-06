@@ -10,7 +10,7 @@ What a terminal connection has to guarantee, and what the product promises. Use 
 | Write failure | Return a failure when the write certainly did not happen. **Even after a success, do not assume the bytes arrived** | kitty `send-text` returns success (0) for a window that does not exist, so check with `ls` that the window is there before writing |
 | `screen` | The lines read, or "could not read". An empty screen and an unreadable one are different | Unreadable means nothing is sent |
 | `snapshot` / `freshSnapshot` | A read that is guaranteed to be current. If the source is cached, report `screenLagMs` | Ghostty's accessibility text is a half-second-old copy. Trusting it once sent Enter into an open picker |
-| Target of read and write | The same terminal. If the focus changed, do not write | If the screen read and the place written differ, the input-box check means nothing |
+| Target of read and write | The same terminal. Where keys follow the focus, do not write if the focus changed; where keys go to a pane id, read and write that one id | If the screen read and the place written differ, the input-box check means nothing |
 | Extent of the screen | Only the lines on screen now. With scrollback mixed in (iTerm2 `contents`), an old input box above a cleared screen reads as the current one | Reproduced with `contents` returning 88 lines for a 25-line screen |
 | `draft` | Read the user's unsent text where possible and leave it as it was | A switch must not erase what the user typed |
 
