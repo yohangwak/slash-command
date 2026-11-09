@@ -153,7 +153,7 @@ Slash Command 通过读取屏幕来操作每个智能体自带的模型选择器
 
 ## 隐私
 
-Slash Command 不包含任何网络代码。它读取终端屏幕只是为了决定发送什么。它的日志(macOS 为 `~/Library/Logs/SlashCommand/slashcommand.log`,Windows 为 `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)会记录你按下的键、结果和耗时,但从不记录屏幕上的内容。设置或菜单中的“报告问题…”会在浏览器中打开 GitHub 议题表单，只预先填好版本号(Slash Command、系统和你的代理);提交之前不会发送任何内容。
+Slash Command 不包含任何网络代码。它读取终端屏幕只是为了决定发送什么。它的日志(macOS 为 `~/Library/Logs/SlashCommand/slashcommand.log`,Windows 为 `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)会记录你按下的键、结果和耗时,但从不记录屏幕上的内容。设置或菜单中的“报告问题…”会在浏览器中打开 GitHub 议题表单，预先填好版本号(Slash Command、系统和你的代理)。页面打开时这些版本号会随地址发送给 GitHub;只有提交后才会发布议题。
 
 ## 文档
 

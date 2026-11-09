@@ -153,7 +153,7 @@ Slash Command maneja el selector de modelos de cada agente leyendo la pantalla, 
 
 ## Privacidad
 
-Slash Command no tiene código de red. Lee la pantalla de la terminal solo para decidir qué enviar. Su registro (`~/Library/Logs/SlashCommand/slashcommand.log` en macOS, `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` en Windows) anota las teclas que pulsaste, el resultado y los tiempos. Nunca anota lo que había en la pantalla. Informar de un problema… (en Ajustes o en el menú) abre en tu navegador un formulario de incidencia de GitHub con solo los números de versión ya rellenados (Slash Command, el sistema y tus agentes); no se envía nada hasta que lo envíes.
+Slash Command no tiene código de red. Lee la pantalla de la terminal solo para decidir qué enviar. Su registro (`~/Library/Logs/SlashCommand/slashcommand.log` en macOS, `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` en Windows) anota las teclas que pulsaste, el resultado y los tiempos. Nunca anota lo que había en la pantalla. Informar de un problema… (en Ajustes o en el menú) abre en tu navegador un formulario de incidencia de GitHub con los números de versión ya rellenados (Slash Command, el sistema y tus agentes). GitHub recibe esos números en la dirección de la página al abrirla; la incidencia solo se publica cuando envías el formulario.
 
 ## Documentación
 

@@ -406,7 +406,7 @@ struct SettingsView: View {
         } header: {
             Text(loc("About"))
         } footer: {
-            Text(loc("Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. Nothing is sent until you submit the form. Report a security problem privately instead (see SECURITY.md)."))
+            Text(loc("Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)."))
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

@@ -2,8 +2,8 @@ import Foundation
 
 /// The project pages that Settings, the menu and the Windows tray open in the browser.
 ///
-/// The app makes no network connection itself: it hands an address to the system, the browser opens it, and the person reads
-/// the issue form before submitting it. The only values put into an address are version numbers: this app's, the system's and
+/// The app makes no network connection itself: it hands an address to the system and the browser opens it. GitHub receives the
+/// address, values included, when the page opens; the issue is posted only when the person submits the form. The only values put into an address are version numbers: this app's, the system's and
 /// the agents'. Never text read from a screen, the log, a path, a preset or a window title.
 public enum ProjectLinks {
     public static let repository = URL(string: "https://github.com/yohangwak/slash-command")!

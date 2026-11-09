@@ -4,7 +4,7 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 
 ## 0.2.5
 
-- Settings has an About section: the version, Report a Problem…, Questions and Ideas, and Release Notes. Report a Problem opens a new GitHub issue in the browser with the versions of Slash Command, macOS and the installed agents filled in; nothing else goes into it, and nothing is sent until you submit the form. The menu has Report a Problem… too.
+- Settings has an About section: the version, Report a Problem…, Questions and Ideas, and Release Notes. Report a Problem opens a new GitHub issue in the browser with the versions of Slash Command, macOS and the installed agents filled in; nothing else goes into it. GitHub receives those numbers in the page address when it opens; the issue is posted only when you submit the form. The menu has Report a Problem… too.
 - Settings shows where the log file is, with Show in Finder.
 - Windows: the tray menu has Report a Problem… (Slash Command's and Windows' versions filled in), and the tray icon's tooltip shows the version.
 

@@ -350,4 +350,4 @@
 "Release Notes" = "リリースノート";
 "About" = "情報";
 "Could not open the browser." = "ブラウザを開けませんでした。";
-"Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. Nothing is sent until you submit the form. Report a security problem privately instead (see SECURITY.md)." = "「問題を報告」を押すと、ブラウザで GitHub の新しい Issue が開き、Slash Command・macOS・エージェントのバージョンが入力済みになります。フォームを送信するまで何も送られません。セキュリティの問題は公開の Issue ではなく非公開で報告してください（SECURITY.md を参照）。";
+"Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)." = "「問題を報告」を押すと、ブラウザで GitHub の新しい Issue が開き、Slash Command・macOS・エージェントのバージョンが入力済みになります。これらのバージョン番号はページを開いた時点でアドレスに含まれて GitHub に届きます。Issue はフォームを送信したときにだけ投稿されます。セキュリティの問題は公開の Issue ではなく非公開で報告してください（SECURITY.md を参照）。";

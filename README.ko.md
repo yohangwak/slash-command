@@ -153,7 +153,7 @@ Slash Command 는 화면을 읽으며 각 에이전트의 모델 선택창을 �
 
 ## 개인정보
 
-Slash Command 에는 네트워크 코드가 없습니다. 터미널 화면은 무엇을 보낼지 정할 때만 읽습니다. 기록 파일(macOS `~/Library/Logs/SlashCommand/slashcommand.log`, Windows `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)에는 누른 키, 결과, 걸린 시간이 남습니다. 화면에 있던 글은 남기지 않습니다. 설정이나 메뉴의 「문제 보고…」는 버전 번호(Slash Command·시스템·에이전트)만 채운 GitHub 이슈 양식을 브라우저에서 엽니다. 제출하기 전에는 아무것도 전송되지 않습니다.
+Slash Command 에는 네트워크 코드가 없습니다. 터미널 화면은 무엇을 보낼지 정할 때만 읽습니다. 기록 파일(macOS `~/Library/Logs/SlashCommand/slashcommand.log`, Windows `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)에는 누른 키, 결과, 걸린 시간이 남습니다. 화면에 있던 글은 남기지 않습니다. 설정이나 메뉴의 「문제 보고…」는 버전 번호(Slash Command·시스템·에이전트)를 채운 GitHub 이슈 양식을 브라우저에서 엽니다. 이 번호는 페이지가 열릴 때 주소에 담겨 GitHub에 전달되고, 이슈는 제출해야 올라갑니다.
 
 ## 문서
 

@@ -350,4 +350,4 @@
 "Release Notes" = "发行说明";
 "About" = "关于";
 "Could not open the browser." = "无法打开浏览器。";
-"Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. Nothing is sent until you submit the form. Report a security problem privately instead (see SECURITY.md)." = "“报告问题”会在浏览器中打开 GitHub 的新议题，并预先填好 Slash Command、macOS 和各代理的版本。提交表单之前不会发送任何内容。安全问题请改为私下报告（参见 SECURITY.md）。";
+"Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)." = "“报告问题”会在浏览器中打开 GitHub 的新议题，并预先填好 Slash Command、macOS 和各代理的版本。页面打开时，这些版本号会随页面地址发送给 GitHub；只有提交表单后才会发布议题。安全问题请改为私下报告（参见 SECURITY.md）。";

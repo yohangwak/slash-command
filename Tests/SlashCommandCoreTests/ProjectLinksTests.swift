@@ -44,6 +44,7 @@ final class ProjectLinksTests: XCTestCase {
     /// The query names must stay the ids in the issue form, or GitHub silently leaves the fields empty.
     func testIssueFormHasTheFieldsTheLinkFills() throws {
         let form = try String(contentsOf: L10nTests.root.appendingPathComponent(".github/ISSUE_TEMPLATE/bug_report.yml"), encoding: .utf8)
+            .replacingOccurrences(of: "\r\n", with: "\n") // a Windows checkout has CRLF line ends
         for id in ["version", "macos", "agent"] {
             XCTAssertTrue(form.contains("id: \(id)\n"), id)
         }

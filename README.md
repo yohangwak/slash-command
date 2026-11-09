@@ -153,7 +153,7 @@ Slash Command drives each agent's own model picker by reading the screen, so it 
 
 ## Privacy
 
-Slash Command has no network code. It reads the terminal screen only to decide what to send. Its log (`~/Library/Logs/SlashCommand/slashcommand.log` on macOS, `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` on Windows) records the keys you pressed, the result and the timings. It never records what was on the screen. Report a Problem… in Settings or the menu opens a GitHub issue form in your browser with only version numbers filled in (Slash Command, the system and your agents); nothing is sent until you submit it.
+Slash Command has no network code. It reads the terminal screen only to decide what to send. Its log (`~/Library/Logs/SlashCommand/slashcommand.log` on macOS, `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` on Windows) records the keys you pressed, the result and the timings. It never records what was on the screen. Report a Problem… in Settings or the menu opens a GitHub issue form in your browser with version numbers filled in (Slash Command, the system and your agents). GitHub receives those numbers in the page address when it opens; the issue is posted only when you submit it.
 
 ## Documentation
 
