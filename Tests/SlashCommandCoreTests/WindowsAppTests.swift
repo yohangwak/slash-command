@@ -53,8 +53,8 @@ final class WindowsAppTests: XCTestCase {
         XCTAssertTrue(lines[0].contains("Orca"))
         XCTAssertTrue(lines[1].contains("gpt-6-astra"))
         XCTAssertFalse(lines[1].contains("opus"))
-        XCTAssertEqual(lines.count, 14)
-        XCTAssertEqual(Array(lines.suffix(4)), ["Open presets file", "Open log folder", "Open at login", "Quit Slash Command"])
+        XCTAssertEqual(lines.count, 15)
+        XCTAssertEqual(Array(lines.suffix(5)), ["Open presets file", "Open log folder", "Open at login", "Report a Problem…", "Quit Slash Command"])
         XCTAssertEqual(lines[9], "9  Not set")
         XCTAssertEqual(WindowsAppModel.menu(config: .starter, supported: false, agent: nil)[0], "No supported terminal in front")
         XCTAssertTrue(WindowsAppModel.menu(config: .starter, supported: true, agent: nil, failures: [1, 101, 102]).contains { $0.contains("1, =, -") })
@@ -118,10 +118,10 @@ final class WindowsAppTests: XCTestCase {
     }
     func testUnreadablePresetsMenuHasNoStarterRows() {
         let lines = WindowsAppModel.menu(config: nil, supported: true, agent: .codex)
-        XCTAssertEqual(lines.count, 6)
+        XCTAssertEqual(lines.count, 7)
         XCTAssertEqual(lines[1], "The presets file could not be read — choose Open presets file to fix it.")
         XCTAssertFalse(lines.contains { $0.first?.isNumber == true })
-        XCTAssertEqual(Array(lines.suffix(4)), ["Open presets file", "Open log folder", "Open at login", "Quit Slash Command"])
+        XCTAssertEqual(Array(lines.suffix(5)), ["Open presets file", "Open log folder", "Open at login", "Report a Problem…", "Quit Slash Command"])
     }
 
     func testNoticeDropsLeadingStatusSymbolsFromTheTabTitle() {

@@ -153,7 +153,7 @@ Slash Command は画面を読み取って各エージェント自身のモデル
 
 ## プライバシー
 
-Slash Command にはネットワーク通信のコードがありません。ターミナルの画面は、何を送るかを判断するためだけに読み取ります。ログ(macOS は `~/Library/Logs/SlashCommand/slashcommand.log`、Windows は `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)には、押したキー、結果、所要時間が記録されます。画面に表示されていた内容は一切記録されません。
+Slash Command にはネットワーク通信のコードがありません。ターミナルの画面は、何を送るかを判断するためだけに読み取ります。ログ(macOS は `~/Library/Logs/SlashCommand/slashcommand.log`、Windows は `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log`)には、押したキー、結果、所要時間が記録されます。画面に表示されていた内容は一切記録されません。設定またはメニューの「問題を報告…」は、バージョン番号(Slash Command・OS・エージェント)だけを入力済みにした GitHub の Issue フォームをブラウザで開きます。送信するまで何も送られません。
 
 ## ドキュメント
 

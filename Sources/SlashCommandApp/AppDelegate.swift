@@ -444,6 +444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
         menu.addItem(item(loc("Settings…"), #selector(openSettings), key: ","))
+        menu.addItem(item(loc("Report a Problem…"), #selector(reportProblem)))
         menu.addItem(.separator())
         menu.addItem(item(loc("Quit Slash Command"), #selector(quit), key: "q"))
     }
@@ -528,6 +529,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         settings?.present()
     }
+
+    @objc private func reportProblem() { ProblemReport.open() }
 
     @objc private func openAccessibilitySettings() { Permissions.openAccessibility() }
     @objc private func openAutomationSettings() { Permissions.openAutomation() }

@@ -32,6 +32,13 @@ if let flag = arguments.firstIndex(of: "--automation-status"), arguments.count >
     exit(0)
 }
 
+// `SlashCommand --report-url`: for development. Prints the address Report a Problem… would open, without opening it.
+if arguments.contains("--report-url") {
+    print(ProjectLinks.bugReport(appVersion: ProjectLinks.appVersion, system: ProjectLinks.systemDescription,
+                                 agents: ProjectLinks.agentSummary(ProjectLinks.installedAgentVersions())))
+    exit(0)
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 

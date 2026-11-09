@@ -85,6 +85,8 @@ final class SettingsModel: ObservableObject {
     /// Why the preset file could not be read. Saving is blocked in that case: saving an empty screen would overwrite that file.
     @Published var loadError: String?
     @Published var launchAtLogin = false
+    /// True while Report a Problem asks the agents for their versions (a second or two at most).
+    @Published var preparingReport = false
 
     let store: ConfigStore
     let onSaved: () -> Void
@@ -209,6 +211,42 @@ final class SettingsModel: ObservableObject {
     }
 }
 
+extension SettingsModel {
+    func reportProblem() {
+        guard !preparingReport else { return }
+        preparingReport = true
+        ProblemReport.open { [weak self] in self?.preparingReport = false }
+    }
+}
+
+extension Log {
+    /// Selects the log file in Finder, or opens its folder when nothing has been written yet.
+    static func reveal() {
+        if FileManager.default.fileExists(atPath: url.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            let folder = url.deletingLastPathComponent()
+            NSWorkspace.shared.open(FileManager.default.fileExists(atPath: folder.path) ? folder : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs"))
+        }
+    }
+}
+
+/// Report a Problem: opens a new GitHub issue in the browser with the versions filled in. The menu and Settings both use it.
+/// The address holds only version numbers (see `ProjectLinks`); the person reads the form before submitting it.
+enum ProblemReport {
+    static func open(then done: @escaping () -> Void = {}) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let url = ProjectLinks.bugReport(appVersion: ProjectLinks.appVersion,
+                                             system: ProjectLinks.systemDescription,
+                                             agents: ProjectLinks.agentSummary(ProjectLinks.installedAgentVersions()))
+            DispatchQueue.main.async {
+                NSWorkspace.shared.open(url)
+                done()
+            }
+        }
+    }
+}
+
 /// Launch at login. The menu, the edit window and the command line use the same rules.
 enum LoginItem {
     /// "Awaiting approval" also counts as registered. Registering again changes nothing, so in that case it opens the Login Items pane of System Settings.
@@ -238,6 +276,7 @@ struct SettingsView: View {
                 shortcut
                 behavior
                 general
+                about
             }
             .formStyle(.grouped)
             Divider()
@@ -341,8 +380,35 @@ struct SettingsView: View {
                     Button(loc("Show in Finder")) { NSWorkspace.shared.activateFileViewerSelecting([model.store.url]) }
                 }
             }
+            LabeledContent(loc("Log file")) {
+                HStack(spacing: 8) {
+                    Text((Log.url.path as NSString).abbreviatingWithTildeInPath)
+                        .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                    Button(loc("Show in Finder")) { Log.reveal() }
+                }
+            }
         } header: {
             Text(loc("General"))
+        }
+    }
+
+    private var about: some View {
+        Section {
+            LabeledContent(loc("Version")) {
+                Text(ProjectLinks.appVersion).foregroundStyle(.secondary).textSelection(.enabled)
+            }
+            HStack(spacing: 8) {
+                Button(model.preparingReport ? loc("Preparing…") : loc("Report a Problem…")) { model.reportProblem() }
+                    .disabled(model.preparingReport)
+                Button(loc("Questions and Ideas")) { NSWorkspace.shared.open(ProjectLinks.discussions) }
+                Button(loc("Release Notes")) { NSWorkspace.shared.open(ProjectLinks.releases) }
+            }
+        } header: {
+            Text(loc("About"))
+        } footer: {
+            Text(loc("Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. Nothing is sent until you submit the form. Report a security problem privately instead (see SECURITY.md)."))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
