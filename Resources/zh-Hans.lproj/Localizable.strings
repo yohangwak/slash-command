@@ -342,3 +342,12 @@
 "Open System Settings…" = "打开系统设置…";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "预设文件中的修饰键不能单独使用，因此使用 %@。请包含 control、option 或 command。";
 "This version does not use these keys in the presets file (they are kept): %@" = "此版本不使用预设文件中的这些键（会保留）：%@";
+"Log file" = "日志文件";
+"Version" = "版本";
+"Preparing…" = "正在准备…";
+"Report a Problem…" = "报告问题…";
+"Questions and Ideas" = "提问与建议";
+"Release Notes" = "发行说明";
+"About" = "关于";
+"Could not open the browser." = "无法打开浏览器。";
+"Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)." = "“报告问题”会在浏览器中打开 GitHub 的新议题，并预先填好 Slash Command、macOS 和各代理的版本。页面打开时，这些版本号会随页面地址发送给 GitHub；只有提交表单后才会发布议题。安全问题请改为私下报告（参见 SECURITY.md）。";

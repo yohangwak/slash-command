@@ -26,7 +26,7 @@ public enum WindowsAppModel {
         return seen.pane
     }
 
-    public static let version = "0.2.4" // scripts/Info.plist
+    public static let version = "0.2.5" // scripts/Info.plist
     public static let effortUp = 101
     public static let effortDown = 102
 
@@ -171,6 +171,11 @@ public enum WindowsAppModel {
         return "\(formatter.string(from: date)) \(message)\n"
     }
 
+    /// The tray menu's clickable rows, always last and in this order. The tray gives them the command ids 201, 202, … .
+    public static var menuActions: [String] {
+        [loc("Open presets file"), loc("Open log folder"), loc("Open at login"), loc("Report a Problem…"), loc("Quit Slash Command")]
+    }
+
     public static func menu(config: SlashCommandConfig?, supported: Bool, agent: Agent?, terminal: String? = nil,
                             failures: [Int] = [], warning: String? = nil, appName: String = "Orca") -> [String] {
         let status = supported ? "\(appName) · \(agent?.displayName ?? loc("Checking…"))\(terminal.map { " · " + displayLabel($0) } ?? "")"
@@ -188,7 +193,7 @@ public enum WindowsAppModel {
         if !failures.isEmpty {
             lines.append(loc("Another app is using these shortcut keys: %@", failures.map(keyName).joined(separator: ", ")))
         }
-        lines += [loc("Open presets file"), loc("Open log folder"), loc("Open at login"), loc("Quit Slash Command")]
+        lines += menuActions
         return lines
     }
 }

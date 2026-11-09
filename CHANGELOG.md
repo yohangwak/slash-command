@@ -2,6 +2,12 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.5
+
+- Settings has an About section: the version, Report a Problem…, Questions and Ideas, and Release Notes. Report a Problem opens a new GitHub issue in the browser with the versions of Slash Command, macOS and the installed agents filled in; nothing else goes into it. GitHub receives those numbers in the page address when it opens; the issue is posted only when you submit the form. The menu has Report a Problem… too.
+- Settings shows where the log file is, with Show in Finder.
+- Windows: the tray menu has Report a Problem… (Slash Command's and Windows' versions filled in), and the tray icon's tooltip shows the version.
+
 ## 0.2.4
 
 - The first time this version starts, it moves the log that an earlier version wrote (`slashcommand.log` and `.1`) to the Trash (deletes it on Windows): versions before 0.2.3 could write screen text into it. It happens once.

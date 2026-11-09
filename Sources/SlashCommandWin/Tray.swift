@@ -55,7 +55,7 @@ final class Tray {
         icon.uCallbackMessage = UINT(WM_APP + 2)
         icon.hIcon = loadedIcon ?? LoadIconW(nil, UnsafePointer<WCHAR>(bitPattern: 32512))
         withUnsafeMutableBytes(of: &icon.szTip) { bytes in
-            let text = Array(loc("Slash Command").utf16) + [0]
+            let text = Array("\(loc("Slash Command")) \(WindowsAppModel.version)".utf16) + [0]
             bytes.copyBytes(from: text.withUnsafeBytes { Array($0) })
         }
         restore()
@@ -73,9 +73,10 @@ final class Tray {
     func show(lines: [String]) {
         guard let menu = CreatePopupMenu() else { return }
         defer { DestroyMenu(menu) }
+        let actions = WindowsAppModel.menuActions.count
         for (index, line) in lines.enumerated() {
-            let action = index >= lines.count - 4
-            let id = action ? UINT_PTR(201 + index - (lines.count - 4)) : 0
+            let action = index >= lines.count - actions
+            let id = action ? UINT_PTR(201 + index - (lines.count - actions)) : 0
             let checked = id == 203 && LoginItem.enabled
             let flags = UINT(MF_STRING) | (action ? 0 : UINT(MF_GRAYED)) | (checked ? UINT(MF_CHECKED) : 0)
             line.withCString(encodedAs: UTF16.self) { _ = AppendMenuW(menu, flags, id, $0) }
@@ -95,15 +96,23 @@ final class Tray {
             }
         case 203:
             if !LoginItem.set(!LoginItem.enabled) { resident?.notice(loc("Could not change Open at login.")) }
-        case 204: PostMessageW(window, UINT(WM_CLOSE), 0, 0)
+        case 204:
+            // Version numbers only (see ProjectLinks). The agents' versions are left for the person to fill in: asking each
+            // agent's executable would hold the tray's thread for seconds.
+            let url = ProjectLinks.bugReport(appVersion: WindowsAppModel.version, system: ProjectLinks.systemDescription, agents: "")
+            if !shellOpen(url.absoluteString) { resident?.notice(loc("Could not open the browser.")) }
+        case 205: PostMessageW(window, UINT(WM_CLOSE), 0, 0)
         default: break
         }
     }
     private func open(_ path: String) {
+        if !shellOpen(path) { resident?.notice(loc("Could not open the file or folder.")) }
+    }
+    private func shellOpen(_ target: String) -> Bool {
         let result = "open".withCString(encodedAs: UTF16.self) { verb in
-            path.withCString(encodedAs: UTF16.self) { ShellExecuteW(window, verb, $0, nil, nil, SW_SHOWNORMAL) }
+            target.withCString(encodedAs: UTF16.self) { ShellExecuteW(window, verb, $0, nil, nil, SW_SHOWNORMAL) }
         }
-        if Int(bitPattern: result) <= 32 { resident?.notice(loc("Could not open the file or folder.")) }
+        return Int(bitPattern: result) > 32
     }
     deinit {
         if let loadedIcon { DestroyIcon(loadedIcon) }

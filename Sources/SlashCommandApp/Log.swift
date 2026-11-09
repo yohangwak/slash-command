@@ -3,7 +3,7 @@ import SlashCommandCore
 
 /// Appends one line at a time to `~/Library/Logs/SlashCommand/slashcommand.log`, so you can check later what was pressed and how it ended.
 enum Log {
-    private static let url = FileManager.default.homeDirectoryForCurrentUser
+    static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Logs/SlashCommand/slashcommand.log")
     private static let queue = DispatchQueue(label: "slashcommand.log")
     private static let formatter: ISO8601DateFormatter = {

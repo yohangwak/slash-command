@@ -342,3 +342,12 @@
 "Open System Settings…" = "Systemeinstellungen öffnen …";
 "The modifier keys in the presets file cannot be used on their own, so %@ is used. Include control, option or command." = "Die Sondertasten in der Voreinstellungsdatei reichen allein nicht aus, daher wird %@ verwendet. Verwende control, option oder command.";
 "This version does not use these keys in the presets file (they are kept): %@" = "Diese Version verwendet diese Schlüssel in der Voreinstellungsdatei nicht (sie bleiben erhalten): %@";
+"Log file" = "Protokolldatei";
+"Version" = "Version";
+"Preparing…" = "Wird vorbereitet …";
+"Report a Problem…" = "Problem melden …";
+"Questions and Ideas" = "Fragen und Ideen";
+"Release Notes" = "Versionshinweise";
+"About" = "Über";
+"Could not open the browser." = "Der Browser konnte nicht geöffnet werden.";
+"Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)." = "„Problem melden“ öffnet im Browser ein neues Issue auf GitHub, in dem die Versionen von Slash Command, macOS und Ihren Agenten bereits eingetragen sind. GitHub erhält diese Versionsnummern beim Öffnen der Seite über deren Adresse; das Issue wird erst veröffentlicht, wenn Sie das Formular abschicken. Sicherheitsprobleme bitte stattdessen vertraulich melden (siehe SECURITY.md).";

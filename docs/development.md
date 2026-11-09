@@ -54,6 +54,7 @@ These exist because each of them has gone wrong once.
 ```sh
 SlashCommandApp --snapshot out.png [--dark] [--collapsed] [--height N]   # the Settings window as an image
 SlashCommandApp --menu-text [bundle id]                                  # the menu as text, as if that app were in front
+SlashCommandApp --report-url                                             # the address Report a Problem… opens, without opening it
 ```
 
 Prefix `SLASHCOMMAND_L10N_DIR=$PWD/Resources SLASHCOMMAND_LANG=ko` to see another language.
