@@ -22,8 +22,9 @@ Narrow windows are handled: rows whose description wraps to the next line are re
 ## Limits
 
 - **Screen wording.** The app relies on the English text the agents show. A change in that text stops switching. `slashcommand doctor` reports versions that have not been checked. See [Agents](agents.md#versions).
-- **Orca internals.** The visible workspace comes from Orca's state database and writes go through its runtime socket. Neither is a public interface.
-- **Orca, right after a tab switch.** Without Accessibility, the app can target the previous tab for 1.3 to 2.5 seconds. The active split of a split pane still comes from Orca's terminal list.
+- **Orca internals.** The visible tab comes from Orca's tab strip (Accessibility) on a Mac and from its state database on Windows; writes go through its runtime socket. None of these is a public interface.
+- **Orca without Accessibility (Mac).** Nothing is sent: Orca 1.4.256 no longer saves the visible tab to its state database, so that database cannot tell which tab is on screen. The active split of a split pane still comes from Orca's terminal list.
+- **Orca on Windows, right after a tab switch.** The app can target the previous tab while Orca's state database lags (1.3 to 2.5 seconds, measured with Orca 1.4.220). Whether Orca 1.4.256 on Windows still updates that database has not been checked.
 - **Ghostty and Codex.** A switch takes 3 to 4.6 seconds, because Ghostty's screen text is cached for half a second and no other accessibility attribute returns a fresher copy.
 - **iTerm2 Broadcast Input.** A few tens of milliseconds pass between the check and the write. Turning broadcasting on in that gap is not caught.
 - **Claude Code, command form.** Claude Code answers `Set effort level to high` even for a model without effort levels (Haiku). The notice repeats what Claude Code said.

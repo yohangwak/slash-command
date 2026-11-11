@@ -111,7 +111,7 @@
 "Model" = "模型";
 "Modifier keys" = "修饰键";
 "Name (optional)" = "名称（可选）";
-"Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "读取 Ghostty 屏幕以及确认 iTerm2 的广播输入（Broadcast Input）已关闭必须有此权限；在 Orca 中，它能让 App 及时跟上你刚切换的标签页。请在打开的列表中打开 Slash Command（如果列表中没有，请用 + 添加）。";
+"Needed to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off. Turn on Slash Command in the list that opens (use + if it is not listed)." = "读取 Ghostty 屏幕、识别 Orca 当前显示的标签页，以及确认 iTerm2 的广播输入（Broadcast Input）已关闭，都需要此权限。请在打开的列表中打开 Slash Command（如果列表中没有，请用 + 添加）。";
 "No agents set" = "未设置代理";
 "No model list for this agent. Type the name it shows on screen." = "此代理没有模型列表。请输入它在屏幕上显示的名称。";
 "No presets yet — add one in Settings" = "还没有预设 — 请在设置中添加";
@@ -249,9 +249,8 @@
 "There is no preset %@ (there are %@)." = "没有预设 %1$@（现有 %2$@ 个）。";
 "This OpenCode model has no variant '%@' (%@)." = "此 OpenCode 模型没有 variant“%1$@”（%2$@）。";
 "Turn On %@…" = "打开“%@”…";
-"Turn on %@ from the menu bar icon to stay accurate right after switching tabs." = "从菜单栏图标打开“%@”，可在切换标签页后立即保持准确。";
 "Unsaved changes" = "有未存储的更改";
-"Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "用于读取 Ghostty 屏幕、跟随 Orca 中的标签页切换，并确认 iTerm2 的广播输入（Broadcast Input）已关闭。";
+"Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "用于读取 Ghostty 屏幕、识别 Orca 当前显示的标签页，并确认 iTerm2 的广播输入（Broadcast Input）已关闭。";
 "Used to type the switch commands into %@." = "用于向 %@ 输入切换命令。";
 "installed %@" = "已安装 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "首次在 %@ 中按快捷键时，macOS 会询问一次。";
@@ -274,6 +273,9 @@
 "Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "未发送：iTerm2 的广播输入（Broadcast Input）已开启（%@），按键也会进入其他窗格。请选择 Shell ▸ Broadcast Input ▸ Send Input to Current Session Only 后再按一次。";
 "Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again." = "未发送：要确认 iTerm2 的广播输入（Broadcast Input）已关闭，Slash Command 需要“%@”权限。请在“系统设置”→“隐私与安全性”中打开后再按一次。";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "未发送：无法从 iTerm2 的 Shell ▸ Broadcast Input 菜单确认广播输入已关闭。";
+"Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again." = "未发送：要识别 Orca 当前显示的标签页，Slash Command 需要“%@”权限。请在“系统设置”→“隐私与安全性”中打开后再按一次。";
+"Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)." = "未发送：无法识别 Orca 当前显示的标签页（Orca 更新可能更改了标签栏）。";
+"Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet." = "未发送:屏幕上的 Orca 标签页与任何工作区的终端都不匹配。尚不支持打开了文件、浏览器或聊天标签页的工作区。";
 "Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";
 "This OpenCode model has no effort levels (it has no variants)." = "此 OpenCode 模型没有 effort 档位（该模型没有 variant）。";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "此 OpenCode 模型没有 variant，因此未设置 effort（%@）。";

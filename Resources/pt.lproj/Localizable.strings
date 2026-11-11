@@ -111,7 +111,7 @@
 "Model" = "Modelo";
 "Modifier keys" = "Teclas modificadoras";
 "Name (optional)" = "Nome (opcional)";
-"Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Necessário para ler a tela do Ghostty e para verificar se a transmissão de entrada (Broadcast Input) do iTerm2 está desativada; no Orca, acompanha a aba para a qual você acabou de mudar. Ative o Slash Command na lista que abrir (use + se ele não estiver listado).";
+"Needed to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Necessário para ler a tela do Ghostty, identificar qual aba do Orca está visível e verificar se a transmissão de entrada (Broadcast Input) do iTerm2 está desativada. Ative o Slash Command na lista que abrir (use + se ele não estiver listado).";
 "No agents set" = "Nenhum agente configurado";
 "No model list for this agent. Type the name it shows on screen." = "Não há lista de modelos para este agente. Digite o nome que ele mostra na tela.";
 "No presets yet — add one in Settings" = "Nenhuma predefinição ainda — adicione uma nos Ajustes";
@@ -249,9 +249,8 @@
 "There is no preset %@ (there are %@)." = "Não existe a predefinição %@ (há %@).";
 "This OpenCode model has no variant '%@' (%@)." = "Este modelo do OpenCode não tem o variant \"%@\" (%@).";
 "Turn On %@…" = "Ativar “%@”…";
-"Turn on %@ from the menu bar icon to stay accurate right after switching tabs." = "Ative “%@” pelo ícone da barra de menus para manter a precisão logo após trocar de aba.";
 "Unsaved changes" = "Alterações não salvas";
-"Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Usada para ler a tela do Ghostty, acompanhar as trocas de aba no Orca e verificar se a transmissão de entrada (Broadcast Input) do iTerm2 está desativada.";
+"Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "Usada para ler a tela do Ghostty, identificar qual aba do Orca está visível e verificar se a transmissão de entrada (Broadcast Input) do iTerm2 está desativada.";
 "Used to type the switch commands into %@." = "Usada para digitar os comandos de troca em %@.";
 "installed %@" = "%@ instalado";
 "macOS asks once, the first time you press a shortcut in %@." = "O macOS pergunta uma vez, na primeira vez que você pressiona um atalho em %@.";
@@ -274,6 +273,9 @@
 "Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "Não enviado: a transmissão de entrada (Broadcast Input) do iTerm2 está ativada (%@), então as teclas iriam também para outros painéis. Escolha Shell ▸ Broadcast Input ▸ Send Input to Current Session Only e pressione novamente.";
 "Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again." = "Não enviado: o Slash Command precisa da permissão “%@” para verificar se a transmissão de entrada (Broadcast Input) do iTerm2 está desativada. Ative-a em Ajustes do Sistema → Privacidade e Segurança e pressione de novo.";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "Não enviado: não foi possível confirmar no menu Shell ▸ Broadcast Input do iTerm2 que a transmissão de entrada está desativada.";
+"Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again." = "Não enviado: o Slash Command precisa da permissão “%@” para identificar qual aba do Orca está visível. Ative-a em Ajustes do Sistema → Privacidade e Segurança e pressione de novo.";
+"Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)." = "Não enviado: não foi possível identificar qual aba do Orca está visível (uma atualização do Orca pode ter alterado a barra de abas).";
+"Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet." = "Não enviado: as abas do Orca na tela não correspondem aos terminais de nenhum espaço de trabalho. Espaços de trabalho com abas de arquivo, navegador ou chat abertas ainda não são compatíveis.";
 "Could not type into iTerm2: %@" = "Não foi possível digitar no iTerm2: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "Este modelo do OpenCode não tem níveis de effort (não tem variantes).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "Este modelo do OpenCode não tem variantes, então o effort (%@) não foi definido.";

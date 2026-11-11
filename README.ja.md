@@ -42,10 +42,10 @@ brew install --cask yohangwak/tap/slash-command
 
 | 権限 | 用途 |
 |---|---|
-| **アクセシビリティ**(macOS 27 では *Device Control and Data Access* と表示されます) | Ghostty の画面を読み取る、iTerm2 の Broadcast Input がオフであることを確認する |
+| **アクセシビリティ**(macOS 27 では *Device Control and Data Access* と表示されます) | Ghostty の画面を読み取る、Orca で画面に表示されているタブを知る、iTerm2 の Broadcast Input がオフであることを確認する |
 | **オートメーション**(Slash Command → Ghostty、Slash Command → iTerm2) | ターミナルへの入力。そのターミナルで初めてホットキーを押したときに macOS が確認します |
 
-WezTerm と kitty はどちらも不要で、Orca も権限なしで動作します。kitty はリモートコントロールを有効にする必要があります。[Terminals](docs/terminals.md) を参照してください。
+WezTerm と kitty はどちらも不要で、Orca はアクセシビリティだけが必要です。kitty はリモートコントロールを有効にする必要があります。[Terminals](docs/terminals.md) を参照してください。
 
 ログイン時に起動するには、設定の **一般** にある **ログイン時に開く** をオンにします。
 
@@ -131,7 +131,7 @@ slashcommand run 2 claude      # open a new session with preset 2
 | ターミナル | 備考 |
 |---|---|
 | Ghostty | アクセシビリティとオートメーションが必要です。Ghostty 内の tmux にはまだ対応していません |
-| Orca | 設定は不要です。アクセシビリティは任意で、許可するとタブの切り替えがすぐに反映されます |
+| Orca | アクセシビリティ(画面に表示されているタブを知るため) |
 | iTerm2 | オートメーションが必要です。Broadcast Input の確認にはアクセシビリティも必要です |
 | WezTerm | 設定は不要です |
 | kitty | 先にリモートコントロールを有効にします |

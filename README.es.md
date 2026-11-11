@@ -42,10 +42,10 @@ Los permisos del paso 4:
 
 | Permiso | Para qué sirve |
 |---|---|
-| **Accesibilidad** (macOS 27 lo muestra como *Device Control and Data Access*) | Leer la pantalla de Ghostty y comprobar que Broadcast Input de iTerm2 está desactivado |
+| **Accesibilidad** (macOS 27 lo muestra como *Device Control and Data Access*) | Leer la pantalla de Ghostty, saber qué pestaña de Orca está en pantalla y comprobar que Broadcast Input de iTerm2 está desactivado |
 | **Automatización** (Slash Command → Ghostty, Slash Command → iTerm2) | Escribir en la terminal. macOS lo pregunta la primera vez que pulsas un atajo allí |
 
-WezTerm y kitty no necesitan ninguno de los dos, y Orca funciona sin ellos. kitty necesita tener activado el control remoto. Consulta [Terminals](docs/terminals.md).
+WezTerm y kitty no necesitan ninguno de los dos, y Orca solo necesita Accesibilidad. kitty necesita tener activado el control remoto. Consulta [Terminals](docs/terminals.md).
 
 Para que se inicie al iniciar sesión, activa **Abrir al iniciar sesión** en **General** dentro de Ajustes.
 
@@ -131,7 +131,7 @@ slashcommand run 2 claude      # open a new session with preset 2
 | Terminal | Notas |
 |---|---|
 | Ghostty | Necesita Accesibilidad y Automatización. tmux dentro de Ghostty aún no es compatible |
-| Orca | Sin configuración. Accesibilidad es opcional y hace que el cambio de pestaña se registre al instante |
+| Orca | Accesibilidad, para saber qué pestaña está en pantalla |
 | iTerm2 | Necesita Automatización, y Accesibilidad para comprobar Broadcast Input |
 | WezTerm | Sin configuración |
 | kitty | Activa primero el control remoto |

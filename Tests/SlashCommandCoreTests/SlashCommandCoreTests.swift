@@ -1922,6 +1922,16 @@ final class OrcaViewTests: KoreanMessagesTestCase {
         XCTAssertNil(OrcaView.tab(fromLabel: "Tasks", classes: ["text-foreground"]), "Not a tab button")
     }
 
+    func testReadsOrca14256ActiveClass() {
+        let label = "Terminal Close tab Terminal"
+        let active = OrcaView.tab(fromLabel: label,
+                                  classes: ["border-t", "border-r", "border-border", "bg-tab-active", "text-tab-active-foreground"])
+        let inactive = OrcaView.tab(fromLabel: label,
+                                    classes: ["border-r-transparent", "bg-tab-inactive", "text-tab-inactive-foreground", "hover:text-tab-active-foreground"])
+        XCTAssertEqual(active?.active, true)
+        XCTAssertEqual(inactive?.active, false)
+    }
+
     func testResolvesTheVisibleTabWhileTheDatabaseStillSaysTheOldOne() {
         let layouts = [layout("w-other", ["Terminal 2", "Terminal 3"]), layout("w-initial", initialTitles)]
         for index in 0..<initialTitles.count {
@@ -1931,10 +1941,17 @@ final class OrcaViewTests: KoreanMessagesTestCase {
     }
 
     func testNoMatchWhenTheStripHasTabsTheLayoutDoesNot() {
-        // If non-terminal tabs such as file tabs are mixed in, the counts differ and it does not match (the caller falls back to the DB).
         let layouts = [layout("w-initial", initialTitles)]
-        XCTAssertEqual(OrcaView.resolve(strip: strip(shownTitles + ["README.md"], active: 8), layouts: layouts), .noMatch)
+        // A file tab in the strip: the terminal list does not have it, so it does not match (and nothing is sent — no state DB fallback).
+        XCTAssertEqual(OrcaView.resolve(strip: strip(shownTitles + ["README.md"], active: 7), layouts: layouts), .noMatch)
         XCTAssertEqual(OrcaView.resolve(strip: strip(["a", "b"], active: 0), layouts: layouts), .noMatch)
+    }
+
+    /// The strip does not say which tabs are terminals. A hidden workspace whose only tab has the visible tab's title must not stand in
+    /// for the visible workspace (a hidden terminal has an input box too).
+    func testAHiddenWorkspaceWithFewerTabsIsNeverPicked() {
+        let layouts = [layout("w-hidden", ["Terminal 1"])]
+        XCTAssertEqual(OrcaView.resolve(strip: strip(["Terminal 1", "README.md"], active: 0), layouts: layouts), .noMatch)
     }
 
     func testIdenticalStripsInTwoWorkspacesAreAlwaysAmbiguous() {
@@ -1950,8 +1967,8 @@ final class OrcaViewTests: KoreanMessagesTestCase {
         let layouts = [layout("w", ["a", "b"])]
         let none = OrcaView.Strip(tabs: [.init(title: "a", truncated: false, active: false), .init(title: "b", truncated: false, active: false)])
         let both = OrcaView.Strip(tabs: [.init(title: "a", truncated: false, active: true), .init(title: "b", truncated: false, active: true)])
-        XCTAssertEqual(OrcaView.resolve(strip: none, layouts: layouts), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: both, layouts: layouts), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: none, layouts: layouts), .noActiveTab)
+        XCTAssertEqual(OrcaView.resolve(strip: both, layouts: layouts), .noActiveTab)
     }
 
     func testLongTitleCutWithoutEllipsisStillMatchesButShortOnesNeedToBeExact() {
