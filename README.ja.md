@@ -131,7 +131,7 @@ slashcommand run 2 claude      # open a new session with preset 2
 | ターミナル | 備考 |
 |---|---|
 | Ghostty | アクセシビリティとオートメーションが必要です。Ghostty 内の tmux にはまだ対応していません |
-| Orca | アクセシビリティ(画面に表示されているタブを知るため) |
+| Orca | アクセシビリティ(画面に表示されているタブを知るため)。サイドバーは表示したままにしてください |
 | iTerm2 | オートメーションが必要です。Broadcast Input の確認にはアクセシビリティも必要です |
 | WezTerm | 設定は不要です |
 | kitty | 先にリモートコントロールを有効にします |

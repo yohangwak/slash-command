@@ -131,7 +131,7 @@ slashcommand run 2 claude      # open a new session with preset 2
 | 终端 | 说明 |
 |---|---|
 | Ghostty | 需要辅助功能和自动化。暂不支持 Ghostty 内部的 tmux |
-| Orca | 辅助功能,用于识别当前显示的标签页 |
+| Orca | 辅助功能,用于识别当前显示的标签页。请保持侧边栏显示 |
 | iTerm2 | 需要自动化,检查 Broadcast Input 还需要辅助功能 |
 | WezTerm | 无需设置 |
 | kitty | 先开启远程控制 |

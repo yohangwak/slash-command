@@ -114,6 +114,10 @@ extension Detector {
     /// Identifies the workspace and tab shown on screen using Orca's tab strip read through accessibility.
     public static func orcaActive(payload: [String: Any]) throws -> (active: OrcaState.Active, source: String) {
         if let strip = OrcaView.readStrip() {
+            // Titles alone cannot prove which workspace is visible; the sidebar's current row does. Without it, nothing is sent.
+            guard strip.currentWorkspaces.count == 1 else {
+                throw SlashCommandError(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."))
+            }
             let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
             switch OrcaView.resolve(strip: strip, layouts: layouts) {
             case .tab(let active):

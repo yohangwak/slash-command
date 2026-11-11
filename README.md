@@ -131,7 +131,7 @@ slashcommand run 2 claude      # open a new session with preset 2
 | Terminal | Notes |
 |---|---|
 | Ghostty | Needs Accessibility and Automation. tmux inside Ghostty is not supported yet |
-| Orca | Accessibility, to see which tab is on screen |
+| Orca | Accessibility, to see which tab is on screen. Keep the sidebar shown |
 | iTerm2 | Needs Automation, and Accessibility to check Broadcast Input |
 | WezTerm | No setup |
 | kitty | Turn on remote control first |

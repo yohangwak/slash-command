@@ -131,7 +131,7 @@ slashcommand run 2 claude      # open a new session with preset 2
 | Terminal | Notas |
 |---|---|
 | Ghostty | Necesita Accesibilidad y Automatización. tmux dentro de Ghostty aún no es compatible |
-| Orca | Accesibilidad, para saber qué pestaña está en pantalla |
+| Orca | Accesibilidad, para saber qué pestaña está en pantalla. Mantén visible la barra lateral |
 | iTerm2 | Necesita Automatización, y Accesibilidad para comprobar Broadcast Input |
 | WezTerm | Sin configuración |
 | kitty | Activa primero el control remoto |

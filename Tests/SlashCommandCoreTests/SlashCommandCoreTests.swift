@@ -1954,6 +1954,24 @@ final class OrcaViewTests: KoreanMessagesTestCase {
         XCTAssertEqual(OrcaView.resolve(strip: strip(["Terminal 1", "README.md"], active: 0), layouts: layouts), .noMatch)
     }
 
+    /// Pullfrog #56: a visible `Terminal 1` + file tab `README.md` matches, by titles alone, a hidden workspace with two terminals of those titles.
+    /// The sidebar names the visible workspace, so only its layout is compared.
+    func testOnlyTheWorkspaceTheSidebarShowsIsCompared() {
+        let layouts = [layout("w-visible", ["Terminal 1"]), layout("w-hidden", ["Terminal 1", "README.md"])]
+        let titles = ["Terminal 1", "README.md"]
+        let shown = OrcaView.Strip(tabs: strip(titles, active: 0).tabs, currentWorkspaces: ["w-visible"])
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: layouts), .noMatch)
+        let other = OrcaView.Strip(tabs: strip(titles, active: 0).tabs, currentWorkspaces: ["w-hidden"])
+        XCTAssertEqual(OrcaView.resolve(strip: other, layouts: layouts), .tab(.init(worktreeID: "w-hidden", tabID: "w-hidden-t0")), "Positive control")
+    }
+
+    func testReadsTheCurrentWorkspaceFromTheSidebarRowID() {
+        let id = "worktree-list-option-project%3Agithub%3Ayohangwak%2Fslash-command%3Alocal%7Cc9b0a209-f6ff-4d61-907b-8f16e5fb51a4%3A%3A%2FUsers%2Fyohan%2FRepos%2Fyohangwak%2Fmodelswitch"
+        XCTAssertEqual(OrcaView.currentWorkspace(domID: id, ariaCurrent: "page"), "c9b0a209-f6ff-4d61-907b-8f16e5fb51a4::/Users/yohan/Repos/yohangwak/modelswitch")
+        XCTAssertNil(OrcaView.currentWorkspace(domID: id, ariaCurrent: nil), "A row that is not the current page")
+        XCTAssertNil(OrcaView.currentWorkspace(domID: "worktree-list-option-project%3Agithub%3Ayohangwak%2Fslash-command", ariaCurrent: "page"), "A project header, not a workspace")
+    }
+
     func testIdenticalStripsInTwoWorkspacesAreAlwaysAmbiguous() {
         let layouts = [layout("w1", ["Terminal 2"]), layout("w2", ["Terminal 2"])]
         let one = strip(["Terminal 2"], active: 0)
