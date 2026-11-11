@@ -1,11 +1,8 @@
 import Foundation
 
-/// Reads the tab that is "currently visible" in Orca's window through accessibility (AX) and matches it against the terminal list.
-///
-/// Why: the state DB and the "active tab" of `terminal.list` lag the UI by 1.3-2.5 s (measured 2026-10-07, same switch 5 times: DB +1.3-1.7 s).
-/// Orca's tab strip (DOM) is in the accessibility tree in order, and only the active tab has the `text-foreground` class — in the same switch it followed within 0.25 s.
-/// Matching the order of titles in the tab strip against the layout of `terminal.list` (the order of tab titles per workspace) determines the workspace and tab.
-/// `nil` if it cannot be read or is not narrowed to one — the caller falls back to the DB (the old behavior; the latency risk is documented).
+/// Reads the visible tab in Orca through accessibility (AX) and matches it against the terminal list.
+/// The tab strip supplies the active marker and the order of visible titles. The terminal list supplies the workspace and terminal tab IDs.
+/// Orca 1.4.256 no longer writes the visible tab to its state database when you switch (measured 2026-11-11), so on a Mac this is the only source.
 public enum OrcaView {
     public struct Strip: Equatable, Sendable {
         /// The titles in the tab strip (from the left). `truncated` is true if a title is cut off.
@@ -22,15 +19,23 @@ public enum OrcaView {
         }
 
         public let tabs: [Tab]
+        /// Worktree ids of the sidebar rows marked as the current page (`aria-current="page"`). One when the sidebar shows the visible
+        /// workspace; none when the sidebar is hidden or that row is scrolled out of the list.
+        public let currentWorkspaces: [String]
 
-        public init(tabs: [Tab]) { self.tabs = tabs }
+        public init(tabs: [Tab], currentWorkspaces: [String] = []) {
+            self.tabs = tabs
+            self.currentWorkspaces = currentWorkspaces
+        }
     }
 
     public enum Resolution: Equatable, Sendable {
+        /// The strip has zero or more than one active marker.
+        case noActiveTab
         case tab(OrcaState.Active)
         /// More than one workspace has the same order of tab titles.
         case ambiguous([String])
-        /// No workspace matches (the tab strip may contain non-terminal tabs).
+        /// No workspace has exactly these tabs (the strip may also hold file, browser or chat tabs, which the terminal list does not have).
         case noMatch
     }
 
@@ -64,13 +69,19 @@ public enum OrcaView {
     }
 
     /// Matches the tab strip against the layout (`visualLayouts` of `terminal.list`). Both the tab count and the order of titles must be the same.
-    /// If there is more than one candidate it is "ambiguous" — do not pick with the late state DB (right after switching workspace the DB holds the old value for 1.3-2.5 s).
+    /// When the strip names the visible workspace (from the sidebar), only that workspace's layout is compared: titles alone cannot prove
+    /// that a workspace is visible — a visible `Terminal 1` + file tab `README.md` also matches a hidden workspace with two terminals of those titles.
+    ///
+    /// Exact, not "the terminal tabs appear somewhere in the strip": the strip does not say which of its tabs are terminals, so a looser match
+    /// lets a hidden workspace with fewer tabs (a lone "Terminal 1") stand in for the visible one, or a file tab with a terminal's title
+    /// stand in for that terminal — and a hidden terminal has an input box too. If there is more than one candidate it is "ambiguous".
     public static func resolve(strip: Strip, layouts: [[String: Any]]) -> Resolution {
-        guard !strip.tabs.isEmpty, let activeIndex = strip.tabs.firstIndex(where: \.active),
-              strip.tabs.filter(\.active).count == 1 else { return .noMatch }
+        let activeIndices = strip.tabs.indices.filter { strip.tabs[$0].active }
+        guard activeIndices.count == 1, let activeIndex = activeIndices.first else { return .noActiveTab }
+        let visible = strip.currentWorkspaces.count == 1 ? strip.currentWorkspaces.first : nil
         var candidates: [(worktree: String, tabID: String)] = []
         for layout in layouts {
-            guard let worktree = layout["worktreeId"] as? String else { continue }
+            guard let worktree = layout["worktreeId"] as? String, visible == nil || worktree == visible else { continue }
             let tabs = OrcaState.tabs(in: layout["root"])
             guard tabs.count == strip.tabs.count else { continue }
             let same = zip(tabs, strip.tabs).allSatisfy { titlesMatch($0.0["title"] as? String ?? "", $0.1) }
@@ -80,8 +91,7 @@ public enum OrcaView {
         switch candidates.count {
         case 0: return .noMatch
         case 1: return .tab(OrcaState.Active(worktreeID: candidates[0].worktree, tabID: candidates[0].tabID))
-        default:
-            return .ambiguous(candidates.map(\.worktree))
+        default: return .ambiguous(candidates.map(\.worktree))
         }
     }
 
@@ -93,8 +103,17 @@ public enum OrcaView {
     /// If a limit is hit, there may be a tab it did not see, so the answer is "unknown" (nil) — a tab is not picked from a partially read tab strip.
     static func tabs<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
                                   label: (N) -> String, classes: (N) -> [String], children: (N) -> [N]) -> [Strip.Tab]? {
+        strip(from: roots, seen: seen, maxDepth: maxDepth, maxNodes: maxNodes, label: label, classes: classes,
+              currentWorkspace: { _ in nil }, children: children)?.tabs
+    }
+
+    /// The same walk, also collecting the sidebar rows marked as the current page (`currentWorkspace` returns their worktree id).
+    static func strip<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
+                                   label: (N) -> String, classes: (N) -> [String], currentWorkspace: (N) -> String?,
+                                   children: (N) -> [N]) -> Strip? {
         var seen = seen
         var tabs: [Strip.Tab] = []
+        var workspaces: [String] = []
         var cut = false
         func visit(_ node: N, depth: Int) {
             guard !cut, seen.insert(node).inserted else { return }
@@ -103,10 +122,20 @@ public enum OrcaView {
                 tabs.append(tab)
                 return
             }
+            if let workspace = currentWorkspace(node) { workspaces.append(workspace) }
             for child in children(node) { visit(child, depth: depth + 1) }
         }
         for root in roots { visit(root, depth: 0) }
-        return cut ? nil : tabs
+        return cut ? nil : Strip(tabs: tabs, currentWorkspaces: workspaces)
+    }
+
+    /// A sidebar row's DOM id is `worktree-list-option-<project>:<host>|<worktree id>` (percent-encoded; measured on Orca 1.4.256).
+    /// Returns the worktree id when the row is the current page.
+    static func currentWorkspace(domID: String?, ariaCurrent: String?) -> String? {
+        guard ariaCurrent == "page", let raw = domID, let id = raw.removingPercentEncoding,
+              id.hasPrefix("worktree-list-option-"), let bar = id.lastIndex(of: "|") else { return nil }
+        let worktree = String(id[id.index(after: bar)...])
+        return worktree.isEmpty ? nil : worktree
     }
 
     /// A tab button of the form `"<state> <title> Close tab <title>"`. The title is the part after "Close tab ".
@@ -118,8 +147,8 @@ public enum OrcaView {
             title = String(title.dropLast(ellipsis.count))
             truncated = true
         }
-        // Only the active tab has the class `text-foreground` (exactly). The rest have `text-muted-foreground` and `hover:text-foreground`.
-        return Strip.Tab(title: title, truncated: truncated, active: classes.contains("text-foreground"))
+        let active = classes.contains("text-foreground") || classes.contains("text-tab-active-foreground")
+        return Strip.Tab(title: title, truncated: truncated, active: active)
     }
 
 }

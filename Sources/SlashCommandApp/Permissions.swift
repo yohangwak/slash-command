@@ -89,8 +89,8 @@ struct PermissionsSection: View {
                 state: model.accessibility ? .ok : .problem,
                 status: model.accessibility ? loc("On") : loc("Off"),
                 detail: model.accessibility
-                    ? loc("Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off.")
-                    : loc("Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)."),
+                    ? loc("Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off.")
+                    : loc("Needed to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off. Turn on Slash Command in the list that opens (use + if it is not listed)."),
                 action: Permissions.openAccessibility)
             ForEach(Permissions.installedAutomatedTerminals, id: \.bundleID) { terminal in
                 let state = model.automation[terminal.bundleID] ?? .notAsked

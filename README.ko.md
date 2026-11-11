@@ -42,10 +42,10 @@ brew install --cask yohangwak/tap/slash-command
 
 | 권한 | 쓰는 곳 |
 |---|---|
-| **손쉬운 사용** (macOS 27 에서는 *기기 제어 및 데이터 접근* 목록) | Ghostty 화면 읽기, iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인 |
+| **손쉬운 사용** (macOS 27 에서는 *기기 제어 및 데이터 접근* 목록) | Ghostty 화면 읽기, Orca 에서 화면에 보이는 탭 알기, iTerm2 의 입력 방송(Broadcast Input)이 꺼져 있는지 확인 |
 | **자동화** (Slash Command → Ghostty, Slash Command → iTerm2) | 터미널에 글자 넣기. 그 터미널에서 단축키를 처음 누를 때 macOS 가 묻습니다 |
 
-WezTerm 과 kitty 는 둘 다 필요 없고, Orca 는 없어도 동작합니다. kitty 는 원격 제어를 켜야 합니다. 자세한 것은 [Terminals](docs/terminals.md)를 보세요.
+WezTerm 과 kitty 는 둘 다 필요 없고, Orca 는 손쉬운 사용만 필요합니다. kitty 는 원격 제어를 켜야 합니다. 자세한 것은 [Terminals](docs/terminals.md)를 보세요.
 
 로그인할 때 자동으로 띄우려면 설정의 **일반** 에서 **로그인할 때 실행** 을 켭니다.
 
@@ -131,7 +131,7 @@ slashcommand run 2 claude      # 프리셋 2 로 새 세션을 엽니다
 | 터미널 | 참고 |
 |---|---|
 | Ghostty | 손쉬운 사용과 자동화가 필요합니다. Ghostty 안의 tmux 는 아직 지원하지 않습니다 |
-| Orca | 설정할 것 없음. 손쉬운 사용은 선택이며, 켜면 탭을 옮긴 직후에도 바로 따라갑니다 |
+| Orca | 손쉬운 사용(화면에 보이는 탭을 알기 위해). 사이드바를 켜 두세요 |
 | iTerm2 | 자동화가 필요하고, 입력 방송 확인에 손쉬운 사용이 필요합니다 |
 | WezTerm | 설정할 것 없음 |
 | kitty | 먼저 원격 제어를 켭니다 |

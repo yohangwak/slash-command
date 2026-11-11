@@ -12,8 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var busy = false
     /// While claude's "Switch model?" dialog waits for the user's Enter, the "Press Enter to confirm" notification stays (main thread only).
     private var awaitingConfirmation = false
-    /// The notice about Accessibility being off in Orca is given only once per run.
-    private var nudgedOrcaAccessibility = false
     /// The last preset-file error reported — the same error is not reported again each time you switch terminals.
     private var announcedConfigError: String?
     /// The last hotkey state logged — logged only when it changes.
@@ -195,7 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Carry the pid that is frontmost now, so that with two instances of the same terminal app the keys go to "the process where the key was pressed".
         let frontPID = front.processIdentifier
         // Ghostty's screen is read through accessibility. Without the permission, open "the settings screen that turns it on" right away and stop here
-        // — do not make the user find their way in System Settings. (Orca works without it, but with it Orca knows the currently visible tab without delay.)
+        // — do not make the user find their way in System Settings. (Orca needs it to know which tab is on screen.)
         if bundleID == Detector.ghosttyBundleID, !Permissions.accessibility {
             Log.write("failed \(action.label): no Accessibility permission — opened System Settings")
             Permissions.openAccessibility()
@@ -241,11 +239,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if !result.slotName.isEmpty { lines.append(result.slotName) }
                     // The warning goes first — the notification shows only a few lines, so anything after it is cut off.
                     if let warning = result.warning { lines.append("⚠️ \(warning)") }
-                    // Orca works without the permission, but without it, for 1-2.5 s right after moving tabs it may go to the terminal from before the move — tell the user once.
-                    if bundleID == Detector.orcaBundleID, !Permissions.accessibility, !self.nudgedOrcaAccessibility {
-                        self.nudgedOrcaAccessibility = true
-                        lines.append(loc("Turn on %@ from the menu bar icon to stay accurate right after switching tabs.", SettingsNames.accessibility))
-                    }
                     self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 ? 4 : 1.6)
                 case .failure(let error as SlashCommandError) where error.awaitingUser:
                     Log.write("awaiting confirmation \(action.label): \(SlashCommandError.logText(error))")
@@ -255,7 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     Log.write("unchanged \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show("\(error)", seconds: 2.5)
                 case .failure(let error as SlashCommandError) where error.needsAccessibility:
-                    // Before writing, iTerm2 checks through accessibility whether input broadcast is off — without the permission, open that settings screen right away (nothing was sent).
+                    // Nothing was sent. Open the settings screen so the user can grant the required permission.
                     Log.write("failed \(action.label): no Accessibility permission — opened System Settings")
                     Permissions.openAccessibility()
                     self.hud.show(loc("%@ permission needed", SettingsNames.accessibility), detail: "\(error)", seconds: 6)

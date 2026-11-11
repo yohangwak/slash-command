@@ -42,10 +42,10 @@ brew install --cask yohangwak/tap/slash-command
 
 | 权限 | 用途 |
 |---|---|
-| **辅助功能**(macOS 27 中显示为 *Device Control and Data Access*) | 读取 Ghostty 的屏幕内容,并检查 iTerm2 的 Broadcast Input 是否已关闭 |
+| **辅助功能**(macOS 27 中显示为 *Device Control and Data Access*) | 读取 Ghostty 的屏幕内容,识别 Orca 中当前显示的标签页,并检查 iTerm2 的 Broadcast Input 是否已关闭 |
 | **自动化**(Slash Command → Ghostty、Slash Command → iTerm2) | 向终端输入内容。第一次在该终端中按下快捷键时,macOS 会询问 |
 
-WezTerm 和 kitty 两者都不需要,Orca 也无需这些权限即可使用。kitty 需要开启远程控制。参见 [Terminals](docs/terminals.md)。
+WezTerm 和 kitty 两者都不需要,Orca 只需要辅助功能。kitty 需要开启远程控制。参见 [Terminals](docs/terminals.md)。
 
 如需开机登录后自动启动,请在设置的 **通用** 下打开 **登录时打开**。
 
@@ -131,7 +131,7 @@ slashcommand run 2 claude      # open a new session with preset 2
 | 终端 | 说明 |
 |---|---|
 | Ghostty | 需要辅助功能和自动化。暂不支持 Ghostty 内部的 tmux |
-| Orca | 无需设置。辅助功能是可选的,开启后切换标签页会立即被识别 |
+| Orca | 辅助功能,用于识别当前显示的标签页。请保持侧边栏显示 |
 | iTerm2 | 需要自动化,检查 Broadcast Input 还需要辅助功能 |
 | WezTerm | 无需设置 |
 | kitty | 先开启远程控制 |

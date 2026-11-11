@@ -111,24 +111,30 @@ extension Detector {
         return try client.map { try TmuxFront.target(client: $0, table: table, outer: "Orca") }
     }
 
-    /// The workspace and tab shown on screen, and «how it was learned».
-    /// It first uses the tab lines read through accessibility (no delay), and falls back to the state DB (1.3–2.5 s late) if they cannot be read or no workspace matches.
-    /// If the tab lines match more than one workspace, it cannot tell which, so nothing is sent.
+    /// Identifies the workspace and tab shown on screen using Orca's tab strip read through accessibility.
     public static func orcaActive(payload: [String: Any]) throws -> (active: OrcaState.Active, source: String) {
-        let database = try? OrcaState.active()
-        guard let strip = OrcaView.readStrip() else {
-            return (try OrcaState.active(), "state DB (could not read the tab strip through Accessibility)")
+        if let strip = OrcaView.readStrip() {
+            // Titles alone cannot prove which workspace is visible; the sidebar's current row does. Without it, nothing is sent.
+            guard strip.currentWorkspaces.count == 1 else {
+                throw SlashCommandError(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."))
+            }
+            let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
+            switch OrcaView.resolve(strip: strip, layouts: layouts) {
+            case .tab(let active):
+                return (active, "Accessibility")
+            case .ambiguous:
+                throw SlashCommandError(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."))
+            case .noMatch:
+                throw SlashCommandError(loc("Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet."))
+            case .noActiveTab:
+                break
+            }
+        } else if !GhosttyScreen.trusted() {
+            var error = SlashCommandError(loc("Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again.", SettingsNames.accessibility))
+            error.needsAccessibility = true
+            throw error
         }
-        let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
-        switch OrcaView.resolve(strip: strip, layouts: layouts) {
-        case .tab(let active):
-            let note = (database == active) ? "Accessibility (same as the DB)" : "Accessibility (differs from the DB — the DB still has the old value)"
-            return (active, note)
-        case .ambiguous:
-            throw SlashCommandError(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."))
-        case .noMatch:
-            return (try OrcaState.active(), "state DB (the tab strip matches no workspace)")
-        }
+        throw SlashCommandError(loc("Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)."))
     }
 
 }

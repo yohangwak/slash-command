@@ -2,6 +2,13 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.6
+
+- Orca 1.4.256: hotkeys work again. Orca changed how its tab strip marks the active tab, so the app could not see it and fell back to Orca's state database, which this Orca no longer updates when you switch. A hotkey then failed with "The frontmost Orca tab is not a terminal", or switched the model in a terminal you had left. The app now reads the new mark (and the old one) and never uses that database on a Mac.
+- Orca on a Mac now needs Accessibility. Without it a hotkey sends nothing and opens the settings, instead of guessing from the stale database. The one-time "Turn on Accessibility … right after switching tabs" notice is gone.
+- Orca on a Mac also needs its sidebar shown: the workspace marked as current there is the only one compared, so a hidden workspace with the same tab titles can never be picked. With the sidebar hidden, nothing is sent and the notice says so.
+- Orca: a workspace with file, browser or chat tabs open is refused with a message saying so (before, the app guessed from the state database).
+
 ## 0.2.5
 
 - Settings has an About section: the version, Report a Problem…, Questions and Ideas, and Release Notes. Report a Problem opens a new GitHub issue in the browser with the versions of Slash Command, macOS and the installed agents filled in; nothing else goes into it. GitHub receives those numbers in the page address when it opens; the issue is posted only when you submit the form. The menu has Report a Problem… too.

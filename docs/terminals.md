@@ -6,7 +6,7 @@ Not supported: Terminal.app, the VS Code terminal, Orca's floating terminal, and
 
 | Terminal | Accessibility | Automation | Other setup | Typical time for a switch |
 |---|---|---|---|---|
-| Orca | Optional | No | None | 0.1 – 0.4 s |
+| Orca | Yes | No | None | 0.1 – 0.4 s |
 | WezTerm | No | No | None | about 0.3 s |
 | kitty | No | No | Remote control on | about 0.7 s |
 | iTerm2 | Yes | Yes | None | 1.3 – 2.6 s |
@@ -22,9 +22,9 @@ Ghostty 1.3.1 does not expose a terminal's tty, so tmux inside Ghostty cannot be
 
 ## Orca
 
-The app reads which workspace is on screen from Orca's state database, and writes through Orca's runtime socket, falling back to the `orca` command. Neither is a public interface. If their format changes, the app fails instead of guessing.
+The app reads which tab is on screen from Orca's tab strip through Accessibility, matches it to Orca's terminal list, and writes through Orca's runtime socket, falling back to the `orca` command. None of these is a public interface. If their format changes, the app sends nothing instead of guessing.
 
-Right after you switch tabs, Orca's state lags the window by 1.3 to 2.5 seconds. With Accessibility granted, the app reads the tab strip instead and knows the visible tab at once. Without it, a hotkey pressed in that window of time can go to the tab you just left. If two workspaces have the same tab titles in the same order, the app cannot tell them apart and sends nothing.
+Accessibility is required. Orca 1.4.256 stopped saving the visible workspace and tab to its state database when you switch, so that database can name a workspace you left long ago; the app no longer uses it on a Mac. Keep Orca's sidebar shown: the workspace marked as current there is the one the app compares against, because tab titles alone cannot prove which workspace is on screen. With the sidebar hidden, or that workspace scrolled out of it, the app sends nothing and says so. The tab strip has to match that workspace's terminal tabs exactly, so a workspace with file, browser or chat tabs open is not supported yet: the app sends nothing and says so. Two workspaces with the same tab titles are told apart by the sidebar.
 
 ## iTerm2
 
@@ -93,5 +93,5 @@ Orca is supported when installed in `%LOCALAPPDATA%\Programs\orca`.
 
 - **Windows Terminal never receives synthetic keyboard input or window messages from the app.** Its window input follows focus and its "broadcast input" copies keys to every pane of a tab, so the app writes to the pane's console instead.
 - **WezTerm** on Windows does not say which program runs in which pane, so the agent is told from the screen, and the app checks that an agent of that kind runs under that WezTerm window and that nothing there runs WSL, tmux, SSH or a container. Because it still cannot prove that the pane runs on this computer, Grok, Cursor Agent, Antigravity and OpenCode, which save the choice as their default, switch in WezTerm only with `keepDefaults` off.
-- **Orca** on Windows has no tab strip reading. Right after you switch tabs, Orca's state lags the window (1.3 to 2.5 seconds, measured on a Mac), and a hotkey pressed in that time can go to the tab you just left. Wait a moment after switching tabs.
+- **Orca** on Windows has no tab strip reading; the visible tab comes from Orca's state database. Right after you switch tabs it lags the window (1.3 to 2.5 seconds, measured on a Mac with Orca 1.4.220), and a hotkey pressed in that time can go to the tab you just left. Orca 1.4.256 on a Mac stopped updating that database on a switch at all; on Windows this has not been checked yet.
 - In Windows Terminal, Shift+Alt+= and Shift+Alt+- are also the default "Duplicate pane" keys. While Windows Terminal is in front, Slash Command takes them.

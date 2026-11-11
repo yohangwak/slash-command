@@ -15,11 +15,13 @@ extension OrcaView {
         AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         let windows = ((attribute(element, "AXWindows") as? [AXUIElement]) ?? []).map(Node.init)
         // Put the app element in as "already seen" — under the window the app element sometimes comes out again as a child (see `tabs(from:…)` below).
-        let tabs = tabs(from: windows, seen: [Node(element)],
-                        label: { (attribute($0.element, "AXTitle") as? String) ?? (attribute($0.element, "AXDescription") as? String) ?? "" },
-                        classes: { (attribute($0.element, "AXDOMClassList") as? [String]) ?? [] },
-                        children: { ((attribute($0.element, "AXChildren") as? [AXUIElement]) ?? []).map(Node.init) })
-        return tabs.flatMap { $0.isEmpty ? nil : Strip(tabs: $0) }
+        let read = strip(from: windows, seen: [Node(element)],
+                         label: { (attribute($0.element, "AXTitle") as? String) ?? (attribute($0.element, "AXDescription") as? String) ?? "" },
+                         classes: { (attribute($0.element, "AXDOMClassList") as? [String]) ?? [] },
+                         currentWorkspace: { currentWorkspace(domID: attribute($0.element, "AXDOMIdentifier") as? String,
+                                                              ariaCurrent: attribute($0.element, "AXARIACurrent") as? String) },
+                         children: { ((attribute($0.element, "AXChildren") as? [AXUIElement]) ?? []).map(Node.init) })
+        return read.flatMap { $0.tabs.isEmpty ? nil : $0 }
     }
 
     /// One accessibility element. Whether it is the same element is judged with `CFEqual` (receiving the same element again gives a different object).

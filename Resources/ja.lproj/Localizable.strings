@@ -111,7 +111,7 @@
 "Model" = "モデル";
 "Modifier keys" = "修飾キー";
 "Name (optional)" = "名前(任意)";
-"Needed to read the Ghostty screen and to check that iTerm2 Broadcast Input is off; in Orca it keeps up with the tab you just switched to. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Ghostty の画面の読み取りと、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることの確認に必要で、Orca では切り替えたばかりのタブにすぐ追従できます。開いたリストで Slash Command をオンにしてください(リストにない場合は + で追加)。";
+"Needed to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off. Turn on Slash Command in the list that opens (use + if it is not listed)." = "Ghostty の画面を読み取り、Orca で表示中のタブを特定し、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するために必要です。開いたリストで Slash Command をオンにしてください(リストにない場合は + で追加)。";
 "No agents set" = "エージェントの設定なし";
 "No model list for this agent. Type the name it shows on screen." = "このエージェントにはモデル一覧がありません。画面に表示される名前をそのまま入力してください。";
 "No presets yet — add one in Settings" = "プリセットがありません — 設定で追加してください";
@@ -249,9 +249,8 @@
 "There is no preset %@ (there are %@)." = "プリセット %1$@ はありません(現在 %2$@ 件)。";
 "This OpenCode model has no variant '%@' (%@)." = "この OpenCode のモデルには variant '%@' がありません(%@)。";
 "Turn On %@…" = "「%@」をオンにする…";
-"Turn on %@ from the menu bar icon to stay accurate right after switching tabs." = "メニューバーのアイコンから「%@」をオンにしておくと、タブを切り替えた直後でも正確に動作します。";
 "Unsaved changes" = "未保存の変更があります";
-"Used to read the Ghostty screen, to follow tab changes in Orca, and to check that iTerm2 Broadcast Input is off." = "Ghostty の画面を読み取り、Orca のタブの切り替えに追従し、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するために使います。";
+"Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "Ghostty の画面を読み取り、Orca で表示中のタブを特定し、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するために使います。";
 "Used to type the switch commands into %@." = "%@ に切り替えコマンドを入力するために使います。";
 "installed %@" = "インストール済み %@";
 "macOS asks once, the first time you press a shortcut in %@." = "%@ で初めてショートカットを押したときに、macOS が一度確認します。";
@@ -274,6 +273,10 @@
 "Not sent: iTerm2 Broadcast Input is on (%@), so the keys would go to other panes too. Choose Shell ▸ Broadcast Input ▸ Send Input to Current Session Only, then press again." = "送信しませんでした: iTerm2 の入力ブロードキャスト(Broadcast Input)がオン(%@)のため、ほかのペインにも同じ入力が届きます。Shell ▸ Broadcast Input ▸ Send Input to Current Session Only を選んでから、もう一度押してください。";
 "Not sent: Slash Command needs the %@ permission to check that iTerm2 Broadcast Input is off. Turn it on in System Settings → Privacy & Security, then press again." = "送信しませんでした: iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するには、Slash Command に「%@」の権限が必要です。システム設定 → プライバシーとセキュリティでオンにしてから、もう一度押してください。";
 "Not sent: could not confirm from iTerm2's Shell ▸ Broadcast Input menu that it is off." = "送信しませんでした: iTerm2 の Shell ▸ Broadcast Input メニューで、入力ブロードキャストがオフであることを確認できませんでした。";
+"Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again." = "送信しませんでした: Orca で表示中のタブを特定するには、Slash Command に「%@」の権限が必要です。システム設定 → プライバシーとセキュリティでオンにしてから、もう一度押してください。";
+"Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)." = "送信しませんでした: Orca で表示中のタブを特定できませんでした(Orca のアップデートでタブバーが変わった可能性があります)。";
+"Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "送信しませんでした: Orca でどのワークスペースが開いているか確認できませんでした。Orca のサイドバーを表示してそのワークスペースが見える状態にしてから、もう一度押してください。";
+"Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet." = "送信しませんでした: 画面上の Orca のタブに一致するワークスペースのターミナルがありません。ファイル、ブラウザー、チャットのタブを開いているワークスペースにはまだ対応していません。";
 "Could not type into iTerm2: %@" = "iTerm2 に入力できませんでした: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "この OpenCode モデルには effort の段階がありません(variant のないモデルです)。";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "この OpenCode モデルには variant がないため、effort(%@)は設定しませんでした。";

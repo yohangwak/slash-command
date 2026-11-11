@@ -42,10 +42,10 @@ The permissions in step 4:
 
 | Permission | Why |
 |---|---|
-| **Accessibility** (macOS 27 lists it as *Device Control and Data Access*) | Reading the Ghostty screen, and checking that iTerm2's Broadcast Input is off |
+| **Accessibility** (macOS 27 lists it as *Device Control and Data Access*) | Reading the Ghostty screen, seeing which Orca tab is on screen, and checking that iTerm2's Broadcast Input is off |
 | **Automation** (Slash Command → Ghostty, Slash Command → iTerm2) | Typing into the terminal. macOS asks the first time you press a hotkey there |
 
-WezTerm and kitty need neither, and Orca works without them. kitty needs its remote control turned on. See [Terminals](docs/terminals.md).
+WezTerm and kitty need neither, and Orca needs only Accessibility. kitty needs its remote control turned on. See [Terminals](docs/terminals.md).
 
 To start it at login, turn on **Open at login** under **General** in Settings.
 
@@ -131,7 +131,7 @@ slashcommand run 2 claude      # open a new session with preset 2
 | Terminal | Notes |
 |---|---|
 | Ghostty | Needs Accessibility and Automation. tmux inside Ghostty is not supported yet |
-| Orca | No setup. Accessibility is optional and makes a tab switch register at once |
+| Orca | Accessibility, to see which tab is on screen. Keep the sidebar shown |
 | iTerm2 | Needs Automation, and Accessibility to check Broadcast Input |
 | WezTerm | No setup |
 | kitty | Turn on remote control first |
