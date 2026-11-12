@@ -60,6 +60,9 @@ public enum OrcaView {
     static func titlesMatch(_ listed: String, _ shown: Strip.Tab) -> Bool {
         let a = normalized(listed)
         let b = normalized(shown.title)
+        // A title with no letters or digits proves nothing, and an unreadable tab has an empty title: neither matches anything, even another
+        // empty or missing title (Pullfrog #57).
+        guard !a.isEmpty, !b.isEmpty else { return false }
         if a == b { return true }
         // Long titles are cut off on screen. If it comes with an ellipsis (`...`) it is enough to match the part before it; and in the 2026-10-07 measurement some titles come with only the leading part, with no ellipsis
         // (a 96-character title came through only up to "...HANDOFF 2026 10 06"). In that case a prefix match is accepted only for 12 or more characters —

@@ -1976,6 +1976,11 @@ final class OrcaViewTests: KoreanMessagesTestCase {
         let unreadableActive = OrcaView.tab(classes: ["bg-tab-active", "text-tab-active-foreground"], texts: [], buttonLabels: [], label: "")
         XCTAssertEqual(unreadableActive?.active, true)
         XCTAssertEqual(OrcaView.resolve(strip: .init(tabs: [unreadableActive!], currentWorkspaces: ["w"]), layouts: layouts), .noMatch)
+        // …not even a terminal whose title is empty, missing or only marks.
+        let untitled: [[String: Any]] = [layout("w", [""]), layout("w", ["—"]), ["worktreeId": "w", "root": ["tabs": [["tabId": "w-t0"]]]]]
+        for listed in untitled {
+            XCTAssertEqual(OrcaView.resolve(strip: .init(tabs: [unreadableActive!], currentWorkspaces: ["w"]), layouts: [listed]), .noMatch, "\(listed)")
+        }
         // Positive control: the readable tab alone resolves.
         XCTAssertEqual(OrcaView.resolve(strip: .init(tabs: [visible!], currentWorkspaces: ["w"]), layouts: layouts), .tab(.init(worktreeID: "w", tabID: "w-t0")))
         // An English label still reads a tab-class element whose parts name no title; elements without the class are read as before.
