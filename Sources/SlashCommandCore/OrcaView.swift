@@ -103,13 +103,15 @@ public enum OrcaView {
     /// If a limit is hit, there may be a tab it did not see, so the answer is "unknown" (nil) — a tab is not picked from a partially read tab strip.
     static func tabs<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
                                   label: (N) -> String, classes: (N) -> [String], children: (N) -> [N]) -> [Strip.Tab]? {
-        strip(from: roots, seen: seen, maxDepth: maxDepth, maxNodes: maxNodes, label: label, classes: classes,
+        strip(from: roots, seen: seen, maxDepth: maxDepth, maxNodes: maxNodes,
+              tab: { tab(fromLabel: label($0), classes: classes($0)) },
               currentWorkspace: { _ in nil }, children: children)?.tabs
     }
 
     /// The same walk, also collecting the sidebar rows marked as the current page (`currentWorkspace` returns their worktree id).
+    /// `tab` returns the tab an element is, or nil if it is not a tab button.
     static func strip<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
-                                   label: (N) -> String, classes: (N) -> [String], currentWorkspace: (N) -> String?,
+                                   tab: (N) -> Strip.Tab?, currentWorkspace: (N) -> String?,
                                    children: (N) -> [N]) -> Strip? {
         var seen = seen
         var tabs: [Strip.Tab] = []
@@ -118,7 +120,7 @@ public enum OrcaView {
         func visit(_ node: N, depth: Int) {
             guard !cut, seen.insert(node).inserted else { return }
             guard depth <= maxDepth, seen.count <= maxNodes else { cut = true; return }
-            if let tab = tab(fromLabel: label(node), classes: classes(node)) {
+            if let tab = tab(node) {
                 tabs.append(tab)
                 return
             }
@@ -139,16 +141,47 @@ public enum OrcaView {
     }
 
     /// A tab button of the form `"<state> <title> Close tab <title>"`. The title is the part after "Close tab ".
+    /// Only English Orca labels its tabs this way; `tab(classes:texts:buttonLabels:)` reads a tab in any language.
     static func tab(fromLabel label: String, classes: [String]) -> Strip.Tab? {
         guard let range = label.range(of: "Close tab ", options: .backwards) else { return nil }
-        var title = String(label[range.upperBound...])
-        var truncated = false
-        for ellipsis in ["...", "…"] where title.hasSuffix(ellipsis) {
-            title = String(title.dropLast(ellipsis.count))
-            truncated = true
+        let (title, truncated) = withoutEllipsis(String(label[range.upperBound...]))
+        return Strip.Tab(title: title, truncated: truncated, active: isActive(classes))
+    }
+
+    /// The class names Orca 1.4.256 and later put on every tab button: `bg-tab-active` on the visible tab, `bg-tab-inactive` on the others.
+    static let tabClasses: Set<String> = ["bg-tab-active", "bg-tab-inactive"]
+
+    /// A tab button read from its parts, in any interface language.
+    ///
+    /// Orca 1.4.257 translates its interface, and the close button's label with it, with the title in a different place per language
+    /// (measured 2026-11-13 in its catalogs: ko `탭 닫기 <title>`, de `Tab <title> schließen`, ja `タブ <title> を閉じる`, tr `<title> sekmesini kapat`).
+    /// So nothing here looks for words. An element is a tab when it has Orca's tab class, and its title is a text of its own that a button
+    /// inside it (the close button) also names, as a whole run of words. Orca shows the title without its leading status marks (`✳`, spinners),
+    /// which comparison ignores anyway (`normalized`).
+    /// - Parameters:
+    ///   - texts: the texts directly inside the element (`AXStaticText` values).
+    ///   - buttonLabels: the labels of the buttons directly inside it.
+    static func tab(classes: [String], texts: [String], buttonLabels: [String]) -> Strip.Tab? {
+        guard !tabClasses.isDisjoint(with: classes) else { return nil }
+        let labels = buttonLabels.map { " \(normalized($0)) " }
+        let named = texts.map(withoutEllipsis).filter { text in
+            let words = normalized(text.title)
+            return !words.isEmpty && labels.contains { $0.contains(" \(words) ") }
         }
-        let active = classes.contains("text-foreground") || classes.contains("text-tab-active-foreground")
-        return Strip.Tab(title: title, truncated: truncated, active: active)
+        // A status text could also be named by the button if the title contains it; the title is the longest.
+        guard let title = named.max(by: { $0.title.count < $1.title.count }) else { return nil }
+        return Strip.Tab(title: title.title, truncated: title.truncated, active: isActive(classes))
+    }
+
+    private static func isActive(_ classes: [String]) -> Bool {
+        classes.contains("text-foreground") || classes.contains("text-tab-active-foreground")
+    }
+
+    private static func withoutEllipsis(_ text: String) -> (title: String, truncated: Bool) {
+        for ellipsis in ["...", "…"] where text.hasSuffix(ellipsis) {
+            return (String(text.dropLast(ellipsis.count)), true)
+        }
+        return (text, false)
     }
 
 }

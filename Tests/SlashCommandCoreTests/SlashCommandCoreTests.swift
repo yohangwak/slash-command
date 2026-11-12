@@ -1932,6 +1932,36 @@ final class OrcaViewTests: KoreanMessagesTestCase {
         XCTAssertEqual(inactive?.active, false)
     }
 
+    /// Orca 1.4.257 translates the close button's label, with the title in a different place per language (its catalogs, 2026-11-13).
+    func testReadsATabInAnyLanguageFromItsParts() {
+        let active = ["border-t", "bg-tab-active", "text-tab-active-foreground"]
+        let inactive = ["bg-tab-inactive", "text-tab-inactive-foreground", "hover:text-tab-active-foreground"]
+        // Measured on a Mac in Korean: the title text, then the close button.
+        let ko = OrcaView.tab(classes: inactive, texts: ["weekly-review(이어서)"], buttonLabels: ["탭 닫기 weekly-review(이어서)"])
+        XCTAssertEqual(ko, .init(title: "weekly-review(이어서)", truncated: false, active: false))
+        for label in ["Tab social-2 schließen", "タブ social-2 を閉じる", "social-2 sekmesini kapat", "Close tab social-2", "关闭选项卡 social-2"] {
+            XCTAssertEqual(OrcaView.tab(classes: active, texts: ["social-2"], buttonLabels: ["Collapse pane", label]),
+                           .init(title: "social-2", truncated: false, active: true), label)
+        }
+        // Orca shows an agent's title without its leading status mark; comparison ignores marks anyway.
+        XCTAssertEqual(OrcaView.tab(classes: active, texts: ["Claude Code"], buttonLabels: ["탭 닫기 ✳ Claude Code"])?.title, "Claude Code")
+        // A status text named by the button only because the title contains it: the title is the longest.
+        XCTAssertEqual(OrcaView.tab(classes: active, texts: ["작업 중", "작업 중 정리"], buttonLabels: ["탭 닫기 작업 중 정리"])?.title, "작업 중 정리")
+        XCTAssertEqual(OrcaView.tab(classes: active, texts: ["긴 제목…"], buttonLabels: ["탭 닫기 긴 제목…"]), .init(title: "긴 제목", truncated: true, active: true))
+    }
+
+    func testATabFromPartsNeedsTheTabClassAndAButtonNamingTheTitle() {
+        let classes = ["bg-tab-inactive"]
+        // A sidebar row: a text and buttons that name it, but no tab class.
+        XCTAssertNil(OrcaView.tab(classes: ["group", "relative"], texts: ["product"], buttonLabels: ["product에 대한 새 작업 트리 만들기"]))
+        // The close button must name the whole title: `Terminal 1` is not the tab `Terminal 12`.
+        XCTAssertNil(OrcaView.tab(classes: classes, texts: ["Terminal 1"], buttonLabels: ["탭 닫기 Terminal 12"]))
+        XCTAssertNil(OrcaView.tab(classes: classes, texts: ["README.md"], buttonLabels: ["탭 닫기"]), "A close button that names no title")
+        XCTAssertNil(OrcaView.tab(classes: classes, texts: ["Terminal 1"], buttonLabels: []), "No close button (a pinned tab)")
+        XCTAssertNil(OrcaView.tab(classes: classes, texts: ["", "—"], buttonLabels: ["탭 닫기 —"]), "No words to compare")
+        XCTAssertEqual(OrcaView.tab(classes: classes, texts: ["Terminal 12"], buttonLabels: ["탭 닫기 Terminal 12"])?.title, "Terminal 12", "Positive control")
+    }
+
     func testResolvesTheVisibleTabWhileTheDatabaseStillSaysTheOldOne() {
         let layouts = [layout("w-other", ["Terminal 2", "Terminal 3"]), layout("w-initial", initialTitles)]
         for index in 0..<initialTitles.count {
