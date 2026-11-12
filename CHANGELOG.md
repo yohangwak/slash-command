@@ -5,6 +5,7 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 ## 0.2.7
 
 - Orca 1.4.257: hotkeys work again in Orca's translated interface. Orca now shows its interface in your language, and the tab strip's "Close tab" label is translated with it, so the app found no tabs and said "could not tell which Orca tab is on screen". The app now reads each tab's title and its close button by their place in the tab, not by the English words, in every language Orca offers.
+- Orca: a tab the app cannot read, such as a pinned tab, is no longer skipped while the rest of the strip is matched. The hotkey sends nothing instead, so it can never reach a terminal that is not on screen.
 
 ## 0.2.6
 
