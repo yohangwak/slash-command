@@ -291,8 +291,11 @@ struct SettingsView: View {
         Section {
             if let problem = model.loadError {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(loc("The presets file could not be read."), systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                    Label {
+                        Text(loc("The presets file could not be read.")).foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    }
                     Text(problem).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack {
@@ -317,6 +320,7 @@ struct SettingsView: View {
             Text(loc("Presets"))
         } footer: {
             Text(loc("In a supported terminal, press %@ and a number. The preset goes to whichever agent is running in the frontmost session; a preset does nothing for agents it has no entry for.", model.symbols))
+                .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -342,6 +346,7 @@ struct SettingsView: View {
             Text(loc("Shortcut"))
         } footer: {
             Text(loc("The shortcuts are taken only while a supported terminal is in front. Other apps keep these keys."))
+                .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -407,6 +412,7 @@ struct SettingsView: View {
             Text(loc("About"))
         } footer: {
             Text(loc("Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)."))
+                .fixedSize(horizontal: false, vertical: true)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -415,9 +421,13 @@ struct SettingsView: View {
     private var footer: some View {
         HStack(spacing: 10) {
             if !model.message.isEmpty, model.messageIsError || !model.isDirty {
-                Label(model.message, systemImage: model.messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                    .foregroundStyle(model.messageIsError ? Color.orange : Color.secondary)
-                    .lineLimit(2)
+                Label {
+                    Text(model.message).foregroundStyle(model.messageIsError ? Color.primary : Color.secondary)
+                } icon: {
+                    Image(systemName: model.messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                        .foregroundStyle(model.messageIsError ? Color.orange : Color.secondary)
+                }
+                .lineLimit(2)
             } else if model.isDirty {
                 Text(loc("Unsaved changes")).foregroundStyle(.secondary)
             }

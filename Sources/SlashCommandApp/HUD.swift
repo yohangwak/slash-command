@@ -30,7 +30,9 @@ final class HUD {
 
         title.font = .systemFont(ofSize: 17, weight: .semibold)
         title.alignment = .center
-        title.lineBreakMode = .byTruncatingTail
+        title.lineBreakMode = .byWordWrapping
+        title.maximumNumberOfLines = 3
+        title.preferredMaxLayoutWidth = 320
         detail.font = .systemFont(ofSize: 12)
         detail.textColor = .secondaryLabelColor
         detail.alignment = .center
