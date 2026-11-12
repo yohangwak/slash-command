@@ -1962,6 +1962,28 @@ final class OrcaViewTests: KoreanMessagesTestCase {
         XCTAssertEqual(OrcaView.tab(classes: classes, texts: ["Terminal 12"], buttonLabels: ["탭 닫기 Terminal 12"])?.title, "Terminal 12", "Positive control")
     }
 
+    /// Pullfrog #57: a tab-class element that cannot be read must not be left out of the strip. A pinned terminal `README.md` (no close button)
+    /// next to a visible browser tab `README.md` would otherwise leave a one-tab strip that matches the one-terminal workspace.
+    func testAnUnreadableTabIsCountedAndMatchesNothing() {
+        let pinned = OrcaView.tab(classes: ["bg-tab-inactive"], texts: ["README.md"], buttonLabels: [], label: "README.md")
+        XCTAssertEqual(pinned, .init(title: "", truncated: false, active: false))
+        let visible = OrcaView.tab(classes: ["bg-tab-active", "text-tab-active-foreground"], texts: ["README.md"],
+                                   buttonLabels: ["탭 닫기 README.md"], label: "README.md")
+        let layouts = [layout("w", ["README.md"])]
+        let strip = OrcaView.Strip(tabs: [pinned, visible].compactMap { $0 }, currentWorkspaces: ["w"])
+        XCTAssertEqual(OrcaView.resolve(strip: strip, layouts: layouts), .noMatch)
+        // An unreadable tab that is the visible one matches nothing either.
+        let unreadableActive = OrcaView.tab(classes: ["bg-tab-active", "text-tab-active-foreground"], texts: [], buttonLabels: [], label: "")
+        XCTAssertEqual(unreadableActive?.active, true)
+        XCTAssertEqual(OrcaView.resolve(strip: .init(tabs: [unreadableActive!], currentWorkspaces: ["w"]), layouts: layouts), .noMatch)
+        // Positive control: the readable tab alone resolves.
+        XCTAssertEqual(OrcaView.resolve(strip: .init(tabs: [visible!], currentWorkspaces: ["w"]), layouts: layouts), .tab(.init(worktreeID: "w", tabID: "w-t0")))
+        // An English label still reads a tab-class element whose parts name no title; elements without the class are read as before.
+        XCTAssertEqual(OrcaView.tab(classes: ["bg-tab-inactive"], texts: [], buttonLabels: [], label: "idle grok Close tab grok")?.title, "grok")
+        XCTAssertNil(OrcaView.tab(classes: ["group"], texts: [], buttonLabels: [], label: "Tasks"))
+        XCTAssertEqual(OrcaView.tab(classes: ["text-foreground"], texts: [], buttonLabels: [], label: "grok Close tab grok")?.active, true)
+    }
+
     func testResolvesTheVisibleTabWhileTheDatabaseStillSaysTheOldOne() {
         let layouts = [layout("w-other", ["Terminal 2", "Terminal 3"]), layout("w-initial", initialTitles)]
         for index in 0..<initialTitles.count {

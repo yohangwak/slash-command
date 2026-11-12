@@ -27,12 +27,12 @@ extension OrcaView {
         return read.flatMap { $0.tabs.isEmpty ? nil : $0 }
     }
 
-    /// The tab an element is: read from its parts when it has Orca's tab class (any language), otherwise from its English label.
+    /// The tab an element is (see `tab(classes:texts:buttonLabels:label:)`). Its parts are read only when it has Orca's tab class.
     private static func tab(of node: Node) -> Strip.Tab? {
         let classes = (attribute(node.element, "AXDOMClassList") as? [String]) ?? []
+        var texts: [String] = []
+        var buttonLabels: [String] = []
         if !tabClasses.isDisjoint(with: classes) {
-            var texts: [String] = []
-            var buttonLabels: [String] = []
             for child in children(of: node.element) {
                 switch attribute(child, "AXRole") as? String {
                 case "AXStaticText": texts.append((attribute(child, "AXValue") as? String) ?? "")
@@ -40,9 +40,8 @@ extension OrcaView {
                 default: break
                 }
             }
-            if let tab = tab(classes: classes, texts: texts, buttonLabels: buttonLabels) { return tab }
         }
-        return tab(fromLabel: label(of: node.element), classes: classes)
+        return tab(classes: classes, texts: texts, buttonLabels: buttonLabels, label: label(of: node.element))
     }
 
     private static func label(of element: AXUIElement) -> String {

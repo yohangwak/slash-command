@@ -173,6 +173,17 @@ public enum OrcaView {
         return Strip.Tab(title: title.title, truncated: title.truncated, active: isActive(classes))
     }
 
+    /// The tab an element is, or nil if it is not a tab. An element with Orca's tab class is always a tab: read from its parts, else from
+    /// its English label, else as a tab with no title. That tab is counted and matches no terminal, so the strip cannot match without it
+    /// (a pinned tab has no close button; a file tab's close button names no title). Leaving it out could let the other tabs match a
+    /// workspace and pick a hidden terminal.
+    static func tab(classes: [String], texts: [String], buttonLabels: [String], label: String) -> Strip.Tab? {
+        guard !tabClasses.isDisjoint(with: classes) else { return tab(fromLabel: label, classes: classes) }
+        return tab(classes: classes, texts: texts, buttonLabels: buttonLabels)
+            ?? tab(fromLabel: label, classes: classes)
+            ?? Strip.Tab(title: "", truncated: false, active: isActive(classes))
+    }
+
     private static func isActive(_ classes: [String]) -> Bool {
         classes.contains("text-foreground") || classes.contains("text-tab-active-foreground")
     }
