@@ -2,6 +2,12 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.8
+
+- The notice that appears after a hotkey shows its whole title on up to three lines instead of cutting it off with "…". Long titles were cut in every language, among them the English "Device Control and Data Access permission needed".
+- Settings: when the presets file cannot be read, and when saving fails, the message is drawn in the normal text color with an orange warning icon. The orange text was hard to read (1.9:1 contrast on the light background).
+- Settings: the explanations under Presets, Shortcut and About wrap onto more lines instead of being cut off with "…".
+
 ## 0.2.7
 
 - Orca 1.4.257: hotkeys work again in Orca's translated interface. Orca now shows its interface in your language, and the tab strip's "Close tab" label is translated with it, so the app found no tabs and said "could not tell which Orca tab is on screen". The app now reads each tab's title and its close button by their place in the tab, not by the English words, in every language Orca offers.
