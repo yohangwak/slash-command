@@ -2,6 +2,10 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.9
+
+- Orca: hotkeys work in a workspace with browser or file tabs open. Orca's own list of the workspace's tabs now tells the app which tabs in the strip are terminals, so a terminal next to a browser tab is no longer refused with "match no workspace's terminals". With a browser or file tab in front, nothing is sent. Workspaces whose tabs are split into groups side by side are still refused.
+
 ## 0.2.8
 
 - The notice that appears after a hotkey shows its whole title on up to three lines instead of cutting it off with "…". Long titles were cut in every language, among them the English "Device Control and Data Access permission needed".

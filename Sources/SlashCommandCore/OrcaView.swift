@@ -37,6 +37,60 @@ public enum OrcaView {
         case ambiguous([String])
         /// No workspace has exactly these tabs (the strip may also hold file, browser or chat tabs, which the terminal list does not have).
         case noMatch
+        /// The strip matches the visible workspace's tabs, and the visible tab is not a terminal (a browser or file tab).
+        case notATerminal
+    }
+
+    /// One tab of a workspace, in strip order, as Orca's session list names it.
+    public enum TabKind: Equatable, Sendable {
+        case terminal(tabID: String)
+        /// A browser, file or chat tab.
+        case other
+    }
+
+    /// The tabs of a workspace in strip order, from Orca's `session.tabs.list` (measured on Orca 1.4.258, 2026-11-14): one tab group whose
+    /// `tabOrder` lists the tab ids; a browser or file tab is listed under its own id, a terminal once per split pane with `parentTabId`
+    /// set to the tab id. nil when the answer is not that shape — no tab group or more than one (a split), or an id it does not list —
+    /// and then nothing is known about kinds.
+    public static func tabKinds(session: [String: Any]) -> [TabKind]? {
+        guard let groups = session["tabGroups"] as? [[String: Any]], groups.count == 1,
+              (session["tabGroupLayout"] as? [String: Any])?["type"] as? String ?? "leaf" == "leaf",
+              let order = groups[0]["tabOrder"] as? [String], !order.isEmpty,
+              let tabs = session["tabs"] as? [[String: Any]] else { return nil }
+        var kinds: [TabKind] = []
+        for id in order {
+            if tabs.contains(where: { $0["type"] as? String == "terminal" && $0["parentTabId"] as? String == id }) {
+                kinds.append(.terminal(tabID: id))
+            } else if let tab = tabs.first(where: { $0["id"] as? String == id }), let type = tab["type"] as? String,
+                      !type.isEmpty, type != "terminal" {
+                kinds.append(.other)
+            } else {
+                return nil
+            }
+        }
+        return kinds
+    }
+
+    /// Matches the strip of the workspace the sidebar shows against that workspace's tabs in Orca's session list, so a workspace with
+    /// browser or file tabs open can be read too. Exact as before: the strip has as many tabs as the list, every terminal is at its place
+    /// with its title (the terminal list's), and the list has every terminal the terminal list has. Tabs that are not terminals are only
+    /// counted: their titles are page titles or addresses that the terminal list does not have.
+    public static func resolve(strip: Strip, layouts: [[String: Any]], kinds: [TabKind]) -> Resolution {
+        let activeIndices = strip.tabs.indices.filter { strip.tabs[$0].active }
+        guard activeIndices.count == 1, let activeIndex = activeIndices.first else { return .noActiveTab }
+        guard strip.currentWorkspaces.count == 1, let visible = strip.currentWorkspaces.first,
+              let layout = layouts.first(where: { $0["worktreeId"] as? String == visible }),
+              kinds.count == strip.tabs.count else { return .noMatch }
+        let terminals = OrcaState.tabs(in: layout["root"])
+        let listed = kinds.compactMap { kind -> String? in if case .terminal(let id) = kind { return id } else { return nil } }
+        guard listed.count == terminals.count, Set(listed).count == listed.count else { return .noMatch }
+        for (kind, shown) in zip(kinds, strip.tabs) {
+            guard case .terminal(let id) = kind else { continue }
+            guard let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
+                  titlesMatch(terminal["title"] as? String ?? "", shown) else { return .noMatch }
+        }
+        guard case .terminal(let id) = kinds[activeIndex] else { return .notATerminal }
+        return .tab(OrcaState.Active(worktreeID: visible, tabID: id))
     }
 
     // MARK: - Matching (pure functions)
