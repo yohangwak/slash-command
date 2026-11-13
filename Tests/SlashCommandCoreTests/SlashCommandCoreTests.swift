@@ -1966,7 +1966,7 @@ final class OrcaViewTests: KoreanMessagesTestCase {
     /// next to a visible browser tab `README.md` would otherwise leave a one-tab strip that matches the one-terminal workspace.
     func testAnUnreadableTabIsCountedAndMatchesNothing() {
         let pinned = OrcaView.tab(classes: ["bg-tab-inactive"], texts: ["README.md"], buttonLabels: [], label: "README.md")
-        XCTAssertEqual(pinned, .init(title: "", truncated: false, active: false))
+        XCTAssertEqual(pinned, .init(title: "", truncated: false, active: false, closeNamesTitle: false))
         let visible = OrcaView.tab(classes: ["bg-tab-active", "text-tab-active-foreground"], texts: ["README.md"],
                                    buttonLabels: ["탭 닫기 README.md"], label: "README.md")
         let layouts = [layout("w", ["README.md"])]

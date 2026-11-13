@@ -119,7 +119,18 @@ extension Detector {
                 throw SlashCommandError(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."))
             }
             let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
-            switch OrcaView.resolve(strip: strip, layouts: layouts) {
+            var resolution = OrcaView.resolve(strip: strip, layouts: layouts)
+            // A strip that is not just the workspace's terminals: Orca's session list says which of its tabs are terminals, so a
+            // workspace with browser or file tabs open can be read too. Without it (an older Orca, or a workspace it has no single tab
+            // group for) the strip stays refused.
+            if resolution == .noMatch,
+               case .success(let session) = OrcaRuntime.call("session.tabs.list", ["worktree": strip.currentWorkspaces[0]]),
+               let kinds = OrcaView.tabKinds(session: session) {
+                resolution = OrcaView.resolve(strip: strip, layouts: layouts, kinds: kinds)
+            }
+            switch resolution {
+            case .notATerminal:
+                throw SlashCommandError(loc("The frontmost Orca tab is not a terminal."))
             case .tab(let active):
                 return (active, "Accessibility")
             case .ambiguous:

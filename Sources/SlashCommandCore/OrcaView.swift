@@ -10,11 +10,15 @@ public enum OrcaView {
             public let title: String
             public let truncated: Bool
             public let active: Bool
+            /// True when a close button inside the tab names its title, as on a terminal tab. A browser tab's close button has no
+            /// label and a file tab's says only "Close tab", so this tells a terminal tab from the others on the screen itself.
+            public let closeNamesTitle: Bool
 
-            public init(title: String, truncated: Bool, active: Bool) {
+            public init(title: String, truncated: Bool, active: Bool, closeNamesTitle: Bool = true) {
                 self.title = title
                 self.truncated = truncated
                 self.active = active
+                self.closeNamesTitle = closeNamesTitle
             }
         }
 
@@ -37,6 +41,70 @@ public enum OrcaView {
         case ambiguous([String])
         /// No workspace has exactly these tabs (the strip may also hold file, browser or chat tabs, which the terminal list does not have).
         case noMatch
+        /// The strip matches the visible workspace's tabs, and the visible tab is not a terminal (a browser or file tab).
+        case notATerminal
+    }
+
+    /// One tab of a workspace, in strip order, as Orca's session list names it.
+    public enum TabKind: Equatable, Sendable {
+        case terminal(tabID: String)
+        /// A browser, file or chat tab.
+        case other
+    }
+
+    /// The tabs of a workspace in strip order, from Orca's `session.tabs.list` (measured on Orca 1.4.258, 2026-11-14): one tab group whose
+    /// `tabOrder` lists the tab ids; a browser or file tab is listed under its own id, a terminal once per split pane with `parentTabId`
+    /// set to the tab id. nil when the answer is not that shape — no tab group or more than one (a split), or an id it does not list —
+    /// and then nothing is known about kinds.
+    public static func tabKinds(session: [String: Any]) -> [TabKind]? {
+        guard let groups = session["tabGroups"] as? [[String: Any]], groups.count == 1,
+              (session["tabGroupLayout"] as? [String: Any])?["type"] as? String ?? "leaf" == "leaf",
+              let order = groups[0]["tabOrder"] as? [String], !order.isEmpty,
+              let tabs = session["tabs"] as? [[String: Any]] else { return nil }
+        var kinds: [TabKind] = []
+        for id in order {
+            if tabs.contains(where: { $0["type"] as? String == "terminal" && $0["parentTabId"] as? String == id }) {
+                kinds.append(.terminal(tabID: id))
+            } else if let tab = tabs.first(where: { $0["id"] as? String == id }), let type = tab["type"] as? String,
+                      !type.isEmpty, type != "terminal" {
+                kinds.append(.other)
+            } else {
+                return nil
+            }
+        }
+        return kinds
+    }
+
+    /// Matches the strip of the workspace the sidebar shows against that workspace's tabs in Orca's session list, so a workspace with
+    /// browser or file tabs open can be read too. Exact as before: the strip has as many tabs as the list, every terminal is at its place
+    /// with its title (the terminal list's), and the list has every terminal the terminal list has. Tabs that are not terminals are counted and must
+    /// not look like a terminal tab; their titles are page titles or addresses that the terminal list does not have.
+    public static func resolve(strip: Strip, layouts: [[String: Any]], kinds: [TabKind]) -> Resolution {
+        let activeIndices = strip.tabs.indices.filter { strip.tabs[$0].active }
+        guard activeIndices.count == 1, let activeIndex = activeIndices.first else { return .noActiveTab }
+        guard strip.currentWorkspaces.count == 1, let visible = strip.currentWorkspaces.first,
+              let layout = layouts.first(where: { $0["worktreeId"] as? String == visible }),
+              kinds.count == strip.tabs.count else { return .noMatch }
+        let terminals = OrcaState.tabs(in: layout["root"])
+        let listed = kinds.compactMap { kind -> String? in if case .terminal(let id) = kind { return id } else { return nil } }
+        guard listed.count == terminals.count, Set(listed).count == listed.count else { return .noMatch }
+        // The strip and the list are read one after the other, so a tab can move in between (Pullfrog #60). Two checks keep a moved tab
+        // from passing for a terminal: each place must look like its kind on the screen (a terminal's close button names its title; a
+        // browser tab's names nothing, a file tab's says only "Close tab"), and no other tab in the strip may match a terminal's title.
+        // With every terminal's title unique in the strip, a terminal that moved leaves a tab with another title at its place.
+        // A file tab whose name is a word of its close button ("tab") looks like a terminal; the second check refuses it when it shares
+        // a terminal's title.
+        for (index, (kind, shown)) in zip(kinds, strip.tabs).enumerated() {
+            guard case .terminal(let id) = kind else {
+                guard !shown.closeNamesTitle else { return .noMatch }
+                continue
+            }
+            guard shown.closeNamesTitle, let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
+                  case let title = terminal["title"] as? String ?? "", titlesMatch(title, shown),
+                  !strip.tabs.indices.contains(where: { $0 != index && titlesMatch(title, strip.tabs[$0]) }) else { return .noMatch }
+        }
+        guard case .terminal(let id) = kinds[activeIndex] else { return .notATerminal }
+        return .tab(OrcaState.Active(worktreeID: visible, tabID: id))
     }
 
     // MARK: - Matching (pure functions)
@@ -184,7 +252,7 @@ public enum OrcaView {
         guard !tabClasses.isDisjoint(with: classes) else { return tab(fromLabel: label, classes: classes) }
         return tab(classes: classes, texts: texts, buttonLabels: buttonLabels)
             ?? tab(fromLabel: label, classes: classes)
-            ?? Strip.Tab(title: "", truncated: false, active: isActive(classes))
+            ?? Strip.Tab(title: "", truncated: false, active: isActive(classes), closeNamesTitle: false)
     }
 
     private static func isActive(_ classes: [String]) -> Bool {
