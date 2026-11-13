@@ -10,11 +10,15 @@ public enum OrcaView {
             public let title: String
             public let truncated: Bool
             public let active: Bool
+            /// True when a close button inside the tab names its title, as on a terminal tab. A browser tab's close button has no
+            /// label and a file tab's says only "Close tab", so this tells a terminal tab from the others on the screen itself.
+            public let closeNamesTitle: Bool
 
-            public init(title: String, truncated: Bool, active: Bool) {
+            public init(title: String, truncated: Bool, active: Bool, closeNamesTitle: Bool = true) {
                 self.title = title
                 self.truncated = truncated
                 self.active = active
+                self.closeNamesTitle = closeNamesTitle
             }
         }
 
@@ -73,8 +77,8 @@ public enum OrcaView {
 
     /// Matches the strip of the workspace the sidebar shows against that workspace's tabs in Orca's session list, so a workspace with
     /// browser or file tabs open can be read too. Exact as before: the strip has as many tabs as the list, every terminal is at its place
-    /// with its title (the terminal list's), and the list has every terminal the terminal list has. Tabs that are not terminals are only
-    /// counted: their titles are page titles or addresses that the terminal list does not have.
+    /// with its title (the terminal list's), and the list has every terminal the terminal list has. Tabs that are not terminals are counted and must
+    /// not look like a terminal tab; their titles are page titles or addresses that the terminal list does not have.
     public static func resolve(strip: Strip, layouts: [[String: Any]], kinds: [TabKind]) -> Resolution {
         let activeIndices = strip.tabs.indices.filter { strip.tabs[$0].active }
         guard activeIndices.count == 1, let activeIndex = activeIndices.first else { return .noActiveTab }
@@ -84,9 +88,15 @@ public enum OrcaView {
         let terminals = OrcaState.tabs(in: layout["root"])
         let listed = kinds.compactMap { kind -> String? in if case .terminal(let id) = kind { return id } else { return nil } }
         guard listed.count == terminals.count, Set(listed).count == listed.count else { return .noMatch }
+        // The strip and the list are read one after the other, so a tab can move in between. Each place must also look like its kind on
+        // the screen: a terminal's close button names its title, a browser or file tab's does not. Otherwise a browser tab with a
+        // terminal's title, moved to that terminal's place, could pass for it (Pullfrog #60).
         for (kind, shown) in zip(kinds, strip.tabs) {
-            guard case .terminal(let id) = kind else { continue }
-            guard let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
+            guard case .terminal(let id) = kind else {
+                guard !shown.closeNamesTitle else { return .noMatch }
+                continue
+            }
+            guard shown.closeNamesTitle, let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
                   titlesMatch(terminal["title"] as? String ?? "", shown) else { return .noMatch }
         }
         guard case .terminal(let id) = kinds[activeIndex] else { return .notATerminal }
@@ -238,7 +248,7 @@ public enum OrcaView {
         guard !tabClasses.isDisjoint(with: classes) else { return tab(fromLabel: label, classes: classes) }
         return tab(classes: classes, texts: texts, buttonLabels: buttonLabels)
             ?? tab(fromLabel: label, classes: classes)
-            ?? Strip.Tab(title: "", truncated: false, active: isActive(classes))
+            ?? Strip.Tab(title: "", truncated: false, active: isActive(classes), closeNamesTitle: false)
     }
 
     private static func isActive(_ classes: [String]) -> Bool {

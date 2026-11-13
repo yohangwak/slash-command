@@ -24,8 +24,16 @@ final class OrcaMixedTabsTests: XCTestCase {
          ["worktreeId": "other", "root": ["tabs": [["tabId": "o-1", "title": terminalTitle]]]]]
     }
 
-    private func strip(_ tabs: [(String, Bool)], current: [String]? = nil) -> OrcaView.Strip {
-        .init(tabs: tabs.map { .init(title: $0.0, truncated: false, active: $0.1) }, currentWorkspaces: current ?? [worktree])
+    /// A terminal tab on screen (its close button names its title) and a browser tab (its close button names nothing).
+    private enum Shown { case terminal(String, active: Bool), other(String, active: Bool) }
+
+    private func strip(_ tabs: [Shown], current: [String]? = nil) -> OrcaView.Strip {
+        .init(tabs: tabs.map {
+            switch $0 {
+            case .terminal(let title, let active): return .init(title: title, truncated: false, active: active)
+            case .other(let title, let active): return .init(title: title, truncated: false, active: active, closeNamesTitle: false)
+            }
+        }, currentWorkspaces: current ?? [worktree])
     }
 
     func testReadsKindsInStripOrder() {
@@ -48,7 +56,7 @@ final class OrcaMixedTabsTests: XCTestCase {
     /// The case reported on 2026-11-13: the terminal is visible next to a browser tab whose close button names nothing (its title is unread).
     func testATerminalNextToABrowserTabResolves() {
         let kinds = OrcaView.tabKinds(session: session())!
-        let shown = strip([(terminalTitle, true), ("", false)])
+        let shown = strip([.terminal(terminalTitle, active: true), .other("", active: false)])
         XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: layouts([("term-1", terminalTitle)]), kinds: kinds),
                        .tab(.init(worktreeID: worktree, tabID: "term-1")))
         // Without the session list the same strip is refused, as before.
@@ -57,7 +65,7 @@ final class OrcaMixedTabsTests: XCTestCase {
 
     func testTheBrowserTabInFrontIsNotATerminal() {
         let kinds = OrcaView.tabKinds(session: session())!
-        XCTAssertEqual(OrcaView.resolve(strip: strip([(terminalTitle, false), ("Login - Brevo", true)]), layouts: layouts([("term-1", terminalTitle)]), kinds: kinds),
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: false), .other("Login - Brevo", active: true)]), layouts: layouts([("term-1", terminalTitle)]), kinds: kinds),
                        .notATerminal)
     }
 
@@ -65,20 +73,20 @@ final class OrcaMixedTabsTests: XCTestCase {
         let kinds = OrcaView.tabKinds(session: session())!
         let layout = layouts([("term-1", terminalTitle)])
         // A tab more or fewer on screen than the list has.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([(terminalTitle, true)]), layouts: layout, kinds: kinds), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: strip([(terminalTitle, true), ("", false), ("x", false)]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true)]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false), .other("x", active: false)]), layouts: layout, kinds: kinds), .noMatch)
         // The terminal's place shows another title (the list is out of date, or the order differs).
-        XCTAssertEqual(OrcaView.resolve(strip: strip([("Login - Brevo", true), (terminalTitle, false)]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.other("Login - Brevo", active: true), .terminal(terminalTitle, active: false)]), layouts: layout, kinds: kinds), .noMatch)
         // An unreadable tab at a terminal's place never matches.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([("", true), ("", false)]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.other("", active: true), .other("", active: false)]), layouts: layout, kinds: kinds), .noMatch)
         // The terminal list has a terminal the session list does not (or the other way round).
-        XCTAssertEqual(OrcaView.resolve(strip: strip([(terminalTitle, true), ("", false)]),
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)]),
                                         layouts: layouts([("term-1", terminalTitle), ("term-2", "Terminal 2")]), kinds: kinds), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: strip([(terminalTitle, true), ("", false)]), layouts: layouts([("term-9", terminalTitle)]), kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)]), layouts: layouts([("term-9", terminalTitle)]), kinds: kinds), .noMatch)
         // Only the workspace the sidebar shows is compared; without it nothing is matched.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([(terminalTitle, true), ("", false)], current: ["other"]), layouts: layout, kinds: kinds), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: strip([(terminalTitle, true), ("", false)], current: []), layouts: layout, kinds: kinds), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: strip([(terminalTitle, false), ("", false)]), layouts: layout, kinds: kinds), .noActiveTab)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)], current: ["other"]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)], current: []), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: false), .other("", active: false)]), layouts: layout, kinds: kinds), .noActiveTab)
     }
 
     func testTwoTerminalsAroundABrowserTab() {
@@ -89,9 +97,24 @@ final class OrcaMixedTabsTests: XCTestCase {
         ]
         let kinds = OrcaView.tabKinds(session: session)!
         let layout = layouts([("t1", "Terminal 1"), ("t2", "Terminal 2")])
-        XCTAssertEqual(OrcaView.resolve(strip: strip([("Terminal 1", false), ("", false), ("Terminal 2", true)]), layouts: layout, kinds: kinds),
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Terminal 1", active: false), .other("", active: false), .terminal("Terminal 2", active: true)]), layouts: layout, kinds: kinds),
                        .tab(.init(worktreeID: worktree, tabID: "t2")))
-        XCTAssertEqual(OrcaView.resolve(strip: strip([("Terminal 2", false), ("", false), ("Terminal 1", true)]), layouts: layout, kinds: kinds),
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Terminal 2", active: false), .other("", active: false), .terminal("Terminal 1", active: true)]), layouts: layout, kinds: kinds),
                        .noMatch, "Swapped titles")
+    }
+
+    /// Pullfrog #60: the strip and the list are read one after the other. If a browser tab with the terminal's title moves to the
+    /// terminal's place in between and is in front, the title alone would pass; its shape on the screen does not.
+    func testABrowserTabWithTheTerminalsTitleAtTheTerminalsPlaceIsRefused() {
+        let kinds = OrcaView.tabKinds(session: session())!          // the list still says: terminal, then browser
+        let layout = layouts([("term-1", terminalTitle)])
+        let moved = strip([.other(terminalTitle, active: true), .terminal(terminalTitle, active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: moved, layouts: layout, kinds: kinds), .noMatch)
+        // …and a terminal-shaped tab where the list has a browser tab is refused too.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .terminal("Login - Brevo", active: false)]),
+                                        layouts: layout, kinds: kinds), .noMatch)
+        // Positive control: the same titles with each tab's shape at its place resolve.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other(terminalTitle, active: false)]),
+                                        layouts: layout, kinds: kinds), .tab(.init(worktreeID: worktree, tabID: "term-1")))
     }
 }

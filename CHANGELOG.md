@@ -4,7 +4,7 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 
 ## 0.2.9
 
-- Orca: hotkeys work in a workspace with browser or file tabs open. Orca's own list of the workspace's tabs now tells the app which tabs in the strip are terminals, so a terminal next to a browser tab is no longer refused with "match no workspace's terminals". With a browser or file tab in front, nothing is sent. Workspaces whose tabs are split into groups side by side are still refused.
+- Orca: hotkeys work in a workspace with a browser tab open. Orca's own list of the workspace's tabs now tells the app which tabs in the strip are terminals, so a terminal next to a browser tab is no longer refused with "match no workspace's terminals". With the browser tab in front, nothing is sent. Workspaces with file tabs open, and workspaces whose tabs are split into groups side by side, can still be refused: Orca does not always list those tabs in a way the app can line up with the strip.
 
 ## 0.2.8
 
