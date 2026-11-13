@@ -88,16 +88,20 @@ public enum OrcaView {
         let terminals = OrcaState.tabs(in: layout["root"])
         let listed = kinds.compactMap { kind -> String? in if case .terminal(let id) = kind { return id } else { return nil } }
         guard listed.count == terminals.count, Set(listed).count == listed.count else { return .noMatch }
-        // The strip and the list are read one after the other, so a tab can move in between. Each place must also look like its kind on
-        // the screen: a terminal's close button names its title, a browser or file tab's does not. Otherwise a browser tab with a
-        // terminal's title, moved to that terminal's place, could pass for it (Pullfrog #60).
-        for (kind, shown) in zip(kinds, strip.tabs) {
+        // The strip and the list are read one after the other, so a tab can move in between (Pullfrog #60). Two checks keep a moved tab
+        // from passing for a terminal: each place must look like its kind on the screen (a terminal's close button names its title; a
+        // browser tab's names nothing, a file tab's says only "Close tab"), and no other tab in the strip may match a terminal's title.
+        // With every terminal's title unique in the strip, a terminal that moved leaves a tab with another title at its place.
+        // A file tab whose name is a word of its close button ("tab") looks like a terminal; the second check refuses it when it shares
+        // a terminal's title.
+        for (index, (kind, shown)) in zip(kinds, strip.tabs).enumerated() {
             guard case .terminal(let id) = kind else {
                 guard !shown.closeNamesTitle else { return .noMatch }
                 continue
             }
             guard shown.closeNamesTitle, let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
-                  titlesMatch(terminal["title"] as? String ?? "", shown) else { return .noMatch }
+                  case let title = terminal["title"] as? String ?? "", titlesMatch(title, shown),
+                  !strip.tabs.indices.contains(where: { $0 != index && titlesMatch(title, strip.tabs[$0]) }) else { return .noMatch }
         }
         guard case .terminal(let id) = kinds[activeIndex] else { return .notATerminal }
         return .tab(OrcaState.Active(worktreeID: visible, tabID: id))

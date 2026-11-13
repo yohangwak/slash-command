@@ -113,8 +113,29 @@ final class OrcaMixedTabsTests: XCTestCase {
         // …and a terminal-shaped tab where the list has a browser tab is refused too.
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .terminal("Login - Brevo", active: false)]),
                                         layouts: layout, kinds: kinds), .noMatch)
-        // Positive control: the same titles with each tab's shape at its place resolve.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other(terminalTitle, active: false)]),
+        // Positive control: each tab's shape at its place resolves.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("Login - Brevo", active: false)]),
                                         layouts: layout, kinds: kinds), .tab(.init(worktreeID: worktree, tabID: "term-1")))
+    }
+
+    /// Pullfrog #60: a file named `tab` has a close button "Close tab" that names it, so it looks like a terminal. If it shares a
+    /// terminal's title and the two swap places between the two reads, the title must not be enough.
+    func testATerminalTitleSharedWithAnotherTabIsRefused() {
+        let session: [String: Any] = [
+            "tabGroups": [["id": "g", "tabOrder": ["t1", "f"]]], "tabGroupLayout": ["type": "leaf"],
+            "tabs": [["type": "terminal", "id": "t1::a", "parentTabId": "t1"], ["type": "file", "id": "f"]],
+        ]
+        let kinds = OrcaView.tabKinds(session: session)!
+        let layout = layouts([("t1", "tab")])
+        let file = OrcaView.tab(classes: ["bg-tab-active", "text-tab-active-foreground"], texts: ["tab"], buttonLabels: ["Close tab"], label: "")!
+        XCTAssertTrue(file.closeNamesTitle, "The file tab looks like a terminal")
+        // Swapped between the reads: the file is in front at the terminal's place, the terminal at the file's.
+        let swapped = OrcaView.Strip(tabs: [file, .init(title: "tab", truncated: false, active: false, closeNamesTitle: true)], currentWorkspaces: [worktree])
+        XCTAssertEqual(OrcaView.resolve(strip: swapped, layouts: layout, kinds: kinds), .noMatch)
+        // Any other tab sharing the terminal's title refuses, even in the right order.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("tab", active: false)]), layouts: layout, kinds: kinds), .noMatch)
+        // Positive control: a distinct title resolves.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("README.md", active: false)]), layouts: layout, kinds: kinds),
+                       .tab(.init(worktreeID: worktree, tabID: "t1")))
     }
 }
