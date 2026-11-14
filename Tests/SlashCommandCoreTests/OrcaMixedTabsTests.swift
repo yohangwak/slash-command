@@ -32,13 +32,18 @@ final class OrcaMixedTabsTests: XCTestCase {
     /// A terminal tab on screen (its close button names its title) and a browser tab (its close button names nothing).
     private enum Shown { case terminal(String, active: Bool), other(String, active: Bool) }
 
-    private func strip(_ tabs: [Shown], current: [String]? = nil) -> OrcaView.Strip {
+    private func strip(_ tabs: [Shown], current: [String]? = nil, groups: [OrcaView.Strip.Group] = []) -> OrcaView.Strip {
         .init(tabs: tabs.map {
             switch $0 {
             case .terminal(let title, let active): return .init(title: title, truncated: false, active: active)
             case .other(let title, let active): return .init(title: title, truncated: false, active: active, closeNamesTitle: false)
             }
-        }, currentWorkspaces: current ?? [worktree])
+        }, currentWorkspaces: current ?? [worktree], groups: groups)
+    }
+
+    /// Group frames on screen: their tab counts, and which one shows focus.
+    private func frames(_ counts: [Int], focused: Int?) -> [OrcaView.Strip.Group] {
+        counts.enumerated().map { item in .init(tabs: item.element, focused: focused.map { item.offset == $0 }) }
     }
 
     private func one(_ kinds: [OrcaView.TabKind], active: Int = 0) -> OrcaView.SessionTabs {
@@ -158,9 +163,8 @@ final class OrcaMixedTabsTests: XCTestCase {
         // Swapped between the reads: the file is in front at the terminal's place, the terminal at the file's.
         let swapped = OrcaView.Strip(tabs: [file, .init(title: "tab", truncated: false, active: false, closeNamesTitle: true)], currentWorkspaces: [worktree])
         XCTAssertEqual(OrcaView.resolve(strip: swapped, layouts: layout, session: kinds), .noMatch)
-        // In the right order, another tab may share the terminal's title: each place still has to look like its kind.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("tab", active: false)]), layouts: layout, session: kinds),
-                       .tab(.init(worktreeID: worktree, tabID: "t1")))
+        // Any other tab sharing the terminal's title refuses, even in the right order.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("tab", active: false)]), layouts: layout, session: kinds), .noMatch)
         // Positive control: a distinct title resolves.
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("README.md", active: false)]), layouts: layout, session: kinds),
                        .tab(.init(worktreeID: worktree, tabID: "t1")))
@@ -189,17 +193,32 @@ final class OrcaMixedTabsTests: XCTestCase {
 
     /// The likely shape behind 2026-11-13 23:30 («could not tell which Orca tab»): two groups, so two active marks.
     func testTwoGroupsSideBySideResolveToTheFocusedGroup() {
-        let shown = strip([.terminal("Terminal 1", active: true), .other("Docs", active: false), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)])
-        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals), .noActiveTab, "Without the session list: two marks")
+        let tabs: [Shown] = [.terminal("Terminal 1", active: true), .other("Docs", active: false), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)]
+        let rightFocused = strip(tabs, groups: frames([2, 2], focused: 1))
+        XCTAssertEqual(OrcaView.resolve(strip: rightFocused, layouts: threeTerminals), .noActiveTab, "Without the session list: two marks")
         // Listed second-group-first; the layout says which strip is drawn first.
         let groups = [(id: "g2", order: ["t2", "t3"], active: "t2"), (id: "g1", order: ["t1", "b"], active: "t1")]
         let right = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g2")), focused: "g2"))!
-        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: right), .tab(.init(worktreeID: worktree, tabID: "t2")))
+        XCTAssertEqual(OrcaView.resolve(strip: rightFocused, layouts: threeTerminals, session: right), .tab(.init(worktreeID: worktree, tabID: "t2")))
         let left = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g2")), focused: "g1"))!
-        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: left), .tab(.init(worktreeID: worktree, tabID: "t1")))
+        let leftFocused = strip(tabs, groups: frames([2, 2], focused: 0))
+        XCTAssertEqual(OrcaView.resolve(strip: leftFocused, layouts: threeTerminals, session: left), .tab(.init(worktreeID: worktree, tabID: "t1")))
+        // Pullfrog #61: the list names one group, the screen shows the other focused (the list is a moment behind) — refused.
+        XCTAssertEqual(OrcaView.resolve(strip: rightFocused, layouts: threeTerminals, session: left), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: leftFocused, layouts: threeTerminals, session: right), .noMatch)
+        // Focus not readable on screen (no frames, no mark, two marks) — refused.
+        XCTAssertEqual(OrcaView.resolve(strip: strip(tabs), layouts: threeTerminals, session: right), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip(tabs, groups: [.init(tabs: 2, focused: false), .init(tabs: 2, focused: nil)]), layouts: threeTerminals, session: right), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip(tabs, groups: frames([2, 2], focused: nil)), layouts: threeTerminals, session: right), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip(tabs, groups: [.init(tabs: 2, focused: true), .init(tabs: 2, focused: true)]), layouts: threeTerminals, session: right), .noMatch)
+        // Frames that split the tabs differently from the list — refused.
+        XCTAssertEqual(OrcaView.resolve(strip: strip(tabs, groups: frames([1, 3], focused: 1)), layouts: threeTerminals, session: right), .noMatch)
+        // An empty frame (a group drawn without tabs) is ignored.
+        XCTAssertEqual(OrcaView.resolve(strip: strip(tabs, groups: [.init(tabs: 0, focused: nil)] + frames([2, 2], focused: 1)), layouts: threeTerminals, session: right),
+                       .tab(.init(worktreeID: worktree, tabID: "t2")))
         // The layout drawn the other way round does not line up with this strip.
         let flipped = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g2"), leaf("g1")), focused: "g2"))!
-        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: flipped), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip(tabs, groups: frames([2, 2], focused: 0)), layouts: threeTerminals, session: flipped), .noMatch)
     }
 
     func testNestedSplitsAreDrawnFirstToSecond() {
@@ -208,7 +227,8 @@ final class OrcaMixedTabsTests: XCTestCase {
         let tabs = OrcaView.sessionTabs(session: session)!
         XCTAssertEqual(tabs.groups.map(\.kinds.count), [2, 1, 1])
         XCTAssertEqual(tabs.focused, 1)
-        let shown = strip([.terminal("Terminal 3", active: true), .other("Docs", active: false), .terminal("Terminal 1", active: true), .terminal("Terminal 2", active: true)])
+        let shown = strip([.terminal("Terminal 3", active: true), .other("Docs", active: false), .terminal("Terminal 1", active: true), .terminal("Terminal 2", active: true)],
+                          groups: frames([2, 1, 1], focused: 1))
         XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: tabs), .tab(.init(worktreeID: worktree, tabID: "t1")))
     }
 
@@ -226,11 +246,11 @@ final class OrcaMixedTabsTests: XCTestCase {
     func testActiveMarksMustBeWhereTheListHasThem() {
         let groups = [(id: "g1", order: ["t1", "b"], active: "t1"), (id: "g2", order: ["t2", "t3"], active: "t2")]
         let tabs = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g2")), focused: "g2"))!
-        let moved = strip([.terminal("Terminal 1", active: true), .other("Docs", active: false), .terminal("Terminal 2", active: false), .terminal("Terminal 3", active: true)])
+        let moved = strip([.terminal("Terminal 1", active: true), .other("Docs", active: false), .terminal("Terminal 2", active: false), .terminal("Terminal 3", active: true)], groups: frames([2, 2], focused: 1))
         XCTAssertEqual(OrcaView.resolve(strip: moved, layouts: threeTerminals, session: tabs), .noMatch, "Another tab chosen in the focused group")
-        let otherGroup = strip([.terminal("Terminal 1", active: false), .other("Docs", active: true), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)])
+        let otherGroup = strip([.terminal("Terminal 1", active: false), .other("Docs", active: true), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)], groups: frames([2, 2], focused: 1))
         XCTAssertEqual(OrcaView.resolve(strip: otherGroup, layouts: threeTerminals, session: tabs), .noMatch, "Another tab chosen in the other group")
-        let oneMark = strip([.terminal("Terminal 1", active: false), .other("Docs", active: false), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)])
+        let oneMark = strip([.terminal("Terminal 1", active: false), .other("Docs", active: false), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)], groups: frames([2, 2], focused: 1))
         XCTAssertEqual(OrcaView.resolve(strip: oneMark, layouts: threeTerminals, session: tabs), .noMatch, "A group without its mark")
         let none = strip([.terminal("Terminal 1", active: false), .other("Docs", active: false), .terminal("Terminal 2", active: false), .terminal("Terminal 3", active: false)])
         XCTAssertEqual(OrcaView.resolve(strip: none, layouts: threeTerminals, session: tabs), .noActiveTab)
@@ -239,12 +259,13 @@ final class OrcaMixedTabsTests: XCTestCase {
     func testTheFocusedGroupShowingABrowserTabIsNotATerminal() {
         let groups = [(id: "g1", order: ["t1", "b"], active: "b"), (id: "g2", order: ["t2", "t3"], active: "t2")]
         let tabs = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g2")), focused: "g1"))!
-        let shown = strip([.terminal("Terminal 1", active: false), .other("Docs", active: true), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)])
+        let shown = strip([.terminal("Terminal 1", active: false), .other("Docs", active: true), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)],
+                          groups: frames([2, 2], focused: 0))
         XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: tabs), .notATerminal)
     }
 
-    /// Two terminals with the same title next to a browser tab: the list's active tab decides, and the strip must agree.
-    func testTerminalsMayShareATitle() {
+    /// Two terminals with the same title next to a browser tab: the list may lag the screen, so a swap between them would be unseen.
+    func testTerminalsSharingATitleAreRefused() {
         let session: [String: Any] = [
             "tabGroups": [["id": "g", "activeTabId": "t2", "tabOrder": ["t1", "b", "t2"]]], "tabGroupLayout": leaf("g"), "activeGroupId": "g",
             "tabs": [t1, b, t2], "worktree": worktree,
@@ -252,8 +273,10 @@ final class OrcaMixedTabsTests: XCTestCase {
         let tabs = OrcaView.sessionTabs(session: session)!
         let same = layouts([("t1", "claude"), ("t2", "claude")])
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("claude", active: false), .other("Docs", active: false), .terminal("claude", active: true)]), layouts: same, session: tabs),
-                       .tab(.init(worktreeID: worktree, tabID: "t2")))
-        // The strip showing the other one in front (a switch between the reads) is refused.
+                       .noMatch)
+        // Positive control: distinct titles resolve.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("claude", active: false), .other("Docs", active: false), .terminal("codex", active: true)]),
+                                        layouts: layouts([("t1", "claude"), ("t2", "codex")]), session: tabs), .tab(.init(worktreeID: worktree, tabID: "t2")))
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("claude", active: true), .other("Docs", active: false), .terminal("claude", active: false)]), layouts: same, session: tabs),
                        .noMatch)
     }
@@ -270,6 +293,16 @@ final class OrcaMixedTabsTests: XCTestCase {
         var chatInFront = session; chatInFront["tabGroups"] = [["id": "g", "activeTabId": "chat", "tabOrder": ["chat", "t1"]]]
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Ask", active: true), .terminal("Terminal 1", active: false)]), layouts: layout, session: listed(chatInFront)),
                        .notATerminal)
+    }
+
+    /// Pullfrog #61: a chat tab and a terminal with the same title, swapped and chosen between the two reads.
+    func testAChatTabSharingATerminalsTitleIsRefused() {
+        let session: [String: Any] = [
+            "tabGroups": [["id": "g", "activeTabId": "t1", "tabOrder": ["t1", "chat"]]], "tabGroupLayout": leaf("g"), "activeGroupId": "g",
+            "tabs": [t1], "worktree": worktree,
+        ]
+        let seen = strip([.terminal("Ask", active: true), .terminal("Ask", active: false)])   // the chat in front, then the terminal
+        XCTAssertEqual(OrcaView.resolve(strip: seen, layouts: layouts([("t1", "Ask")]), session: listed(session)), .noMatch)
     }
 
     /// A file tab's close button says only "Close tab" in Orca's language: it is read as a tab that is not a terminal.

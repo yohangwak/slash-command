@@ -22,15 +22,35 @@ public enum OrcaView {
             }
         }
 
+        /// A tab group's frame on screen (`group/tab-group`) and the tabs inside it.
+        public struct Group: Equatable, Sendable {
+            public let tabs: Int
+            /// Whether the group has focus, read from its tab actions (`opacity-50` on every group but the focused one). nil when the
+            /// frame does not have exactly one such mark.
+            public let focused: Bool?
+            public init(tabs: Int, focused: Bool?) { self.tabs = tabs; self.focused = focused }
+        }
+
         public let tabs: [Tab]
         /// Worktree ids of the sidebar rows marked as the current page (`aria-current="page"`). One when the sidebar shows the visible
         /// workspace; none when the sidebar is hidden or that row is scrolled out of the list.
         public let currentWorkspaces: [String]
+        /// The group frames that hold tabs, in document order. Tabs outside any frame are counted in `ungroupedTabs`.
+        public let groups: [Group]
+        public let ungroupedTabs: Int
 
-        public init(tabs: [Tab], currentWorkspaces: [String] = []) {
+        public init(tabs: [Tab], currentWorkspaces: [String] = [], groups: [Group] = [], ungroupedTabs: Int? = nil) {
             self.tabs = tabs
             self.currentWorkspaces = currentWorkspaces
+            self.groups = groups
+            self.ungroupedTabs = ungroupedTabs ?? tabs.count - groups.reduce(0) { $0 + $1.tabs }
         }
+    }
+
+    /// What an element says about tab groups: a group's frame, or the tab actions in it with or without the unfocused mark.
+    public enum GroupMark: Equatable, Sendable {
+        case frame
+        case actions(focused: Bool)
     }
 
     public enum Resolution: Equatable, Sendable {
@@ -132,16 +152,23 @@ public enum OrcaView {
     /// as the list, each group's active tab is marked at its place and no other tab is, every terminal is at its place with its title (the
     /// terminal list's), and the list has every terminal the terminal list has. Browser and file tabs must not look like a terminal tab.
     ///
-    /// The strip and the list are read one after the other, so a tab can move or another can be chosen in between (Pullfrog #60). The
-    /// answer is the list's own active tab of the focused group, and the strip must show that same place active in every group: a
-    /// switch between the two reads moves an active mark and is refused, and a tab that moved without a switch leaves the list's active
-    /// tab where the strip shows it. So two terminals may share a title.
+    /// The strip and the list are read one after the other, and the list is published a moment after the screen changes, so a tab can
+    /// move or another can be chosen in between (Pullfrog #60, #61). The answer is the list's own active tab of the focused group; the
+    /// strip must show that same place active in every group, show the same group focused, and show every terminal's title at its place
+    /// only, so tabs that look alike cannot trade places unseen.
     public static func resolve(strip: Strip, layouts: [[String: Any]], session: SessionTabs) -> Resolution {
         guard strip.tabs.contains(where: \.active) else { return .noActiveTab }
         let kinds = session.groups.flatMap(\.kinds)
         guard strip.currentWorkspaces.count == 1, let visible = strip.currentWorkspaces.first,
               let layout = layouts.first(where: { $0["worktreeId"] as? String == visible }),
               kinds.count == strip.tabs.count else { return .noMatch }
+        // With more than one group, the focused one must be the one the screen shows focused: the session list is published a
+        // moment after a change (about 16 ms in Orca 1.4.258), and both groups' active tabs stay marked when focus moves.
+        if session.groups.count > 1 {
+            let shown = strip.groups.filter { $0.tabs > 0 }
+            guard strip.ungroupedTabs == 0, shown.map(\.tabs) == session.groups.map(\.kinds.count),
+                  shown.map(\.focused) == session.groups.indices.map({ $0 == session.focused }) else { return .noMatch }
+        }
         var marked = Array(repeating: false, count: kinds.count)
         var offset = 0, target = 0
         for (index, group) in session.groups.enumerated() {
@@ -154,11 +181,14 @@ public enum OrcaView {
         let listed = kinds.compactMap { kind -> String? in if case .terminal(let id) = kind { return id } else { return nil } }
         guard listed.count == terminals.count, Set(listed).count == listed.count,
               Set(listed) == Set(terminals.compactMap { $0["tabId"] as? String }) else { return .noMatch }
-        for (kind, shown) in zip(kinds, strip.tabs) {
+        for (index, (kind, shown)) in zip(kinds, strip.tabs).enumerated() {
             switch kind {
             case .terminal(let id):
+                // No other tab may show a terminal's title: the list can lag the screen, so two tabs that look alike could have
+                // swapped places, and with them which one is chosen (Pullfrog #60, #61 — a chat tab looks like a terminal).
                 guard shown.closeNamesTitle, let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
-                      titlesMatch(terminal["title"] as? String ?? "", shown) else { return .noMatch }
+                      case let title = terminal["title"] as? String ?? "", titlesMatch(title, shown),
+                      !strip.tabs.indices.contains(where: { $0 != index && titlesMatch(title, strip.tabs[$0]) }) else { return .noMatch }
             case .other:
                 guard !shown.closeNamesTitle else { return .noMatch }
             case .unlisted:
@@ -243,25 +273,55 @@ public enum OrcaView {
 
     /// The same walk, also collecting the sidebar rows marked as the current page (`currentWorkspace` returns their worktree id).
     /// `tab` returns the tab an element is, or nil if it is not a tab button.
+    /// `group` says whether an element is a tab group's frame or the tab actions inside one; the tabs and marks found inside a frame
+    /// belong to it (the innermost frame, if frames nest).
     static func strip<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
                                    tab: (N) -> Strip.Tab?, currentWorkspace: (N) -> String?,
+                                   group: (N) -> GroupMark? = { _ in nil },
                                    children: (N) -> [N]) -> Strip? {
         var seen = seen
         var tabs: [Strip.Tab] = []
         var workspaces: [String] = []
+        var frames: [(tabs: Int, marks: [Bool])] = []
+        var ungrouped = 0
+        var current: Int?
         var cut = false
         func visit(_ node: N, depth: Int) {
             guard !cut, seen.insert(node).inserted else { return }
             guard depth <= maxDepth, seen.count <= maxNodes else { cut = true; return }
             if let tab = tab(node) {
                 tabs.append(tab)
+                if let current { frames[current].tabs += 1 } else { ungrouped += 1 }
                 return
             }
             if let workspace = currentWorkspace(node) { workspaces.append(workspace) }
+            let outer = current
+            switch group(node) {
+            case .frame:
+                frames.append((0, []))
+                current = frames.count - 1
+            case .actions(let focused):
+                if let current { frames[current].marks.append(focused) }
+            case nil:
+                break
+            }
             for child in children(node) { visit(child, depth: depth + 1) }
+            current = outer
         }
         for root in roots { visit(root, depth: 0) }
-        return cut ? nil : Strip(tabs: tabs, currentWorkspaces: workspaces)
+        guard !cut else { return nil }
+        let groups = frames.map { Strip.Group(tabs: $0.tabs, focused: $0.marks.count == 1 ? $0.marks[0] : nil) }
+        return Strip(tabs: tabs, currentWorkspaces: workspaces, groups: groups, ungroupedTabs: ungrouped)
+    }
+
+    /// Orca 1.4.258 draws each tab group in a frame with the class `group/tab-group`, and puts its tab actions (new tab, close group)
+    /// in a box with `ml-1.5 … transition-opacity` that also has `opacity-50` unless the group has focus.
+    static func groupMark(classes: [String]) -> GroupMark? {
+        if classes.contains("group/tab-group") { return .frame }
+        if classes.contains("transition-opacity"), classes.contains("ml-1.5"), classes.contains("shrink-0") {
+            return .actions(focused: !classes.contains("opacity-50"))
+        }
+        return nil
     }
 
     /// A sidebar row's DOM id is `worktree-list-option-<project>:<host>|<worktree id>` (percent-encoded; measured on Orca 1.4.256).
