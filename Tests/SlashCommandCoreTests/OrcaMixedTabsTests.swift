@@ -303,6 +303,15 @@ final class OrcaMixedTabsTests: XCTestCase {
         ]
         let seen = strip([.terminal("Ask", active: true), .terminal("Ask", active: false)])   // the chat in front, then the terminal
         XCTAssertEqual(OrcaView.resolve(strip: seen, layouts: layouts([("t1", "Ask")]), session: listed(session)), .noMatch)
+        // The same with the terminal pinned: it has no close button, so its title is unread.
+        let pinned = strip([.terminal("Ask", active: true), .other("", active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: pinned, layouts: layouts([("t1", "Ask")]), session: listed(session)), .noMatch)
+        // A chat place showing a tab that is not drawn like a chat tab, or shows a terminal's title, is refused.
+        let named = layouts([("t1", "Terminal 1")])
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Terminal 1", active: true), .other("Ask", active: false)]), layouts: named, session: listed(session)), .noMatch)
+        // Positive control: a readable chat tab with its own title.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Terminal 1", active: true), .terminal("Ask", active: false)]), layouts: named, session: listed(session)),
+                       .tab(.init(worktreeID: worktree, tabID: "t1")))
     }
 
     /// A file tab's close button says only "Close tab" in Orca's language: it is read as a tab that is not a terminal.

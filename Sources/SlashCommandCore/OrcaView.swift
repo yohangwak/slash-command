@@ -192,7 +192,10 @@ public enum OrcaView {
             case .other:
                 guard !shown.closeNamesTitle else { return .noMatch }
             case .unlisted:
-                continue
+                // A chat tab is drawn like a terminal tab: it must be readable as one, with a title no terminal has, so an unreadable
+                // tab (a pinned terminal has no close button) can never stand at its place unseen (Pullfrog #61).
+                guard shown.closeNamesTitle, !shown.title.isEmpty,
+                      !terminals.contains(where: { titlesMatch($0["title"] as? String ?? "", shown) }) else { return .noMatch }
             }
         }
         guard case .terminal(let id) = kinds[target] else { return .notATerminal }
