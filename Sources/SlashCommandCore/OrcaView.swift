@@ -39,7 +39,7 @@ public enum OrcaView {
         case tab(OrcaState.Active)
         /// More than one workspace has the same order of tab titles.
         case ambiguous([String])
-        /// No workspace has exactly these tabs (the strip may also hold file, browser or chat tabs, which the terminal list does not have).
+        /// No workspace has exactly these tabs (with file, browser or chat tabs open, or tabs split into groups, the session list decides).
         case noMatch
         /// The strip matches the visible workspace's tabs, and the visible tab is not a terminal (a browser or file tab).
         case notATerminal
@@ -48,62 +48,124 @@ public enum OrcaView {
     /// One tab of a workspace, in strip order, as Orca's session list names it.
     public enum TabKind: Equatable, Sendable {
         case terminal(tabID: String)
-        /// A browser, file or chat tab.
+        /// A browser or file tab: listed with its kind. On screen its close button does not name its title.
         case other
+        /// An id in the tab order that the list's tabs do not describe (Orca's chat tabs are kept apart from them). Not a
+        /// terminal, and nothing is assumed about how it looks.
+        case unlisted
     }
 
-    /// The tabs of a workspace in strip order, from Orca's `session.tabs.list` (measured on Orca 1.4.258, 2026-11-14): one tab group whose
-    /// `tabOrder` lists the tab ids; a browser or file tab is listed under its own id, a terminal once per split pane with `parentTabId`
-    /// set to the tab id. nil when the answer is not that shape — no tab group or more than one (a split), or an id it does not list —
-    /// and then nothing is known about kinds.
-    public static func tabKinds(session: [String: Any]) -> [TabKind]? {
-        guard let groups = session["tabGroups"] as? [[String: Any]], groups.count == 1,
-              (session["tabGroupLayout"] as? [String: Any])?["type"] as? String ?? "leaf" == "leaf",
-              let order = groups[0]["tabOrder"] as? [String], !order.isEmpty,
-              let tabs = session["tabs"] as? [[String: Any]] else { return nil }
-        var kinds: [TabKind] = []
-        for id in order {
-            if tabs.contains(where: { $0["type"] as? String == "terminal" && $0["parentTabId"] as? String == id }) {
-                kinds.append(.terminal(tabID: id))
-            } else if let tab = tabs.first(where: { $0["id"] as? String == id }), let type = tab["type"] as? String,
-                      !type.isEmpty, type != "terminal" {
-                kinds.append(.other)
-            } else {
-                return nil
-            }
+    /// A workspace's tabs as Orca's session list gives them: its tab groups in the order their strips are drawn, each group's tabs in strip
+    /// order with the place of its active tab, and the group that has focus.
+    public struct SessionTabs: Equatable, Sendable {
+        public struct Group: Equatable, Sendable {
+            public let kinds: [TabKind]
+            public let active: Int
+            public init(kinds: [TabKind], active: Int) { self.kinds = kinds; self.active = active }
         }
-        return kinds
+        public let groups: [Group]
+        public let focused: Int
+        public init(groups: [Group], focused: Int) { self.groups = groups; self.focused = focused }
+    }
+
+    /// Reads Orca's `session.tabs.list` (measured on Orca 1.4.258, 2026-11-14). `tabGroups` gives each group's `tabOrder` and `activeTabId`;
+    /// a browser or file tab is listed in `tabs` under its own id, a terminal once per split pane with `parentTabId` set to the tab id.
+    /// Tabs split side by side are groups: Orca draws one strip per group, the layout tree's `first` before its `second`, and marks the
+    /// active tab of every group the same way, so the group with focus comes from `activeGroupId`. nil when the answer is not that
+    /// shape — no tab group, a layout that does not name each group once, a group without an active tab, a focused group it does not
+    /// list, or a top-level active tab that is not the focused group's — and then nothing is known.
+    public static func sessionTabs(session: [String: Any]) -> SessionTabs? {
+        guard let groups = session["tabGroups"] as? [[String: Any]], !groups.isEmpty,
+              let tabs = session["tabs"] as? [[String: Any]] else { return nil }
+        let ids = groups.compactMap { $0["id"] as? String }
+        guard ids.count == groups.count, Set(ids).count == ids.count else { return nil }
+        let order: [String]
+        if let layout = session["tabGroupLayout"] {
+            guard let drawn = groupOrder(layout), drawn.count == ids.count, Set(drawn) == Set(ids) else { return nil }
+            order = drawn
+        } else {
+            guard ids.count == 1 else { return nil }
+            order = ids
+        }
+        var result: [SessionTabs.Group] = []
+        for id in order {
+            guard let group = groups.first(where: { $0["id"] as? String == id }),
+                  let tabOrder = group["tabOrder"] as? [String], !tabOrder.isEmpty, Set(tabOrder).count == tabOrder.count,
+                  let activeID = group["activeTabId"] as? String, let active = tabOrder.firstIndex(of: activeID) else { return nil }
+            var kinds: [TabKind] = []
+            for id in tabOrder {
+                if tabs.contains(where: { $0["type"] as? String == "terminal" && $0["parentTabId"] as? String == id }) {
+                    kinds.append(.terminal(tabID: id))
+                } else if let tab = tabs.first(where: { $0["id"] as? String == id }) {
+                    // A tab listed under its id must say what it is, and a terminal listed that way is not the shape above.
+                    guard let type = tab["type"] as? String, !type.isEmpty, type != "terminal" else { return nil }
+                    kinds.append(.other)
+                } else {
+                    kinds.append(.unlisted)
+                }
+            }
+            result.append(.init(kinds: kinds, active: active))
+        }
+        guard let focusedID = session["activeGroupId"] as? String, let focused = order.firstIndex(of: focusedID) else { return nil }
+        // The workspace's active tab must be the focused group's (a terminal's is named `tabId::leafId`).
+        if let top = session["activeTabId"] as? String {
+            let group = groups.first(where: { $0["id"] as? String == focusedID })
+            guard let id = group?["activeTabId"] as? String, top == id || top.hasPrefix(id + "::") else { return nil }
+        }
+        return SessionTabs(groups: result, focused: focused)
+    }
+
+    /// The group ids of a layout tree in the order Orca draws their strips: a leaf's group, or a split's `first` then its `second`.
+    static func groupOrder(_ node: Any?) -> [String]? {
+        guard let node = node as? [String: Any] else { return nil }
+        switch node["type"] as? String {
+        case "leaf": return (node["groupId"] as? String).map { [$0] }
+        case "split":
+            guard let first = groupOrder(node["first"]), let second = groupOrder(node["second"]) else { return nil }
+            return first + second
+        default: return nil
+        }
     }
 
     /// Matches the strip of the workspace the sidebar shows against that workspace's tabs in Orca's session list, so a workspace with
-    /// browser or file tabs open can be read too. Exact as before: the strip has as many tabs as the list, every terminal is at its place
-    /// with its title (the terminal list's), and the list has every terminal the terminal list has. Tabs that are not terminals are counted and must
-    /// not look like a terminal tab; their titles are page titles or addresses that the terminal list does not have.
-    public static func resolve(strip: Strip, layouts: [[String: Any]], kinds: [TabKind]) -> Resolution {
-        let activeIndices = strip.tabs.indices.filter { strip.tabs[$0].active }
-        guard activeIndices.count == 1, let activeIndex = activeIndices.first else { return .noActiveTab }
+    /// browser or file tabs open, or tabs split into groups side by side, can be read too. Exact as before: the strip has as many tabs
+    /// as the list, each group's active tab is marked at its place and no other tab is, every terminal is at its place with its title (the
+    /// terminal list's), and the list has every terminal the terminal list has. Browser and file tabs must not look like a terminal tab.
+    ///
+    /// The strip and the list are read one after the other, so a tab can move or another can be chosen in between (Pullfrog #60). The
+    /// answer is the list's own active tab of the focused group, and the strip must show that same place active in every group: a
+    /// switch between the two reads moves an active mark and is refused, and a tab that moved without a switch leaves the list's active
+    /// tab where the strip shows it. So two terminals may share a title.
+    public static func resolve(strip: Strip, layouts: [[String: Any]], session: SessionTabs) -> Resolution {
+        guard strip.tabs.contains(where: \.active) else { return .noActiveTab }
+        let kinds = session.groups.flatMap(\.kinds)
         guard strip.currentWorkspaces.count == 1, let visible = strip.currentWorkspaces.first,
               let layout = layouts.first(where: { $0["worktreeId"] as? String == visible }),
               kinds.count == strip.tabs.count else { return .noMatch }
+        var marked = Array(repeating: false, count: kinds.count)
+        var offset = 0, target = 0
+        for (index, group) in session.groups.enumerated() {
+            marked[offset + group.active] = true
+            if index == session.focused { target = offset + group.active }
+            offset += group.kinds.count
+        }
+        guard strip.tabs.map(\.active) == marked else { return .noMatch }
         let terminals = OrcaState.tabs(in: layout["root"])
         let listed = kinds.compactMap { kind -> String? in if case .terminal(let id) = kind { return id } else { return nil } }
-        guard listed.count == terminals.count, Set(listed).count == listed.count else { return .noMatch }
-        // The strip and the list are read one after the other, so a tab can move in between (Pullfrog #60). Two checks keep a moved tab
-        // from passing for a terminal: each place must look like its kind on the screen (a terminal's close button names its title; a
-        // browser tab's names nothing, a file tab's says only "Close tab"), and no other tab in the strip may match a terminal's title.
-        // With every terminal's title unique in the strip, a terminal that moved leaves a tab with another title at its place.
-        // A file tab whose name is a word of its close button ("tab") looks like a terminal; the second check refuses it when it shares
-        // a terminal's title.
-        for (index, (kind, shown)) in zip(kinds, strip.tabs).enumerated() {
-            guard case .terminal(let id) = kind else {
+        guard listed.count == terminals.count, Set(listed).count == listed.count,
+              Set(listed) == Set(terminals.compactMap { $0["tabId"] as? String }) else { return .noMatch }
+        for (kind, shown) in zip(kinds, strip.tabs) {
+            switch kind {
+            case .terminal(let id):
+                guard shown.closeNamesTitle, let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
+                      titlesMatch(terminal["title"] as? String ?? "", shown) else { return .noMatch }
+            case .other:
                 guard !shown.closeNamesTitle else { return .noMatch }
+            case .unlisted:
                 continue
             }
-            guard shown.closeNamesTitle, let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
-                  case let title = terminal["title"] as? String ?? "", titlesMatch(title, shown),
-                  !strip.tabs.indices.contains(where: { $0 != index && titlesMatch(title, strip.tabs[$0]) }) else { return .noMatch }
         }
-        guard case .terminal(let id) = kinds[activeIndex] else { return .notATerminal }
+        guard case .terminal(let id) = kinds[target] else { return .notATerminal }
         return .tab(OrcaState.Active(worktreeID: visible, tabID: id))
     }
 

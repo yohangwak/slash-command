@@ -16,7 +16,12 @@ final class OrcaMixedTabsTests: XCTestCase {
         tabs += extraTabs
         let group: [String: Any] = ["id": "g1", "activeTabId": order.first ?? "", "tabOrder": order]
         return ["tabGroups": Array(repeating: group, count: groups), "tabGroupLayout": ["type": layout, "groupId": "g1"], "tabs": tabs,
-                "worktree": worktree]
+                "activeGroupId": "g1", "worktree": worktree]
+    }
+
+    /// The session list read, for a shape that must be understood.
+    private func listed(_ session: [String: Any]) -> OrcaView.SessionTabs {
+        OrcaView.sessionTabs(session: session)!
     }
 
     private func layouts(_ titles: [(String, String)]) -> [[String: Any]] {
@@ -36,106 +41,248 @@ final class OrcaMixedTabsTests: XCTestCase {
         }, currentWorkspaces: current ?? [worktree])
     }
 
+    private func one(_ kinds: [OrcaView.TabKind], active: Int = 0) -> OrcaView.SessionTabs {
+        .init(groups: [.init(kinds: kinds, active: active)], focused: 0)
+    }
+
     func testReadsKindsInStripOrder() {
-        XCTAssertEqual(OrcaView.tabKinds(session: session()), [.terminal(tabID: "term-1"), .other])
-        XCTAssertEqual(OrcaView.tabKinds(session: session(order: ["browser-1", "term-1"])), [.other, .terminal(tabID: "term-1")])
+        XCTAssertEqual(OrcaView.sessionTabs(session: session()), one([.terminal(tabID: "term-1"), .other]))
+        XCTAssertEqual(OrcaView.sessionTabs(session: session(order: ["browser-1", "term-1"])), one([.other, .terminal(tabID: "term-1")]))
         // A split terminal tab is listed once per pane; it is still one tab in the strip.
         let split = session(extraTabs: [["type": "terminal", "id": "term-1::leaf-b", "parentTabId": "term-1"]])
-        XCTAssertEqual(OrcaView.tabKinds(session: split), [.terminal(tabID: "term-1"), .other])
+        XCTAssertEqual(OrcaView.sessionTabs(session: split), one([.terminal(tabID: "term-1"), .other]))
+        // An id its tabs do not describe (a chat tab) is counted as a tab that is not a terminal.
+        XCTAssertEqual(OrcaView.sessionTabs(session: session(order: ["term-1", "browser-1", "chat"])), one([.terminal(tabID: "term-1"), .other, .unlisted]))
+        // Without a layout, one group is still understood.
+        var bare = session(); bare["tabGroupLayout"] = nil
+        XCTAssertEqual(OrcaView.sessionTabs(session: bare), one([.terminal(tabID: "term-1"), .other]))
     }
 
     func testKindsAreUnknownWhenTheListIsNotUnderstood() {
-        XCTAssertNil(OrcaView.tabKinds(session: session(order: ["term-1", "browser-1", "gone"])), "An id it does not list")
-        XCTAssertNil(OrcaView.tabKinds(session: session(order: [])), "No order")
-        XCTAssertNil(OrcaView.tabKinds(session: session(groups: 0)), "No tab group (measured: a workspace with a file tab)")
-        XCTAssertNil(OrcaView.tabKinds(session: session(groups: 2)), "Two tab groups side by side")
-        XCTAssertNil(OrcaView.tabKinds(session: session(layout: "split")), "A split layout")
-        XCTAssertNil(OrcaView.tabKinds(session: [:]))
+        XCTAssertNil(OrcaView.sessionTabs(session: session(order: [])), "No order")
+        XCTAssertNil(OrcaView.sessionTabs(session: session(order: ["term-1", "term-1"])), "An id twice")
+        XCTAssertNil(OrcaView.sessionTabs(session: session(groups: 0)), "No tab group (measured: a remote workspace with only a file tab)")
+        XCTAssertNil(OrcaView.sessionTabs(session: session(groups: 2)), "Two groups with one id")
+        XCTAssertNil(OrcaView.sessionTabs(session: session(layout: "split")), "A split without its halves")
+        XCTAssertNil(OrcaView.sessionTabs(session: [:]))
+        var noActive = session(); noActive["tabGroups"] = [["id": "g1", "activeTabId": NSNull(), "tabOrder": ["term-1", "browser-1"]]]
+        XCTAssertNil(OrcaView.sessionTabs(session: noActive), "A group without an active tab")
+        var noFocus = session(); noFocus["activeGroupId"] = "gone"
+        XCTAssertNil(OrcaView.sessionTabs(session: noFocus), "A focused group it does not list")
+        var otherTop = session(); otherTop["activeTabId"] = "browser-1"
+        XCTAssertNil(OrcaView.sessionTabs(session: otherTop), "The workspace's active tab is not the focused group's")
+        var topTerminal = session(); topTerminal["activeTabId"] = "term-1::leaf-a"
+        XCTAssertNotNil(OrcaView.sessionTabs(session: topTerminal), "Positive control: a terminal is named tabId::leafId")
+        var oddTerminal = session(extraTabs: [["type": "terminal", "id": "term-9"]]); oddTerminal["tabGroups"] = [["id": "g1", "activeTabId": "term-1", "tabOrder": ["term-1", "browser-1", "term-9"]]]
+        XCTAssertNil(OrcaView.sessionTabs(session: oddTerminal), "A terminal listed under its own id")
     }
 
     /// The case reported on 2026-11-13: the terminal is visible next to a browser tab whose close button names nothing (its title is unread).
     func testATerminalNextToABrowserTabResolves() {
-        let kinds = OrcaView.tabKinds(session: session())!
+        let kinds = listed(session())
         let shown = strip([.terminal(terminalTitle, active: true), .other("", active: false)])
-        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: layouts([("term-1", terminalTitle)]), kinds: kinds),
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: layouts([("term-1", terminalTitle)]), session: kinds),
                        .tab(.init(worktreeID: worktree, tabID: "term-1")))
         // Without the session list the same strip is refused, as before.
         XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: layouts([("term-1", terminalTitle)])), .noMatch)
     }
 
     func testTheBrowserTabInFrontIsNotATerminal() {
-        let kinds = OrcaView.tabKinds(session: session())!
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: false), .other("Login - Brevo", active: true)]), layouts: layouts([("term-1", terminalTitle)]), kinds: kinds),
+        var browserInFront = session()
+        browserInFront["tabGroups"] = [["id": "g1", "activeTabId": "browser-1", "tabOrder": ["term-1", "browser-1"]]]
+        let kinds = listed(browserInFront)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: false), .other("Login - Brevo", active: true)]), layouts: layouts([("term-1", terminalTitle)]), session: kinds),
                        .notATerminal)
     }
 
     func testStaysExact() {
-        let kinds = OrcaView.tabKinds(session: session())!
+        let kinds = listed(session())
         let layout = layouts([("term-1", terminalTitle)])
         // A tab more or fewer on screen than the list has.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true)]), layouts: layout, kinds: kinds), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false), .other("x", active: false)]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true)]), layouts: layout, session: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false), .other("x", active: false)]), layouts: layout, session: kinds), .noMatch)
         // The terminal's place shows another title (the list is out of date, or the order differs).
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.other("Login - Brevo", active: true), .terminal(terminalTitle, active: false)]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.other("Login - Brevo", active: true), .terminal(terminalTitle, active: false)]), layouts: layout, session: kinds), .noMatch)
         // An unreadable tab at a terminal's place never matches.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.other("", active: true), .other("", active: false)]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.other("", active: true), .other("", active: false)]), layouts: layout, session: kinds), .noMatch)
         // The terminal list has a terminal the session list does not (or the other way round).
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)]),
-                                        layouts: layouts([("term-1", terminalTitle), ("term-2", "Terminal 2")]), kinds: kinds), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)]), layouts: layouts([("term-9", terminalTitle)]), kinds: kinds), .noMatch)
+                                        layouts: layouts([("term-1", terminalTitle), ("term-2", "Terminal 2")]), session: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)]), layouts: layouts([("term-9", terminalTitle)]), session: kinds), .noMatch)
         // Only the workspace the sidebar shows is compared; without it nothing is matched.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)], current: ["other"]), layouts: layout, kinds: kinds), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)], current: []), layouts: layout, kinds: kinds), .noMatch)
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: false), .other("", active: false)]), layouts: layout, kinds: kinds), .noActiveTab)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)], current: ["other"]), layouts: layout, session: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("", active: false)], current: []), layouts: layout, session: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: false), .other("", active: false)]), layouts: layout, session: kinds), .noActiveTab)
     }
 
     func testTwoTerminalsAroundABrowserTab() {
         let session: [String: Any] = [
-            "tabGroups": [["id": "g", "tabOrder": ["t1", "b", "t2"]]], "tabGroupLayout": ["type": "leaf"],
+            "tabGroups": [["id": "g", "activeTabId": "t2", "tabOrder": ["t1", "b", "t2"]]], "tabGroupLayout": ["type": "leaf", "groupId": "g"], "activeGroupId": "g",
             "tabs": [["type": "terminal", "id": "t1::a", "parentTabId": "t1"], ["type": "browser", "id": "b"],
                      ["type": "terminal", "id": "t2::a", "parentTabId": "t2"]],
         ]
-        let kinds = OrcaView.tabKinds(session: session)!
+        let kinds = listed(session)
         let layout = layouts([("t1", "Terminal 1"), ("t2", "Terminal 2")])
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Terminal 1", active: false), .other("", active: false), .terminal("Terminal 2", active: true)]), layouts: layout, kinds: kinds),
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Terminal 1", active: false), .other("", active: false), .terminal("Terminal 2", active: true)]), layouts: layout, session: kinds),
                        .tab(.init(worktreeID: worktree, tabID: "t2")))
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Terminal 2", active: false), .other("", active: false), .terminal("Terminal 1", active: true)]), layouts: layout, kinds: kinds),
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Terminal 2", active: false), .other("", active: false), .terminal("Terminal 1", active: true)]), layouts: layout, session: kinds),
                        .noMatch, "Swapped titles")
     }
 
     /// Pullfrog #60: the strip and the list are read one after the other. If a browser tab with the terminal's title moves to the
     /// terminal's place in between and is in front, the title alone would pass; its shape on the screen does not.
     func testABrowserTabWithTheTerminalsTitleAtTheTerminalsPlaceIsRefused() {
-        let kinds = OrcaView.tabKinds(session: session())!          // the list still says: terminal, then browser
+        let kinds = listed(session())          // the list still says: terminal, then browser
         let layout = layouts([("term-1", terminalTitle)])
         let moved = strip([.other(terminalTitle, active: true), .terminal(terminalTitle, active: false)])
-        XCTAssertEqual(OrcaView.resolve(strip: moved, layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: moved, layouts: layout, session: kinds), .noMatch)
         // …and a terminal-shaped tab where the list has a browser tab is refused too.
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .terminal("Login - Brevo", active: false)]),
-                                        layouts: layout, kinds: kinds), .noMatch)
+                                        layouts: layout, session: kinds), .noMatch)
         // Positive control: each tab's shape at its place resolves.
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal(terminalTitle, active: true), .other("Login - Brevo", active: false)]),
-                                        layouts: layout, kinds: kinds), .tab(.init(worktreeID: worktree, tabID: "term-1")))
+                                        layouts: layout, session: kinds), .tab(.init(worktreeID: worktree, tabID: "term-1")))
     }
 
     /// Pullfrog #60: a file named `tab` has a close button "Close tab" that names it, so it looks like a terminal. If it shares a
     /// terminal's title and the two swap places between the two reads, the title must not be enough.
-    func testATerminalTitleSharedWithAnotherTabIsRefused() {
+    func testAFileThatLooksLikeATerminalAtItsPlaceIsRefused() {
         let session: [String: Any] = [
-            "tabGroups": [["id": "g", "tabOrder": ["t1", "f"]]], "tabGroupLayout": ["type": "leaf"],
+            "tabGroups": [["id": "g", "activeTabId": "t1", "tabOrder": ["t1", "f"]]], "tabGroupLayout": ["type": "leaf", "groupId": "g"], "activeGroupId": "g",
             "tabs": [["type": "terminal", "id": "t1::a", "parentTabId": "t1"], ["type": "file", "id": "f"]],
         ]
-        let kinds = OrcaView.tabKinds(session: session)!
+        let kinds = listed(session)
         let layout = layouts([("t1", "tab")])
         let file = OrcaView.tab(classes: ["bg-tab-active", "text-tab-active-foreground"], texts: ["tab"], buttonLabels: ["Close tab"], label: "")!
         XCTAssertTrue(file.closeNamesTitle, "The file tab looks like a terminal")
         // Swapped between the reads: the file is in front at the terminal's place, the terminal at the file's.
         let swapped = OrcaView.Strip(tabs: [file, .init(title: "tab", truncated: false, active: false, closeNamesTitle: true)], currentWorkspaces: [worktree])
-        XCTAssertEqual(OrcaView.resolve(strip: swapped, layouts: layout, kinds: kinds), .noMatch)
-        // Any other tab sharing the terminal's title refuses, even in the right order.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("tab", active: false)]), layouts: layout, kinds: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: swapped, layouts: layout, session: kinds), .noMatch)
+        // In the right order, another tab may share the terminal's title: each place still has to look like its kind.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("tab", active: false)]), layouts: layout, session: kinds),
+                       .tab(.init(worktreeID: worktree, tabID: "t1")))
         // Positive control: a distinct title resolves.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("README.md", active: false)]), layouts: layout, kinds: kinds),
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("README.md", active: false)]), layouts: layout, session: kinds),
+                       .tab(.init(worktreeID: worktree, tabID: "t1")))
+    }
+
+    // MARK: Tabs split into groups side by side (Orca marks the active tab of every group; one strip per group, `first` before `second`)
+
+    private let t1: [String: Any] = ["type": "terminal", "id": "t1::a", "parentTabId": "t1"]
+    private let t2: [String: Any] = ["type": "terminal", "id": "t2::a", "parentTabId": "t2"]
+    private let t3: [String: Any] = ["type": "terminal", "id": "t3::a", "parentTabId": "t3"]
+    private let b: [String: Any] = ["type": "browser", "id": "b", "title": "Docs"]
+
+    /// Groups as Orca lists them (not in drawing order) and the layout that orders them.
+    private func split(_ groups: [(id: String, order: [String], active: String)], layout: [String: Any], focused: String,
+                       tabs: [[String: Any]]? = nil) -> [String: Any] {
+        ["tabGroups": groups.map { ["id": $0.id, "activeTabId": $0.active, "tabOrder": $0.order] },
+         "tabGroupLayout": layout, "activeGroupId": focused, "tabs": tabs ?? [t1, t2, t3, b], "worktree": worktree]
+    }
+
+    private func leaf(_ id: String) -> [String: Any] { ["type": "leaf", "groupId": id] }
+    private func pair(_ first: [String: Any], _ second: [String: Any], _ direction: String = "horizontal") -> [String: Any] {
+        ["type": "split", "direction": direction, "first": first, "second": second]
+    }
+
+    private var threeTerminals: [[String: Any]] { layouts([("t1", "Terminal 1"), ("t2", "Terminal 2"), ("t3", "Terminal 3")]) }
+
+    /// The likely shape behind 2026-11-13 23:30 («could not tell which Orca tab»): two groups, so two active marks.
+    func testTwoGroupsSideBySideResolveToTheFocusedGroup() {
+        let shown = strip([.terminal("Terminal 1", active: true), .other("Docs", active: false), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals), .noActiveTab, "Without the session list: two marks")
+        // Listed second-group-first; the layout says which strip is drawn first.
+        let groups = [(id: "g2", order: ["t2", "t3"], active: "t2"), (id: "g1", order: ["t1", "b"], active: "t1")]
+        let right = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g2")), focused: "g2"))!
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: right), .tab(.init(worktreeID: worktree, tabID: "t2")))
+        let left = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g2")), focused: "g1"))!
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: left), .tab(.init(worktreeID: worktree, tabID: "t1")))
+        // The layout drawn the other way round does not line up with this strip.
+        let flipped = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g2"), leaf("g1")), focused: "g2"))!
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: flipped), .noMatch)
+    }
+
+    func testNestedSplitsAreDrawnFirstToSecond() {
+        let groups = [(id: "g1", order: ["t1"], active: "t1"), (id: "g2", order: ["t2"], active: "t2"), (id: "g3", order: ["t3", "b"], active: "t3")]
+        let session = split(groups, layout: pair(leaf("g3"), pair(leaf("g1"), leaf("g2")), "vertical"), focused: "g1")
+        let tabs = OrcaView.sessionTabs(session: session)!
+        XCTAssertEqual(tabs.groups.map(\.kinds.count), [2, 1, 1])
+        XCTAssertEqual(tabs.focused, 1)
+        let shown = strip([.terminal("Terminal 3", active: true), .other("Docs", active: false), .terminal("Terminal 1", active: true), .terminal("Terminal 2", active: true)])
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: tabs), .tab(.init(worktreeID: worktree, tabID: "t1")))
+    }
+
+    func testALayoutThatDoesNotNameEachGroupOnceIsNotUnderstood() {
+        let groups = [(id: "g1", order: ["t1"], active: "t1"), (id: "g2", order: ["t2"], active: "t2")]
+        XCTAssertNil(OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g1")), focused: "g1")), "A group twice")
+        XCTAssertNil(OrcaView.sessionTabs(session: split(groups, layout: leaf("g1"), focused: "g1")), "A group missing")
+        XCTAssertNil(OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g9")), focused: "g1")), "A group it does not list")
+        XCTAssertNil(OrcaView.sessionTabs(session: split(groups, layout: ["type": "split", "first": leaf("g1")], focused: "g1")), "A half missing")
+        var noLayout = split(groups, layout: [:], focused: "g1"); noLayout["tabGroupLayout"] = nil
+        XCTAssertNil(OrcaView.sessionTabs(session: noLayout), "Two groups and no layout")
+    }
+
+    /// Every group's active mark must be where the list has it: a tab chosen between the two reads moves a mark and is refused.
+    func testActiveMarksMustBeWhereTheListHasThem() {
+        let groups = [(id: "g1", order: ["t1", "b"], active: "t1"), (id: "g2", order: ["t2", "t3"], active: "t2")]
+        let tabs = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g2")), focused: "g2"))!
+        let moved = strip([.terminal("Terminal 1", active: true), .other("Docs", active: false), .terminal("Terminal 2", active: false), .terminal("Terminal 3", active: true)])
+        XCTAssertEqual(OrcaView.resolve(strip: moved, layouts: threeTerminals, session: tabs), .noMatch, "Another tab chosen in the focused group")
+        let otherGroup = strip([.terminal("Terminal 1", active: false), .other("Docs", active: true), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: otherGroup, layouts: threeTerminals, session: tabs), .noMatch, "Another tab chosen in the other group")
+        let oneMark = strip([.terminal("Terminal 1", active: false), .other("Docs", active: false), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: oneMark, layouts: threeTerminals, session: tabs), .noMatch, "A group without its mark")
+        let none = strip([.terminal("Terminal 1", active: false), .other("Docs", active: false), .terminal("Terminal 2", active: false), .terminal("Terminal 3", active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: none, layouts: threeTerminals, session: tabs), .noActiveTab)
+    }
+
+    func testTheFocusedGroupShowingABrowserTabIsNotATerminal() {
+        let groups = [(id: "g1", order: ["t1", "b"], active: "b"), (id: "g2", order: ["t2", "t3"], active: "t2")]
+        let tabs = OrcaView.sessionTabs(session: split(groups, layout: pair(leaf("g1"), leaf("g2")), focused: "g1"))!
+        let shown = strip([.terminal("Terminal 1", active: false), .other("Docs", active: true), .terminal("Terminal 2", active: true), .terminal("Terminal 3", active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: threeTerminals, session: tabs), .notATerminal)
+    }
+
+    /// Two terminals with the same title next to a browser tab: the list's active tab decides, and the strip must agree.
+    func testTerminalsMayShareATitle() {
+        let session: [String: Any] = [
+            "tabGroups": [["id": "g", "activeTabId": "t2", "tabOrder": ["t1", "b", "t2"]]], "tabGroupLayout": leaf("g"), "activeGroupId": "g",
+            "tabs": [t1, b, t2], "worktree": worktree,
+        ]
+        let tabs = OrcaView.sessionTabs(session: session)!
+        let same = layouts([("t1", "claude"), ("t2", "claude")])
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("claude", active: false), .other("Docs", active: false), .terminal("claude", active: true)]), layouts: same, session: tabs),
+                       .tab(.init(worktreeID: worktree, tabID: "t2")))
+        // The strip showing the other one in front (a switch between the reads) is refused.
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("claude", active: true), .other("Docs", active: false), .terminal("claude", active: false)]), layouts: same, session: tabs),
+                       .noMatch)
+    }
+
+    /// A chat tab is in the tab order but not among the listed tabs; it looks like a terminal on screen and is never one.
+    func testAChatTabIsCountedAndNeverChosen() {
+        let session: [String: Any] = [
+            "tabGroups": [["id": "g", "activeTabId": "t1", "tabOrder": ["chat", "t1"]]], "tabGroupLayout": leaf("g"), "activeGroupId": "g",
+            "tabs": [t1], "worktree": worktree,
+        ]
+        let layout = layouts([("t1", "Terminal 1")])
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Ask", active: false), .terminal("Terminal 1", active: true)]), layouts: layout, session: listed(session)),
+                       .tab(.init(worktreeID: worktree, tabID: "t1")))
+        var chatInFront = session; chatInFront["tabGroups"] = [["id": "g", "activeTabId": "chat", "tabOrder": ["chat", "t1"]]]
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("Ask", active: true), .terminal("Terminal 1", active: false)]), layouts: layout, session: listed(chatInFront)),
+                       .notATerminal)
+    }
+
+    /// A file tab's close button says only "Close tab" in Orca's language: it is read as a tab that is not a terminal.
+    func testAFileTabNextToATerminal() {
+        let session: [String: Any] = [
+            "tabGroups": [["id": "g", "activeTabId": "t1", "tabOrder": ["t1", "editor:x"]]], "tabGroupLayout": leaf("g"), "activeGroupId": "g",
+            "activeTabId": "t1::a", "tabs": [t1, ["type": "file", "id": "editor:x", "title": "README.md"]], "worktree": worktree,
+        ]
+        let file = OrcaView.tab(classes: ["bg-tab-inactive", "text-tab-inactive-foreground"], texts: ["README.md"], buttonLabels: ["탭 닫기"], label: "")!
+        XCTAssertFalse(file.closeNamesTitle)
+        let terminal = OrcaView.tab(classes: ["bg-tab-active", "text-tab-active-foreground"], texts: ["Terminal 1"], buttonLabels: ["탭 닫기 Terminal 1"], label: "")!
+        let shown = OrcaView.Strip(tabs: [terminal, file], currentWorkspaces: [worktree])
+        XCTAssertEqual(OrcaView.resolve(strip: shown, layouts: layouts([("t1", "Terminal 1")]), session: listed(session)),
                        .tab(.init(worktreeID: worktree, tabID: "t1")))
     }
 }

@@ -276,7 +276,7 @@
 "Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again." = "未发送：要识别 Orca 当前显示的标签页，Slash Command 需要“%@”权限。请在“系统设置”→“隐私与安全性”中打开后再按一次。";
 "Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)." = "未发送：无法识别 Orca 当前显示的标签页（Orca 更新可能更改了标签栏）。";
 "Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "未发送:无法确定 Orca 中打开的是哪个工作区。请显示 Orca 的侧边栏并让该工作区可见,然后再按一次。";
-"Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet." = "未发送:屏幕上的 Orca 标签页与任何工作区的终端都不匹配。尚不支持打开了文件、浏览器或聊天标签页的工作区。";
+"Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "未发送:屏幕上的 Orca 标签页与 Orca 给出的此工作区标签页列表对不上,无法确定显示的是哪个终端。";
 "Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";
 "This OpenCode model has no effort levels (it has no variants)." = "此 OpenCode 模型没有 effort 档位（该模型没有 variant）。";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "此 OpenCode 模型没有 variant，因此未设置 effort（%@）。";

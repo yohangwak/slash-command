@@ -276,7 +276,7 @@
 "Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again." = "لم يُرسل: يحتاج Slash Command إلى إذن «%@» لمعرفة علامة التبويب الظاهرة على الشاشة في Orca. فعّله في إعدادات النظام ← الخصوصية والأمان ثم اضغط مرة أخرى.";
 "Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)." = "لم يُرسل: تعذّر تحديد علامة التبويب الظاهرة على الشاشة في Orca (ربما غيّر أحد تحديثات Orca شريط علامات التبويب).";
 "Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "لم يُرسَل: تعذّر معرفة مساحة عمل Orca المفتوحة. أظهِر الشريط الجانبي في Orca بحيث تكون مساحة العمل تلك ظاهرة، ثم اضغط مرة أخرى.";
-"Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet." = "لم يُرسَل: علامات تبويب Orca الظاهرة على الشاشة لا تطابق طرفيات أي مساحة عمل. مساحات العمل التي فيها علامات تبويب ملفات أو متصفح أو دردشة مفتوحة غير مدعومة بعد.";
+"Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "لم يُرسَل: علامات تبويب Orca الظاهرة على الشاشة لا تطابق قائمة علامات تبويب مساحة العمل هذه التي يقدمها Orca، لذا لا يمكن تحديد الطرفية الظاهرة.";
 "Could not type into iTerm2: %@" = "تعذّر الإدخال في iTerm2: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "ليس لهذا النموذج في OpenCode مستويات effort (لا توجد له variants).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "ليس لهذا النموذج في OpenCode أي variants، لذلك لم يُضبط effort (%@).";

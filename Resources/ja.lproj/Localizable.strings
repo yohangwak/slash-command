@@ -276,7 +276,7 @@
 "Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again." = "送信しませんでした: Orca で表示中のタブを特定するには、Slash Command に「%@」の権限が必要です。システム設定 → プライバシーとセキュリティでオンにしてから、もう一度押してください。";
 "Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)." = "送信しませんでした: Orca で表示中のタブを特定できませんでした(Orca のアップデートでタブバーが変わった可能性があります)。";
 "Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "送信しませんでした: Orca でどのワークスペースが開いているか確認できませんでした。Orca のサイドバーを表示してそのワークスペースが見える状態にしてから、もう一度押してください。";
-"Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet." = "送信しませんでした: 画面上の Orca のタブに一致するワークスペースのターミナルがありません。ファイル、ブラウザー、チャットのタブを開いているワークスペースにはまだ対応していません。";
+"Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "送信しませんでした: 画面上の Orca のタブが、Orca が示すこのワークスペースのタブ一覧と一致しないため、表示中のターミナルを特定できません。";
 "Could not type into iTerm2: %@" = "iTerm2 に入力できませんでした: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "この OpenCode モデルには effort の段階がありません(variant のないモデルです)。";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "この OpenCode モデルには variant がないため、effort(%@)は設定しませんでした。";
