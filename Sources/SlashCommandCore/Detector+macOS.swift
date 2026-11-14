@@ -93,8 +93,10 @@ extension Detector {
     }
 
     public static func orca() throws -> Target {
-        let payload = try orcaTerminals()
-        let active = try orcaActive(payload: payload).active
+        // The terminal list is read after the tab strip (which can take up to 1.2 s, `OrcaView.readStrip`), and the same list both
+        // matches the strip and picks the pane, so a pane chosen while the strip was being read is not missed (Pullfrog #62).
+        let found = try orcaActive(loadTerminals: orcaTerminals)
+        let payload = found.payload, active = found.active
         // If tmux is running as the «foreground job» in that terminal, go into the tmux pane that client is looking at (write and read via tmux too).
         // Used as-is through Orca, the bottom of the screen is tmux's status line, and if panes are split the text of several panes is mixed on one screen.
         if let handle = try? OrcaState.pane(in: payload, active: active).handle, let inside = try orcaTmux(handle: handle) {
@@ -111,13 +113,15 @@ extension Detector {
         return try client.map { try TmuxFront.target(client: $0, table: table, outer: "Orca") }
     }
 
-    /// Identifies the workspace and tab shown on screen using Orca's tab strip read through accessibility.
-    public static func orcaActive(payload: [String: Any]) throws -> (active: OrcaState.Active, source: String) {
+    /// Identifies the workspace and tab shown on screen using Orca's tab strip read through accessibility. `loadTerminals` reads
+    /// Orca's terminal list; it is called after the strip is read, and the list it returns is the one the answer comes with.
+    public static func orcaActive(loadTerminals: () throws -> [String: Any]) throws -> (active: OrcaState.Active, source: String, payload: [String: Any]) {
         if let strip = OrcaView.readStrip() {
             // Titles alone cannot prove which workspace is visible; the sidebar's current row does. Without it, nothing is sent.
             guard strip.currentWorkspaces.count == 1 else {
                 throw SlashCommandError(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."))
             }
+            let payload = try loadTerminals()
             let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
             var resolution = OrcaView.resolve(strip: strip, layouts: layouts)
             // A strip that is not just the workspace's terminals in one row — browser or file tabs open, or tabs split into groups side
@@ -132,7 +136,7 @@ extension Detector {
             case .notATerminal:
                 throw SlashCommandError(loc("The frontmost Orca tab is not a terminal."))
             case .tab(let active):
-                return (active, "Accessibility")
+                return (active, "Accessibility", payload)
             case .ambiguous:
                 throw SlashCommandError(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."))
             case .noMatch:

@@ -25,8 +25,7 @@ public enum OrcaView {
         /// A tab group's frame on screen (`group/tab-group`) and the tabs inside it.
         public struct Group: Equatable, Sendable {
             public let tabs: Int
-            /// Whether the group has focus, read from its tab actions (`opacity-50` on every group but the focused one). nil when the
-            /// frame does not have exactly one such mark.
+            /// Whether the frame shows the focus mark (`border-b-accent`). nil when it was not read.
             public let focused: Bool?
             public init(tabs: Int, focused: Bool?) { self.tabs = tabs; self.focused = focused }
         }
@@ -47,10 +46,10 @@ public enum OrcaView {
         }
     }
 
-    /// What an element says about tab groups: a group's frame, or the tab actions in it with or without the unfocused mark.
+    /// An element that is a tab group's frame: whether it shows the focus mark, and whether it could (a frame Orca draws without its
+    /// bottom border never shows it).
     public enum GroupMark: Equatable, Sendable {
-        case frame
-        case actions(focused: Bool)
+        case frame(focused: Bool, canShowFocus: Bool)
     }
 
     public enum Resolution: Equatable, Sendable {
@@ -276,8 +275,8 @@ public enum OrcaView {
 
     /// The same walk, also collecting the sidebar rows marked as the current page (`currentWorkspace` returns their worktree id).
     /// `tab` returns the tab an element is, or nil if it is not a tab button.
-    /// `group` says whether an element is a tab group's frame or the tab actions inside one; the tabs and marks found inside a frame
-    /// belong to it (the innermost frame, if frames nest).
+    /// `group` says whether an element is a tab group's frame and whether it shows focus; the tabs found inside a frame belong to it
+    /// (the innermost frame, if frames nest).
     static func strip<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
                                    tab: (N) -> Strip.Tab?, currentWorkspace: (N) -> String?,
                                    group: (N) -> GroupMark? = { _ in nil },
@@ -285,7 +284,7 @@ public enum OrcaView {
         var seen = seen
         var tabs: [Strip.Tab] = []
         var workspaces: [String] = []
-        var frames: [(tabs: Int, marks: [Bool])] = []
+        var frames: [(tabs: Int, focused: Bool, canShow: Bool)] = []
         var ungrouped = 0
         var current: Int?
         var cut = false
@@ -299,32 +298,39 @@ public enum OrcaView {
             }
             if let workspace = currentWorkspace(node) { workspaces.append(workspace) }
             let outer = current
-            switch group(node) {
-            case .frame:
-                frames.append((0, []))
+            if case .frame(let focused, let canShow) = group(node) {
+                frames.append((0, focused, canShow))
                 current = frames.count - 1
-            case .actions(let focused):
-                if let current { frames[current].marks.append(focused) }
-            case nil:
-                break
             }
             for child in children(node) { visit(child, depth: depth + 1) }
             current = outer
         }
         for root in roots { visit(root, depth: 0) }
         guard !cut else { return nil }
-        let groups = frames.map { Strip.Group(tabs: $0.tabs, focused: $0.marks.count == 1 ? $0.marks[0] : nil) }
+        // The focused frame is the one with the mark. With none marked, it is a frame that cannot show it — known only when exactly one
+        // frame with tabs is such a frame.
+        let shown = frames.filter { $0.tabs > 0 }
+        let marked = shown.filter(\.focused).count
+        let unable = shown.filter { !$0.canShow }.count
+        let groups = frames.map { frame -> Strip.Group in
+            switch (marked, unable) {
+            case (1, _): return Strip.Group(tabs: frame.tabs, focused: frame.focused)
+            case (0, 1): return Strip.Group(tabs: frame.tabs, focused: !frame.canShow)
+            default: return Strip.Group(tabs: frame.tabs, focused: nil)
+            }
+        }
         return Strip(tabs: tabs, currentWorkspaces: workspaces, groups: groups, ungroupedTabs: ungrouped)
     }
 
-    /// Orca 1.4.258 draws each tab group in a frame with the class `group/tab-group`, and puts its tab actions (new tab, close group)
-    /// in a box with `ml-1.5 … transition-opacity` that also has `opacity-50` unless the group has focus.
+    /// Orca 1.4.258 draws each tab group in a frame with the class `group/tab-group`. With tabs split into groups, a frame has
+    /// `border-b` unless its bottom border is left out (a group with another below it), and the focused group's frame also has
+    /// `border-b-accent` — only when it has `border-b` (`a&&!x&&!w`, the same condition). Measured 2026-11-14 on a Mac with two and
+    /// three groups: the mark moved with each click and matched `activeGroupId` every time; with the upper of two stacked groups
+    /// focused, no frame had it and that frame was the only one without `border-b`. The tab actions' own unfocused mark (`opacity-50`)
+    /// is on a box accessibility leaves out, so it cannot be read.
     static func groupMark(classes: [String]) -> GroupMark? {
-        if classes.contains("group/tab-group") { return .frame }
-        if classes.contains("transition-opacity"), classes.contains("ml-1.5"), classes.contains("shrink-0") {
-            return .actions(focused: !classes.contains("opacity-50"))
-        }
-        return nil
+        guard classes.contains("group/tab-group") else { return nil }
+        return .frame(focused: classes.contains("border-b-accent"), canShowFocus: classes.contains("border-b"))
     }
 
     /// A sidebar row's DOM id is `worktree-list-option-<project>:<host>|<worktree id>` (percent-encoded; measured on Orca 1.4.256).
