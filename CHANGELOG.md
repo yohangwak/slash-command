@@ -2,6 +2,11 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.11
+
+- Orca: tabs split into groups work on screen. 0.2.10 looked for a focus mark that Orca leaves out of what Accessibility can read, so every workspace split into groups was refused with "the Orca tabs on screen do not line up". The app now reads the accent underline Orca draws under the focused group; a group with another group below it has no underline, and it is recognised as the one group that cannot show it. Tested on a Mac with two and three groups, side by side and stacked, and a Claude session switched in the focused group.
+- Orca: right after Orca starts showing its window to Accessibility, the first read can find no tabs at all. The app now reads again for up to 1.2 seconds before saying "could not tell which Orca tab is on screen".
+
 ## 0.2.10
 
 - Orca: hotkeys work when a workspace's tabs are split into groups side by side. Orca marks the active tab of every group the same way, so the app saw two active tabs and said "could not tell which Orca tab is on screen". Orca's list of the workspace's tabs now says how the groups are laid out, the screen shows which group has focus, and the hotkey goes to the active tab of that group when both agree.

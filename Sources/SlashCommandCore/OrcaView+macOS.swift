@@ -7,9 +7,28 @@ extension OrcaView {
     // MARK: - Reading through accessibility
 
     /// Orca's tab strip right now. nil if there is no permission or it cannot be read.
+    ///
+    /// Chromium builds Orca's page for accessibility only once a reader asks (`AXManualAccessibility`), and the read that asks first
+    /// gets the window without its page (measured 2026-11-14 on a Mac, Orca 1.4.258: 12–13 elements, then the full 215 one to two seconds
+    /// later, read through a new application element each time). So a read that finds no tab strip is repeated for a short while.
     public static func readStrip() -> Strip? {
-        guard GhosttyScreen.trusted(),
-              let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return nil }
+        guard GhosttyScreen.trusted() else { return nil }
+        return retrying(times: 8, every: 0.15) { readStripOnce() }
+    }
+
+    /// Calls `read` until it returns a value, at most `times` more times after the first, waiting `every` seconds in between.
+    static func retrying<T>(times: Int, every: TimeInterval, wait: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) },
+                            _ read: () -> T?) -> T? {
+        if let value = read() { return value }
+        for _ in 0..<max(0, times) {
+            wait(every)
+            if let value = read() { return value }
+        }
+        return nil
+    }
+
+    private static func readStripOnce() -> Strip? {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return nil }
         let element = AXUIElementCreateApplication(app.processIdentifier)
         // Chromium exposes the web view (DOM) in the tree only when there is an accessibility request.
         AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)

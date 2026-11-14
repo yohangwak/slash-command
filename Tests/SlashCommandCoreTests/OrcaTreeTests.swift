@@ -89,24 +89,19 @@ final class OrcaTreeTests: XCTestCase {
         XCTAssertEqual(visited, [0, 1, 4])
     }
 
-    /// Orca 1.4.258 with tabs split into two groups: each group's frame holds its tab actions, then its tabs; the unfocused group's
-    /// actions carry `opacity-50`.
+    /// Orca 1.4.258 with tabs split into two groups, as measured on 2026-11-14: each group's frame holds its tabs, and the focused
+    /// group's frame has `border-b-accent`.
     func testReadsGroupFramesAndWhichOneShowsFocus() {
-        enum Part { case frame, actions([String]), tab(active: Bool, String), other }
+        enum Part { case frame(focused: Bool), tab(active: Bool, String), other }
         let parts: [Int: Part] = [
-            1: .frame, 2: .other, 3: .tab(active: true, "one"), 4: .tab(active: false, "two"),
-            5: .actions(["ml-1.5", "flex", "shrink-0", "items-center", "gap-0.5", "transition-opacity", "duration-150", "opacity-50", "hover:opacity-100", "focus-within:opacity-100"]),
-            6: .frame, 7: .tab(active: true, "three"),
-            8: .actions(["ml-1.5", "flex", "shrink-0", "items-center", "gap-0.5", "transition-opacity", "duration-150"]),
-            9: .tab(active: false, "loose"),
+            1: .frame(focused: false), 2: .other, 3: .tab(active: true, "one"), 4: .tab(active: false, "two"),
+            6: .frame(focused: true), 7: .tab(active: true, "three"), 9: .tab(active: false, "loose"),
         ]
-        let children = [0: [1, 6, 9], 1: [2, 5], 2: [3, 4], 6: [7, 8]]
+        let children = [0: [1, 6, 9], 1: [2], 2: [3, 4], 6: [7]]
         func classes(_ node: Int) -> [String] {
-            switch parts[node] {
-            case .frame: return ["group/tab-group", "relative", "flex", "flex-col"]
-            case .actions(let classes): return classes
-            default: return []
-            }
+            guard case .frame(let focused) = parts[node] else { return [] }
+            let base = "group/tab-group relative flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden border-b border-border".split(separator: " ").map(String.init)
+            return focused ? base + ["border-b-accent"] : base
         }
         let strip = OrcaView.strip(from: [0], tab: { node in
             guard case .tab(let active, let title) = parts[node] else { return nil }
@@ -115,17 +110,32 @@ final class OrcaTreeTests: XCTestCase {
         XCTAssertEqual(strip?.tabs.map(\.title), ["one", "two", "three", "loose"])
         XCTAssertEqual(strip?.groups, [.init(tabs: 2, focused: false), .init(tabs: 1, focused: true)])
         XCTAssertEqual(strip?.ungroupedTabs, 1)
-        XCTAssertNil(OrcaView.groupMark(classes: ["ml-1.5", "flex"]), "Not the tab actions")
+        XCTAssertNil(OrcaView.groupMark(classes: ["border-b-accent"]), "Not a frame")
         XCTAssertNil(OrcaView.groupMark(classes: ["bg-tab-active"]))
+        XCTAssertEqual(OrcaView.groupMark(classes: ["group/tab-group", "relative"]), .frame(focused: false, canShowFocus: false))
+        XCTAssertEqual(OrcaView.groupMark(classes: ["group/tab-group", "border-b", "border-b-accent"]), .frame(focused: true, canShowFocus: true))
     }
 
-    /// A frame with no actions, or with two, does not say whether it has focus.
-    func testAFrameWithoutExactlyOneMarkHasUnknownFocus() {
-        let marks: [Int: OrcaView.GroupMark] = [1: .frame, 2: .actions(focused: true), 3: .actions(focused: false), 4: .frame]
-        let children = [0: [1, 4], 1: [2, 3, 5], 4: [6]]
-        let strip = OrcaView.strip(from: [0], tab: { [5, 6].contains($0) ? .init(title: "t\($0)", truncated: false, active: true) : nil },
-                                   currentWorkspace: { _ in nil }, group: { marks[$0] }, children: { children[$0] ?? [] })
-        XCTAssertEqual(strip?.groups, [.init(tabs: 1, focused: nil), .init(tabs: 1, focused: nil)])
+    /// Measured 2026-11-14: the upper of two stacked groups has no `border-b`, so it never shows the mark. With it focused, no frame is
+    /// marked and it is the only frame that cannot be; with two such frames nothing is known.
+    func testAFrameThatCannotShowFocusIsFocusedWhenNoneIsMarked() {
+        func frames(_ classes: [[String]]) -> [OrcaView.Strip.Group]? {
+            var children: [Int: [Int]] = [0: []]
+            var cls: [Int: [String]] = [:]
+            for (i, c) in classes.enumerated() {
+                let frame = 10 + i, tab = 100 + i
+                children[0]!.append(frame); children[frame] = [tab]; cls[frame] = ["group/tab-group"] + c
+            }
+            return OrcaView.strip(from: [0], tab: { $0 >= 100 ? .init(title: "t\($0)", truncated: false, active: true) : nil },
+                                  currentWorkspace: { _ in nil }, group: { OrcaView.groupMark(classes: cls[$0] ?? []) },
+                                  children: { children[$0] ?? [] })?.groups
+        }
+        let upper: [String] = ["border-border"], lower = ["border-b", "border-border"], marked = ["border-b", "border-border", "border-b-accent"]
+        XCTAssertEqual(frames([upper, lower, lower])?.map(\.focused), [true, false, false])
+        XCTAssertEqual(frames([upper, marked, lower])?.map(\.focused), [false, true, false])
+        XCTAssertEqual(frames([upper, upper, lower])?.map(\.focused), [nil, nil, nil], "Two frames that cannot show it")
+        XCTAssertEqual(frames([lower, lower])?.map(\.focused), [nil, nil], "No mark and every frame could show it")
+        XCTAssertEqual(frames([marked, marked])?.map(\.focused), [nil, nil], "Two marks")
     }
 
     func testNoTabsIsAnEmptyListNotUnknown() {
@@ -133,4 +143,22 @@ final class OrcaTreeTests: XCTestCase {
         tree.children = [0: [1, 2]]
         XCTAssertEqual(tree.tabs(from: [0])?.count, 0)
     }
+
+    #if os(macOS)
+    /// The read that first asks Chromium for Orca's page gets none (measured 2026-11-14): a read that finds no strip is repeated briefly.
+    func testAReadThatFindsNoStripIsRepeatedBriefly() {
+        var calls = 0, waited: [TimeInterval] = []
+        let found: Int? = OrcaView.retrying(times: 8, every: 0.15, wait: { waited.append($0) }) { calls += 1; return calls == 4 ? 42 : nil }
+        XCTAssertEqual(found, 42)
+        XCTAssertEqual(calls, 4)
+        XCTAssertEqual(waited, [0.15, 0.15, 0.15])
+        calls = 0; waited = []
+        let none: Int? = OrcaView.retrying(times: 8, every: 0.15, wait: { waited.append($0) }) { calls += 1; return nil }
+        XCTAssertNil(none)
+        XCTAssertEqual(calls, 9, "The first read and eight more")
+        XCTAssertEqual(waited.reduce(0, +), 1.2, accuracy: 0.001)
+        calls = 0
+        XCTAssertEqual(OrcaView.retrying(times: 8, every: 0.15, wait: { _ in XCTFail("No wait when the first read finds it") }) { calls += 1; return 7 }, 7)
+    }
+    #endif
 }
