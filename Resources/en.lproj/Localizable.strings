@@ -68,4 +68,4 @@
 /* Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again. — English comes from the sentence in code. */
 /* Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip). — English comes from the sentence in code. */
 /* Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again. — English comes from the sentence in code. */
-/* Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet. — English comes from the sentence in code. */
+/* Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart. — English comes from the sentence in code. */

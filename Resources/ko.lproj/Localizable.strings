@@ -276,7 +276,7 @@
 "Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again." = "보내지 않았습니다: Orca에서 어느 탭이 화면에 보이는지 확인하려면 Slash Command에 %@ 권한이 필요합니다. 시스템 설정 → 개인정보 보호 및 보안에서 켠 뒤 다시 눌러 주세요.";
 "Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)." = "보내지 않았습니다: Orca에서 어느 탭이 화면에 보이는지 확인하지 못했습니다(Orca 업데이트로 탭 막대가 바뀌었을 수 있습니다).";
 "Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "보내지 않았습니다: Orca에서 어느 워크스페이스가 열려 있는지 확인하지 못했습니다. Orca 사이드바를 켜고 그 워크스페이스가 보이게 한 뒤 다시 눌러 주세요.";
-"Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet." = "보내지 않았습니다: 화면의 Orca 탭과 맞는 워크스페이스의 터미널이 없습니다. 파일·브라우저·채팅 탭이 열린 워크스페이스는 아직 지원하지 않습니다.";
+"Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "보내지 않았습니다: 화면의 Orca 탭이 Orca가 알려 준 이 워크스페이스의 탭 목록과 맞지 않아, 보이는 터미널을 가려낼 수 없습니다.";
 "Could not type into iTerm2: %@" = "iTerm2에 입력하지 못했습니다: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "이 OpenCode 모델에는 effort 단계가 없습니다(variant가 없는 모델입니다).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "이 OpenCode 모델에는 variant가 없어 effort(%@)는 정하지 않았습니다.";

@@ -120,13 +120,13 @@ extension Detector {
             }
             let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
             var resolution = OrcaView.resolve(strip: strip, layouts: layouts)
-            // A strip that is not just the workspace's terminals: Orca's session list says which of its tabs are terminals, so a
-            // workspace with browser or file tabs open can be read too. Without it (an older Orca, or a workspace it has no single tab
-            // group for) the strip stays refused.
-            if resolution == .noMatch,
-               case .success(let session) = OrcaRuntime.call("session.tabs.list", ["worktree": strip.currentWorkspaces[0]]),
-               let kinds = OrcaView.tabKinds(session: session) {
-                resolution = OrcaView.resolve(strip: strip, layouts: layouts, kinds: kinds)
+            // A strip that is not just the workspace's terminals in one row — browser or file tabs open, or tabs split into groups side
+            // by side, which marks one active tab per group: Orca's session list says which tabs are terminals, how the groups are
+            // laid out and which has focus. Without it (an older Orca, or an answer of another shape) the strip stays refused.
+            if resolution == .noMatch || resolution == .noActiveTab,
+               case .success(let answer) = OrcaRuntime.call("session.tabs.list", ["worktree": strip.currentWorkspaces[0]]),
+               let session = OrcaView.sessionTabs(session: answer) {
+                resolution = OrcaView.resolve(strip: strip, layouts: layouts, session: session)
             }
             switch resolution {
             case .notATerminal:
@@ -136,7 +136,7 @@ extension Detector {
             case .ambiguous:
                 throw SlashCommandError(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."))
             case .noMatch:
-                throw SlashCommandError(loc("Not sent: the Orca tabs on screen match no workspace's terminals. Workspaces with file, browser or chat tabs open are not supported yet."))
+                throw SlashCommandError(loc("Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart."))
             case .noActiveTab:
                 break
             }

@@ -2,6 +2,11 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.10
+
+- Orca: hotkeys work when a workspace's tabs are split into groups side by side. Orca marks the active tab of every group the same way, so the app saw two active tabs and said "could not tell which Orca tab is on screen". Orca's list of the workspace's tabs now says how the groups are laid out, the screen shows which group has focus, and the hotkey goes to the active tab of that group when both agree.
+- Orca: workspaces with file or chat tabs open work too. The strip must still match Orca's list exactly, including which tab is active in every group, and a terminal's title must appear only once; when it does not, for example because you switched tabs at that moment, nothing is sent and the notice says the tabs did not line up.
+
 ## 0.2.9
 
 - Orca: hotkeys work in a workspace with a browser tab open. Orca's own list of the workspace's tabs now tells the app which tabs in the strip are terminals, so a terminal next to a browser tab is no longer refused with "match no workspace's terminals". With the browser tab in front, nothing is sent. Workspaces with file tabs open, and workspaces whose tabs are split into groups side by side, can still be refused: Orca does not always list those tabs in a way the app can line up with the strip.

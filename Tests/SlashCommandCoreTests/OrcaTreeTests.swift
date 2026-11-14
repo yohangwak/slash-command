@@ -89,6 +89,45 @@ final class OrcaTreeTests: XCTestCase {
         XCTAssertEqual(visited, [0, 1, 4])
     }
 
+    /// Orca 1.4.258 with tabs split into two groups: each group's frame holds its tab actions, then its tabs; the unfocused group's
+    /// actions carry `opacity-50`.
+    func testReadsGroupFramesAndWhichOneShowsFocus() {
+        enum Part { case frame, actions([String]), tab(active: Bool, String), other }
+        let parts: [Int: Part] = [
+            1: .frame, 2: .other, 3: .tab(active: true, "one"), 4: .tab(active: false, "two"),
+            5: .actions(["ml-1.5", "flex", "shrink-0", "items-center", "gap-0.5", "transition-opacity", "duration-150", "opacity-50", "hover:opacity-100", "focus-within:opacity-100"]),
+            6: .frame, 7: .tab(active: true, "three"),
+            8: .actions(["ml-1.5", "flex", "shrink-0", "items-center", "gap-0.5", "transition-opacity", "duration-150"]),
+            9: .tab(active: false, "loose"),
+        ]
+        let children = [0: [1, 6, 9], 1: [2, 5], 2: [3, 4], 6: [7, 8]]
+        func classes(_ node: Int) -> [String] {
+            switch parts[node] {
+            case .frame: return ["group/tab-group", "relative", "flex", "flex-col"]
+            case .actions(let classes): return classes
+            default: return []
+            }
+        }
+        let strip = OrcaView.strip(from: [0], tab: { node in
+            guard case .tab(let active, let title) = parts[node] else { return nil }
+            return OrcaView.Strip.Tab(title: title, truncated: false, active: active)
+        }, currentWorkspace: { _ in nil }, group: { OrcaView.groupMark(classes: classes($0)) }, children: { children[$0] ?? [] })
+        XCTAssertEqual(strip?.tabs.map(\.title), ["one", "two", "three", "loose"])
+        XCTAssertEqual(strip?.groups, [.init(tabs: 2, focused: false), .init(tabs: 1, focused: true)])
+        XCTAssertEqual(strip?.ungroupedTabs, 1)
+        XCTAssertNil(OrcaView.groupMark(classes: ["ml-1.5", "flex"]), "Not the tab actions")
+        XCTAssertNil(OrcaView.groupMark(classes: ["bg-tab-active"]))
+    }
+
+    /// A frame with no actions, or with two, does not say whether it has focus.
+    func testAFrameWithoutExactlyOneMarkHasUnknownFocus() {
+        let marks: [Int: OrcaView.GroupMark] = [1: .frame, 2: .actions(focused: true), 3: .actions(focused: false), 4: .frame]
+        let children = [0: [1, 4], 1: [2, 3, 5], 4: [6]]
+        let strip = OrcaView.strip(from: [0], tab: { [5, 6].contains($0) ? .init(title: "t\($0)", truncated: false, active: true) : nil },
+                                   currentWorkspace: { _ in nil }, group: { marks[$0] }, children: { children[$0] ?? [] })
+        XCTAssertEqual(strip?.groups, [.init(tabs: 1, focused: nil), .init(tabs: 1, focused: nil)])
+    }
+
     func testNoTabsIsAnEmptyListNotUnknown() {
         var tree = Tree()
         tree.children = [0: [1, 2]]

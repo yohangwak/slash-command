@@ -19,17 +19,25 @@ extension OrcaView {
             windows = ["AXFocusedWindow", "AXMainWindow"].compactMap { attribute(element, $0) }.map { $0 as! AXUIElement }
         }
         // Put the app element in as "already seen" — under the window the app element sometimes comes out again as a child (see `tabs(from:…)` below).
+        // The walk asks `tab`, then (for an element that is not a tab) `group`, about the same element: read its classes once.
+        var last: (node: Node, classes: [String])?
+        func classes(of node: Node) -> [String] {
+            if let last, last.node == node { return last.classes }
+            let read = (attribute(node.element, "AXDOMClassList") as? [String]) ?? []
+            last = (node, read)
+            return read
+        }
         let read = strip(from: windows.map(Node.init), seen: [Node(element)],
-                         tab: tab(of:),
+                         tab: { tab(of: $0, classes: classes(of: $0)) },
                          currentWorkspace: { currentWorkspace(domID: attribute($0.element, "AXDOMIdentifier") as? String,
                                                               ariaCurrent: attribute($0.element, "AXARIACurrent") as? String) },
+                         group: { groupMark(classes: classes(of: $0)) },
                          children: { children(of: $0.element).map(Node.init) })
         return read.flatMap { $0.tabs.isEmpty ? nil : $0 }
     }
 
     /// The tab an element is (see `tab(classes:texts:buttonLabels:label:)`). Its parts are read only when it has Orca's tab class.
-    private static func tab(of node: Node) -> Strip.Tab? {
-        let classes = (attribute(node.element, "AXDOMClassList") as? [String]) ?? []
+    private static func tab(of node: Node, classes: [String]) -> Strip.Tab? {
         var texts: [String] = []
         var buttonLabels: [String] = []
         if !tabClasses.isDisjoint(with: classes) {
