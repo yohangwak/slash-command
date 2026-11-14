@@ -306,7 +306,7 @@ do {
         let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
         print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         #if os(macOS)
-        if case .orca = target.host, let payload = try? Detector.orcaTerminals(), let found = try? Detector.orcaActive(payload: payload) {
+        if case .orca = target.host, let found = try? Detector.orcaActive(loadTerminals: Detector.orcaTerminals) {
             print("visible via   \(found.source)")
         }
         #endif
