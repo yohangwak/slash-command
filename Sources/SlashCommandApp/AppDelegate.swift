@@ -7,6 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let hud = HUD()
     private let worker = DispatchQueue(label: "slashcommand.apply")
     private let detector = DispatchQueue(label: "slashcommand.detect")
+    private let orcaPreparing = DispatchQueue(label: "slashcommand.orca-prepare", qos: .utility)
+    /// The latest request to Orca (`prepareOrca`), and the Orca process that took one.
+    private var orcaRequest = 0
+    private var orcaPrepared: pid_t?
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
@@ -49,6 +53,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             name: NSWorkspace.didActivateApplicationNotification, object: nil)
         refreshHotKeys()
         refreshAutomation()
+        if let orca = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first {
+            prepareOrca(pid: orca.processIdentifier)
+        }
         // The first time only: if Accessibility is off, first show the window that has the permission row (after that it is opened from the menu).
         if !Permissions.accessibility, !UserDefaults.standard.bool(forKey: "permissionsIntroShown") {
             UserDefaults.standard.set(true, forKey: "permissionsIntroShown")
@@ -136,6 +143,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshHotKeys(front: app?.bundleIdentifier)
         // Re-learn each time a terminal comes to the front — so the value is ready before the menu is opened.
         refreshAutomation()
+        if let app, app.bundleIdentifier == Detector.orcaBundleID { prepareOrca(pid: app.processIdentifier) }
+    }
+
+    /// Orca makes its tabs readable up to a minute after it is first asked (`OrcaView.StripReading.pageNotReady`): ask as soon as it
+    /// is in front, not when a hotkey is pressed. Orca comes to the front as it starts, when it refuses, so ask again each second
+    /// until it takes the request (for at most 30 seconds). Off the main thread, as an accessibility call waits for Orca to answer.
+    /// Each call replaces the one before (Orca quitting comes to the front too, just before the new one starts).
+    private func prepareOrca(pid: pid_t) {
+        guard GhosttyScreen.trusted() else { return }
+        orcaRequest += 1
+        askOrca(pid: pid, request: orcaRequest, attempt: 1)
+    }
+
+    private func askOrca(pid: pid_t, request: Int, attempt: Int) {
+        orcaPreparing.async { [weak self] in
+            let taken = OrcaView.prepare(pid: pid)
+            DispatchQueue.main.async {
+                guard let self, request == self.orcaRequest else { return }
+                if taken {
+                    if self.orcaPrepared != pid {
+                        self.orcaPrepared = pid
+                        Log.write("Orca asked to make its tabs readable (pid \(pid), attempt \(attempt))")
+                    }
+                } else if attempt < 30, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.askOrca(pid: pid, request: request, attempt: attempt + 1) }
+                } else if attempt >= 30 {
+                    Log.write("Orca did not take the request to make its tabs readable (pid \(pid), \(attempt) attempts)")
+                }
+            }
+        }
     }
 
     /// Reads the Automation permission again off the main thread and puts it in `automation`. If the previous check has not finished, does not put in a new one.

@@ -6,14 +6,51 @@ import Foundation
 extension OrcaView {
     // MARK: - Reading through accessibility
 
-    /// Orca's tab strip right now. nil if there is no permission or it cannot be read.
+    /// What a read of Orca's tab strip found.
+    public enum StripReading {
+        /// The strip of the window.
+        case read(Strip)
+        /// Orca has a window but has not put its page in the accessibility tree yet: Chromium builds it some time after a reader first
+        /// asks. Measured 2026-11-15 on a Mac with Orca 1.4.259: the window alone (12–13 elements, no page) for 12 to 46 seconds after
+        /// the first request — however long Orca had been running — then the full page (about 220 elements). With 1.4.258 it took
+        /// one to two seconds. `prepare(pid:)` asks early so a hotkey press does not land in that gap.
+        case pageNotReady
+        /// No permission, no Orca, no window, or a page without a tab strip this reader knows.
+        case unreadable
+    }
+
+    /// Orca's tab strip right now.
     ///
-    /// Chromium builds Orca's page for accessibility only once a reader asks (`AXManualAccessibility`), and the read that asks first
-    /// gets the window without its page (measured 2026-11-14 on a Mac, Orca 1.4.258: 12–13 elements, then the full 215 one to two seconds
-    /// later, read through a new application element each time). So a read that finds no tab strip is repeated for a short while.
-    public static func readStrip() -> Strip? {
-        guard GhosttyScreen.trusted() else { return nil }
-        return retrying(times: 8, every: 0.15) { readStripOnce() }
+    /// Chromium builds Orca's page for accessibility only once a reader asks (`AXManualAccessibility`), and the reads that follow get
+    /// the window without its page for a while (see `StripReading.pageNotReady`). A read that finds no tab strip is repeated for a short
+    /// while, which covers the one to two seconds Orca 1.4.258 takes.
+    public static func readStrip() -> StripReading {
+        guard GhosttyScreen.trusted() else { return .unreadable }
+        return reading(times: 8, every: 0.15) { readStripOnce() }
+    }
+
+    /// Reads with `retrying`; when no read finds a strip, the last read says whether the page was missing from a window that is there.
+    static func reading(times: Int, every: TimeInterval, wait: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) },
+                        _ read: () -> (strip: Strip?, windowWithoutPage: Bool)) -> StripReading {
+        var windowWithoutPage = false
+        let strip = retrying(times: times, every: every, wait: wait) { () -> Strip? in
+            let once = read()
+            windowWithoutPage = once.windowWithoutPage
+            return once.strip
+        }
+        if let strip { return .read(strip) }
+        return windowWithoutPage ? .pageNotReady : .unreadable
+    }
+
+    /// Asks Orca to build its page for accessibility, and reads nothing. The app calls it when Orca comes to the front, so the page
+    /// is there by the time a hotkey is pressed (see `StripReading.pageNotReady`). Asking again once it is built changes nothing.
+    /// Returns whether Orca took the request: while it is still starting it refuses (measured 2026-11-15, Orca 1.4.259: refused
+    /// with `kAXErrorCannotComplete` 0.3 seconds after launch, and the page was still missing 50 seconds later; taken at 3 and at
+    /// 6 seconds, and the page was there 50 seconds later).
+    public static func prepare(pid: pid_t) -> Bool {
+        let element = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(element, 2)
+        return AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success
     }
 
     /// Calls `read` until it returns a value, at most `times` more times after the first, waiting `every` seconds in between.
@@ -27,8 +64,10 @@ extension OrcaView {
         return nil
     }
 
-    private static func readStripOnce() -> Strip? {
-        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return nil }
+    /// One read. `windowWithoutPage`: no strip was found, and Orca has a window with no web page (`AXWebArea`) in it. While Orca is
+    /// still building its page the window holds only Electron's frame — a few groups and the window buttons (measured 2026-11-15).
+    private static func readStripOnce() -> (strip: Strip?, windowWithoutPage: Bool) {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return (nil, false) }
         let element = AXUIElementCreateApplication(app.processIdentifier)
         // Chromium exposes the web view (DOM) in the tree only when there is an accessibility request.
         AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
@@ -52,7 +91,24 @@ extension OrcaView {
                                                               ariaCurrent: attribute($0.element, "AXARIACurrent") as? String) },
                          group: { groupMark(classes: classes(of: $0)) },
                          children: { children(of: $0.element).map(Node.init) })
-        return read.flatMap { $0.tabs.isEmpty ? nil : $0 }
+        if let read, !read.tabs.isEmpty { return (read, false) }
+        return (nil, !windows.isEmpty && !hasWebArea(under: windows))
+    }
+
+    /// Whether a web page is among the first elements under the windows (it sits about seven levels down in Orca 1.4.259).
+    private static func hasWebArea(under windows: [AXUIElement]) -> Bool {
+        var level = windows, looked = 0
+        for _ in 0..<12 where !level.isEmpty {
+            var next: [AXUIElement] = []
+            for element in level {
+                looked += 1
+                if looked > 400 { return true }  // a large tree is not a page still being built
+                if attribute(element, "AXRole") as? String == "AXWebArea" { return true }
+                next += children(of: element)
+            }
+            level = next
+        }
+        return false
     }
 
     /// The tab an element is (see `tab(classes:texts:buttonLabels:label:)`). Its parts are read only when it has Orca's tab class.

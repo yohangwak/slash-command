@@ -160,5 +160,23 @@ final class OrcaTreeTests: XCTestCase {
         calls = 0
         XCTAssertEqual(OrcaView.retrying(times: 8, every: 0.15, wait: { _ in XCTFail("No wait when the first read finds it") }) { calls += 1; return 7 }, 7)
     }
+
+    /// Orca 1.4.259 shows its window without the page for 12 to 46 seconds after the first request (measured 2026-11-15): that is
+    /// told apart from a strip this reader cannot find, so the message says to wait instead of blaming an Orca update.
+    func testAWindowWithoutItsPageIsNotReadyRatherThanUnreadable() {
+        let strip = OrcaView.Strip(tabs: [.init(title: "zsh", truncated: false, active: true)])
+        func reading(_ reads: [(OrcaView.Strip?, Bool)]) -> OrcaView.StripReading {
+            var left = reads[...]
+            return OrcaView.reading(times: reads.count - 1, every: 0.15, wait: { _ in }) {
+                let next = left.popFirst()!
+                return (next.0, next.1)
+            }
+        }
+        guard case .pageNotReady = reading(Array(repeating: (nil, true), count: 9)) else { return XCTFail("Window, never a page") }
+        guard case .unreadable = reading(Array(repeating: (nil, false), count: 9)) else { return XCTFail("A page without a known strip, or no window") }
+        guard case .unreadable = reading([(nil, true), (nil, false)]) else { return XCTFail("The last read decides") }
+        guard case .read(let found) = reading([(nil, true), (nil, true), (strip, false)]) else { return XCTFail("The page came in time") }
+        XCTAssertEqual(found.tabs.map(\.title), ["zsh"])
+    }
     #endif
 }
