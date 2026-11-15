@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let worker = DispatchQueue(label: "slashcommand.apply")
     private let detector = DispatchQueue(label: "slashcommand.detect")
     private let orcaPreparing = DispatchQueue(label: "slashcommand.orca-prepare", qos: .utility)
+    /// The latest request to Orca (`prepareOrca`), and the Orca process that took one.
+    private var orcaRequest = 0
+    private var orcaPrepared: pid_t?
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
@@ -146,15 +149,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Orca makes its tabs readable up to a minute after it is first asked (`OrcaView.StripReading.pageNotReady`): ask as soon as it
     /// is in front, not when a hotkey is pressed. Orca comes to the front as it starts, when it refuses, so ask again each second
     /// until it takes the request (for at most 30 seconds). Off the main thread, as an accessibility call waits for Orca to answer.
+    /// Each call replaces the one before (Orca quitting comes to the front too, just before the new one starts).
     private func prepareOrca(pid: pid_t) {
         guard GhosttyScreen.trusted() else { return }
-        orcaPreparing.async {
-            for attempt in 0..<30 {
-                if attempt > 0 {
-                    Thread.sleep(forTimeInterval: 1)
-                    guard NSRunningApplication(processIdentifier: pid) != nil else { return }
+        orcaRequest += 1
+        askOrca(pid: pid, request: orcaRequest, attempt: 1)
+    }
+
+    private func askOrca(pid: pid_t, request: Int, attempt: Int) {
+        orcaPreparing.async { [weak self] in
+            let taken = OrcaView.prepare(pid: pid)
+            DispatchQueue.main.async {
+                guard let self, request == self.orcaRequest else { return }
+                if taken {
+                    if self.orcaPrepared != pid {
+                        self.orcaPrepared = pid
+                        Log.write("Orca asked to make its tabs readable (pid \(pid), attempt \(attempt))")
+                    }
+                } else if attempt < 30, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.askOrca(pid: pid, request: request, attempt: attempt + 1) }
+                } else if attempt >= 30 {
+                    Log.write("Orca did not take the request to make its tabs readable (pid \(pid), \(attempt) attempts)")
                 }
-                if OrcaView.prepare(pid: pid) { return }
             }
         }
     }
