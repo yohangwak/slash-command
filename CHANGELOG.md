@@ -4,7 +4,7 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 
 ## 0.2.12
 
-- Orca 1.4.259: the first hotkey after Orca starts works again. This Orca takes 12 to 46 seconds, not one or two, to make its tabs readable after it is first asked, so a hotkey pressed then was refused with "could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)" — on a Mac in use, even five hours after Orca started, because the hotkey was the first to ask. The app now asks as soon as Orca comes to the front. If a hotkey still lands in that gap, the notice says Orca is still getting its tabs ready and to press again shortly.
+- Orca 1.4.259: the first hotkey after Orca starts works again. This Orca takes 12 to 46 seconds, not one or two, to make its tabs readable after it is first asked, so a hotkey pressed then was refused with "could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)" — on a Mac in use, even five hours after Orca started, because the hotkey was the first to ask. The app now asks as soon as Orca comes to the front, and keeps asking each second while Orca, still starting, refuses. If a hotkey still lands in that gap, the notice says Orca is still getting its tabs ready and to press again shortly.
 
 ## 0.2.11
 

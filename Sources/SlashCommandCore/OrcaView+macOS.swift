@@ -44,11 +44,13 @@ extension OrcaView {
 
     /// Asks Orca to build its page for accessibility, and reads nothing. The app calls it when Orca comes to the front, so the page
     /// is there by the time a hotkey is pressed (see `StripReading.pageNotReady`). Asking again once it is built changes nothing.
-    public static func prepare(pid: pid_t) {
-        guard GhosttyScreen.trusted() else { return }
+    /// Returns whether Orca took the request: while it is still starting it refuses (measured 2026-11-15, Orca 1.4.259: refused
+    /// with `kAXErrorCannotComplete` 0.3 seconds after launch, and the page was still missing 50 seconds later; taken at 3 and at
+    /// 6 seconds, and the page was there 50 seconds later).
+    public static func prepare(pid: pid_t) -> Bool {
         let element = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(element, 2)
-        AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        return AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success
     }
 
     /// Calls `read` until it returns a value, at most `times` more times after the first, waiting `every` seconds in between.
@@ -62,7 +64,8 @@ extension OrcaView {
         return nil
     }
 
-    /// One read. `windowWithoutPage`: Orca has a window, but no element of a web page (one with DOM classes) was found under it.
+    /// One read. `windowWithoutPage`: no strip was found, and Orca has a window with no web page (`AXWebArea`) in it. While Orca is
+    /// still building its page the window holds only Electron's frame — a few groups and the window buttons (measured 2026-11-15).
     private static func readStripOnce() -> (strip: Strip?, windowWithoutPage: Bool) {
         guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return (nil, false) }
         let element = AXUIElementCreateApplication(app.processIdentifier)
@@ -76,11 +79,9 @@ extension OrcaView {
         // Put the app element in as "already seen" — under the window the app element sometimes comes out again as a child (see `tabs(from:…)` below).
         // The walk asks `tab`, then (for an element that is not a tab) `group`, about the same element: read its classes once.
         var last: (node: Node, classes: [String])?
-        var sawPage = false
         func classes(of node: Node) -> [String] {
             if let last, last.node == node { return last.classes }
             let read = (attribute(node.element, "AXDOMClassList") as? [String]) ?? []
-            if !read.isEmpty { sawPage = true }
             last = (node, read)
             return read
         }
@@ -90,7 +91,24 @@ extension OrcaView {
                                                               ariaCurrent: attribute($0.element, "AXARIACurrent") as? String) },
                          group: { groupMark(classes: classes(of: $0)) },
                          children: { children(of: $0.element).map(Node.init) })
-        return (read.flatMap { $0.tabs.isEmpty ? nil : $0 }, !windows.isEmpty && !sawPage)
+        if let read, !read.tabs.isEmpty { return (read, false) }
+        return (nil, !windows.isEmpty && !hasWebArea(under: windows))
+    }
+
+    /// Whether a web page is among the first elements under the windows (it sits about seven levels down in Orca 1.4.259).
+    private static func hasWebArea(under windows: [AXUIElement]) -> Bool {
+        var level = windows, looked = 0
+        for _ in 0..<12 where !level.isEmpty {
+            var next: [AXUIElement] = []
+            for element in level {
+                looked += 1
+                if looked > 400 { return true }  // a large tree is not a page still being built
+                if attribute(element, "AXRole") as? String == "AXWebArea" { return true }
+                next += children(of: element)
+            }
+            level = next
+        }
+        return false
     }
 
     /// The tab an element is (see `tab(classes:texts:buttonLabels:label:)`). Its parts are read only when it has Orca's tab class.

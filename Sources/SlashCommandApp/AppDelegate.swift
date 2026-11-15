@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let hud = HUD()
     private let worker = DispatchQueue(label: "slashcommand.apply")
     private let detector = DispatchQueue(label: "slashcommand.detect")
+    private let orcaPreparing = DispatchQueue(label: "slashcommand.orca-prepare", qos: .utility)
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
@@ -143,9 +144,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// Orca makes its tabs readable up to a minute after it is first asked (`OrcaView.StripReading.pageNotReady`): ask as soon as it
-    /// is in front, not when a hotkey is pressed. Off the main thread, as an accessibility call waits for Orca to answer.
+    /// is in front, not when a hotkey is pressed. Orca comes to the front as it starts, when it refuses, so ask again each second
+    /// until it takes the request (for at most 30 seconds). Off the main thread, as an accessibility call waits for Orca to answer.
     private func prepareOrca(pid: pid_t) {
-        DispatchQueue.global(qos: .utility).async { OrcaView.prepare(pid: pid) }
+        guard GhosttyScreen.trusted() else { return }
+        orcaPreparing.async {
+            for attempt in 0..<30 {
+                if attempt > 0 {
+                    Thread.sleep(forTimeInterval: 1)
+                    guard NSRunningApplication(processIdentifier: pid) != nil else { return }
+                }
+                if OrcaView.prepare(pid: pid) { return }
+            }
+        }
     }
 
     /// Reads the Automation permission again off the main thread and puts it in `automation`. If the previous check has not finished, does not put in a new one.
