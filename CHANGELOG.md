@@ -2,6 +2,10 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.12
+
+- Orca 1.4.259: the first hotkey after Orca starts works again. This Orca takes 12 to 46 seconds, not one or two, to make its tabs readable after it is first asked, so a hotkey pressed then was refused with "could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)" — on a Mac in use, even five hours after Orca started, because the hotkey was the first to ask. The app now asks as soon as Orca comes to the front. If a hotkey still lands in that gap, the notice says Orca is still getting its tabs ready and to press again shortly.
+
 ## 0.2.11
 
 - Orca: tabs split into groups work on screen. 0.2.10 looked for a focus mark that Orca leaves out of what Accessibility can read, so every workspace split into groups was refused with "the Orca tabs on screen do not line up". The app now reads the accent underline Orca draws under the focused group; a group with another group below it has no underline, and it is recognised as the one group that cannot show it. Tested on a Mac with two and three groups, side by side and stacked, and a Claude session switched in the focused group.

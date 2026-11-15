@@ -49,6 +49,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             name: NSWorkspace.didActivateApplicationNotification, object: nil)
         refreshHotKeys()
         refreshAutomation()
+        if let orca = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first {
+            prepareOrca(pid: orca.processIdentifier)
+        }
         // The first time only: if Accessibility is off, first show the window that has the permission row (after that it is opened from the menu).
         if !Permissions.accessibility, !UserDefaults.standard.bool(forKey: "permissionsIntroShown") {
             UserDefaults.standard.set(true, forKey: "permissionsIntroShown")
@@ -136,6 +139,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshHotKeys(front: app?.bundleIdentifier)
         // Re-learn each time a terminal comes to the front — so the value is ready before the menu is opened.
         refreshAutomation()
+        if let app, app.bundleIdentifier == Detector.orcaBundleID { prepareOrca(pid: app.processIdentifier) }
+    }
+
+    /// Orca makes its tabs readable up to a minute after it is first asked (`OrcaView.StripReading.pageNotReady`): ask as soon as it
+    /// is in front, not when a hotkey is pressed. Off the main thread, as an accessibility call waits for Orca to answer.
+    private func prepareOrca(pid: pid_t) {
+        DispatchQueue.global(qos: .utility).async { OrcaView.prepare(pid: pid) }
     }
 
     /// Reads the Automation permission again off the main thread and puts it in `automation`. If the previous check has not finished, does not put in a new one.

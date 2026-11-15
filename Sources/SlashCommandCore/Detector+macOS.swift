@@ -116,7 +116,8 @@ extension Detector {
     /// Identifies the workspace and tab shown on screen using Orca's tab strip read through accessibility. `loadTerminals` reads
     /// Orca's terminal list; it is called after the strip is read, and the list it returns is the one the answer comes with.
     public static func orcaActive(loadTerminals: () throws -> [String: Any]) throws -> (active: OrcaState.Active, source: String, payload: [String: Any]) {
-        if let strip = OrcaView.readStrip() {
+        let reading = OrcaView.readStrip()
+        if case .read(let strip) = reading {
             // Titles alone cannot prove which workspace is visible; the sidebar's current row does. Without it, nothing is sent.
             guard strip.currentWorkspaces.count == 1 else {
                 throw SlashCommandError(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."))
@@ -144,6 +145,8 @@ extension Detector {
             case .noActiveTab:
                 break
             }
+        } else if case .pageNotReady = reading {
+            throw SlashCommandError(loc("Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly."))
         } else if !GhosttyScreen.trusted() {
             var error = SlashCommandError(loc("Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again.", SettingsNames.accessibility))
             error.needsAccessibility = true
