@@ -201,8 +201,8 @@ final class OrcaTreeTests: XCTestCase {
         XCTAssertEqual(stats.summary, "windows 1 · elements 231 · web page yes · cut no · tabs 3 · active 2 · groups 2 · sidebar current 1")
         let line = OrcaView.StripStats.diagnostic(orcaVersion: "1.4.259", outcome: "noActiveTab, with session list", stats: stats)
         XCTAssertEqual(line, "Orca 1.4.259 · noActiveTab, with session list · windows 1 · elements 231 · web page yes · cut no · tabs 3 · active 2 · groups 2 · sidebar current 1")
-        let check = OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9132, readable: true, stats: stats)
-        XCTAssertEqual(check, "Orca 1.4.259 (pid 9132) check: tabs readable (windows 1 · elements 231 · web page yes · cut no · tabs 3 · active 2 · groups 2 · sidebar current 1)")
+        let check = OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9132, result: .refused(outcome: "noActiveTab, with session list", diagnostic: line))
+        XCTAssertEqual(check, "Orca 1.4.259 (pid 9132) check: tabs NOT readable (Orca 1.4.259 · noActiveTab, with session list · windows 1 · elements 231 · web page yes · cut no · tabs 3 · active 2 · groups 2 · sidebar current 1)")
         for text in [line, check] {
             for leak in ["secret", "claude", "billing", "csv", "zsh", "private", "repo-123", "/Users", "someone"] {
                 XCTAssertFalse(text.contains(leak), "\(leak) in \(text)")
@@ -212,10 +212,29 @@ final class OrcaTreeTests: XCTestCase {
         stats = OrcaView.StripStats()
         stats.windows = 1; stats.elements = 13; stats.webPage = false
         XCTAssertTrue(stats.windowWithoutPage)
-        XCTAssertEqual(OrcaSelfCheck.line(orcaVersion: nil, pid: 7, readable: false, stats: stats),
-                       "Orca ? (pid 7) check: tabs NOT readable (windows 1 · elements 13 · web page no · cut no · tabs 0 · active 0 · groups 0 · sidebar current 0)")
+        XCTAssertEqual(OrcaView.StripStats.diagnostic(orcaVersion: nil, outcome: "pageNotReady", stats: stats),
+                       "Orca ? · pageNotReady · windows 1 · elements 13 · web page no · cut no · tabs 0 · active 0 · groups 0 · sidebar current 0")
         XCTAssertTrue(OrcaView.StripStats().summary.contains("web page unknown"), "Not looked up is not «no»")
         XCTAssertFalse(OrcaView.StripStats().windowWithoutPage, "No window is not a window without its page")
+    }
+
+    /// The check after an Orca start runs the hotkey's lookup: a strip that is found but would be refused is not «readable» (Pullfrog
+    /// #64 — an Orca that renamed the active mark gives tabs and no active one); a non-terminal tab in front means the reader works.
+    func testTheCheckAfterAnOrcaStartJudgesByTheHotkeysLookup() {
+        XCTAssertEqual(OrcaSelfCheck.Result(error: nil), .found)
+        XCTAssertTrue(OrcaSelfCheck.Result.found.readable)
+        XCTAssertEqual(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9, result: .found),
+                       "Orca 1.4.259 (pid 9) check: tabs readable (a hotkey would find the visible terminal)")
+        let renamed = SlashCommandError("Not sent").diagnosing("Orca 1.4.260 · noActiveTab, no session list · tabs 3 · active 0", outcome: "noActiveTab, no session list")
+        let partial = OrcaSelfCheck.Result(error: renamed)
+        XCTAssertFalse(partial.readable, "Tabs found, but a hotkey would be refused")
+        XCTAssertTrue(OrcaSelfCheck.line(orcaVersion: "1.4.260", pid: 9, result: partial).contains("check: tabs NOT readable (Orca 1.4.260 · noActiveTab"))
+        let browser = SlashCommandError("The frontmost Orca tab is not a terminal.").diagnosing("Orca 1.4.259 · notATerminal · tabs 2", outcome: "notATerminal")
+        XCTAssertTrue(OrcaSelfCheck.Result(error: browser).readable)
+        let other = OrcaSelfCheck.Result(error: SlashCommandError("Orca's terminal list: timeout"))
+        XCTAssertEqual(other, .otherFailure)
+        XCTAssertFalse(other.readable)
+        XCTAssertFalse(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9, result: other).contains("timeout"), "No message text in the line")
     }
 
     /// Only the characters a version has reach the log from Orca's Info.plist.

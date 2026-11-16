@@ -461,6 +461,8 @@ public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
     /// A line for the log about how the frontmost terminal was looked for, made of counts only (`OrcaView.StripStats.diagnostic`).
     /// The app writes it under the failure; the command line prints it too.
     public var diagnostic: String?
+    /// The reader's conclusion in that line (`notATerminal`, `noMatch, with session list`…), for the app's check after an Orca start.
+    public var diagnosticOutcome: String?
 
     public init(_ message: String) {
         self.message = message
@@ -469,9 +471,10 @@ public struct SlashCommandError: Error, CustomStringConvertible, Equatable {
     public var description: String { message }
 
     /// A copy with a count-only diagnostic line (see `diagnostic`).
-    public func diagnosing(_ line: String) -> SlashCommandError {
+    public func diagnosing(_ line: String, outcome: String? = nil) -> SlashCommandError {
         var copy = self
         copy.diagnostic = line
+        copy.diagnosticOutcome = outcome
         return copy
     }
 

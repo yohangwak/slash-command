@@ -4,7 +4,7 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 
 ## 0.2.13
 
-- Orca: when an Orca update changes something the app reads, it now shows in the log at the next Orca start, not first as a refused hotkey. A minute after Orca starts, the app reads its tab strip once, silently, and logs whether the tabs are readable; if not, it reads once more two minutes later.
+- Orca: when an Orca update changes something the app reads, it now shows in the log at the next Orca start, not first as a refused hotkey. A minute after Orca starts, the app looks up the visible terminal once the way a hotkey does, without sending anything, and logs whether a hotkey would work; if not, it looks once more two minutes later.
 - Orca: every refused hotkey adds a line `orca read: …` under the failure in the log, with Orca's version, what the app concluded and what it saw (windows, elements, tabs, active marks, groups, sidebar rows, whether the web page was there). `where` and `doctor` print the same line. Both lines hold counts only, never a tab title or any other screen text.
 
 ## 0.2.12

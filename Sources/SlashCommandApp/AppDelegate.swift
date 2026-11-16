@@ -176,8 +176,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Once per Orca process, a minute after it took the request: read the tab strip once, silently (no keys, nothing sent), and
-    /// log whether it is readable, with counts only (`OrcaSelfCheck.line`). An Orca update that this reader cannot follow shows up
+    /// Once per Orca process, a minute after it took the request: run the hotkey's lookup once, silently (no keys, nothing sent),
+    /// and log whether a hotkey would work, with counts only (`OrcaSelfCheck.line`). An Orca update that this reader cannot follow shows up
     /// in the log at the first Orca start after it, on every Mac, before a hotkey is refused. If not readable, one more read two
     /// minutes later — never more than two reads per Orca process. The first is scheduled only when `orcaPrepared` changes.
     private func checkOrca(pid: pid_t, after delay: TimeInterval, last: Bool) {
@@ -185,11 +185,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self, self.orcaPrepared == pid, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated,
                   GhosttyScreen.trusted() else { return }
             self.detector.async {
-                let (reading, stats) = OrcaView.readStrip()
-                var readable = false
-                if case .read = reading { readable = true }
-                Log.write(OrcaSelfCheck.line(orcaVersion: OrcaView.runningVersion(pid: pid), pid: pid, readable: readable, stats: stats))
-                if !readable, !last {
+                // The hotkey's own lookup for this Orca process, without sending anything: a strip that is found but cannot be
+                // resolved (an active mark Orca renamed, say) counts as not readable, as a hotkey would be refused.
+                var failure: Error?
+                do { _ = try Detector.orcaActive(pid: pid, loadTerminals: Detector.orcaTerminals) } catch { failure = error }
+                let result = OrcaSelfCheck.Result(error: failure)
+                Log.write(OrcaSelfCheck.line(orcaVersion: OrcaView.runningVersion(pid: pid), pid: pid, result: result))
+                if !result.readable, !last {
                     DispatchQueue.main.async { self.checkOrca(pid: pid, after: OrcaSelfCheck.secondDelay, last: true) }
                 }
             }

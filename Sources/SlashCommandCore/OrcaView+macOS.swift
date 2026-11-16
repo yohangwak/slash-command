@@ -25,9 +25,10 @@ extension OrcaView {
     /// the window without its page for a while (see `StripReading.pageNotReady`). A read that finds no tab strip is repeated for a short
     /// while, which covers the one to two seconds Orca 1.4.258 takes.
     /// `stats` are the counts of the last read (`StripStats`, for the log); empty without the Accessibility permission.
-    public static func readStrip() -> (reading: StripReading, stats: StripStats) {
+    /// `pid`: the Orca process to read (the app's check after an Orca start names it); nil reads the first running Orca.
+    public static func readStrip(pid: pid_t? = nil) -> (reading: StripReading, stats: StripStats) {
         guard GhosttyScreen.trusted() else { return (.unreadable, StripStats()) }
-        return reading(times: 8, every: 0.15) { readStripOnce() }
+        return reading(times: 8, every: 0.15) { readStripOnce(pid: pid) }
     }
 
     /// Reads with `retrying`; when no read finds a strip, the last read says whether the page was missing from a window that is there.
@@ -76,8 +77,10 @@ extension OrcaView {
     /// One read, with its counts. When no strip is found, `stats.webPage` says whether the window has a web page (`AXWebArea`) in it.
     /// While Orca is still building its page the window holds only Electron's frame — a few groups and the window buttons (measured
     /// 2026-11-15). The counts come from what the walk reads anyway; only that look for a web page is extra, and only on a failure.
-    private static func readStripOnce() -> (strip: Strip?, stats: StripStats) {
-        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return (nil, StripStats()) }
+    private static func readStripOnce(pid: pid_t?) -> (strip: Strip?, stats: StripStats) {
+        let running = pid.flatMap { NSRunningApplication(processIdentifier: $0) }.flatMap { $0.isTerminated ? nil : $0 }
+        guard let app = pid == nil ? NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first : running
+        else { return (nil, StripStats()) }
         let element = AXUIElementCreateApplication(app.processIdentifier)
         // Chromium exposes the web view (DOM) in the tree only when there is an accessibility request.
         AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)

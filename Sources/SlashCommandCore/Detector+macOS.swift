@@ -115,11 +115,13 @@ extension Detector {
 
     /// Identifies the workspace and tab shown on screen using Orca's tab strip read through accessibility. `loadTerminals` reads
     /// Orca's terminal list; it is called after the strip is read, and the list it returns is the one the answer comes with.
-    public static func orcaActive(loadTerminals: () throws -> [String: Any]) throws -> (active: OrcaState.Active, source: String, payload: [String: Any]) {
-        let (reading, stats) = OrcaView.readStrip()
+    /// `pid`: the Orca process to read (the app's check after an Orca start); nil reads the first running Orca.
+    public static func orcaActive(pid: pid_t? = nil, loadTerminals: () throws -> [String: Any]) throws -> (active: OrcaState.Active, source: String, payload: [String: Any]) {
+        let (reading, stats) = OrcaView.readStrip(pid: pid)
         // Each refusal carries a count-only line for the log (`OrcaView.StripStats`): which conclusion the reader reached, and what it saw.
         func refused(_ message: String, _ outcome: String) -> SlashCommandError {
-            SlashCommandError(message).diagnosing(OrcaView.StripStats.diagnostic(orcaVersion: OrcaView.runningVersion(), outcome: outcome, stats: stats))
+            SlashCommandError(message).diagnosing(OrcaView.StripStats.diagnostic(orcaVersion: OrcaView.runningVersion(pid: pid), outcome: outcome, stats: stats),
+                                                  outcome: outcome)
         }
         var outcome = "unreadable"
         if case .read(let strip) = reading {
@@ -142,7 +144,7 @@ extension Detector {
             }
             switch resolution {
             case .notATerminal:
-                throw SlashCommandError(loc("The frontmost Orca tab is not a terminal."))
+                throw refused(loc("The frontmost Orca tab is not a terminal."), "notATerminal")
             case .tab(let active):
                 return (active, "Accessibility", payload)
             case .ambiguous:
