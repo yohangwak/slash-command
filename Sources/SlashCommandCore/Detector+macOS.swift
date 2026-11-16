@@ -116,11 +116,16 @@ extension Detector {
     /// Identifies the workspace and tab shown on screen using Orca's tab strip read through accessibility. `loadTerminals` reads
     /// Orca's terminal list; it is called after the strip is read, and the list it returns is the one the answer comes with.
     public static func orcaActive(loadTerminals: () throws -> [String: Any]) throws -> (active: OrcaState.Active, source: String, payload: [String: Any]) {
-        let reading = OrcaView.readStrip()
+        let (reading, stats) = OrcaView.readStrip()
+        // Each refusal carries a count-only line for the log (`OrcaView.StripStats`): which conclusion the reader reached, and what it saw.
+        func refused(_ message: String, _ outcome: String) -> SlashCommandError {
+            SlashCommandError(message).diagnosing(OrcaView.StripStats.diagnostic(orcaVersion: OrcaView.runningVersion(), outcome: outcome, stats: stats))
+        }
+        var outcome = "unreadable"
         if case .read(let strip) = reading {
             // Titles alone cannot prove which workspace is visible; the sidebar's current row does. Without it, nothing is sent.
             guard strip.currentWorkspaces.count == 1 else {
-                throw SlashCommandError(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."))
+                throw refused(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."), "noCurrentWorkspace")
             }
             let payload = try loadTerminals()
             let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
@@ -128,9 +133,11 @@ extension Detector {
             // A strip that is not just the workspace's terminals in one row — browser or file tabs open, or tabs split into groups side
             // by side, which marks one active tab per group: Orca's session list says which tabs are terminals, how the groups are
             // laid out and which has focus. Without it (an older Orca, or an answer of another shape) the strip stays refused.
+            var sessionList = "no session list"
             if resolution == .noMatch || resolution == .noActiveTab,
                case .success(let answer) = OrcaRuntime.call("session.tabs.list", ["worktree": strip.currentWorkspaces[0]]),
                let session = OrcaView.sessionTabs(session: answer) {
+                sessionList = "with session list"
                 resolution = OrcaView.resolve(strip: strip, layouts: layouts, session: session)
             }
             switch resolution {
@@ -139,20 +146,20 @@ extension Detector {
             case .tab(let active):
                 return (active, "Accessibility", payload)
             case .ambiguous:
-                throw SlashCommandError(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."))
+                throw refused(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."), "ambiguous")
             case .noMatch:
-                throw SlashCommandError(loc("Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart."))
+                throw refused(loc("Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart."), "noMatch, \(sessionList)")
             case .noActiveTab:
-                break
+                outcome = "noActiveTab, \(sessionList)"
             }
         } else if case .pageNotReady = reading {
-            throw SlashCommandError(loc("Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly."))
+            throw refused(loc("Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly."), "pageNotReady")
         } else if !GhosttyScreen.trusted() {
             var error = SlashCommandError(loc("Not sent: Slash Command needs the %@ permission to see which Orca tab is on screen. Turn it on in System Settings → Privacy & Security, then press again.", SettingsNames.accessibility))
             error.needsAccessibility = true
             throw error
         }
-        throw SlashCommandError(loc("Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)."))
+        throw refused(loc("Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)."), outcome)
     }
 
 }

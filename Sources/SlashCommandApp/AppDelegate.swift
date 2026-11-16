@@ -165,11 +165,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if self.orcaPrepared != pid {
                         self.orcaPrepared = pid
                         Log.write("Orca asked to make its tabs readable (pid \(pid), attempt \(attempt))")
+                        self.checkOrca(pid: pid, after: OrcaSelfCheck.firstDelay, last: false)
                     }
                 } else if attempt < 30, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.askOrca(pid: pid, request: request, attempt: attempt + 1) }
                 } else if attempt >= 30 {
                     Log.write("Orca did not take the request to make its tabs readable (pid \(pid), \(attempt) attempts)")
+                }
+            }
+        }
+    }
+
+    /// Once per Orca process, a minute after it took the request: read the tab strip once, silently (no keys, nothing sent), and
+    /// log whether it is readable, with counts only (`OrcaSelfCheck.line`). An Orca update that this reader cannot follow shows up
+    /// in the log at the first Orca start after it, on every Mac, before a hotkey is refused. If not readable, one more read two
+    /// minutes later — never more than two reads per Orca process. The first is scheduled only when `orcaPrepared` changes.
+    private func checkOrca(pid: pid_t, after delay: TimeInterval, last: Bool) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.orcaPrepared == pid, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated,
+                  GhosttyScreen.trusted() else { return }
+            self.detector.async {
+                let (reading, stats) = OrcaView.readStrip()
+                var readable = false
+                if case .read = reading { readable = true }
+                Log.write(OrcaSelfCheck.line(orcaVersion: OrcaView.runningVersion(pid: pid), pid: pid, readable: readable, stats: stats))
+                if !readable, !last {
+                    DispatchQueue.main.async { self.checkOrca(pid: pid, after: OrcaSelfCheck.secondDelay, last: true) }
                 }
             }
         }
@@ -296,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.hud.show(loc("Automation permission needed"), detail: "\(error)", seconds: 6)
                 case .failure(let error):
                     Log.write("failed \(action.label): \(SlashCommandError.logText(error))")
+                    if let diagnostic = (error as? SlashCommandError)?.diagnostic { Log.write("orca read: \(diagnostic)") }
                     self.hud.show(loc("Not switched"), detail: "\(error)", seconds: 5)
                 }
             }

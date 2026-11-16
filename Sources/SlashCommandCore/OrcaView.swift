@@ -46,6 +46,60 @@ public enum OrcaView {
         }
     }
 
+    /// Counts from one read of Orca's tab strip, for the log: when a hotkey is refused and in the app's check after Orca starts.
+    /// Numbers and yes/no only — never a title, a worktree id or any other text from the screen.
+    public struct StripStats: Equatable, Sendable {
+        /// Windows the read walked (`AXWindows`, or the focused or main window when that list is empty).
+        public var windows = 0
+        /// Elements visited under them.
+        public var elements = 0
+        /// Whether a web page (`AXWebArea`) is in the window: yes when tabs were found, looked up only when none were, nil when not
+        /// looked up (no window).
+        public var webPage: Bool?
+        /// Whether the walk stopped at its element limit, in which case nothing it found is used.
+        public var cut = false
+        public var tabs = 0
+        /// Tabs with the active mark (one per tab group).
+        public var activeMarks = 0
+        /// Tab group frames.
+        public var groups = 0
+        /// Sidebar rows marked as the current page.
+        public var currentRows = 0
+
+        public init() {}
+
+        public init(strip: Strip, windows: Int, elements: Int) {
+            self.windows = windows
+            self.elements = elements
+            webPage = strip.tabs.isEmpty ? nil : true
+            tabs = strip.tabs.count
+            activeMarks = strip.tabs.filter(\.active).count
+            groups = strip.groups.count
+            currentRows = strip.currentWorkspaces.count
+        }
+
+        /// Orca has a window and no web page in it: the page is not built yet (`StripReading.pageNotReady`).
+        public var windowWithoutPage: Bool { windows > 0 && webPage == false }
+
+        public var summary: String {
+            func answer(_ value: Bool?) -> String { value.map { $0 ? "yes" : "no" } ?? "unknown" }
+            return "windows \(windows) · elements \(elements) · web page \(answer(webPage)) · cut \(answer(cut)) · tabs \(tabs) · "
+                + "active \(activeMarks) · groups \(groups) · sidebar current \(currentRows)"
+        }
+
+        /// The line for a refused hotkey: Orca's version, what the reader concluded (`outcome`, a fixed word from this code) and the
+        /// counts. The version is cut down to the characters a version has, so nothing else from Orca's files can reach the log.
+        public static func diagnostic(orcaVersion: String?, outcome: String, stats: StripStats) -> String {
+            "Orca \(cleanVersion(orcaVersion)) · \(outcome) · \(stats.summary)"
+        }
+
+        public static func cleanVersion(_ version: String?) -> String {
+            let allowed = Set("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-+")
+            let kept = String((version ?? "").filter { allowed.contains($0) }.prefix(32))
+            return kept.isEmpty ? "?" : kept
+        }
+    }
+
     /// An element that is a tab group's frame: whether it shows the focus mark, and whether it could (a frame Orca draws without its
     /// bottom border never shows it).
     public enum GroupMark: Equatable, Sendable {

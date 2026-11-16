@@ -24,22 +24,31 @@ extension OrcaView {
     /// Chromium builds Orca's page for accessibility only once a reader asks (`AXManualAccessibility`), and the reads that follow get
     /// the window without its page for a while (see `StripReading.pageNotReady`). A read that finds no tab strip is repeated for a short
     /// while, which covers the one to two seconds Orca 1.4.258 takes.
-    public static func readStrip() -> StripReading {
-        guard GhosttyScreen.trusted() else { return .unreadable }
+    /// `stats` are the counts of the last read (`StripStats`, for the log); empty without the Accessibility permission.
+    public static func readStrip() -> (reading: StripReading, stats: StripStats) {
+        guard GhosttyScreen.trusted() else { return (.unreadable, StripStats()) }
         return reading(times: 8, every: 0.15) { readStripOnce() }
     }
 
     /// Reads with `retrying`; when no read finds a strip, the last read says whether the page was missing from a window that is there.
     static func reading(times: Int, every: TimeInterval, wait: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) },
-                        _ read: () -> (strip: Strip?, windowWithoutPage: Bool)) -> StripReading {
-        var windowWithoutPage = false
+                        _ read: () -> (strip: Strip?, stats: StripStats)) -> (reading: StripReading, stats: StripStats) {
+        var stats = StripStats()
         let strip = retrying(times: times, every: every, wait: wait) { () -> Strip? in
             let once = read()
-            windowWithoutPage = once.windowWithoutPage
+            stats = once.stats
             return once.strip
         }
-        if let strip { return .read(strip) }
-        return windowWithoutPage ? .pageNotReady : .unreadable
+        if let strip { return (.read(strip), stats) }
+        return (stats.windowWithoutPage ? .pageNotReady : .unreadable, stats)
+    }
+
+    /// The version of the Orca that is running (`CFBundleShortVersionString` of its bundle), for the log.
+    public static func runningVersion(pid: pid_t? = nil) -> String? {
+        let app = pid.flatMap { NSRunningApplication(processIdentifier: $0) }
+            ?? NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first
+        guard let url = app?.bundleURL else { return nil }
+        return Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 
     /// Asks Orca to build its page for accessibility, and reads nothing. The app calls it when Orca comes to the front, so the page
@@ -64,10 +73,11 @@ extension OrcaView {
         return nil
     }
 
-    /// One read. `windowWithoutPage`: no strip was found, and Orca has a window with no web page (`AXWebArea`) in it. While Orca is
-    /// still building its page the window holds only Electron's frame — a few groups and the window buttons (measured 2026-11-15).
-    private static func readStripOnce() -> (strip: Strip?, windowWithoutPage: Bool) {
-        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return (nil, false) }
+    /// One read, with its counts. When no strip is found, `stats.webPage` says whether the window has a web page (`AXWebArea`) in it.
+    /// While Orca is still building its page the window holds only Electron's frame — a few groups and the window buttons (measured
+    /// 2026-11-15). The counts come from what the walk reads anyway; only that look for a web page is extra, and only on a failure.
+    private static func readStripOnce() -> (strip: Strip?, stats: StripStats) {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first else { return (nil, StripStats()) }
         let element = AXUIElementCreateApplication(app.processIdentifier)
         // Chromium exposes the web view (DOM) in the tree only when there is an accessibility request.
         AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
@@ -85,14 +95,21 @@ extension OrcaView {
             last = (node, read)
             return read
         }
+        // The walk asks `tab` about every element it visits, so counting those calls counts the elements.
+        var elements = 0
         let read = strip(from: windows.map(Node.init), seen: [Node(element)],
-                         tab: { tab(of: $0, classes: classes(of: $0)) },
+                         tab: { elements += 1; return tab(of: $0, classes: classes(of: $0)) },
                          currentWorkspace: { currentWorkspace(domID: attribute($0.element, "AXDOMIdentifier") as? String,
                                                               ariaCurrent: attribute($0.element, "AXARIACurrent") as? String) },
                          group: { groupMark(classes: classes(of: $0)) },
                          children: { children(of: $0.element).map(Node.init) })
-        if let read, !read.tabs.isEmpty { return (read, false) }
-        return (nil, !windows.isEmpty && !hasWebArea(under: windows))
+        var stats = read.map { StripStats(strip: $0, windows: windows.count, elements: elements) } ?? StripStats()
+        stats.windows = windows.count
+        stats.elements = elements
+        stats.cut = read == nil
+        if let read, !read.tabs.isEmpty { return (read, stats) }
+        if !windows.isEmpty { stats.webPage = hasWebArea(under: windows) }
+        return (nil, stats)
     }
 
     /// Whether a web page is among the first elements under the windows (it sits about seven levels down in Orca 1.4.259).
