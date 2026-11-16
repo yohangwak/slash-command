@@ -14,8 +14,15 @@ public enum OrcaSelfCheck {
     /// broken reader that is not broken.
     public static let screenPoll: TimeInterval = 30
 
-    /// Run the check only when the screen was usable at this look and at the one before (not in the moment it wakes).
-    public static func screenAllows(awakeNow: Bool, awakeBefore: Bool) -> Bool { awakeNow && awakeBefore }
+    /// How long the screen must have been usable (awake and unlocked, without a sleep or lock since) before the check reads.
+    public static let screenSettle: TimeInterval = 30
+
+    /// Run the check only when the screen is usable now and has been since a wake or unlock at least `screenSettle` ago.
+    /// `usableFor` is nil when the screen went to sleep or was locked and has not woken and been unlocked since.
+    public static func screenAllows(awakeNow: Bool, usableFor: TimeInterval?) -> Bool {
+        guard awakeNow, let usableFor else { return false }
+        return usableFor >= screenSettle
+    }
 
     /// What the lookup ended with.
     public enum Result: Equatable {

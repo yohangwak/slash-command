@@ -250,12 +250,14 @@ final class OrcaTreeTests: XCTestCase {
     }
 
     /// With the display asleep or the screen locked Orca hides its page (measured 2026-11-16 on Mac Home: the check said «NOT
-    /// readable» with 1 window and 0 elements while the screen was locked). The check waits for two usable looks in a row.
-    func testTheCheckWaitsForAScreenThatWasUsableTwiceInARow() {
-        XCTAssertTrue(OrcaSelfCheck.screenAllows(awakeNow: true, awakeBefore: true))
-        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: false, awakeBefore: true), "Asleep now")
-        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: true, awakeBefore: false), "Just woke up")
-        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: false, awakeBefore: false))
+    /// readable» with 1 window and 0 elements while the screen was locked). The check waits until the screen has been usable for
+    /// 30 seconds since its last wake or unlock, with no sleep or lock since (Pullfrog #65: two looks miss a sleep between them).
+    func testTheCheckWaitsForAScreenUsableSinceHalfAMinute() {
+        XCTAssertTrue(OrcaSelfCheck.screenAllows(awakeNow: true, usableFor: 30))
+        XCTAssertTrue(OrcaSelfCheck.screenAllows(awakeNow: true, usableFor: 3600))
+        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: true, usableFor: 5), "Just woke up or unlocked")
+        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: true, usableFor: nil), "Slept or locked since, no wake seen")
+        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: false, usableFor: 3600), "Asleep now")
         XCTAssertEqual(OrcaSelfCheck.screenPoll, 30)
     }
 

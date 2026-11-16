@@ -11,6 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// The latest request to Orca (`prepareOrca`), and the Orca process that took one.
     private var orcaRequest = 0
     private var orcaPrepared: pid_t?
+    /// Since when the screen has been usable — awake and unlocked — with no sleep or lock since; nil while it is not. Kept from the
+    /// system's sleep, wake, lock and unlock notices, so a sleep between two looks is not missed (Pullfrog #65).
+    private var screenUsableSince: Date?
     private var statusItem: NSStatusItem!
     private var settings: SettingsWindowController?
     private var busy = false
@@ -51,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(frontAppChanged(_:)),
             name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        watchScreen()
         refreshHotKeys()
         refreshAutomation()
         if let orca = NSRunningApplication.runningApplications(withBundleIdentifier: Detector.orcaBundleID).first {
@@ -165,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if self.orcaPrepared != pid {
                         self.orcaPrepared = pid
                         Log.write("Orca asked to make its tabs readable (pid \(pid), attempt \(attempt))")
-                        self.checkOrca(pid: pid, after: OrcaSelfCheck.firstDelay, last: false, awakeBefore: ScreenState.awake())
+                        self.checkOrca(pid: pid, after: OrcaSelfCheck.firstDelay, last: false)
                     }
                 } else if attempt < 30, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.askOrca(pid: pid, request: request, attempt: attempt + 1) }
@@ -180,15 +184,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// and log whether a hotkey would work, with counts only (`OrcaSelfCheck.line`). An Orca update that this reader cannot follow shows up
     /// in the log at the first Orca start after it, on every Mac, before a hotkey is refused. If not readable, one more read two
     /// minutes later — never more than two reads per Orca process. The first is scheduled only when `orcaPrepared` changes.
-    /// With the display asleep or the screen locked it does not read (Orca hides its page then); it looks again every 30 seconds and
-    /// reads once the screen has been usable at two looks in a row.
-    private func checkOrca(pid: pid_t, after delay: TimeInterval, last: Bool, awakeBefore: Bool) {
+    /// With the display asleep or the screen locked it does not read (Orca hides its page then): it looks again every 30 seconds and
+    /// reads once the screen has been usable for 30 seconds with no sleep or lock in between (`screenUsableSince`).
+    private func checkOrca(pid: pid_t, after delay: TimeInterval, last: Bool) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.orcaPrepared == pid, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated,
                   GhosttyScreen.trusted() else { return }
-            let awake = ScreenState.awake()
-            guard OrcaSelfCheck.screenAllows(awakeNow: awake, awakeBefore: awakeBefore) else {
-                self.checkOrca(pid: pid, after: OrcaSelfCheck.screenPoll, last: last, awakeBefore: awake)
+            let usableFor = self.screenUsableSince.map { Date().timeIntervalSince($0) }
+            guard OrcaSelfCheck.screenAllows(awakeNow: ScreenState.awake(), usableFor: usableFor) else {
+                self.checkOrca(pid: pid, after: OrcaSelfCheck.screenPoll, last: last)
                 return
             }
             self.detector.async {
@@ -205,10 +209,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
                 Log.write(OrcaSelfCheck.line(orcaVersion: OrcaView.runningVersion(pid: pid), pid: pid, result: result))
                 if result.worthRetrying, !last {
-                    DispatchQueue.main.async { self.checkOrca(pid: pid, after: OrcaSelfCheck.secondDelay, last: true, awakeBefore: true) }
+                    DispatchQueue.main.async { self.checkOrca(pid: pid, after: OrcaSelfCheck.secondDelay, last: true) }
                 }
             }
         }
+    }
+
+    private func watchScreen() {
+        screenUsableSince = ScreenState.awake() ? Date() : nil
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.screensDidSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
+            workspace.addObserver(self, selector: #selector(screenStopped), name: name, object: nil)
+        }
+        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
+            workspace.addObserver(self, selector: #selector(screenMayBeUsable), name: name, object: nil)
+        }
+        let distributed = DistributedNotificationCenter.default()
+        distributed.addObserver(self, selector: #selector(screenStopped), name: .init("com.apple.screenIsLocked"), object: nil)
+        distributed.addObserver(self, selector: #selector(screenMayBeUsable), name: .init("com.apple.screenIsUnlocked"), object: nil)
+    }
+
+    @objc private func screenStopped() { screenUsableSince = nil }
+
+    /// A wake or an unlock: usable from now if the display is awake and the session unlocked (a wake can still show the lock screen).
+    @objc private func screenMayBeUsable() {
+        screenUsableSince = ScreenState.awake() ? Date() : nil
     }
 
     /// Reads the Automation permission again off the main thread and puts it in `automation`. If the previous check has not finished, does not put in a new one.

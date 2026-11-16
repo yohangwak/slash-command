@@ -4,7 +4,7 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 
 ## 0.2.14
 
-- Orca: the check after each Orca start waits while the display is asleep or the screen is locked, and runs once the screen has been on for half a minute. Orca hides its tabs from Accessibility while the screen is off, so 0.2.13 logged "tabs NOT readable" for a Mac that was only locked.
+- Orca: the check after each Orca start waits while the display is asleep or the screen is locked, and runs once the screen has been on and unlocked for half a minute without a sleep or lock in between. Orca hides its tabs from Accessibility while the screen is off, so 0.2.13 logged "tabs NOT readable" for a Mac that was only locked.
 
 ## 0.2.13
 
