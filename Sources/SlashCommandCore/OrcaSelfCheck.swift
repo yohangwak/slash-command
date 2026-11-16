@@ -23,9 +23,13 @@ public enum OrcaSelfCheck {
         /// that process's lists would be judged against this one's screen.
         case otherRuntime
 
-        /// `.otherRuntime` unless the runtime is this Orca process.
+        /// Not run yet: Orca's runtime information could not be read (not written yet, say). Tried again like a failure.
+        case runtimeUnknown
+
+        /// nil when the runtime is this Orca process; `.runtimeUnknown` when it cannot be read; `.otherRuntime` when it is another.
         public static func runtime(_ runtimePID: Int32?, checking pid: Int32) -> Result? {
-            runtimePID == pid ? nil : .otherRuntime
+            guard let runtimePID else { return .runtimeUnknown }
+            return runtimePID == pid ? nil : .otherRuntime
         }
 
         public init(error: Error?) {
@@ -43,7 +47,7 @@ public enum OrcaSelfCheck {
             switch self {
             case .found: return true
             case .refused(let outcome, _): return outcome == "notATerminal"
-            case .otherFailure, .otherRuntime: return false
+            case .otherFailure, .otherRuntime, .runtimeUnknown: return false
             }
         }
 
@@ -58,6 +62,7 @@ public enum OrcaSelfCheck {
         case .found: detail = "a hotkey would find the visible terminal"
         case .refused(_, let diagnostic): detail = diagnostic ?? "refused"
         case .otherFailure: detail = "Orca's terminal list could not be read"
+        case .runtimeUnknown: detail = "Orca's runtime information could not be read"
         case .otherRuntime:
             return "Orca \(OrcaView.StripStats.cleanVersion(orcaVersion)) (pid \(pid)) check: skipped (Orca's runtime is another Orca process)"
         }

@@ -239,7 +239,10 @@ final class OrcaTreeTests: XCTestCase {
         // Orca's lists come from its runtime: a check for another Orca process is skipped, and not tried again.
         XCTAssertNil(OrcaSelfCheck.Result.runtime(9132, checking: 9132))
         XCTAssertEqual(OrcaSelfCheck.Result.runtime(4242, checking: 9132), .otherRuntime)
-        XCTAssertEqual(OrcaSelfCheck.Result.runtime(nil, checking: 9132), .otherRuntime)
+        XCTAssertEqual(OrcaSelfCheck.Result.runtime(nil, checking: 9132), .runtimeUnknown, "Unreadable is not «another process»")
+        XCTAssertTrue(OrcaSelfCheck.Result.runtimeUnknown.worthRetrying)
+        XCTAssertEqual(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9132, result: .runtimeUnknown),
+                       "Orca 1.4.259 (pid 9132) check: tabs NOT readable (Orca's runtime information could not be read)")
         XCTAssertFalse(OrcaSelfCheck.Result.otherRuntime.worthRetrying)
         XCTAssertFalse(partial.readable && !partial.worthRetrying)
         XCTAssertEqual(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9132, result: .otherRuntime),
