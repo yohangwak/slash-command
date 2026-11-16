@@ -165,18 +165,107 @@ final class OrcaTreeTests: XCTestCase {
     /// told apart from a strip this reader cannot find, so the message says to wait instead of blaming an Orca update.
     func testAWindowWithoutItsPageIsNotReadyRatherThanUnreadable() {
         let strip = OrcaView.Strip(tabs: [.init(title: "zsh", truncated: false, active: true)])
-        func reading(_ reads: [(OrcaView.Strip?, Bool)]) -> OrcaView.StripReading {
+        /// `true`: a window without its page; `false`: no window (nothing looked up).
+        func stats(_ windowWithoutPage: Bool) -> OrcaView.StripStats {
+            var stats = OrcaView.StripStats()
+            if windowWithoutPage { stats.windows = 1; stats.elements = 13; stats.webPage = false }
+            return stats
+        }
+        func reading(_ reads: [(OrcaView.Strip?, Bool)]) -> (reading: OrcaView.StripReading, stats: OrcaView.StripStats) {
             var left = reads[...]
             return OrcaView.reading(times: reads.count - 1, every: 0.15, wait: { _ in }) {
                 let next = left.popFirst()!
-                return (next.0, next.1)
+                return (next.0, next.0.map { OrcaView.StripStats(strip: $0, windows: 1, elements: 220) } ?? stats(next.1))
             }
         }
-        guard case .pageNotReady = reading(Array(repeating: (nil, true), count: 9)) else { return XCTFail("Window, never a page") }
-        guard case .unreadable = reading(Array(repeating: (nil, false), count: 9)) else { return XCTFail("A page without a known strip, or no window") }
-        guard case .unreadable = reading([(nil, true), (nil, false)]) else { return XCTFail("The last read decides") }
-        guard case .read(let found) = reading([(nil, true), (nil, true), (strip, false)]) else { return XCTFail("The page came in time") }
+        guard case .pageNotReady = reading(Array(repeating: (nil, true), count: 9)).reading else { return XCTFail("Window, never a page") }
+        guard case .unreadable = reading(Array(repeating: (nil, false), count: 9)).reading else { return XCTFail("A page without a known strip, or no window") }
+        guard case .unreadable = reading([(nil, true), (nil, false)]).reading else { return XCTFail("The last read decides") }
+        let came = reading([(nil, true), (nil, true), (strip, false)])
+        guard case .read(let found) = came.reading else { return XCTFail("The page came in time") }
         XCTAssertEqual(found.tabs.map(\.title), ["zsh"])
+        XCTAssertEqual(came.stats.elements, 220, "The counts are those of the read that found the strip")
+        XCTAssertEqual(reading(Array(repeating: (nil, true), count: 3)).stats.elements, 13)
     }
     #endif
+
+    /// The log line for a refused read and for the check after Orca starts: counts only. A strip whose titles and worktree id would
+    /// be in the log if anything but counts were used must not leak them.
+    func testTheDiagnosticHoldsCountsAndNoScreenText() {
+        let strip = OrcaView.Strip(tabs: [.init(title: "secret-project — claude", truncated: false, active: true),
+                                          .init(title: "billing.csv", truncated: false, active: false, closeNamesTitle: false),
+                                          .init(title: "zsh ~/private", truncated: true, active: true)],
+                                   currentWorkspaces: ["repo-123::/Users/someone/private-repo"],
+                                   groups: [.init(tabs: 2, focused: true), .init(tabs: 1, focused: false)])
+        var stats = OrcaView.StripStats(strip: strip, windows: 1, elements: 231)
+        XCTAssertEqual(stats.summary, "windows 1 · elements 231 · web page yes · cut no · tabs 3 · active 2 · groups 2 · sidebar current 1")
+        let line = OrcaView.StripStats.diagnostic(orcaVersion: "1.4.259", outcome: "noActiveTab, with session list", stats: stats)
+        XCTAssertEqual(line, "Orca 1.4.259 · noActiveTab, with session list · windows 1 · elements 231 · web page yes · cut no · tabs 3 · active 2 · groups 2 · sidebar current 1")
+        let check = OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9132, result: .refused(outcome: "noActiveTab, with session list", diagnostic: line))
+        XCTAssertEqual(check, "Orca 1.4.259 (pid 9132) check: tabs NOT readable (Orca 1.4.259 · noActiveTab, with session list · windows 1 · elements 231 · web page yes · cut no · tabs 3 · active 2 · groups 2 · sidebar current 1)")
+        for text in [line, check] {
+            for leak in ["secret", "claude", "billing", "csv", "zsh", "private", "repo-123", "/Users", "someone"] {
+                XCTAssertFalse(text.contains(leak), "\(leak) in \(text)")
+            }
+        }
+        // A window without its page, before anything is found.
+        stats = OrcaView.StripStats()
+        stats.windows = 1; stats.elements = 13; stats.webPage = false
+        XCTAssertTrue(stats.windowWithoutPage)
+        XCTAssertEqual(OrcaView.StripStats.diagnostic(orcaVersion: nil, outcome: "pageNotReady", stats: stats),
+                       "Orca ? · pageNotReady · windows 1 · elements 13 · web page no · cut no · tabs 0 · active 0 · groups 0 · sidebar current 0")
+        XCTAssertTrue(OrcaView.StripStats().summary.contains("web page unknown"), "Not looked up is not «no»")
+        XCTAssertFalse(OrcaView.StripStats().windowWithoutPage, "No window is not a window without its page")
+    }
+
+    /// The check after an Orca start runs the hotkey's lookup: a strip that is found but would be refused is not «readable» (Pullfrog
+    /// #64 — an Orca that renamed the active mark gives tabs and no active one); a non-terminal tab in front means the reader works.
+    func testTheCheckAfterAnOrcaStartJudgesByTheHotkeysLookup() {
+        XCTAssertEqual(OrcaSelfCheck.Result(error: nil), .found)
+        XCTAssertTrue(OrcaSelfCheck.Result.found.readable)
+        XCTAssertEqual(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9, result: .found),
+                       "Orca 1.4.259 (pid 9) check: tabs readable (a hotkey would find the visible terminal)")
+        let renamed = SlashCommandError("Not sent").diagnosing("Orca 1.4.260 · noActiveTab, no session list · tabs 3 · active 0", outcome: "noActiveTab, no session list")
+        let partial = OrcaSelfCheck.Result(error: renamed)
+        XCTAssertFalse(partial.readable, "Tabs found, but a hotkey would be refused")
+        XCTAssertTrue(OrcaSelfCheck.line(orcaVersion: "1.4.260", pid: 9, result: partial).contains("check: tabs NOT readable (Orca 1.4.260 · noActiveTab"))
+        let browser = SlashCommandError("The frontmost Orca tab is not a terminal.").diagnosing("Orca 1.4.259 · notATerminal · tabs 2", outcome: "notATerminal")
+        XCTAssertTrue(OrcaSelfCheck.Result(error: browser).readable)
+        let other = OrcaSelfCheck.Result(error: SlashCommandError("Orca's terminal list: timeout"))
+        XCTAssertEqual(other, .otherFailure)
+        XCTAssertFalse(other.readable)
+        XCTAssertFalse(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9, result: other).contains("timeout"), "No message text in the line")
+        XCTAssertTrue(other.worthRetrying)
+        // Orca's lists come from its runtime: a check for another Orca process is skipped, and not tried again.
+        XCTAssertNil(OrcaSelfCheck.Result.runtime(9132, checking: 9132))
+        XCTAssertEqual(OrcaSelfCheck.Result.runtime(4242, checking: 9132), .otherRuntime)
+        XCTAssertEqual(OrcaSelfCheck.Result.runtime(nil, checking: 9132), .runtimeUnknown, "Unreadable is not «another process»")
+        XCTAssertTrue(OrcaSelfCheck.Result.runtimeUnknown.worthRetrying)
+        XCTAssertEqual(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9132, result: .runtimeUnknown),
+                       "Orca 1.4.259 (pid 9132) check: tabs NOT readable (Orca's runtime information could not be read)")
+        XCTAssertFalse(OrcaSelfCheck.Result.otherRuntime.worthRetrying)
+        XCTAssertFalse(partial.readable && !partial.worthRetrying)
+        XCTAssertEqual(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9132, result: .otherRuntime),
+                       "Orca 1.4.259 (pid 9132) check: skipped (Orca's runtime is another Orca process)")
+    }
+
+    /// Only the characters a version has reach the log from Orca's Info.plist.
+    func testTheOrcaVersionIsCutToVersionCharacters() {
+        XCTAssertEqual(OrcaView.StripStats.cleanVersion("1.4.259"), "1.4.259")
+        XCTAssertEqual(OrcaView.StripStats.cleanVersion("1.5.0-beta.2+build7"), "1.5.0-beta.2+build7")
+        XCTAssertEqual(OrcaView.StripStats.cleanVersion("1.4 /x\n\"y\""), "1.4xy", "No spaces, slashes, line breaks or quotes")
+        XCTAssertEqual(OrcaView.StripStats.cleanVersion(nil), "?")
+        XCTAssertEqual(OrcaView.StripStats.cleanVersion(" \n"), "?")
+        XCTAssertEqual(OrcaView.StripStats.cleanVersion(String(repeating: "9", count: 80)).count, 32)
+    }
+
+    /// The error a refused read throws carries the line; equality is still the message's (the line is for the log).
+    func testARefusalCarriesItsDiagnostic() {
+        let plain = SlashCommandError("Not sent")
+        let carried = plain.diagnosing("Orca 1.4.259 · unreadable · windows 0")
+        XCTAssertNil(plain.diagnostic)
+        XCTAssertEqual(carried.diagnostic, "Orca 1.4.259 · unreadable · windows 0")
+        XCTAssertEqual(carried.message, "Not sent")
+        XCTAssertEqual(carried.logDescription, "Not sent", "The log's failure line stays the message; the diagnostic is its own line")
+    }
 }

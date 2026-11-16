@@ -165,11 +165,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if self.orcaPrepared != pid {
                         self.orcaPrepared = pid
                         Log.write("Orca asked to make its tabs readable (pid \(pid), attempt \(attempt))")
+                        self.checkOrca(pid: pid, after: OrcaSelfCheck.firstDelay, last: false)
                     }
                 } else if attempt < 30, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.askOrca(pid: pid, request: request, attempt: attempt + 1) }
                 } else if attempt >= 30 {
                     Log.write("Orca did not take the request to make its tabs readable (pid \(pid), \(attempt) attempts)")
+                }
+            }
+        }
+    }
+
+    /// Once per Orca process, a minute after it took the request: run the hotkey's lookup once, silently (no keys, nothing sent),
+    /// and log whether a hotkey would work, with counts only (`OrcaSelfCheck.line`). An Orca update that this reader cannot follow shows up
+    /// in the log at the first Orca start after it, on every Mac, before a hotkey is refused. If not readable, one more read two
+    /// minutes later — never more than two reads per Orca process. The first is scheduled only when `orcaPrepared` changes.
+    private func checkOrca(pid: pid_t, after delay: TimeInterval, last: Bool) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.orcaPrepared == pid, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated,
+                  GhosttyScreen.trusted() else { return }
+            self.detector.async {
+                // The hotkey's own lookup for this Orca process, without sending anything: a strip that is found but cannot be
+                // resolved (an active mark Orca renamed, say) counts as not readable, as a hotkey would be refused.
+                // Orca's terminal and session lists come from its runtime: only check the process that runtime belongs to.
+                let result: OrcaSelfCheck.Result
+                if let skip = OrcaSelfCheck.Result.runtime(OrcaRuntime.runtimePID(), checking: pid) {
+                    result = skip
+                } else {
+                    var failure: Error?
+                    do { _ = try Detector.orcaActive(pid: pid, loadTerminals: Detector.orcaTerminals) } catch { failure = error }
+                    result = OrcaSelfCheck.Result(error: failure)
+                }
+                Log.write(OrcaSelfCheck.line(orcaVersion: OrcaView.runningVersion(pid: pid), pid: pid, result: result))
+                if result.worthRetrying, !last {
+                    DispatchQueue.main.async { self.checkOrca(pid: pid, after: OrcaSelfCheck.secondDelay, last: true) }
                 }
             }
         }
@@ -296,6 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.hud.show(loc("Automation permission needed"), detail: "\(error)", seconds: 6)
                 case .failure(let error):
                     Log.write("failed \(action.label): \(SlashCommandError.logText(error))")
+                    if let diagnostic = (error as? SlashCommandError)?.diagnostic { Log.write("orca read: \(diagnostic)") }
                     self.hud.show(loc("Not switched"), detail: "\(error)", seconds: 5)
                 }
             }

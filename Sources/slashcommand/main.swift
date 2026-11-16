@@ -392,5 +392,10 @@ do {
         exit(args.isEmpty || args.first == "help" || args.first == "--help" ? 0 : 1)
     }
 } catch {
+    // A refused Orca read also says, in counts only, what the reader saw (the same line the app writes to its log).
+    if let diagnostic = (error as? SlashCommandError)?.diagnostic {
+        FileHandle.standardError.write(Data("slashcommand: \(error)\norca read: \(diagnostic)\n".utf8))
+        exit(1)
+    }
     fail("\(error)")
 }
