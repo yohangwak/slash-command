@@ -19,6 +19,14 @@ public enum OrcaSelfCheck {
         case refused(outcome: String?, diagnostic: String?)
         /// Failed before or after the tab strip without a reader line (Orca's terminal list could not be read, for example).
         case otherFailure
+        /// Not run: Orca's runtime, which answers the terminal and session lists, belongs to another Orca process (Pullfrog #64), so
+        /// that process's lists would be judged against this one's screen.
+        case otherRuntime
+
+        /// `.otherRuntime` unless the runtime is this Orca process.
+        public static func runtime(_ runtimePID: Int32?, checking pid: Int32) -> Result? {
+            runtimePID == pid ? nil : .otherRuntime
+        }
 
         public init(error: Error?) {
             guard let error else { self = .found; return }
@@ -35,9 +43,12 @@ public enum OrcaSelfCheck {
             switch self {
             case .found: return true
             case .refused(let outcome, _): return outcome == "notATerminal"
-            case .otherFailure: return false
+            case .otherFailure, .otherRuntime: return false
             }
         }
+
+        /// Whether a second look two minutes later could change the answer.
+        public var worthRetrying: Bool { !readable && self != .otherRuntime }
     }
 
     /// `Orca <version> (pid N) check: tabs readable (…)` or `tabs NOT readable (…)`. Counts and fixed words only.
@@ -47,6 +58,8 @@ public enum OrcaSelfCheck {
         case .found: detail = "a hotkey would find the visible terminal"
         case .refused(_, let diagnostic): detail = diagnostic ?? "refused"
         case .otherFailure: detail = "Orca's terminal list could not be read"
+        case .otherRuntime:
+            return "Orca \(OrcaView.StripStats.cleanVersion(orcaVersion)) (pid \(pid)) check: skipped (Orca's runtime is another Orca process)"
         }
         return "Orca \(OrcaView.StripStats.cleanVersion(orcaVersion)) (pid \(pid)) check: tabs \(result.readable ? "readable" : "NOT readable") (\(detail))"
     }

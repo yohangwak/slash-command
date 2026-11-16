@@ -55,6 +55,14 @@ public enum OrcaRuntime {
         return Metadata(socketPath: path, credential: auth, runtimeID: json["runtimeId"] as? String)
     }
 
+    /// The process that wrote the runtime information (`pid` in `orca-runtime.json`) — the Orca whose terminal and session lists
+    /// `call` reads. nil when the file or the field is missing.
+    public static func runtimePID() -> Int32? {
+        guard let data = try? Data(contentsOf: metadataURL),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return (json["pid"] as? NSNumber).map { $0.int32Value }
+    }
+
     /// Sends one request and returns its `result`.
     public static func call(_ method: String, _ params: [String: Any], timeout: TimeInterval = 5) -> Result<[String: Any], Failure> {
         #if os(macOS)

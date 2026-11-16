@@ -235,6 +235,15 @@ final class OrcaTreeTests: XCTestCase {
         XCTAssertEqual(other, .otherFailure)
         XCTAssertFalse(other.readable)
         XCTAssertFalse(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9, result: other).contains("timeout"), "No message text in the line")
+        XCTAssertTrue(other.worthRetrying)
+        // Orca's lists come from its runtime: a check for another Orca process is skipped, and not tried again.
+        XCTAssertNil(OrcaSelfCheck.Result.runtime(9132, checking: 9132))
+        XCTAssertEqual(OrcaSelfCheck.Result.runtime(4242, checking: 9132), .otherRuntime)
+        XCTAssertEqual(OrcaSelfCheck.Result.runtime(nil, checking: 9132), .otherRuntime)
+        XCTAssertFalse(OrcaSelfCheck.Result.otherRuntime.worthRetrying)
+        XCTAssertFalse(partial.readable && !partial.worthRetrying)
+        XCTAssertEqual(OrcaSelfCheck.line(orcaVersion: "1.4.259", pid: 9132, result: .otherRuntime),
+                       "Orca 1.4.259 (pid 9132) check: skipped (Orca's runtime is another Orca process)")
     }
 
     /// Only the characters a version has reach the log from Orca's Info.plist.

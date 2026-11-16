@@ -187,11 +187,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.detector.async {
                 // The hotkey's own lookup for this Orca process, without sending anything: a strip that is found but cannot be
                 // resolved (an active mark Orca renamed, say) counts as not readable, as a hotkey would be refused.
-                var failure: Error?
-                do { _ = try Detector.orcaActive(pid: pid, loadTerminals: Detector.orcaTerminals) } catch { failure = error }
-                let result = OrcaSelfCheck.Result(error: failure)
+                // Orca's terminal and session lists come from its runtime: only check the process that runtime belongs to.
+                let result: OrcaSelfCheck.Result
+                if let skip = OrcaSelfCheck.Result.runtime(OrcaRuntime.runtimePID(), checking: pid) {
+                    result = skip
+                } else {
+                    var failure: Error?
+                    do { _ = try Detector.orcaActive(pid: pid, loadTerminals: Detector.orcaTerminals) } catch { failure = error }
+                    result = OrcaSelfCheck.Result(error: failure)
+                }
                 Log.write(OrcaSelfCheck.line(orcaVersion: OrcaView.runningVersion(pid: pid), pid: pid, result: result))
-                if !result.readable, !last {
+                if result.worthRetrying, !last {
                     DispatchQueue.main.async { self.checkOrca(pid: pid, after: OrcaSelfCheck.secondDelay, last: true) }
                 }
             }
