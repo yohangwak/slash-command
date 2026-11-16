@@ -249,6 +249,16 @@ final class OrcaTreeTests: XCTestCase {
                        "Orca 1.4.259 (pid 9132) check: skipped (Orca's runtime is another Orca process)")
     }
 
+    /// With the display asleep or the screen locked Orca hides its page (measured 2026-11-16 on Mac Home: the check said «NOT
+    /// readable» with 1 window and 0 elements while the screen was locked). The check waits for two usable looks in a row.
+    func testTheCheckWaitsForAScreenThatWasUsableTwiceInARow() {
+        XCTAssertTrue(OrcaSelfCheck.screenAllows(awakeNow: true, awakeBefore: true))
+        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: false, awakeBefore: true), "Asleep now")
+        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: true, awakeBefore: false), "Just woke up")
+        XCTAssertFalse(OrcaSelfCheck.screenAllows(awakeNow: false, awakeBefore: false))
+        XCTAssertEqual(OrcaSelfCheck.screenPoll, 30)
+    }
+
     /// Only the characters a version has reach the log from Orca's Info.plist.
     func testTheOrcaVersionIsCutToVersionCharacters() {
         XCTAssertEqual(OrcaView.StripStats.cleanVersion("1.4.259"), "1.4.259")

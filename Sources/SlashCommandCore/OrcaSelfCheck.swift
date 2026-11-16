@@ -9,6 +9,13 @@ public enum OrcaSelfCheck {
     public static let firstDelay: TimeInterval = 60
     /// The one more read when the first would have refused a hotkey.
     public static let secondDelay: TimeInterval = 120
+    /// While the display is asleep or the screen locked, how often to look again. Orca leaves its page out of the accessibility tree
+    /// then (measured 2026-11-15 and 11-16: the window answers with the application itself and no page), so a read would report a
+    /// broken reader that is not broken.
+    public static let screenPoll: TimeInterval = 30
+
+    /// Run the check only when the screen was usable at this look and at the one before (not in the moment it wakes).
+    public static func screenAllows(awakeNow: Bool, awakeBefore: Bool) -> Bool { awakeNow && awakeBefore }
 
     /// What the lookup ended with.
     public enum Result: Equatable {

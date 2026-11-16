@@ -165,7 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if self.orcaPrepared != pid {
                         self.orcaPrepared = pid
                         Log.write("Orca asked to make its tabs readable (pid \(pid), attempt \(attempt))")
-                        self.checkOrca(pid: pid, after: OrcaSelfCheck.firstDelay, last: false)
+                        self.checkOrca(pid: pid, after: OrcaSelfCheck.firstDelay, last: false, awakeBefore: ScreenState.awake())
                     }
                 } else if attempt < 30, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.askOrca(pid: pid, request: request, attempt: attempt + 1) }
@@ -180,10 +180,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// and log whether a hotkey would work, with counts only (`OrcaSelfCheck.line`). An Orca update that this reader cannot follow shows up
     /// in the log at the first Orca start after it, on every Mac, before a hotkey is refused. If not readable, one more read two
     /// minutes later — never more than two reads per Orca process. The first is scheduled only when `orcaPrepared` changes.
-    private func checkOrca(pid: pid_t, after delay: TimeInterval, last: Bool) {
+    /// With the display asleep or the screen locked it does not read (Orca hides its page then); it looks again every 30 seconds and
+    /// reads once the screen has been usable at two looks in a row.
+    private func checkOrca(pid: pid_t, after delay: TimeInterval, last: Bool, awakeBefore: Bool) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.orcaPrepared == pid, let orca = NSRunningApplication(processIdentifier: pid), !orca.isTerminated,
                   GhosttyScreen.trusted() else { return }
+            let awake = ScreenState.awake()
+            guard OrcaSelfCheck.screenAllows(awakeNow: awake, awakeBefore: awakeBefore) else {
+                self.checkOrca(pid: pid, after: OrcaSelfCheck.screenPoll, last: last, awakeBefore: awake)
+                return
+            }
             self.detector.async {
                 // The hotkey's own lookup for this Orca process, without sending anything: a strip that is found but cannot be
                 // resolved (an active mark Orca renamed, say) counts as not readable, as a hotkey would be refused.
@@ -198,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
                 Log.write(OrcaSelfCheck.line(orcaVersion: OrcaView.runningVersion(pid: pid), pid: pid, result: result))
                 if result.worthRetrying, !last {
-                    DispatchQueue.main.async { self.checkOrca(pid: pid, after: OrcaSelfCheck.secondDelay, last: true) }
+                    DispatchQueue.main.async { self.checkOrca(pid: pid, after: OrcaSelfCheck.secondDelay, last: true, awakeBefore: true) }
                 }
             }
         }
