@@ -270,7 +270,9 @@ public struct Switcher {
         }) else {
             throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file.", slot, agent.displayName))
         }
-        if requiresModel, preset.model.trimmingCharacters(in: .whitespaces).isEmpty {
+        // A chat may take an effort alone, but a preset with neither value would change nothing and still be reported as done.
+        if preset.model.trimmingCharacters(in: .whitespaces).isEmpty,
+           requiresModel || preset.effort.trimmingCharacters(in: .whitespaces).isEmpty {
             throw SlashCommandError(loc("Preset %@: enter a model for %@.", slot, agent.displayName))
         }
         return preset

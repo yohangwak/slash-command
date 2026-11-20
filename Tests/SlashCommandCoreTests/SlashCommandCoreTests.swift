@@ -815,6 +815,15 @@ final class ConfigTests: KoreanMessagesTestCase {
         XCTAssertThrowsError(try switcher.plan(slot: 3, agent: .codex), "Slot 3 has no codex settings")
         XCTAssertEqual(try switcher.plan(slot: 1, agent: .claude).preset, AgentPreset(model: "opus", effort: "high"))
     }
+
+    /// A chat preset with neither a model nor an effort is refused before Orca is asked anything.
+    func testEmptyChatPresetIsRefused() {
+        let config = SlashCommandConfig(slots: [Slot(claude: AgentPreset(model: " ", effort: ""))])
+        let chat = Target(host: .orcaChat(sessionID: "s-1"), agent: .claude, label: "chat")
+        XCTAssertThrowsError(try Switcher(config: config).apply(slot: 1, to: chat)) {
+            XCTAssertEqual(($0 as? SlashCommandError)?.message, loc("Preset %@: enter a model for %@.", 1, Agent.claude.displayName))
+        }
+    }
 }
 
 final class GhosttyEscapeTests: KoreanMessagesTestCase {
