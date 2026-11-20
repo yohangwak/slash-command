@@ -278,6 +278,7 @@
 "Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly." = "未发送：Orca 仍在让 Slash Command 能够读取其标签页，Orca 启动后最多需要一分钟。请稍后再按一次。";
 "Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "未发送:无法确定 Orca 中打开的是哪个工作区。请显示 Orca 的侧边栏并让该工作区可见,然后再按一次。";
 "Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "未发送:屏幕上的 Orca 标签页与 Orca 给出的此工作区标签页列表对不上,无法确定显示的是哪个终端。";
+"Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat." = "未发送：Orca 中的另一个标签页与此聊天的标题相同，无法区分。请重命名其中一个，或先发送一条消息，让 Orca 为此聊天命名。";
 "Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";
 "This OpenCode model has no effort levels (it has no variants)." = "此 OpenCode 模型没有 effort 档位（该模型没有 variant）。";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "此 OpenCode 模型没有 variant，因此未设置 effort（%@）。";
@@ -355,3 +356,16 @@
 "About" = "关于";
 "Could not open the browser." = "无法打开浏览器。";
 "Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)." = "“报告问题”会在浏览器中打开 GitHub 的新议题，并预先填好 Slash Command、macOS 和各代理的版本。页面打开时，这些版本号会随页面地址发送给 GitHub；只有提交表单后才会发布议题。安全问题请改为私下报告（参见 SECURITY.md）。";
+
+"Takes effect from your next message in this chat." = "从此聊天中的下一条消息起生效。";
+"Not switched: this Orca chat does not offer the model %@." = "切换失败。此 Orca 聊天不提供模型 %@。";
+"Not switched: this Orca chat model does not offer the effort %@." = "切换失败。此 Orca 聊天的模型不支持推理强度 %@。";
+"Not switched: could not read this Orca chat's options." = "切换失败。无法读取此 Orca 聊天的选项。";
+"Not switched: the current model of this Orca chat is unknown." = "切换失败。无法确定此 Orca 聊天当前使用的模型。";
+"Not switched: this Orca chat needs a saved model and effort. Choose both in the chat first." = "切换失败。此 Orca 聊天需要已保存的模型和推理强度。请先在聊天中选择这两项。";
+"Could not confirm the change to this Orca chat." = "无法确认对此 Orca 聊天所做的更改。";
+"Orca set the chat model. The effort change could not be confirmed." = "Orca 已设置聊天模型。无法确认推理强度是否已更改。";
+"Orca accepted the chat changes. The saved values could not be verified." = "Orca 已接受聊天更改。无法验证已保存的值。";
+"Not switched: Slash Command switches only Claude and Codex chats in Orca. Use a terminal tab for this agent." = "切换失败。Slash Command 只支持在 Orca 的 Claude 和 Codex 聊天中切换。请在终端标签页中使用此代理。";
+"Terminal screen and keyboard operations are not supported in Orca chats." = "Orca 聊天不支持读取终端屏幕或发送按键。";
+"chat — switched through Orca's runtime, no keys" = "聊天 — 通过 Orca 运行时切换，无需发送按键";

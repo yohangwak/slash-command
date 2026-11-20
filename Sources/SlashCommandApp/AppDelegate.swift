@@ -203,9 +203,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 if let skip = OrcaSelfCheck.Result.runtime(OrcaRuntime.runtimePID(), checking: pid) {
                     result = skip
                 } else {
-                    var failure: Error?
-                    do { _ = try Detector.orcaActive(pid: pid, loadTerminals: Detector.orcaTerminals) } catch { failure = error }
-                    result = OrcaSelfCheck.Result(error: failure)
+                    do {
+                        switch try Detector.orcaActive(pid: pid, loadTerminals: Detector.orcaTerminals) {
+                        case .terminal: result = .found
+                        case .chat: result = .foundChat
+                        }
+                    } catch {
+                        result = OrcaSelfCheck.Result(error: error)
+                    }
                 }
                 Log.write(OrcaSelfCheck.line(orcaVersion: OrcaView.runningVersion(pid: pid), pid: pid, result: result))
                 if result.worthRetrying, !last {
@@ -332,12 +337,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.awaitingConfirmation = false
                 switch outcome {
                 case .success(let result):
-                    Log.write("applied \(action.label): \(result.summary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
+                    Log.write("applied \(action.label): \(result.logSummary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
                     var lines = ["\(result.target.agent.displayName) · \(result.target.host.appName) · \(result.target.label)"]
+                    if let detail = result.detail { lines.append(detail) }
                     if !result.slotName.isEmpty { lines.append(result.slotName) }
                     // The warning goes first — the notification shows only a few lines, so anything after it is cut off.
                     if let warning = result.warning { lines.append("⚠️ \(warning)") }
-                    self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 ? 4 : 1.6)
+                    self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 || result.detail != nil ? 4 : 1.6)
                 case .failure(let error as SlashCommandError) where error.awaitingUser:
                     Log.write("awaiting confirmation \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show(loc("Press Enter to confirm"), detail: "\(error)", seconds: 6)

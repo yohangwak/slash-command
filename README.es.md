@@ -12,6 +12,7 @@
 Slash Command es una app de la barra de menús de macOS y una app de la bandeja de Windows. Pulsa **⇧⌥1 … ⇧⌥9** (**Shift+Alt+1 … 9** en Windows) en tu terminal y el agente de la sesión en primer plano cambia al **modelo + effort** de ese preajuste. **⇧⌥=** y **⇧⌥-** suben o bajan el effort un nivel.
 
 Funciona con **Claude Code, Codex, Grok, Cursor Agent, Antigravity y OpenCode**, en **Ghostty, Orca, iTerm2, WezTerm y kitty** en macOS y en **Windows Terminal, Orca y WezTerm** en Windows.
+En macOS también es compatible con Claude y Codex en la interfaz de chat de Orca.
 
 - **Una sola pulsación** en lugar de escribir `/model`, buscar la fila y fijar el effort.
 - **En plena conversación.** Lo que estabas escribiendo se queda en el cuadro de entrada.

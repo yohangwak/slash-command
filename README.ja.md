@@ -12,6 +12,7 @@
 Slash Command は macOS のメニューバーアプリ、そして Windows のトレイアプリです。ターミナルで **⇧⌥1 … ⇧⌥9**(Windows では **Shift+Alt+1 … 9**)を押すと、最前面のセッションのエージェントがそのプリセットの **モデル + effort** に切り替わります。**⇧⌥=** と **⇧⌥-** は effort を一段階上げ下げします。
 
 **Claude Code、Codex、Grok、Cursor Agent、Antigravity、OpenCode** に対応し、macOS では **Ghostty、Orca、iTerm2、WezTerm、kitty**、Windows では **Windows Terminal、Orca、WezTerm** で動作します。
+macOS では、Orca のチャット UI でも Claude と Codex に対応します。
 
 - `/model` を入力して、該当の行を探し、effort を設定する代わりに、**キー一つ**で済みます。
 - **会話の途中でも使えます。** 入力中のテキストは入力欄にそのまま残ります。

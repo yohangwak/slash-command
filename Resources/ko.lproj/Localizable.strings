@@ -278,6 +278,7 @@
 "Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly." = "보내지 않았습니다: Orca가 아직 Slash Command가 탭을 읽을 수 있게 준비하는 중입니다. Orca를 켠 뒤 최대 1분쯤 걸립니다. 잠시 뒤 다시 눌러 주세요.";
 "Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "보내지 않았습니다: Orca에서 어느 워크스페이스가 열려 있는지 확인하지 못했습니다. Orca 사이드바를 켜고 그 워크스페이스가 보이게 한 뒤 다시 눌러 주세요.";
 "Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "보내지 않았습니다: 화면의 Orca 탭이 Orca가 알려 준 이 워크스페이스의 탭 목록과 맞지 않아, 보이는 터미널을 가려낼 수 없습니다.";
+"Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat." = "보내지 않았습니다. Orca의 다른 탭에 이 채팅과 같은 제목이 있어 어느 탭인지 구별할 수 없습니다. 둘 중 하나의 이름을 바꾸거나, 먼저 메시지를 보내 Orca가 채팅에 이름을 붙이도록 하세요.";
 "Could not type into iTerm2: %@" = "iTerm2에 입력하지 못했습니다: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "이 OpenCode 모델에는 effort 단계가 없습니다(variant가 없는 모델입니다).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "이 OpenCode 모델에는 variant가 없어 effort(%@)는 정하지 않았습니다.";
@@ -355,3 +356,16 @@
 "About" = "정보";
 "Could not open the browser." = "브라우저를 열지 못했습니다.";
 "Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)." = "「문제 보고」를 누르면 브라우저에서 GitHub 새 이슈 화면이 열리고, Slash Command·macOS·에이전트의 버전이 미리 채워집니다. 이 버전 번호는 페이지가 열릴 때 주소에 담겨 GitHub에 전달되고, 이슈는 양식을 제출해야 올라갑니다. 보안 문제는 공개 이슈 대신 비공개로 알려 주세요(SECURITY.md 참고).";
+
+"Takes effect from your next message in this chat." = "이 채팅의 다음 메시지부터 적용됩니다.";
+"Not switched: this Orca chat does not offer the model %@." = "전환하지 않았습니다. 이 Orca 채팅에서는 %@ 모델을 사용할 수 없습니다.";
+"Not switched: this Orca chat model does not offer the effort %@." = "전환하지 않았습니다. 이 Orca 채팅의 모델에서는 추론 강도 %@을(를) 사용할 수 없습니다.";
+"Not switched: could not read this Orca chat's options." = "전환하지 않았습니다. 이 Orca 채팅의 옵션을 읽을 수 없습니다.";
+"Not switched: the current model of this Orca chat is unknown." = "전환하지 않았습니다. 이 Orca 채팅의 현재 모델을 확인할 수 없습니다.";
+"Not switched: this Orca chat needs a saved model and effort. Choose both in the chat first." = "전환하지 않았습니다. 이 Orca 채팅에 모델과 추론 강도가 저장되어 있어야 합니다. 채팅에서 먼저 두 값을 선택하세요.";
+"Could not confirm the change to this Orca chat." = "이 Orca 채팅에 변경 사항이 적용됐는지 확인할 수 없습니다.";
+"Orca set the chat model. The effort change could not be confirmed." = "Orca가 채팅 모델을 설정했습니다. 추론 강도 변경은 확인할 수 없습니다.";
+"Orca accepted the chat changes. The saved values could not be verified." = "Orca가 채팅 변경 요청을 수락했습니다. 저장된 값을 확인할 수 없습니다.";
+"Not switched: Slash Command switches only Claude and Codex chats in Orca. Use a terminal tab for this agent." = "전환하지 않았습니다. Slash Command는 Orca에서 Claude와 Codex 채팅만 전환할 수 있습니다. 이 에이전트는 터미널 탭에서 사용하세요.";
+"Terminal screen and keyboard operations are not supported in Orca chats." = "Orca 채팅에서는 터미널 화면 읽기와 키 입력을 지원하지 않습니다.";
+"chat — switched through Orca's runtime, no keys" = "채팅 — 키 입력 없이 Orca 런타임을 통해 전환";

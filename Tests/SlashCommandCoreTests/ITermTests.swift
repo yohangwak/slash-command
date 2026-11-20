@@ -383,16 +383,16 @@ final class LaunchTerminalTests: XCTestCase {
     }
 
     func testTargetArgumentsRoundTrip() {
-        XCTAssertEqual(Launch.targetArguments(host: .orca(handle: "term_1"), agent: .opencode), ["--orca", "term_1", "--agent", "opencode"])
-        XCTAssertEqual(Launch.targetArguments(host: .tmux(socket: "/tmp/s", pane: "%3"), agent: .opencode),
+        XCTAssertEqual(try Launch.targetArguments(host: .orca(handle: "term_1"), agent: .opencode), ["--orca", "term_1", "--agent", "opencode"])
+        XCTAssertEqual(try Launch.targetArguments(host: .tmux(socket: "/tmp/s", pane: "%3"), agent: .opencode),
                        ["--tmux", "%3", "--tmux-socket", "/tmp/s", "--agent", "opencode"])
-        XCTAssertEqual(Launch.targetArguments(host: .tmux(socket: nil, pane: "%3"), agent: .codex), ["--tmux", "%3", "--agent", "codex"])
-        XCTAssertEqual(Launch.targetArguments(host: .wezterm(socket: "/tmp/g", pane: "3"), agent: .opencode),
+        XCTAssertEqual(try Launch.targetArguments(host: .tmux(socket: nil, pane: "%3"), agent: .codex), ["--tmux", "%3", "--agent", "codex"])
+        XCTAssertEqual(try Launch.targetArguments(host: .wezterm(socket: "/tmp/g", pane: "3"), agent: .opencode),
                        ["--wezterm", "3", "--wezterm-socket", "/tmp/g", "--agent", "opencode"])
-        XCTAssertEqual(Launch.targetArguments(host: .kitty(socket: "unix:/tmp/k", window: "7"), agent: .opencode),
+        XCTAssertEqual(try Launch.targetArguments(host: .kitty(socket: "unix:/tmp/k", window: "7"), agent: .opencode),
                        ["--kitty", "7", "--kitty-socket", "unix:/tmp/k", "--agent", "opencode"])
-        XCTAssertEqual(Launch.targetArguments(host: .iterm(sessionID: "X"), agent: .opencode), ["--iterm", "X", "--agent", "opencode"])
-        XCTAssertEqual(Launch.targetArguments(host: .ghostty(terminalID: "G"), agent: .opencode), ["--ghostty", "G", "--agent", "opencode"])
+        XCTAssertEqual(try Launch.targetArguments(host: .iterm(sessionID: "X"), agent: .opencode), ["--iterm", "X", "--agent", "opencode"])
+        XCTAssertEqual(try Launch.targetArguments(host: .ghostty(terminalID: "G"), agent: .opencode), ["--ghostty", "G", "--agent", "opencode"])
     }
 }
 

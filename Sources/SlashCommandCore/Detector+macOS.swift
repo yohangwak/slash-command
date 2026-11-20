@@ -95,14 +95,17 @@ extension Detector {
     public static func orca() throws -> Target {
         // The terminal list is read after the tab strip (which can take up to 1.2 s, `OrcaView.readStrip`), and the same list both
         // matches the strip and picks the pane, so a pane chosen while the strip was being read is not missed (Pullfrog #62).
-        let found = try orcaActive(loadTerminals: orcaTerminals)
-        let payload = found.payload, active = found.active
-        // If tmux is running as the «foreground job» in that terminal, go into the tmux pane that client is looking at (write and read via tmux too).
-        // Used as-is through Orca, the bottom of the screen is tmux's status line, and if panes are split the text of several panes is mixed on one screen.
-        if let handle = try? OrcaState.pane(in: payload, active: active).handle, let inside = try orcaTmux(handle: handle) {
-            return inside
+        switch try orcaActive(loadTerminals: orcaTerminals) {
+        case .chat(let target):
+            return target
+        case .terminal(let active, let payload):
+            // If tmux is running as the «foreground job» in that terminal, go into the tmux pane that client is looking at (write and read via tmux too).
+            // Used as-is through Orca, the bottom of the screen is tmux's status line, and if panes are split the text of several panes is mixed on one screen.
+            if let handle = try? OrcaState.pane(in: payload, active: active).handle, let inside = try orcaTmux(handle: handle) {
+                return inside
+            }
+            return try OrcaState.target(in: payload, active: active, processAgent: AgentProcesses.agent(orcaHandle:))
         }
-        return try OrcaState.target(in: payload, active: active, processAgent: AgentProcesses.agent(orcaHandle:))
     }
 
     /// If a tmux client is the foreground job in that Orca terminal, the tmux pane that client is looking at. Otherwise nil.
@@ -113,10 +116,15 @@ extension Detector {
         return try client.map { try TmuxFront.target(client: $0, table: table, outer: "Orca") }
     }
 
+    public enum OrcaActive {
+        case terminal(OrcaState.Active, payload: [String: Any])
+        case chat(Target)
+    }
+
     /// Identifies the workspace and tab shown on screen using Orca's tab strip read through accessibility. `loadTerminals` reads
     /// Orca's terminal list; it is called after the strip is read, and the list it returns is the one the answer comes with.
     /// `pid`: the Orca process to read (the app's check after an Orca start); nil reads the first running Orca.
-    public static func orcaActive(pid: pid_t? = nil, loadTerminals: () throws -> [String: Any]) throws -> (active: OrcaState.Active, source: String, payload: [String: Any]) {
+    public static func orcaActive(pid: pid_t? = nil, loadTerminals: () throws -> [String: Any]) throws -> OrcaActive {
         let (reading, stats) = OrcaView.readStrip(pid: pid)
         // Each refusal carries a count-only line for the log (`OrcaView.StripStats`): which conclusion the reader reached, and what it saw.
         func refused(_ message: String, _ outcome: String) -> SlashCommandError {
@@ -126,19 +134,19 @@ extension Detector {
         var outcome = "unreadable"
         if case .read(let strip) = reading {
             // Titles alone cannot prove which workspace is visible; the sidebar's current row does. Without it, nothing is sent.
-            guard strip.currentWorkspaces.count == 1 else {
+            guard strip.currentWorkspaces.count == 1, let visible = strip.currentWorkspaces.first else {
                 throw refused(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."), "noCurrentWorkspace")
             }
             let payload = try loadTerminals()
             let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
             var resolution = OrcaView.resolve(strip: strip, layouts: layouts)
-            // A strip that is not just the workspace's terminals in one row — browser or file tabs open, or tabs split into groups side
-            // by side, which marks one active tab per group: Orca's session list says which tabs are terminals, how the groups are
+            // A strip that is not just the workspace's terminals in one row — browser, file or chat tabs open, or tabs split into groups
+            // side by side, which marks one active tab per group: Orca's session list says what each tab is, how the groups are
             // laid out and which has focus. Without it (an older Orca, or an answer of another shape) the strip stays refused.
             var sessionList = "no session list"
             if resolution == .noMatch || resolution == .noActiveTab,
-               case .success(let answer) = OrcaRuntime.call("session.tabs.list", ["worktree": strip.currentWorkspaces[0]]),
-               let session = OrcaView.sessionTabs(session: answer) {
+               case .success(let answer) = OrcaRuntime.call("session.tabs.list", ["worktree": visible]),
+               let session = OrcaView.sessionTabs(session: answer, visibleWorktree: visible) {
                 sessionList = "with session list"
                 resolution = OrcaView.resolve(strip: strip, layouts: layouts, session: session)
             }
@@ -146,7 +154,14 @@ extension Detector {
             case .notATerminal:
                 throw refused(loc("The frontmost Orca tab is not a terminal."), "notATerminal")
             case .tab(let active):
-                return (active, "Accessibility", payload)
+                return .terminal(active, payload: payload)
+            case .chat(_, let sessionID, let name):
+                guard let agent = Agent(rawValue: name), agent == .claude || agent == .codex else {
+                    throw refused(loc("Not switched: Slash Command switches only Claude and Codex chats in Orca. Use a terminal tab for this agent."), "unsupportedChat")
+                }
+                return .chat(Target(host: .orcaChat(sessionID: sessionID), agent: agent, label: "chat"))
+            case .chatTitleNotUnique:
+                throw refused(loc("Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat."), "chatTitleNotUnique")
             case .ambiguous:
                 throw refused(loc("Orca has two or more workspaces with the same tab titles in the same order, so the visible terminal cannot be told apart. Give the tabs different names."), "ambiguous")
             case .noMatch:

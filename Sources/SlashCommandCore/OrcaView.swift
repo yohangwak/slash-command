@@ -10,8 +10,8 @@ public enum OrcaView {
             public let title: String
             public let truncated: Bool
             public let active: Bool
-            /// True when a close button inside the tab names its title, as on a terminal tab. A browser tab's close button has no
-            /// label and a file tab's says only "Close tab", so this tells a terminal tab from the others on the screen itself.
+            /// True when a close button inside the tab names its title, as on a terminal or chat tab. A browser tab's close
+            /// button has no label and a file tab's says only "Close tab".
             public let closeNamesTitle: Bool
 
             public init(title: String, truncated: Bool, active: Bool, closeNamesTitle: Bool = true) {
@@ -110,6 +110,9 @@ public enum OrcaView {
         /// The strip has zero or more than one active marker.
         case noActiveTab
         case tab(OrcaState.Active)
+        case chat(worktreeID: String, sessionID: String, agent: String)
+        /// Another tab shares the focused chat's title.
+        case chatTitleNotUnique
         /// More than one workspace has the same order of tab titles.
         case ambiguous([String])
         /// No workspace has exactly these tabs (with file, browser or chat tabs open, or tabs split into groups, the session list decides).
@@ -121,10 +124,10 @@ public enum OrcaView {
     /// One tab of a workspace, in strip order, as Orca's session list names it.
     public enum TabKind: Equatable, Sendable {
         case terminal(tabID: String)
+        case chat(sessionID: String, agent: String, title: String)
         /// A browser or file tab: listed with its kind. On screen its close button does not name its title.
         case other
-        /// An id in the tab order that the list's tabs do not describe (Orca's chat tabs are kept apart from them). Not a
-        /// terminal, and nothing is assumed about how it looks.
+        /// An id in the tab order that the list's tabs do not describe, such as a chat on older Orca versions.
         case unlisted
     }
 
@@ -142,13 +145,14 @@ public enum OrcaView {
     }
 
     /// Reads Orca's `session.tabs.list` (measured on Orca 1.4.258, 2026-11-14). `tabGroups` gives each group's `tabOrder` and `activeTabId`;
-    /// a browser or file tab is listed in `tabs` under its own id, a terminal once per split pane with `parentTabId` set to the tab id.
+    /// A browser, file or structured chat is listed under its own id, a terminal once per pane with `parentTabId` set to the tab id.
     /// Tabs split side by side are groups: Orca draws one strip per group, the layout tree's `first` before its `second`, and marks the
     /// active tab of every group the same way, so the group with focus comes from `activeGroupId`. nil when the answer is not that
-    /// shape — no tab group, a layout that does not name each group once, a group without an active tab, a focused group it does not
-    /// list, or a top-level active tab that is not the focused group's — and then nothing is known.
-    public static func sessionTabs(session: [String: Any]) -> SessionTabs? {
-        guard let groups = session["tabGroups"] as? [[String: Any]], !groups.isEmpty,
+    /// shape — the wrong workspace, no tab group, a layout that does not name each group once, a group without an active tab, a
+    /// focused group it does not list, or a top-level active tab that is not the focused group's — and then nothing is known.
+    public static func sessionTabs(session: [String: Any], visibleWorktree: String) -> SessionTabs? {
+        guard session["worktree"] as? String == visibleWorktree,
+              let groups = session["tabGroups"] as? [[String: Any]], !groups.isEmpty,
               let tabs = session["tabs"] as? [[String: Any]] else { return nil }
         let ids = groups.compactMap { $0["id"] as? String }
         guard ids.count == groups.count, Set(ids).count == ids.count else { return nil }
@@ -172,7 +176,14 @@ public enum OrcaView {
                 } else if let tab = tabs.first(where: { $0["id"] as? String == id }) {
                     // A tab listed under its id must say what it is, and a terminal listed that way is not the shape above.
                     guard let type = tab["type"] as? String, !type.isEmpty, type != "terminal" else { return nil }
-                    kinds.append(.other)
+                    if type == "agent-session" {
+                        guard let sessionID = tab["sessionId"] as? String, !sessionID.isEmpty,
+                              let agent = tab["agent"] as? String, !agent.isEmpty,
+                              let title = tab["title"] as? String, !title.isEmpty else { return nil }
+                        kinds.append(.chat(sessionID: sessionID, agent: agent, title: title))
+                    } else {
+                        kinds.append(.other)
+                    }
                 } else {
                     kinds.append(.unlisted)
                 }
@@ -201,9 +212,10 @@ public enum OrcaView {
     }
 
     /// Matches the strip of the workspace the sidebar shows against that workspace's tabs in Orca's session list, so a workspace with
-    /// browser or file tabs open, or tabs split into groups side by side, can be read too. Exact as before: the strip has as many tabs
+    /// browser, file or chat tabs open, or tabs split into groups side by side, can be read too. Exact as before: the strip has as many tabs
     /// as the list, each group's active tab is marked at its place and no other tab is, every terminal is at its place with its title (the
-    /// terminal list's), and the list has every terminal the terminal list has. Browser and file tabs must not look like a terminal tab.
+    /// terminal list's), and the list has every terminal the terminal list has. Chat tabs must also show their listed titles in the
+    /// right place. Browser and file tabs must not look like a terminal tab.
     ///
     /// The strip and the list are read one after the other, and the list is published a moment after the screen changes, so a tab can
     /// move or another can be chosen in between (Pullfrog #60, #61). The answer is the list's own active tab of the focused group; the
@@ -213,8 +225,8 @@ public enum OrcaView {
         guard strip.tabs.contains(where: \.active) else { return .noActiveTab }
         let kinds = session.groups.flatMap(\.kinds)
         guard strip.currentWorkspaces.count == 1, let visible = strip.currentWorkspaces.first,
-              let layout = layouts.first(where: { $0["worktreeId"] as? String == visible }),
               kinds.count == strip.tabs.count else { return .noMatch }
+        let layout = layouts.first { $0["worktreeId"] as? String == visible }
         // With more than one group, the focused one must be the one the screen shows focused: the session list is published a
         // moment after a change (about 16 ms in Orca 1.4.258), and both groups' active tabs stay marked when focus moves.
         if session.groups.count > 1 {
@@ -230,29 +242,44 @@ public enum OrcaView {
             offset += group.kinds.count
         }
         guard strip.tabs.map(\.active) == marked else { return .noMatch }
-        let terminals = OrcaState.tabs(in: layout["root"])
+        // A workspace with only chats may have no terminal layout.
+        let terminals = OrcaState.tabs(in: layout?["root"])
         let listed = kinds.compactMap { kind -> String? in if case .terminal(let id) = kind { return id } else { return nil } }
         guard listed.count == terminals.count, Set(listed).count == listed.count,
               Set(listed) == Set(terminals.compactMap { $0["tabId"] as? String }) else { return .noMatch }
+        var terminalTitles: [Int: String] = [:]
         for (index, (kind, shown)) in zip(kinds, strip.tabs).enumerated() {
             switch kind {
             case .terminal(let id):
-                // No other tab may show a terminal's title: the list can lag the screen, so two tabs that look alike could have
-                // swapped places, and with them which one is chosen (Pullfrog #60, #61 — a chat tab looks like a terminal).
                 guard shown.closeNamesTitle, let terminal = terminals.first(where: { $0["tabId"] as? String == id }),
-                      case let title = terminal["title"] as? String ?? "", titlesMatch(title, shown),
-                      !strip.tabs.indices.contains(where: { $0 != index && titlesMatch(title, strip.tabs[$0]) }) else { return .noMatch }
+                      let title = terminal["title"] as? String, titlesMatch(title, shown) else { return .noMatch }
+                terminalTitles[index] = title
             case .other:
                 guard !shown.closeNamesTitle else { return .noMatch }
+            case .chat(_, _, let title):
+                guard shown.closeNamesTitle, titlesMatch(title, shown) else { return .noMatch }
             case .unlisted:
-                // A chat tab is drawn like a terminal tab: it must be readable as one, with a title no terminal has, so an unreadable
-                // tab (a pinned terminal has no close button) can never stand at its place unseen (Pullfrog #61).
-                guard shown.closeNamesTitle, !shown.title.isEmpty,
-                      !terminals.contains(where: { titlesMatch($0["title"] as? String ?? "", shown) }) else { return .noMatch }
+                // An unlisted chat must still be readable, so a pinned terminal cannot stand at its place unseen (Pullfrog #61).
+                guard shown.closeNamesTitle, !shown.title.isEmpty else { return .noMatch }
             }
         }
-        guard case .terminal(let id) = kinds[target] else { return .notATerminal }
-        return .tab(OrcaState.Active(worktreeID: visible, tabID: id))
+        if case .chat(_, _, let title) = kinds[target],
+           terminalTitles.values.contains(where: { titlesMatch($0, strip.tabs[target]) }) ||
+           strip.tabs.indices.contains(where: { $0 != target && titlesMatch(title, strip.tabs[$0]) }) {
+            return .chatTitleNotUnique
+        }
+        // No other tab may show a terminal's title. While the list catches up, lookalike tabs could swap unseen (Pullfrog #60, #61).
+        for (index, title) in terminalTitles {
+            guard !strip.tabs.indices.contains(where: { $0 != index && titlesMatch(title, strip.tabs[$0]) }) else { return .noMatch }
+        }
+        switch kinds[target] {
+        case .terminal(let id):
+            return .tab(OrcaState.Active(worktreeID: visible, tabID: id))
+        case .chat(let sessionID, let agent, _):
+            return .chat(worktreeID: visible, sessionID: sessionID, agent: agent)
+        case .other, .unlisted:
+            return .notATerminal
+        }
     }
 
     // MARK: - Matching (pure functions)

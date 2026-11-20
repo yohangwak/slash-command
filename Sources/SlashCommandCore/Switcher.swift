@@ -10,9 +10,11 @@ public struct SwitchResult: Equatable, Sendable {
     public let confirmations: [String]
     /// The defaults file as it was before the switch (absent, its content, or unreadable), when a late write of the default must be checked once more (`Switcher.verifyRestore`).
     public let pendingRestore: DefaultsSnapshot?
+    var chatOutcome: OrcaChatDriver.Outcome? = nil
 
-    /// The notification title. Uses the name the agent showed on screen if there is one ("Opus 5.5 · high"), otherwise the preset's values ("opus · high").
+    /// The notification title, from the agent's confirmation or the preset's values.
     public var summary: String {
+        if let chatOutcome { return chatOutcome.summary }
         var model: String?
         var effort: String?
         var effortKnown = true
@@ -69,7 +71,14 @@ public struct SwitchResult: Equatable, Sendable {
         return "\(name) · \(nonEmpty(effort) ?? preset.effort)"
     }
 
-    /// Whether the agent confirmed the result on screen (`summary` is a confirmed value, not the value we sent).
+    public var detail: String? { chatOutcome?.detail }
+
+    public var logSummary: String {
+        if case .orcaChat = target.host { return "Orca chat options verified" }
+        return summary
+    }
+
+    /// Whether the result was confirmed by the agent or read back from Orca's chat options.
     public var confirmed: Bool { !confirmations.isEmpty }
 
     private func nonEmpty(_ text: String?) -> String? {
@@ -185,6 +194,8 @@ public struct Switcher {
                 return LaggingIO(base: io, lagMs: lag)
             }
             return io
+        case .orcaChat:
+            throw SlashCommandError(unreadable(target.host))
         case .tmux(let socket, let pane):
             guard let tmux = Proc.locate("tmux") else { throw SlashCommandError(loc("The tmux command was not found.")) }
             return TmuxIO(tmux: tmux, socket: socket, pane: pane)
@@ -226,6 +237,8 @@ public struct Switcher {
             return loc("Not switched: could not read the Ghostty screen. Allow Slash Command in System Settings → Privacy & Security → %@.", SettingsNames.accessibility)
         case .orca:
             return loc("Not switched: could not read the Orca terminal screen.")
+        case .orcaChat:
+            return loc("Terminal screen and keyboard operations are not supported in Orca chats.")
         case .tmux, .kitty, .wezterm, .iterm:
             return loc("Not switched: could not read the %@ screen. Check that the target is still there.", host.appName)
         }
@@ -241,6 +254,10 @@ public struct Switcher {
 
     /// The agent's settings for preset number `slot` (1-based).
     public func preset(slot: Int, agent: Agent) throws -> AgentPreset {
+        try preset(slot: slot, agent: agent, requiresModel: true)
+    }
+
+    private func preset(slot: Int, agent: Agent, requiresModel: Bool) throws -> AgentPreset {
         guard slot >= 1, slot <= config.slots.count else {
             throw SlashCommandError(loc("There is no preset %@ (there are %@).", slot, config.slots.count))
         }
@@ -253,7 +270,9 @@ public struct Switcher {
         }) else {
             throw SlashCommandError(loc("Not switched: preset %@ for %@ contains a control character or a backslash. Fix it in Settings or the presets file.", slot, agent.displayName))
         }
-        guard !preset.model.trimmingCharacters(in: .whitespaces).isEmpty else {
+        // A chat may take an effort alone, but a preset with neither value would change nothing and still be reported as done.
+        if preset.model.trimmingCharacters(in: .whitespaces).isEmpty,
+           requiresModel || preset.effort.trimmingCharacters(in: .whitespaces).isEmpty {
             throw SlashCommandError(loc("Preset %@: enter a model for %@.", slot, agent.displayName))
         }
         return preset
@@ -303,6 +322,12 @@ public struct Switcher {
 
     public func apply(slot: Int, to target: Target, deferFinalCheck: Bool = false) throws -> SwitchResult {
         trace?.mark("ready")
+        if case .orcaChat(let sessionID) = target.host {
+            let preset = try preset(slot: slot, agent: target.agent, requiresModel: false)
+            let outcome = try OrcaChatDriver(sessionID: sessionID).apply(preset)
+            return SwitchResult(target: target, slotName: config.slots[slot - 1].name, preset: preset,
+                                warning: nil, confirmations: outcome.confirmations, pendingRestore: nil, chatOutcome: outcome)
+        }
         let planned = try plan(slot: slot, agent: target.agent)
         trace?.mark("plan")
         let raw = try makeIO(target)
@@ -365,6 +390,12 @@ public struct Switcher {
     /// Leaves the model alone and moves only effort up or down by one step.
     public func stepEffort(up: Bool, on target: Target) throws -> SwitchResult {
         trace?.mark("ready")
+        if case .orcaChat(let sessionID) = target.host {
+            let outcome = try OrcaChatDriver(sessionID: sessionID).stepEffort(up: up)
+            let preset = AgentPreset(model: target.agent.rawValue, effort: up ? loc("one level up") : loc("one level down"))
+            return SwitchResult(target: target, slotName: "", preset: preset,
+                                warning: nil, confirmations: outcome.confirmations, pendingRestore: nil, chatOutcome: outcome)
+        }
         let raw = try makeIO(target)
         let io: TerminalIO = trace.map { TracingIO(base: raw, trace: $0) } ?? raw
         let traced = trace

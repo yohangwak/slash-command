@@ -2,6 +2,11 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.15
+
+- Orca on macOS: terminal shortcuts work again when a chat tab is open alongside the terminal.
+- Orca on macOS: switch models and effort in Claude and Codex chat tabs. Orca applies the verified settings from the next message in that chat.
+
 ## 0.2.14
 
 - Orca: the check after each Orca start waits while the display is asleep or the screen is locked, and runs once the screen has been on and unlocked for half a minute without a sleep or lock in between. Orca hides its tabs from Accessibility while the screen is off, so 0.2.13 logged "tabs NOT readable" for a Mac that was only locked.

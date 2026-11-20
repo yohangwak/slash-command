@@ -12,6 +12,7 @@
 Slash Command 是一款 macOS 菜单栏应用,也是一款 Windows 托盘应用。在终端里按下 **⇧⌥1 … ⇧⌥9**(Windows 上为 **Shift+Alt+1 … 9**),最前面会话中的智能体就会切换到对应预设的 **模型 + effort**。**⇧⌥=** 和 **⇧⌥-** 可以把 effort 调高或调低一级。
 
 它支持 **Claude Code、Codex、Grok、Cursor Agent、Antigravity 和 OpenCode**,在 macOS 上可用于 **Ghostty、Orca、iTerm2、WezTerm 和 kitty**,在 Windows 上可用于 **Windows Terminal、Orca 和 WezTerm**。
+在 macOS 上，它也支持 Orca 聊天界面中的 Claude 和 Codex。
 
 - **一次按键**,不必再输入 `/model`、找到对应的选项、再设置 effort。
 - **对话进行中也能用。** 你正在输入的内容会原样保留在输入框里。

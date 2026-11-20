@@ -28,8 +28,9 @@ public enum OrcaSelfCheck {
     public enum Result: Equatable {
         /// A hotkey would find the visible terminal.
         case found
-        /// Refused, with the reader's count-only line and conclusion. `notATerminal` (a browser, file or chat tab in front) means the
-        /// reader worked.
+        /// A hotkey would find the visible chat.
+        case foundChat
+        /// Refused, with the reader's count-only line and conclusion.
         case refused(outcome: String?, diagnostic: String?)
         /// Failed before or after the tab strip without a reader line (Orca's terminal list could not be read, for example).
         case otherFailure
@@ -55,12 +56,11 @@ public enum OrcaSelfCheck {
             }
         }
 
-        /// Whether a hotkey pressed in a terminal would work: the lookup found the terminal, or the reader worked and a tab that is not
-        /// a terminal is in front.
+        /// The reader identified the visible tab, including tabs that a hotkey cannot switch.
         public var readable: Bool {
             switch self {
-            case .found: return true
-            case .refused(let outcome, _): return outcome == "notATerminal"
+            case .found, .foundChat: return true
+            case .refused(let outcome, _): return outcome == "notATerminal" || outcome == "unsupportedChat"
             case .otherFailure, .otherRuntime, .runtimeUnknown: return false
             }
         }
@@ -74,6 +74,7 @@ public enum OrcaSelfCheck {
         let detail: String
         switch result {
         case .found: detail = "a hotkey would find the visible terminal"
+        case .foundChat: detail = "a hotkey would find the visible chat"
         case .refused(_, let diagnostic): detail = diagnostic ?? "refused"
         case .otherFailure: detail = "Orca's terminal list could not be read"
         case .runtimeUnknown: detail = "Orca's runtime information could not be read"
