@@ -70,3 +70,17 @@
 /* Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly. — English comes from the sentence in code. */
 /* Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again. — English comes from the sentence in code. */
 /* Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart. — English comes from the sentence in code. */
+/* Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat. — English comes from the sentence in code. */
+
+/* Takes effect from your next message in this chat. — English comes from the sentence in code. */
+/* Not switched: this Orca chat does not offer the model %@. — English comes from the sentence in code. */
+/* Not switched: this Orca chat model does not offer the effort %@. — English comes from the sentence in code. */
+/* Not switched: could not read this Orca chat's options. — English comes from the sentence in code. */
+/* Not switched: the current model of this Orca chat is unknown. — English comes from the sentence in code. */
+/* Not switched: this Orca chat needs a saved model and effort. Choose both in the chat first. — English comes from the sentence in code. */
+/* Could not confirm the change to this Orca chat. — English comes from the sentence in code. */
+/* Orca set the chat model. The effort change could not be confirmed. — English comes from the sentence in code. */
+/* Orca accepted the chat changes. The saved values could not be verified. — English comes from the sentence in code. */
+/* Not switched: Slash Command switches only Claude and Codex chats in Orca. Use a terminal tab for this agent. — English comes from the sentence in code. */
+/* Terminal screen and keyboard operations are not supported in Orca chats. — English comes from the sentence in code. */
+/* chat — switched through Orca's runtime, no keys — English comes from the sentence in code. */

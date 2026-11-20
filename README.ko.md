@@ -12,6 +12,7 @@
 Slash Command 는 macOS 메뉴 막대 앱이자 Windows 트레이 앱입니다. 터미널에서 **⇧⌥1 … ⇧⌥9**(Windows 에서는 **Shift+Alt+1 … 9**) 를 누르면 맨 앞 세션의 에이전트가 그 번호 프리셋의 **모델 + effort** 로 바뀝니다. **⇧⌥=** 와 **⇧⌥-** 는 effort 만 한 단계 올리고 내립니다.
 
 **Claude Code, Codex, Grok, Cursor Agent, Antigravity, OpenCode** 를 macOS 에서는 **Ghostty, Orca, iTerm2, WezTerm, kitty**, Windows 에서는 **Windows Terminal, Orca, WezTerm** 에서 지원합니다.
+macOS 에서는 Orca 의 채팅 UI 에서도 Claude 와 Codex 를 지원합니다.
 
 - **키 한 번.** `/model` 을 치고, 행을 찾고, effort 를 맞추는 일을 대신합니다.
 - **대화 도중에도 됩니다.** 쓰던 글은 입력창에 그대로 남습니다.

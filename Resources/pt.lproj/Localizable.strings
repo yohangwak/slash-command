@@ -278,6 +278,7 @@
 "Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly." = "Não enviado: o Orca ainda está tornando suas abas legíveis para o Slash Command, o que leva até um minuto depois que o Orca é iniciado. Pressione de novo em instantes.";
 "Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "Não enviado: não foi possível ver qual espaço de trabalho do Orca está aberto. Mostre a barra lateral do Orca com esse espaço de trabalho à vista e pressione novamente.";
 "Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "Não enviado: as abas do Orca na tela não correspondem à lista de abas deste espaço de trabalho que o Orca informa, então não é possível saber qual terminal está visível.";
+"Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat." = "Não foi enviado: outra aba do Orca tem o mesmo título desta conversa, por isso não é possível distingui-las. Renomeie uma delas ou envie primeiro uma mensagem para que o Orca dê um nome à conversa.";
 "Could not type into iTerm2: %@" = "Não foi possível digitar no iTerm2: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "Este modelo do OpenCode não tem níveis de effort (não tem variantes).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "Este modelo do OpenCode não tem variantes, então o effort (%@) não foi definido.";
@@ -355,3 +356,16 @@
 "About" = "Sobre";
 "Could not open the browser." = "Não foi possível abrir o navegador.";
 "Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)." = "“Relatar um problema” abre uma nova issue no GitHub no seu navegador, com as versões do Slash Command, do macOS e dos seus agentes já preenchidas. O GitHub recebe esses números de versão no endereço da página quando ela abre; a issue só é publicada quando você envia o formulário. Relate problemas de segurança em particular (veja SECURITY.md).";
+
+"Takes effect from your next message in this chat." = "Entra em vigor a partir da sua próxima mensagem nesta conversa.";
+"Not switched: this Orca chat does not offer the model %@." = "Alteração não realizada. Esta conversa do Orca não oferece o modelo %@.";
+"Not switched: this Orca chat model does not offer the effort %@." = "Alteração não realizada. O modelo desta conversa do Orca não oferece o nível de esforço %@.";
+"Not switched: could not read this Orca chat's options." = "Alteração não realizada. Não foi possível ler as opções desta conversa do Orca.";
+"Not switched: the current model of this Orca chat is unknown." = "Alteração não realizada. Não foi possível identificar o modelo atual desta conversa do Orca.";
+"Not switched: this Orca chat needs a saved model and effort. Choose both in the chat first." = "Alteração não realizada. Esta conversa do Orca precisa ter um modelo e um nível de esforço salvos. Selecione os dois na conversa primeiro.";
+"Could not confirm the change to this Orca chat." = "Não foi possível confirmar a alteração nesta conversa do Orca.";
+"Orca set the chat model. The effort change could not be confirmed." = "O Orca definiu o modelo da conversa. Não foi possível confirmar a alteração do nível de esforço.";
+"Orca accepted the chat changes. The saved values could not be verified." = "O Orca aceitou as alterações na conversa. Não foi possível verificar os valores salvos.";
+"Not switched: Slash Command switches only Claude and Codex chats in Orca. Use a terminal tab for this agent." = "Alteração não realizada. No Orca, o Slash Command só permite alterações nas conversas do Claude e do Codex. Use uma aba do terminal para este agente.";
+"Terminal screen and keyboard operations are not supported in Orca chats." = "As conversas do Orca não permitem ler a tela do terminal nem enviar comandos de teclado.";
+"chat — switched through Orca's runtime, no keys" = "conversa — alteração pelo ambiente de execução do Orca, sem enviar teclas";

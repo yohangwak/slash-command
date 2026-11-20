@@ -183,7 +183,8 @@ do {
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
         if !result.confirmed { print("(the agent's confirmation text was not seen)") }
-        if trace != nil { result.confirmations.forEach { print("confirmation: \($0)") } }
+        if let detail = result.detail { print(detail) }
+        else if trace != nil { result.confirmations.forEach { print("confirmation: \($0)") } }
         if let warning = result.warning { print("⚠️ \(warning)") }
     case "effort":
         guard args.count >= 2, ["up", "down"].contains(args[1]) else { fail("slashcommand effort <up|down> [target]") }
@@ -199,6 +200,7 @@ do {
         let result = try switcher.stepEffort(up: args[1] == "up", on: target)
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
+        if let detail = result.detail { print(detail) }
     case "run":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
             fail("slashcommand run <number> <claude|codex|grok|cursor|antigravity|opencode> [args…]")
@@ -219,7 +221,7 @@ do {
                     fail("this OpenCode version has no option to choose the model when it opens (`opencode --help` lists no --model), and this terminal cannot be addressed to switch after it opens (Orca · iTerm2 · WezTerm · kitty with remote control · tmux can; Ghostty gives a session no way to know its own terminal). Open the session, then switch with the shortcut.")
                 }
                 // The worker follows only while "this process" (which becomes opencode) is alive.
-                let follow = ["follow", String(slot), "--launched", launched.argument] + Launch.targetArguments(host: host, agent: agent)
+                let follow = try ["follow", String(slot), "--launched", launched.argument] + Launch.targetArguments(host: host, agent: agent)
                 let command = [agent.executable] + extra
                 if dryRun {
                     print(command.joined(separator: " "))
@@ -304,14 +306,20 @@ do {
         }
     case "where":
         let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
-        print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
-        #if os(macOS)
-        if case .orca = target.host, let found = try? Detector.orcaActive(loadTerminals: Detector.orcaTerminals) {
-            print("visible via   \(found.source)")
+        if case .orcaChat = target.host {
+            print("\(target.host.appName) · \(target.agent.rawValue) · " + loc("chat — switched through Orca's runtime, no keys"))
+        } else {
+            print("\(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         }
+        #if os(macOS)
+        if case .orca = target.host, (try? Detector.orcaActive(loadTerminals: Detector.orcaTerminals)) != nil { print("visible via   Accessibility") }
         #endif
     case "doctor":
         let target = try explicitTarget(args) ?? Detector.frontmost(willAskAutomation: noteAutomationPrompt)
+        if case .orcaChat = target.host {
+            print("target        \(target.host.appName) · \(target.agent.rawValue) · " + loc("chat — switched through Orca's runtime, no keys"))
+            break
+        }
         print("target        \(target.host.appName) · \(target.agent.rawValue) · \(target.label)")
         #if os(macOS)
         if case .ghostty = target.host { print("accessibility \(GhosttyScreen.trusted() ? "allowed" : "not allowed")") }

@@ -358,7 +358,7 @@ final class WindowsTerminalTests: XCTestCase {
         XCTAssertEqual(WindowsAppModel.targetLine(target), "Codex · Windows Terminal · Test")
         let result = SwitchResult(target: target, slotName: "", preset: .init(model: "gpt", effort: "high"), warning: nil, confirmations: [], pendingRestore: nil)
         XCTAssertFalse(WindowsAppModel.hud(result: result, tabLagNote: true).text.contains("Orca"))
-        XCTAssertEqual(Launch.targetArguments(host: target.host, agent: .codex), ["--console","123","--agent","codex"])
+        XCTAssertEqual(try Launch.targetArguments(host: target.host, agent: .codex), ["--console","123","--agent","codex"])
     }
     private func fixture(records: Int32) throws -> (OpaquePointer, URL) {
         let directory = URL(fileURLWithPath: WindowsConsoleBridge.executable).deletingLastPathComponent()

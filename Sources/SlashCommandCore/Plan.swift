@@ -127,11 +127,12 @@ public enum Launch {
     }
 
     /// That terminal as the target argument of the command line (the form `explicitTarget` reads).
-    public static func targetArguments(host: TerminalHost, agent: Agent) -> [String] {
+    public static func targetArguments(host: TerminalHost, agent: Agent) throws -> [String] {
         let named = ["--agent", agent.rawValue]
         switch host {
         case .ghostty(let id): return ["--ghostty", id] + named
         case .orca(let handle): return ["--orca", handle] + named
+        case .orcaChat: throw SlashCommandError(Switcher.unreadable(host))
         case .tmux(let socket, let pane): return ["--tmux", pane] + (socket.map { ["--tmux-socket", $0] } ?? []) + named
         case .kitty(let socket, let window): return ["--kitty", window, "--kitty-socket", socket] + named
         case .wezterm(let socket, let pane): return ["--wezterm", pane] + (socket.map { ["--wezterm-socket", $0] } ?? []) + named

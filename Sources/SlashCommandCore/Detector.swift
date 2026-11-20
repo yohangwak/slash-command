@@ -3,6 +3,7 @@ import Foundation
 public enum TerminalHost: Equatable, Sendable {
     case ghostty(terminalID: String)
     case orca(handle: String)
+    case orcaChat(sessionID: String)
     /// tmux pane (`%3`, `session:window.pane`). `socket` is the `tmux -L` name or the `-S` path (a path if it contains `/`).
     case tmux(socket: String?, pane: String)
     /// kitty window id and remote-control socket (`unix:/path`).
@@ -18,7 +19,7 @@ public enum TerminalHost: Equatable, Sendable {
     public var appName: String {
         switch self {
         case .ghostty: return "Ghostty"
-        case .orca: return "Orca"
+        case .orca, .orcaChat: return "Orca"
         case .tmux: return "tmux"
         case .kitty: return "kitty"
         case .wezterm: return "WezTerm"

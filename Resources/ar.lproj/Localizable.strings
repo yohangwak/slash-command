@@ -278,6 +278,7 @@
 "Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly." = "لم يُرسل: لا يزال Orca يجعل علامات التبويب قابلة للقراءة من Slash Command، وقد يستغرق ذلك حتى دقيقة بعد تشغيل Orca. اضغط مرة أخرى بعد قليل.";
 "Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again." = "لم يُرسَل: تعذّر معرفة مساحة عمل Orca المفتوحة. أظهِر الشريط الجانبي في Orca بحيث تكون مساحة العمل تلك ظاهرة، ثم اضغط مرة أخرى.";
 "Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "لم يُرسَل: علامات تبويب Orca الظاهرة على الشاشة لا تطابق قائمة علامات تبويب مساحة العمل هذه التي يقدمها Orca، لذا لا يمكن تحديد الطرفية الظاهرة.";
+"Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat." = "لم يُرسَل: توجد علامة تبويب أخرى في Orca تحمل عنوان هذه المحادثة نفسه، لذا لا يمكن تمييزها. غيّر اسم إحداهما، أو أرسل رسالة أولًا ليمنح Orca المحادثة اسمًا.";
 "Could not type into iTerm2: %@" = "تعذّر الإدخال في iTerm2: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "ليس لهذا النموذج في OpenCode مستويات effort (لا توجد له variants).";
 "This OpenCode model has no variants, so the effort (%@) was not set." = "ليس لهذا النموذج في OpenCode أي variants، لذلك لم يُضبط effort (%@).";
@@ -355,3 +356,16 @@
 "About" = "حول";
 "Could not open the browser." = "تعذّر فتح المتصفح.";
 "Report a Problem opens a new issue on GitHub in your browser, with the versions of Slash Command, macOS and your agents filled in. GitHub receives those version numbers in the page address when it opens; the issue is posted only when you submit the form. Report a security problem privately instead (see SECURITY.md)." = "يفتح «الإبلاغ عن مشكلة» مشكلة جديدة على GitHub في متصفحك مع تعبئة إصدارات Slash Command وmacOS والوكلاء مسبقًا. يتلقى GitHub أرقام الإصدارات هذه ضمن عنوان الصفحة عند فتحها، ولا تُنشر المشكلة إلا عندما ترسل النموذج. أبلِغ عن المشكلات الأمنية بشكل خاص بدلًا من ذلك (راجع SECURITY.md).";
+
+"Takes effect from your next message in this chat." = "يسري التغيير بدءًا من رسالتك التالية في هذه المحادثة.";
+"Not switched: this Orca chat does not offer the model %@." = "لم يتم التبديل. النموذج %@ غير متاح في محادثة Orca هذه.";
+"Not switched: this Orca chat model does not offer the effort %@." = "لم يتم التبديل. مستوى الجهد %@ غير متاح للنموذج في محادثة Orca هذه.";
+"Not switched: could not read this Orca chat's options." = "لم يتم التبديل. تعذّرت قراءة خيارات محادثة Orca هذه.";
+"Not switched: the current model of this Orca chat is unknown." = "لم يتم التبديل. تعذّر تحديد النموذج الحالي في محادثة Orca هذه.";
+"Not switched: this Orca chat needs a saved model and effort. Choose both in the chat first." = "لم يتم التبديل. يجب حفظ النموذج ومستوى الجهد في محادثة Orca هذه. اخترهما في المحادثة أولًا.";
+"Could not confirm the change to this Orca chat." = "تعذّر تأكيد التغيير في محادثة Orca هذه.";
+"Orca set the chat model. The effort change could not be confirmed." = "ضبط Orca نموذج المحادثة. تعذّر تأكيد تغيير مستوى الجهد.";
+"Orca accepted the chat changes. The saved values could not be verified." = "قبِل Orca تغييرات المحادثة. تعذّر التحقّق من القيم المحفوظة.";
+"Not switched: Slash Command switches only Claude and Codex chats in Orca. Use a terminal tab for this agent." = "لم يتم التبديل. يدعم Slash Command التبديل في محادثات Claude وCodex فقط داخل Orca. استخدم علامة تبويب للطرفية لهذا الوكيل.";
+"Terminal screen and keyboard operations are not supported in Orca chats." = "لا تدعم محادثات Orca قراءة شاشة الطرفية أو إرسال ضغطات المفاتيح.";
+"chat — switched through Orca's runtime, no keys" = "محادثة — تبديل عبر بيئة تشغيل Orca دون إرسال ضغطات مفاتيح";
