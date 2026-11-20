@@ -1,5 +1,7 @@
 # Slash Command: notes for coding agents
 
+> 📏 **이 파일은 모든 AI 대화에 통째로 실린다 — 본문엔 모든 작업에 필요한 규칙·판정식·한 줄 이유와 «작업 → 문서» 목록만 둔다.** 경위·실측·날짜별 정정은 `docs/claude/<주제>.md`(원문은 `docs/claude/history/`), 폴더 한정 규칙은 그 폴더 `CLAUDE.md`, 변경 이력은 PR 본문 — 날짜 절을 쌓지 않는다. 32,000바이트를 넘기며 커지는 커밋은 막힌다(맥 전역 pre-commit 훅).
+
 A macOS menu bar app that switches the model and effort of the coding agent in the frontmost terminal. Read [docs/how-it-works.md](docs/how-it-works.md) and [docs/CONTRACT.md](docs/CONTRACT.md) before changing how keys are sent.
 
 ## Commands
