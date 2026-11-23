@@ -2,6 +2,10 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.17
+
+- Orca: hotkeys no longer fail with "Could not read the Orca terminal list" followed by the start of Orca's answer. Orca cuts each terminal's preview to its last 300 characters counted in UTF-16, so a preview that started inside an emoji carried half of it, and the app rejected Orca's whole terminal list until that terminal printed something new. Half an emoji is now read as a replacement character. If Orca's answer still cannot be parsed, the notice says so instead of quoting it.
+
 ## 0.2.16
 
 - Orca on macOS: when the tab strip or the open workspace cannot be read, the refusal now says to wait a moment and press again if Orca has just opened or rearranged the window. Orca can take several seconds to finish drawing a new chat tab; 0.2.15 blamed an Orca update instead.
