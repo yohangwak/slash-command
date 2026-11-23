@@ -2,6 +2,10 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.16
+
+- Orca on macOS: when the tab strip or the open workspace cannot be read, the refusal now says to wait a moment and press again if Orca has just opened or rearranged the window. Orca can take several seconds to finish drawing a new chat tab; 0.2.15 blamed an Orca update instead.
+
 ## 0.2.15
 
 - Orca on macOS: terminal shortcuts work again when a chat tab is open alongside the terminal.

@@ -135,7 +135,7 @@ extension Detector {
         if case .read(let strip) = reading {
             // Titles alone cannot prove which workspace is visible; the sidebar's current row does. Without it, nothing is sent.
             guard strip.currentWorkspaces.count == 1, let visible = strip.currentWorkspaces.first else {
-                throw refused(loc("Not sent: could not see which Orca workspace is open. Show Orca's sidebar with that workspace in view, then press again."), "noCurrentWorkspace")
+                throw refused(loc("Not sent: could not see which Orca workspace is open. If Orca just opened this window, wait a moment and press again; otherwise show Orca's sidebar with that workspace in view."), "noCurrentWorkspace")
             }
             let payload = try loadTerminals()
             let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
@@ -176,7 +176,7 @@ extension Detector {
             error.needsAccessibility = true
             throw error
         }
-        throw refused(loc("Not sent: could not tell which Orca tab is on screen (an Orca update may have changed its tab strip)."), outcome)
+        throw refused(loc("Not sent: could not tell which Orca tab is on screen. If Orca just opened or rearranged this window, wait a moment and press again; if it keeps happening, an Orca update may have changed its tab strip."), outcome)
     }
 
 }
