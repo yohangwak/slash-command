@@ -112,7 +112,7 @@ public struct OrcaIO: TerminalIO {
         } else if let orca {
             let result = Proc.run(orca, ["terminal", "read", "--terminal", handle, "--screen", "--json"],
                                   env: OrcaIO.cleanEnv, cwd: OrcaIO.runtimeWorkingDirectory, timeout: 10)
-            if result.ok, let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any] {
+            if result.ok, let json = OrcaJSON.object(result.out) {
                 terminal = (json["result"] as? [String: Any])?["terminal"] as? [String: Any]
             }
         }
@@ -141,10 +141,12 @@ public struct OrcaIO: TerminalIO {
 
     static func errorSummary(_ result: ProcResult) -> String {
         if result.timedOut { return loc("timed out") }
-        if let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
+        if let json = OrcaJSON.object(result.out),
            let error = json["error"] as? [String: Any] {
             return (error["message"] as? String) ?? (error["code"] as? String) ?? loc("unknown error")
         }
+        // The command finished but its answer was not what was asked for: say so, rather than quoting the start of the JSON as if it were the reason.
+        if result.ok { return loc("Could not parse the Orca app's response") }
         let text = result.err.isEmpty ? result.out : result.err
         return String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
     }

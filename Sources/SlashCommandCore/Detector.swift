@@ -106,7 +106,7 @@ public enum Detector {
         let result = Proc.run(orca, ["terminal", "list", "--include-visual-layouts", "--json"],
                               env: OrcaIO.cleanEnv, cwd: OrcaIO.runtimeWorkingDirectory, timeout: 10)
         guard result.ok,
-              let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
+              let json = OrcaJSON.object(result.out),
               let payload = json["result"] as? [String: Any] else {
             let summary = OrcaIO.errorSummary(result)
             throw SlashCommandError(loc("Could not read the Orca terminal list: %@", summary)).quotingOutput(result.timedOut ? [] : [summary])

@@ -140,7 +140,7 @@ public enum OrcaRuntime {
     /// Interprets one response line. Keepalive lines (`_keepalive`) and blank lines are skipped.
     static func frame(_ line: Data, expectingID id: String, runtimeID: String?) -> Frame {
         guard line.contains(where: { $0 != 0x20 && $0 != 0x0D && $0 != 0x09 }) else { return .skip }
-        guard let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else {
+        guard let json = OrcaJSON.object(line) else {
             return .done(.failure(.failed(loc("Could not parse the Orca app's response"))))
         }
         if json["_keepalive"] != nil { return .skip }
