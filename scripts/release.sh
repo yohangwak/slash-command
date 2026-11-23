@@ -33,13 +33,14 @@ done
 codesign --verify --deep --strict "$app"
 
 rm -f "$zip"
-ditto -c -k --keepParent "$app" "$zip"
+# No extended attributes: ditto would store them as ._ files, which `unzip` writes into the bundle and so breaks its seal.
+ditto -c -k --norsrc --noextattr --keepParent "$app" "$zip"
 if [ "$notarize" = yes ]; then
     xcrun notarytool submit "$zip" --keychain-profile "$profile" --wait
     xcrun stapler staple "$app"
     # The stapled ticket is part of the bundle, so zip again.
     rm -f "$zip"
-    ditto -c -k --keepParent "$app" "$zip"
+    ditto -c -k --norsrc --noextattr --keepParent "$app" "$zip"
     spctl --assess --type execute -vv "$app"
 fi
 
