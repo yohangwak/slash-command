@@ -160,6 +160,8 @@ extension Detector {
                     throw refused(loc("Not switched: Slash Command switches only Claude and Codex chats in Orca. Use a terminal tab for this agent."), "unsupportedChat")
                 }
                 return .chat(Target(host: .orcaChat(sessionID: sessionID), agent: agent, label: "chat"))
+            case .terminalTitleNotUnique:
+                throw refused(loc("Not sent: another Orca tab has the same title as this terminal, so it cannot be told apart. Rename one of them."), "terminalTitleNotUnique")
             case .chatTitleNotUnique:
                 throw refused(loc("Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat."), "chatTitleNotUnique")
             case .ambiguous:

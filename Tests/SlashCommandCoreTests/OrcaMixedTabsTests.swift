@@ -170,7 +170,7 @@ final class OrcaMixedTabsTests: XCTestCase {
         let swapped = OrcaView.Strip(tabs: [file, .init(title: "tab", truncated: false, active: false, closeNamesTitle: true)], currentWorkspaces: [worktree])
         XCTAssertEqual(OrcaView.resolve(strip: swapped, layouts: layout, session: kinds), .noMatch)
         // Any other tab sharing the terminal's title refuses, even in the right order.
-        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("tab", active: false)]), layouts: layout, session: kinds), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("tab", active: false)]), layouts: layout, session: kinds), .terminalTitleNotUnique)
         // Positive control: a distinct title resolves.
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("tab", active: true), .other("README.md", active: false)]), layouts: layout, session: kinds),
                        .tab(.init(worktreeID: worktree, tabID: "t1")))
@@ -279,7 +279,7 @@ final class OrcaMixedTabsTests: XCTestCase {
         let tabs = sessionTabs(session)!
         let same = layouts([("t1", "claude"), ("t2", "claude")])
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("claude", active: false), .other("Docs", active: false), .terminal("claude", active: true)]), layouts: same, session: tabs),
-                       .noMatch)
+                       .terminalTitleNotUnique)
         // Positive control: distinct titles resolve.
         XCTAssertEqual(OrcaView.resolve(strip: strip([.terminal("claude", active: false), .other("Docs", active: false), .terminal("codex", active: true)]),
                                         layouts: layouts([("t1", "claude"), ("t2", "codex")]), session: tabs), .tab(.init(worktreeID: worktree, tabID: "t2")))
@@ -359,6 +359,39 @@ final class OrcaMixedTabsTests: XCTestCase {
         XCTAssertEqual(OrcaView.resolve(strip: terminalBeforeChat, layouts: layouts([("term-1", "Ask")]), session: mixed), .chatTitleNotUnique)
     }
 
+    /// 2026-11-24 (Orca 1.4.272): a Claude terminal and a Claude chat that Orca named after the same first message, and a Codex terminal
+    /// with its own title in front. Only the target's title has to be its own; the lookalikes beside it may be arranged either way.
+    func testATerminalWithItsOwnTitleResolvesBesideTwoLookalikeTabs() throws {
+        let caveat = "<local-command-caveat>The command below was run directly in Claude Code, not sent to you as a..."
+        let chat: [String: Any] = ["type": "agent-session", "id": chatID, "sessionId": "s-1", "agent": "claude", "title": caveat]
+        let answer: [String: Any] = [
+            "tabGroups": [["id": "g", "activeTabId": "t2", "tabOrder": [chatID, "t1", "t2"]]], "tabGroupLayout": leaf("g"), "activeGroupId": "g",
+            "tabs": [chat, t1, t2], "worktree": worktree,
+        ]
+        let tabs = try XCTUnwrap(sessionTabs(answer))
+        let titled = layouts([("t1", caveat), ("t2", "statgg")])
+        let shown = OrcaView.Resolution.tab(OrcaState.Active(worktreeID: worktree, tabID: "t2"))
+        let inOrder = strip([.terminal("<local-command-caveat>The command bel…", active: false), .terminal("<local-command-caveat>The command …", active: false),
+                             .terminal("statgg", active: true)])
+        XCTAssertEqual(OrcaView.resolve(strip: inOrder, layouts: titled, session: tabs), shown)
+
+        // The Claude terminal in front instead: it shares its title with the chat, so it cannot be told apart.
+        var terminalInFront = answer
+        terminalInFront["tabGroups"] = [["id": "g", "activeTabId": "t1", "tabOrder": [chatID, "t1", "t2"]]]
+        let refused = strip([.terminal("<local-command-caveat>The command bel…", active: false), .terminal("<local-command-caveat>The command …", active: true),
+                             .terminal("statgg", active: false)])
+        XCTAssertEqual(OrcaView.resolve(strip: refused, layouts: titled, session: try XCTUnwrap(sessionTabs(terminalInFront))), .terminalTitleNotUnique)
+
+        // Two same-titled terminals beside the target are the same: the target is proven by its own title at its marked place.
+        let pair: [String: Any] = [
+            "tabGroups": [["id": "g", "activeTabId": "t3", "tabOrder": ["t1", "t2", "t3"]]], "tabGroupLayout": leaf("g"), "activeGroupId": "g",
+            "tabs": [t1, t2, ["type": "terminal", "id": "t3::a", "parentTabId": "t3"]], "worktree": worktree,
+        ]
+        let twins = strip([.terminal("claude", active: false), .terminal("claude", active: false), .terminal("codex", active: true)])
+        XCTAssertEqual(OrcaView.resolve(strip: twins, layouts: layouts([("t1", "claude"), ("t2", "claude"), ("t3", "codex")]), session: try XCTUnwrap(sessionTabs(pair))),
+                       .tab(OrcaState.Active(worktreeID: worktree, tabID: "t3")))
+    }
+
     /// Pullfrog #61: a chat tab and a terminal with the same title, swapped and chosen between the two reads.
     func testAChatTabSharingATerminalsTitleIsRefused() {
         let session: [String: Any] = [
@@ -366,7 +399,7 @@ final class OrcaMixedTabsTests: XCTestCase {
             "tabs": [t1], "worktree": worktree,
         ]
         let seen = strip([.terminal("Ask", active: true), .terminal("Ask", active: false)])   // the chat in front, then the terminal
-        XCTAssertEqual(OrcaView.resolve(strip: seen, layouts: layouts([("t1", "Ask")]), session: listed(session)), .noMatch)
+        XCTAssertEqual(OrcaView.resolve(strip: seen, layouts: layouts([("t1", "Ask")]), session: listed(session)), .terminalTitleNotUnique)
         // The same with the terminal pinned: it has no close button, so its title is unread.
         let pinned = strip([.terminal("Ask", active: true), .other("", active: false)])
         XCTAssertEqual(OrcaView.resolve(strip: pinned, layouts: layouts([("t1", "Ask")]), session: listed(session)), .noMatch)

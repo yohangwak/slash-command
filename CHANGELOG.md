@@ -2,6 +2,10 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.19
+
+- Orca: a terminal with its own title works when two other tabs share a title. Orca can give a Claude chat and a Claude terminal the same name (both from the same first message), and every tab of that workspace was refused with "the Orca tabs on screen do not line up". Only the tab in front has to have a title of its own now. When it does not, the notice says another tab has the same title and to rename one of them.
+
 ## 0.2.18
 
 - Presets: a first launch no longer copies presets from `~/.config/modelswitch` or `~/.config/gear`, the folders of the app's names before its first release. With no presets file, the app starts with its three unnamed starter presets. A leftover file from those days had brought back presets named in another language on a fresh install.

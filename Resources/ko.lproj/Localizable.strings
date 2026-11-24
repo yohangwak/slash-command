@@ -278,6 +278,7 @@
 "Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly." = "보내지 않았습니다: Orca가 아직 Slash Command가 탭을 읽을 수 있게 준비하는 중입니다. Orca를 켠 뒤 최대 1분쯤 걸립니다. 잠시 뒤 다시 눌러 주세요.";
 "Not sent: could not see which Orca workspace is open. If Orca just opened this window, wait a moment and press again; otherwise show Orca's sidebar with that workspace in view." = "보내지 않았습니다: Orca에서 어느 워크스페이스가 열려 있는지 확인하지 못했습니다. Orca가 방금 이 창을 열었다면 잠시 기다린 뒤 다시 눌러 주세요. 그렇지 않다면 Orca 사이드바를 켜고 그 워크스페이스가 보이게 해 주세요.";
 "Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "보내지 않았습니다: 화면의 Orca 탭이 Orca가 알려 준 이 워크스페이스의 탭 목록과 맞지 않아, 보이는 터미널을 가려낼 수 없습니다.";
+"Not sent: another Orca tab has the same title as this terminal, so it cannot be told apart. Rename one of them." = "보내지 않았습니다. Orca의 다른 탭에 이 터미널과 같은 제목이 있어 어느 탭인지 구별할 수 없습니다. 둘 중 하나의 이름을 바꾸세요.";
 "Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat." = "보내지 않았습니다. Orca의 다른 탭에 이 채팅과 같은 제목이 있어 어느 탭인지 구별할 수 없습니다. 둘 중 하나의 이름을 바꾸거나, 먼저 메시지를 보내 Orca가 채팅에 이름을 붙이도록 하세요.";
 "Could not type into iTerm2: %@" = "iTerm2에 입력하지 못했습니다: %@";
 "This OpenCode model has no effort levels (it has no variants)." = "이 OpenCode 모델에는 effort 단계가 없습니다(variant가 없는 모델입니다).";
