@@ -104,6 +104,7 @@ extension OrcaView {
                          tab: { elements += 1; return tab(of: $0, classes: classes(of: $0)) },
                          currentWorkspace: { currentWorkspace(domID: attribute($0.element, "AXDOMIdentifier") as? String,
                                                               ariaCurrent: attribute($0.element, "AXARIACurrent") as? String) },
+                         currentHost: { currentWorkspaceHost(domID: attribute($0.element, "AXDOMIdentifier") as? String) },
                          group: { groupMark(classes: classes(of: $0)) },
                          children: { children(of: $0.element).map(Node.init) })
         var stats = read.map { StripStats(strip: $0, windows: windows.count, elements: elements) } ?? StripStats()

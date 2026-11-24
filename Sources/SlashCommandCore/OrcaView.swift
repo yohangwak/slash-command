@@ -34,13 +34,18 @@ public enum OrcaView {
         /// Worktree ids of the sidebar rows marked as the current page (`aria-current="page"`). One when the sidebar shows the visible
         /// workspace; none when the sidebar is hidden or that row is scrolled out of the list.
         public let currentWorkspaces: [String]
+        /// The execution host each of those rows names (`currentWorkspaceHost(domID:)`), in the same order; nil where a row names none
+        /// this reader knows.
+        public let currentHosts: [String?]
         /// The group frames that hold tabs, in document order. Tabs outside any frame are counted in `ungroupedTabs`.
         public let groups: [Group]
         public let ungroupedTabs: Int
 
-        public init(tabs: [Tab], currentWorkspaces: [String] = [], groups: [Group] = [], ungroupedTabs: Int? = nil) {
+        public init(tabs: [Tab], currentWorkspaces: [String] = [], currentHosts: [String?]? = nil, groups: [Group] = [],
+                    ungroupedTabs: Int? = nil) {
             self.tabs = tabs
             self.currentWorkspaces = currentWorkspaces
+            self.currentHosts = currentHosts ?? currentWorkspaces.map { _ in nil }
             self.groups = groups
             self.ungroupedTabs = ungroupedTabs ?? tabs.count - groups.reduce(0) { $0 + $1.tabs }
         }
@@ -366,11 +371,13 @@ public enum OrcaView {
     /// (the innermost frame, if frames nest).
     static func strip<N: Hashable>(from roots: [N], seen: Set<N> = [], maxDepth: Int = 150, maxNodes: Int = 30_000,
                                    tab: (N) -> Strip.Tab?, currentWorkspace: (N) -> String?,
+                                   currentHost: (N) -> String? = { _ in nil },
                                    group: (N) -> GroupMark? = { _ in nil },
                                    children: (N) -> [N]) -> Strip? {
         var seen = seen
         var tabs: [Strip.Tab] = []
         var workspaces: [String] = []
+        var hosts: [String?] = []
         var frames: [(tabs: Int, focused: Bool, canShow: Bool)] = []
         var ungrouped = 0
         var current: Int?
@@ -383,7 +390,10 @@ public enum OrcaView {
                 if let current { frames[current].tabs += 1 } else { ungrouped += 1 }
                 return
             }
-            if let workspace = currentWorkspace(node) { workspaces.append(workspace) }
+            if let workspace = currentWorkspace(node) {
+                workspaces.append(workspace)
+                hosts.append(currentHost(node))
+            }
             let outer = current
             if case .frame(let focused, let canShow) = group(node) {
                 frames.append((0, focused, canShow))
@@ -406,7 +416,7 @@ public enum OrcaView {
             default: return Strip.Group(tabs: frame.tabs, focused: nil)
             }
         }
-        return Strip(tabs: tabs, currentWorkspaces: workspaces, groups: groups, ungroupedTabs: ungrouped)
+        return Strip(tabs: tabs, currentWorkspaces: workspaces, currentHosts: hosts, groups: groups, ungroupedTabs: ungrouped)
     }
 
     /// Orca 1.4.258 draws each tab group in a frame with the class `group/tab-group`. With tabs split into groups, a frame has
@@ -427,6 +437,27 @@ public enum OrcaView {
               id.hasPrefix("worktree-list-option-"), let bar = id.lastIndex(of: "|") else { return nil }
         let worktree = String(id[id.index(after: bar)...])
         return worktree.isEmpty ? nil : worktree
+    }
+
+    /// The execution host a sidebar row's DOM id names just before its worktree id: `local`, `ssh:<target>` or `runtime:<environment>`.
+    /// Orca keeps a row per copy of a workspace on each host, keyed `<section>:<host>|<worktree id>`, and encodes the host's own
+    /// characters, so after one decoding the first `|` ends the host and a host has at most one `:` (measured 2026-11-25 on Orca
+    /// 1.4.273: 29 rows `…:local|…` and 6 rows `…:runtime:<environment id>|<worktree id>` for workspaces in a paired environment).
+    /// nil for anything else, so an unknown shape never reads as another computer.
+    static func currentWorkspaceHost(domID: String?) -> String? {
+        guard let raw = domID, let id = raw.removingPercentEncoding, id.hasPrefix("worktree-list-option-"),
+              let bar = id.firstIndex(of: "|") else { return nil }
+        let parts = id[id.index(id.startIndex, offsetBy: "worktree-list-option-".count)..<bar].split(separator: ":", omittingEmptySubsequences: false)
+        guard let last = parts.last, !last.isEmpty else { return nil }
+        if last == "local" { return "local" }
+        guard parts.count >= 2, ["runtime", "ssh"].contains(parts[parts.count - 2]) else { return nil }
+        return "\(parts[parts.count - 2]):\(last)"
+    }
+
+    /// Whether the host is a paired Orca environment: another computer running its own Orca, whose terminals this Orca's runtime
+    /// does not list, read or write (`terminal.list` names it under `hostScope.omittedHostIds`; only `orca --environment` reaches it).
+    public static func isPairedEnvironment(host: String?) -> Bool {
+        host?.hasPrefix("runtime:") ?? false
     }
 
     /// A tab button of the form `"<state> <title> Close tab <title>"`. The title is the part after "Close tab ".

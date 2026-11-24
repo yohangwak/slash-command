@@ -231,6 +231,10 @@ final class OrcaTreeTests: XCTestCase {
         XCTAssertTrue(OrcaSelfCheck.line(orcaVersion: "1.4.260", pid: 9, result: partial).contains("check: tabs NOT readable (Orca 1.4.260 · noActiveTab"))
         let browser = SlashCommandError("The frontmost Orca tab is not a terminal.").diagnosing("Orca 1.4.259 · notATerminal · tabs 2", outcome: "notATerminal")
         XCTAssertTrue(OrcaSelfCheck.Result(error: browser).readable)
+        // A workspace on another computer (a paired environment) was read from the sidebar; there is nothing to look at again.
+        let paired = SlashCommandError(Detector.pairedEnvironmentRefusal).diagnosing("Orca 1.4.272 · pairedEnvironment · tabs 3", outcome: "pairedEnvironment")
+        XCTAssertTrue(OrcaSelfCheck.Result(error: paired).readable)
+        XCTAssertFalse(OrcaSelfCheck.Result(error: paired).worthRetrying)
         let other = OrcaSelfCheck.Result(error: SlashCommandError("Orca's terminal list: timeout"))
         XCTAssertEqual(other, .otherFailure)
         XCTAssertFalse(other.readable)

@@ -2,6 +2,11 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.20
+
+- Orca: a workspace in a paired Orca environment (another computer, such as a Windows PC paired with `orca environment add`) is refused with "this Orca workspace runs on another computer that Orca is paired with". Its terminals are not in this computer's Orca lists, so the shortcut was refused with "the Orca tabs on screen do not line up". Switching there is not supported.
+- Orca: in a workspace on an SSH host (not checked on a real one), Grok, Cursor Agent, Antigravity and OpenCode switch only with `keepDefaults` off. They save the choice as their default on that host, where the app cannot put it back. Claude Code and Codex are unchanged; they switch for the session only.
+
 ## 0.2.19
 
 - Orca: a terminal with its own title works when two other tabs share a title. Orca can give a Claude chat and a Claude terminal the same name (both from the same first message), and every tab of that workspace was refused with "the Orca tabs on screen do not line up". Only the tab in front has to have a title of its own now. When it does not, the notice says another tab has the same title and to rename one of them.

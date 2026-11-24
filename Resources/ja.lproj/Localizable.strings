@@ -278,6 +278,7 @@
 "Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly." = "送信しませんでした: Orca がまだ Slash Command からタブを読み取れるよう準備しています。Orca の起動後、最大で 1 分ほどかかります。少し待ってからもう一度押してください。";
 "Not sent: could not see which Orca workspace is open. If Orca just opened this window, wait a moment and press again; otherwise show Orca's sidebar with that workspace in view." = "送信しませんでした: Orca でどのワークスペースが開いているか確認できませんでした。Orca がこのウィンドウを開いた直後なら、少し待ってからもう一度押してください。そうでなければ、Orca のサイドバーを表示してそのワークスペースが見える状態にしてください。";
 "Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "送信しませんでした: 画面上の Orca のタブが、Orca が示すこのワークスペースのタブ一覧と一致しないため、表示中のターミナルを特定できません。";
+"Not sent: this Orca workspace runs on another computer that Orca is paired with. Slash Command switches agents only in workspaces that run on this computer." = "送信しませんでした: この Orca ワークスペースは、Orca とペアリングされた別のコンピューターで動いています。Slash Command がエージェントを切り替えるのは、このコンピューターで動くワークスペースだけです。";
 "Not sent: another Orca tab has the same title as this terminal, so it cannot be told apart. Rename one of them." = "送信しませんでした。このターミナルと同じタイトルのタブが Orca にあり、区別できません。どちらかの名前を変えてください。";
 "Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat." = "送信しませんでした。このチャットと同じタイトルのタブが Orca にあり、区別できません。どちらかの名前を変えるか、先にメッセージを送って Orca にチャットの名前を付けさせてください。";
 "Could not type into iTerm2: %@" = "iTerm2 に入力できませんでした: %@";
@@ -322,6 +323,7 @@
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "切り替えませんでした: この WezTerm ウィンドウでは WSL・tmux・リモートシェルも動いていますが、WezTerm はどのペインでどのプログラムが動いているかを教えないため、エージェント自身の既定値を保護できません。";
 
 "Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "切り替えませんでした: このエージェントは選択を新しいセッションの既定値として保存しますが、WezTerm はこのペインがこのコンピューターで動いているかを示さないため、その既定値を元に戻せません。Windows Terminal か Orca を使うか、keepDefaults をオフにしてください。";
+"Not switched: this agent saves the choice as its default for new sessions, and this Orca terminal runs on another computer, so that default could not be put back. Turn keepDefaults off to switch it there." = "切り替えませんでした: このエージェントは選択を新しいセッションの既定値として保存しますが、この Orca ターミナルは別のコンピューターで動いているため、その既定値を元に戻せません。そこで切り替えるには keepDefaults をオフにしてください。";
 
 "Stopped: could not read the Windows Terminal pane." = "停止しました：Windows Terminal のペインを読み取れませんでした。";
 

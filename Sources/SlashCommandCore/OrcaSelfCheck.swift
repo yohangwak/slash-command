@@ -56,11 +56,12 @@ public enum OrcaSelfCheck {
             }
         }
 
-        /// The reader identified the visible tab, including tabs that a hotkey cannot switch.
+        /// The reader identified the visible tab, including tabs that a hotkey cannot switch, or the visible workspace as one in a
+        /// paired environment, whose tabs are not this Orca's to read.
         public var readable: Bool {
             switch self {
             case .found, .foundChat: return true
-            case .refused(let outcome, _): return outcome == "notATerminal" || outcome == "unsupportedChat"
+            case .refused(let outcome, _): return ["notATerminal", "unsupportedChat", "pairedEnvironment"].contains(outcome)
             case .otherFailure, .otherRuntime, .runtimeUnknown: return false
             }
         }
