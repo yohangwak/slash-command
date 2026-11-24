@@ -2,6 +2,10 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.18
+
+- Presets: a first launch no longer copies presets from `~/.config/modelswitch` or `~/.config/gear`, the folders of the app's names before its first release. With no presets file, the app starts with its three unnamed starter presets. A leftover file from those days had brought back presets named in another language on a fresh install.
+
 ## 0.2.17
 
 - Orca: hotkeys no longer fail with "Could not read the Orca terminal list" followed by the start of Orca's answer. Orca cuts each terminal's preview to its last 300 characters counted in UTF-16, so a preview that started inside an emoji carried half of it, and the app rejected Orca's whole terminal list until that terminal printed something new. Half an emoji is now read as a replacement character. If Orca's answer still cannot be parsed, the notice says so instead of quoting it.
