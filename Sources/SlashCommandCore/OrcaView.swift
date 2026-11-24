@@ -113,6 +113,8 @@ public enum OrcaView {
         case chat(worktreeID: String, sessionID: String, agent: String)
         /// Another tab shares the focused chat's title.
         case chatTitleNotUnique
+        /// Another tab shows the title of the focused terminal.
+        case terminalTitleNotUnique
         /// More than one workspace has the same order of tab titles.
         case ambiguous([String])
         /// No workspace has exactly these tabs (with file, browser or chat tabs open, or tabs split into groups, the session list decides).
@@ -268,9 +270,13 @@ public enum OrcaView {
            strip.tabs.indices.contains(where: { $0 != target && titlesMatch(title, strip.tabs[$0]) }) {
             return .chatTitleNotUnique
         }
-        // No other tab may show a terminal's title. While the list catches up, lookalike tabs could swap unseen (Pullfrog #60, #61).
-        for (index, title) in terminalTitles {
-            guard !strip.tabs.indices.contains(where: { $0 != index && titlesMatch(title, strip.tabs[$0]) }) else { return .noMatch }
+        // No other tab may show the target terminal's title. While the list catches up, lookalike tabs could swap unseen (Pullfrog #60,
+        // #61), which can only matter when one of them is the target: a target whose title no other tab shows is proven by that title
+        // at its marked place, however the lookalikes elsewhere are arranged. A Claude chat and a Claude terminal that Orca names after the
+        // same first message are such a pair (2026-11-24); refusing every tab of their workspace for it left a Codex tab beside them stuck.
+        if let title = terminalTitles[target],
+           strip.tabs.indices.contains(where: { $0 != target && titlesMatch(title, strip.tabs[$0]) }) {
+            return .terminalTitleNotUnique
         }
         switch kinds[target] {
         case .terminal(let id):

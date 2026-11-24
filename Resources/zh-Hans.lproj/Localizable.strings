@@ -278,6 +278,7 @@
 "Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly." = "未发送：Orca 仍在让 Slash Command 能够读取其标签页，Orca 启动后最多需要一分钟。请稍后再按一次。";
 "Not sent: could not see which Orca workspace is open. If Orca just opened this window, wait a moment and press again; otherwise show Orca's sidebar with that workspace in view." = "未发送:无法确定 Orca 中打开的是哪个工作区。如果 Orca 刚刚打开此窗口，请稍等片刻再按一次；否则请显示 Orca 的侧边栏并让该工作区可见。";
 "Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "未发送:屏幕上的 Orca 标签页与 Orca 给出的此工作区标签页列表对不上,无法确定显示的是哪个终端。";
+"Not sent: another Orca tab has the same title as this terminal, so it cannot be told apart. Rename one of them." = "未发送：Orca 中的另一个标签页与此终端的标题相同，无法区分。请重命名其中一个。";
 "Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat." = "未发送：Orca 中的另一个标签页与此聊天的标题相同，无法区分。请重命名其中一个，或先发送一条消息，让 Orca 为此聊天命名。";
 "Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";
 "This OpenCode model has no effort levels (it has no variants)." = "此 OpenCode 模型没有 effort 档位（该模型没有 variant）。";
