@@ -384,26 +384,8 @@ public struct ConfigStore: Sendable {
             .appendingPathComponent(".config/slashcommand/presets.json")
     }
 
-    /// Config locations from before the renames (Gear -> ModelSwitch -> Slash Command), nearest name first.
-    static var legacyURLs: [URL] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        return [".config/modelswitch/presets.json", ".config/gear/presets.json"].map(home.appendingPathComponent)
-    }
-
-    /// Only when the new location has no file, copies the first one that exists among the old locations, once. The old file is left as is.
-    static func adoptLegacy(into url: URL, from candidates: [URL]) throws {
-        guard !FileManager.default.fileExists(atPath: url.path),
-              let legacy = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else { return }
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                withIntermediateDirectories: true)
-        try FileManager.default.copyItem(at: legacy, to: url)
-    }
-
     /// If the file does not exist, creates the starter presets, saves them and returns them.
     public func load() throws -> SlashCommandConfig {
-        if url == ConfigStore.defaultURL {
-            try ConfigStore.adoptLegacy(into: url, from: ConfigStore.legacyURLs)
-        }
         guard FileManager.default.fileExists(atPath: url.path) else {
             try save(.starter)
             return .starter

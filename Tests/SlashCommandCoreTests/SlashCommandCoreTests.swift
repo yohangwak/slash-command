@@ -720,37 +720,6 @@ final class ConfigTests: KoreanMessagesTestCase {
         XCTAssertEqual(try store.load(), edited)
     }
 
-    func testAdoptsNearestLegacyPresetsOnlyWhenMissing() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let url = root.appendingPathComponent("new/presets.json")
-        let modelswitch = root.appendingPathComponent("modelswitch/presets.json")
-        let gear = root.appendingPathComponent("gear/presets.json")
-        var older = SlashCommandConfig.starter
-        older.slots.removeLast()
-        try ConfigStore(url: gear).save(older)
-
-        // If there is no file with the nearest name, take the next one.
-        try ConfigStore.adoptLegacy(into: url, from: [modelswitch, gear])
-        XCTAssertEqual(try ConfigStore(url: url).load(), older)
-
-        // If one already exists, do not overwrite it.
-        try ConfigStore(url: modelswitch).save(.starter)
-        try ConfigStore.adoptLegacy(into: url, from: [modelswitch, gear])
-        XCTAssertEqual(try ConfigStore(url: url).load(), older)
-
-        // If both exist, the nearest name wins and the old file stays.
-        try FileManager.default.removeItem(at: url)
-        try ConfigStore.adoptLegacy(into: url, from: [modelswitch, gear])
-        XCTAssertEqual(try ConfigStore(url: url).load(), .starter)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: modelswitch.path))
-
-        // If there is no old file at all, create nothing.
-        let untouched = root.appendingPathComponent("none/presets.json")
-        try ConfigStore.adoptLegacy(into: untouched, from: [root.appendingPathComponent("absent.json")])
-        XCTAssertFalse(FileManager.default.fileExists(atPath: untouched.path))
-    }
-
     func testSavingThroughALinkKeepsTheLink() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("slashcommand-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
