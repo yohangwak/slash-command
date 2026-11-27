@@ -83,26 +83,30 @@ func explicitTarget(_ args: [String]) throws -> Target? {
         return Target(host: host, agent: named, label: id)
     }
     guard orca != nil || ghostty != nil else { return nil }
-    #if os(macOS)
-    // If tmux is the foreground job in that Orca terminal, go to that tmux pane, same as the hotkey.
-    if let orca, let inside = try Detector.orcaTmux(handle: orca) { return inside }
-    guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
-        throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
-    }
-    #elseif os(Windows)
-    if let orca { _ = try Detector.orcaTmux(handle: orca) }
-    guard let agent = named ?? orca.flatMap(Detector.orcaAgent(handle:)) else {
-        throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
-    }
-    #else
-    // Without the process table this OS cannot tell whether tmux is the foreground job in that Orca terminal,
-    // and reading through Orca would then mix tmux panes into one screen. Stop instead of guessing.
-    guard let agent = named, orca == nil else {
+    if let orca {
+        #if os(macOS) || os(Windows)
+        guard let local = OrcaState.runsHere(payload: try Detector.orcaTerminals(), handle: orca) else {
+            throw SlashCommandError("Could not identify the requested Orca terminal in the terminal list.")
+        }
+        #if os(macOS)
+        if local, let inside = try Detector.orcaTmux(handle: orca) { return inside }
+        #else
+        _ = try Detector.orcaTmux(handle: orca)
+        #endif
+        guard let agent = named ?? (local ? Detector.orcaAgent(handle: orca) : nil) else {
+            throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
+        }
+        var target = Target(host: .orca(handle: orca), agent: agent, label: orca)
+        target.defaultsAreLocal = local
+        return target
+        #else
         throw SlashCommandError(loc("This is not supported on this operating system yet."))
+        #endif
     }
-    #endif
-    if let orca { return Target(host: .orca(handle: orca), agent: agent, label: orca) }
-    return Target(host: .ghostty(terminalID: ghostty!), agent: agent, label: ghostty!)
+    guard let ghostty, let agent = named else {
+        throw SlashCommandError("Cannot tell which agent the target runs. Add --agent <agent>.")
+    }
+    return Target(host: .ghostty(terminalID: ghostty), agent: agent, label: ghostty)
 }
 
 /// Starts `keep-defaults` separately, watching that launch with the table `LaunchDefaults.begin` returned.
@@ -185,7 +189,7 @@ do {
         if !result.confirmed { print("(the agent's confirmation text was not seen)") }
         if let detail = result.detail { print(detail) }
         else if trace != nil { result.confirmations.forEach { print("confirmation: \($0)") } }
-        if let warning = result.warning { print("⚠️ \(warning)") }
+        for warning in [result.warning, result.effortNote].compactMap({ $0 }) { print("⚠️ \(warning)") }
     case "effort":
         guard args.count >= 2, ["up", "down"].contains(args[1]) else { fail("slashcommand effort <up|down> [target]") }
         var switcher = Switcher(config: try store.load())
@@ -201,6 +205,7 @@ do {
         print("\(result.target.host.appName) · \(result.target.agent.rawValue) · \(result.target.label)")
         print("→ \(result.summary)")
         if let detail = result.detail { print(detail) }
+        for warning in [result.warning, result.effortNote].compactMap({ $0 }) { print("⚠️ \(warning)") }
     case "run":
         guard args.count >= 3, let slot = Int(args[1]), let agent = Agent(rawValue: args[2]) else {
             fail("slashcommand run <number> <claude|codex|grok|cursor|antigravity|opencode> [args…]")

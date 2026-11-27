@@ -64,9 +64,18 @@ public enum CommandLineCheck {
             #endif
             return "\(helper) needs a target option (\(choices.sorted().joined(separator: ", ")))."
         }
+        if let host = hosts.first {
+            for (socket, owner) in socketHosts where seen.contains(socket) && host != owner {
+                return "\(socket) needs \(owner)."
+            }
+            if seen.contains("--agent"), ["--bundle", "--app"].contains(host) {
+                return "--agent is not used with \(host)."
+            }
+        }
         return nil
     }
 
+    private static let socketHosts = ["--tmux-socket": "--tmux", "--kitty-socket": "--kitty", "--wezterm-socket": "--wezterm"]
     private static let hostOptions: Set<String> = [
         "--bundle", "--app", "--console", "--orca", "--ghostty", "--tmux", "--kitty", "--wezterm", "--iterm",
     ]

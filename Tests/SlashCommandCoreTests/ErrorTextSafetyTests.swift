@@ -22,6 +22,17 @@ final class ErrorTextSafetyTests: KoreanMessagesTestCase {
 
     // MARK: the log file never gets screen or window-title text
 
+    #if os(macOS)
+    func testUnsupportedTmuxSessionNameIsOnlyShownInTheMessage() {
+        let client = TmuxFront.Client(pid: 1, pane: "%1", paneTTY: "/dev/null", name: "audit-session:1.0")
+        XCTAssertThrowsError(try TmuxFront.target(client, socket: nil, table: ([], [:]), outer: "Orca")) {
+            guard let error = $0 as? SlashCommandError else { return XCTFail("Unexpected error type") }
+            XCTAssertTrue(error.message.contains(client.name))
+            XCTAssertFalse(SlashCommandError.logText(error).contains(client.name))
+        }
+    }
+    #endif
+
     func testAntigravityModelListIsInTheMessageButNotInTheLog() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("agy-logtext-\(UUID().uuidString).json")
         try JSONSerialization.data(withJSONObject: ["model": "Gemini 3.8 Flash (High)"], options: [.sortedKeys]).write(to: url)

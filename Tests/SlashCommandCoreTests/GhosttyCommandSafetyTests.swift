@@ -5,6 +5,16 @@ import XCTest
 final class GhosttyCommandSafetyTests: KoreanMessagesTestCase {
     private let target = Target(host: .ghostty(terminalID: "T"), agent: .claude, label: "test")
 
+    #if os(macOS)
+    func testSplitWindowNeedsExactlyOneFocusedTextArea() {
+        let panes = [1, 2]
+        XCTAssertNil(GhosttyScreen.focusedArea(in: panes) { _ in false })
+        XCTAssertNil(GhosttyScreen.focusedArea(in: panes) { _ in true })
+        XCTAssertEqual(GhosttyScreen.focusedArea(in: panes) { $0 == 2 }, 2)
+        XCTAssertEqual(GhosttyScreen.focusedArea(in: [1]) { _ in false }, 1)
+    }
+    #endif
+
     private func settingsFile() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("ghostty-command-\(UUID().uuidString).json")
         try Data("{\"model\":\"opus\"}".utf8).write(to: url)

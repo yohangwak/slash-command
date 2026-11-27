@@ -214,17 +214,20 @@ public enum OrcaState {
             throw SlashCommandError(loc("The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", pane.label)).quoting([pane.label])
         }
         var target = Target(host: .orca(handle: pane.handle), agent: agent, label: pane.label)
-        target.defaultsAreLocal = runsHere(payload: payload, handle: pane.handle)
+        target.defaultsAreLocal = runsHere(payload: payload, handle: pane.handle) ?? false
         return target
     }
 
     /// Whether the terminal runs on this computer. Orca lists an SSH workspace's terminals too, with `executionHostId` `ssh:<target>`;
     /// such an agent saves its defaults on that computer, where this app cannot put them back. A list without the field (an older Orca)
     /// is taken as this computer, as before. Measured 2026-11-25: Orca 1.4.273 lists `local` for all 38 terminals of a Mac.
-    static func runsHere(payload: [String: Any], handle: String) -> Bool {
-        let listed = (payload["terminals"] as? [[String: Any]] ?? []).first { $0["handle"] as? String == handle }
-        guard let host = listed?["executionHostId"] as? String else { return true }
-        return host == "local"
+    /// A missing or ambiguous handle gives no location.
+    public static func runsHere(payload: [String: Any], handle: String) -> Bool? {
+        let matches = (payload["terminals"] as? [[String: Any]] ?? []).filter { $0["handle"] as? String == handle }
+        guard matches.count == 1 else { return nil }
+        guard let host = matches[0]["executionHostId"] else { return true }
+        if host is NSNull { return true }
+        return host as? String == "local"
     }
 
     /// The active terminal of the tab visible on screen: handle, human-readable name, and the agent the list records (may be absent).

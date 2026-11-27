@@ -78,6 +78,13 @@ final class OrcaPairedEnvironmentTests: XCTestCase {
         XCTAssertFalse(try OrcaState.target(in: payload(host: "runtime:env"), active: active).defaultsAreLocal)
     }
 
+    func testDefaultsRequireOneMatchingOrcaTerminal() {
+        XCTAssertNil(OrcaState.runsHere(payload: payload(host: "local"), handle: "missing"))
+        let duplicate = ["terminals": [["handle": "shared", "executionHostId": "local"],
+                                        ["handle": "shared", "executionHostId": "ssh:box"]]]
+        XCTAssertNil(OrcaState.runsHere(payload: duplicate, handle: "shared"))
+    }
+
     private final class NoIO: TerminalIO {
         var keys: [Key] = []
         var typed: [String] = []

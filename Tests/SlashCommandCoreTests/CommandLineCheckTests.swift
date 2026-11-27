@@ -38,10 +38,10 @@ final class CommandLineCheckTests: XCTestCase {
                       "--tmux": "%1", "--tmux-socket": "socket", "--kitty": "1",
                       "--kitty-socket": "unix:/tmp/socket", "--wezterm": "1", "--wezterm-socket": "socket",
                       "--iterm": "id", "--dump": "/tmp/screen.json", "--lines": "20"]
-        let helpers: Set<String> = ["--agent", "--tmux-socket", "--kitty-socket", "--wezterm-socket"]
+        let hosts = ["--agent": "--tmux", "--tmux-socket": "--tmux", "--kitty-socket": "--kitty", "--wezterm-socket": "--wezterm"]
         for (option, value) in values {
             // A helper option only describes a target, so it is checked next to one.
-            let host = helpers.contains(option) ? ["--tmux", "%1"] : []
+            let host = hosts[option].map { [$0, "1"] } ?? []
             #if os(Windows)
             XCTAssertNil(CommandLineCheck.problem(in: ["doctor", option, value] + host), option)
             #else
@@ -92,6 +92,12 @@ final class CommandLineCheckTests: XCTestCase {
         // The agent and the sockets belong to the host and do not count as a second target.
         XCTAssertNil(CommandLineCheck.problem(in: ["apply", "2", "--tmux", "%1", "--tmux-socket", "s", "--agent", "claude", "--trace"]))
         XCTAssertNil(CommandLineCheck.problem(in: ["doctor", "--screen", "--lines", "40"]))
+    }
+
+    func testHelpersMustDescribeTheirOwnTarget() {
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "1", "--tmux", "%1", "--agent", "codex", "--wezterm-socket", "other"]))
+        XCTAssertNotNil(CommandLineCheck.problem(in: ["apply", "1", "--bundle", "com.example.Terminal", "--agent", "grok"]))
+        XCTAssertNil(CommandLineCheck.problem(in: ["apply", "1", "--wezterm", "7", "--agent", "grok", "--wezterm-socket", "chosen"]))
     }
 
     func testSecondsMustBeAPositiveFiniteNumber() {
