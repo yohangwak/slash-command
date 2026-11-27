@@ -923,6 +923,14 @@ public struct Runner {
             return !rows.isEmpty
         }) else { return false }
         let found = Picker.index(of: label, in: rows) != nil
+        // A family name ("opus") means the topmost row of that family. When the rows above are folded away, the row on screen may be an older
+        // one (`Opus 5` under a folded `Opus 5.5`), so search from the top as a tall window would (pre-review 2026-11-28).
+        let topFolded = (rows.first?.number ?? 1) > 1
+        let exact = rows.contains { $0.label.lowercased() == label.lowercased() }
+        if found, via == nil, topFolded, !exact {
+            guard try scroll(to: label, timeoutMs: timeoutMs) else { return false }
+            return try moveCursor(to: label, timeoutMs: timeoutMs)
+        }
         guard found || (via.map { Picker.index(of: $0, in: rows) != nil } ?? false) else {
             // In a low window only one or two rows show and the rest are folded into `… +9 models` (measured 2026-10-11, claude at 90×14);
             // move the cursor one row at a time to find the row. If it is not found it is a failure as before (then the command approach is used).

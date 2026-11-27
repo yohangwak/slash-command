@@ -13,7 +13,8 @@ struct AgentCatalog {
     /// Cursor Agent and Antigravity keep no model list on disk; these are the newest of each family in `cursor-agent models` and `agy models` (checked 2026-11-28).
     /// A model that is not here can still be typed in.
     static let cursorModels = ["Grok 4.7", "Claude Fable 5.2", "Claude Opus 5.5", "Claude Sonnet 5.5", "GPT-5.6 Sol", "Gemini 4 Argon", "Composer 2.5"]
-    static let antigravityModels = ["Gemini 4 Neon", "Gemini 4 Carbon", "Gemini 4 Argon", "Gemini 4 Hydrogen", "Gemini 3.8 Flash",
+    /// The first entry is what Add Agent puts in, so it stays the one it was.
+    static let antigravityModels = ["Gemini 4 Argon", "Gemini 4 Neon", "Gemini 4 Carbon", "Gemini 4 Hydrogen", "Gemini 3.8 Flash",
                                     "Claude Opus 5.5", "Claude Sonnet 5.5"]
 
     /// The codex and grok lists are read from what those tools keep on disk (empty if there is none).
