@@ -367,7 +367,7 @@ struct SettingsView: View {
             }
             Toggle(isOn: $model.successNotice) {
                 described(loc("Show a notice after each switch"),
-                          loc("When off, a notice appears only when a switch is refused, fails, needs your answer or comes with a warning. The agent's own screen shows the new model either way."))
+                          loc("When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way."))
             }
         } header: {
             Text(loc("Behavior"))

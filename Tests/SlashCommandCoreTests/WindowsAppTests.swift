@@ -87,7 +87,9 @@ final class WindowsAppTests: XCTestCase {
         XCTAssertTrue(clean.showsNotice(successNotice: true))
         XCTAssertNotNil(WindowsAppModel.hud(result: clean, successNotice: true))
         XCTAssertFalse(clean.showsNotice(successNotice: false))
-        XCTAssertNil(WindowsAppModel.hud(result: clean, tabLagNote: true, successNotice: false))
+        XCTAssertNil(WindowsAppModel.hud(result: clean, successNotice: false))
+        XCTAssertEqual(WindowsAppModel.hud(result: clean, tabLagNote: true, successNotice: false)?.text.contains("wait 2.5 seconds"), true,
+                       "The first Orca switch still says to wait after changing tabs")
         XCTAssertTrue(warned.showsNotice(successNotice: false))
         XCTAssertEqual(WindowsAppModel.hud(result: warned, successNotice: false)?.text, "Opus 5.5 · high\nClaude Code · Orca · test\n⚠️ warning")
     }

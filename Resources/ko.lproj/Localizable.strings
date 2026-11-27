@@ -181,7 +181,7 @@
 "Revert" = "되돌리기";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "Claude Code는 방금 응답한 대화에서 모델이나 effort를 바꾸기 전에 한 번 더 묻습니다(대화 기록을 다시 읽습니다). 그 창이 고른 바로 그 값을 물을 때만 Enter를 누릅니다.";
 "Show a notice after each switch" = "전환할 때마다 알림 보이기";
-"When off, a notice appears only when a switch is refused, fails, needs your answer or comes with a warning. The agent's own screen shows the new model either way." = "끄면 전환이 거부되거나 실패했을 때, 답을 기다릴 때, 경고가 있을 때만 알림이 뜹니다. 새 모델은 어느 쪽이든 에이전트 화면에 나옵니다.";
+"When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "끄면 전환이 거부되거나 실패했을 때, 답을 기다릴 때, 바꿀 것이 없을 때, 경고가 있을 때만 알림이 뜹니다. 새 모델은 어느 쪽이든 에이전트 화면에 나옵니다.";
 "Save" = "저장";
 "Saved" = "저장했습니다";
 "Settings…" = "설정…";
