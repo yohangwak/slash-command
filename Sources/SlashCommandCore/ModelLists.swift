@@ -59,14 +59,26 @@ public enum ModelLists {
 
     static func url(besides presets: URL) -> URL {
         let url = presets.deletingLastPathComponent().appendingPathComponent("model-lists.json")
-        return url.standardizedFileURL.path == presets.standardizedFileURL.path ? presets.appendingPathExtension("model-lists.json") : url
+        // Compared without case: the usual Mac volume treats `Model-Lists.json` and `model-lists.json` as one file.
+        let same = url.standardizedFileURL.path.lowercased() == presets.standardizedFileURL.path.lowercased()
+        return same ? presets.appendingPathExtension("model-lists.json") : url
     }
 
-    struct File: Codable { var version = 1; var lists: [String: [String]] }
+    /// `kind` marks the file as ours: a presets file (or any other JSON) never reads as a model list, so it is never written over.
+    struct File: Codable {
+        static let marker = "slashcommand-model-lists"
+        var kind = File.marker
+        var version = 1
+        var lists: [String: [String]]
+        static func read(_ data: Data) -> File? {
+            guard let file = try? JSONDecoder().decode(File.self, from: data), file.kind == marker else { return nil }
+            return file
+        }
+    }
 
     /// The saved lists. Empty if there is no file or it cannot be read; the built-in lists are used then.
     public static func load(from url: URL = ModelLists.defaultURL) -> [Agent: [String]] {
-        guard let data = try? Data(contentsOf: url), let file = try? JSONDecoder().decode(File.self, from: data) else { return [:] }
+        guard let data = try? Data(contentsOf: url), let file = File.read(data) else { return [:] }
         var lists: [Agent: [String]] = [:]
         for (key, names) in file.lists {
             if let agent = Agent(rawValue: key), agents.contains(agent), !names.isEmpty { lists[agent] = names }
@@ -77,11 +89,13 @@ public enum ModelLists {
     /// Saves the lists that were read; an agent whose command failed keeps the list it had.
     @discardableResult
     public static func save(_ outcomes: [Agent: Outcome], to url: URL = ModelLists.defaultURL) throws -> [Agent: [String]] {
-        // A file at that path that is not a model list is someone else's; it is left alone.
-        if let data = try? Data(contentsOf: url), (try? JSONDecoder().decode(File.self, from: data)) == nil {
-            throw SlashCommandError(loc("%@ is not a model list file; it was left as it is.", url.path))
+        // A file at that path that is not a model list (or cannot be read) is someone else's; it is left alone. Only a missing file is created.
+        var lists: [Agent: [String]] = [:]
+        if FileManager.default.fileExists(atPath: url.path) {
+            let data = try Data(contentsOf: url)
+            guard File.read(data) != nil else { throw SlashCommandError(loc("%@ is not a model list file; it was left as it is.", url.path)) }
+            lists = load(from: url)
         }
-        var lists = load(from: url)
         for (agent, outcome) in outcomes { if case .names(let names) = outcome { lists[agent] = names } }
         let file = File(lists: Dictionary(uniqueKeysWithValues: lists.map { ($0.key.rawValue, $0.value) }))
         let encoder = JSONEncoder()

@@ -50,6 +50,10 @@ final class ModelListsTests: XCTestCase {
                        "gemini-pro-orchestrator-neon")
         XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 4 Neon", effort: "low"), listing: Self.agy).model,
                        "gemini-4-neon-low", "An effort bracket is still split off")
+        let spaced = "example-extra-high\tExample (Extra High)\nexample-low\tExample (Low)\n"
+        XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Example", effort: "extra high"), listing: spaced).model,
+                       "example-extra-high", "`Extra High` is an effort level too")
+        XCTAssertEqual(ModelLists.names(agent: .antigravity, listing: spaced), ["Example"])
     }
 
     func testCRLFListingsAreReadLineByLine() {
@@ -62,6 +66,8 @@ final class ModelListsTests: XCTestCase {
     func testTheListNeverTakesThePresetsFilePath() throws {
         let presets = URL(fileURLWithPath: "/tmp/x/model-lists.json")
         XCTAssertEqual(ModelLists.url(besides: presets).path, "/tmp/x/model-lists.json.model-lists.json")
+        XCTAssertEqual(ModelLists.url(besides: URL(fileURLWithPath: "/tmp/x/Model-Lists.json")).path, "/tmp/x/Model-Lists.json.model-lists.json",
+                       "Same file on a volume that ignores case")
         XCTAssertEqual(ModelLists.url(besides: URL(fileURLWithPath: "/tmp/x/presets.json")).path, "/tmp/x/model-lists.json")
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("not-a-list-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -69,6 +75,11 @@ final class ModelListsTests: XCTestCase {
         try other.write(to: url)
         XCTAssertThrowsError(try ModelLists.save([.cursor: .names(["Grok 4.7"])], to: url))
         XCTAssertEqual(try Data(contentsOf: url), other, "Another file at that path is left alone")
+        let lookalike = Data(#"{"version":1,"slots":[],"lists":{}}"#.utf8)
+        try lookalike.write(to: url)
+        XCTAssertEqual(ModelLists.load(from: url), [:])
+        XCTAssertThrowsError(try ModelLists.save([.cursor: .names(["Grok 4.7"])], to: url), "A presets file with a 'lists' key is still not ours")
+        XCTAssertEqual(try Data(contentsOf: url), lookalike)
     }
 
     func testAskRunsOnlyTheListCommandAndReportsEachAgent() {

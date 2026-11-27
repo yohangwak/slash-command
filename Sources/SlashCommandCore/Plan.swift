@@ -250,7 +250,8 @@ public enum Launch {
     /// Lines of `agy models`: `gemini-3.8-flash-high   Gemini 3.8 Flash (High)` — the effort is part of the id. Other lines (`Fetching available models...`) are skipped.
     /// A bracket that is not an effort level stays part of the name: `Orchestrator (Neon)` and `Orchestrator (Carbon)` are two models.
     static func antigravityRows(listing output: String) -> [(id: String, name: String, effort: String?)] {
-        let efforts: Set<String> = ["minimal", "low", "medium", "high", "xhigh", "max", "none"]
+        // Compared by letters and digits only, so `XHigh`, `Extra High` and `extra-high` all count as effort levels.
+        let efforts: Set<String> = ["minimal", "low", "medium", "high", "xhigh", "extrahigh", "max", "none", "ultra"]
         var rows: [(id: String, name: String, effort: String?)] = []
         for line in output.split(whereSeparator: \.isNewline) {
             let parts = line.split(maxSplits: 1, whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
@@ -259,7 +260,7 @@ public enum Launch {
             var effort: String?
             if name.hasSuffix(")"), let open = name.lastIndex(of: "(") {
                 let inside = String(name[name.index(after: open)..<name.index(before: name.endIndex)]).lowercased()
-                if efforts.contains(inside) {
+                if efforts.contains(key(inside)) {
                     effort = inside
                     name = name[..<open].trimmingCharacters(in: .whitespaces)
                 }
