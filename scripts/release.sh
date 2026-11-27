@@ -20,7 +20,7 @@ identity=${SLASHCOMMAND_SIGN_IDENTITY:-$(security find-identity -v -p codesignin
 [ -n "$identity" ] || { echo "release: no Developer ID Application certificate in the keychain" >&2; exit 1; }
 
 version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" scripts/Info.plist)
-grep -q "^## $version\$" CHANGELOG.md || { echo "release: CHANGELOG.md has no section for $version" >&2; exit 1; }
+grep -Fqx "## $version" CHANGELOG.md || { echo "release: CHANGELOG.md has no section for $version" >&2; exit 1; }
 
 SLASHCOMMAND_UNIVERSAL=1 SLASHCOMMAND_SIGN_IDENTITY="$identity" ./scripts/build-app.sh
 
@@ -54,5 +54,5 @@ fi
 
 echo "release: $zip  (version $version, sha256 $(shasum -a 256 "$zip" | cut -d' ' -f1))"
 echo "release: $dmg  (version $version, sha256 $(shasum -a 256 "$dmg" | cut -d' ' -f1))"
-[ "$notarize" = yes ] && echo "publish: gh release create v$version $dmg $zip --title \"Slash Command $version\" --notes-file <notes>"
+[ "$notarize" = yes ] && echo "To publish v$version with the Windows files, follow Releasing in docs/development.md."
 exit 0

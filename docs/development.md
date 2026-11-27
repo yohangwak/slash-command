@@ -104,27 +104,27 @@ Releases are built on a maintainer's Mac. There is no macOS CI.
 
 The script needs a "Developer ID Application" certificate and a `notarytool` keychain profile named `slashcommand-notary` (`xcrun notarytool store-credentials slashcommand-notary`). It refuses to run when `CHANGELOG.md` has no section for the version in `scripts/Info.plist`. Run it in a login session; over ssh the keychain is locked and `codesign` fails.
 
-Then publish both files:
+Tag the commit used for the macOS build. The version comes from the same plist as the build script.
 
 ```sh
-gh release create v0.2.0 dist/Slash-Command.dmg dist/Slash-Command.zip --draft --title "Slash Command 0.2.0" --notes-file notes.md
-# or, when the Windows workflow below has already made the draft:
-gh release upload v0.2.0 dist/Slash-Command.dmg dist/Slash-Command.zip && gh release edit v0.2.0 --notes-file notes.md
+version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' scripts/Info.plist)
+tag="v$version"
+git tag "$tag" && git push origin "$tag"
 ```
 
-Keep the asset names `Slash-Command.dmg` and `Slash-Command.zip`. The README links to `releases/latest/download/Slash-Command.dmg`, which works only while the name stays the same. The disk image is what people download; the zip is what the Homebrew cask installs. `scripts/make-dmg.sh` builds the disk image from an app that is already signed and notarized.
+The tag starts the [Windows release workflow](../.github/workflows/windows-release.yml). It checks the pinned Swift installer's SHA-256, verifies the tag against `WindowsAppModel.swift`, runs the tests and packages the Windows build. Wait for the workflow to finish. It creates a draft release and attaches `Slash-Command-Windows-x64.zip` and its `.sha256` file.
 
-The Windows zip is built by GitHub Actions ([`windows-release.yml`](../.github/workflows/windows-release.yml)) from the tagged source. Pushing the tag starts it:
+In the same shell, upload the macOS files to that draft and set its notes:
 
 ```sh
-git tag v0.2.0 && git push origin v0.2.0
+gh release upload "$tag" dist/Slash-Command.dmg dist/Slash-Command.zip
+gh release edit "$tag" --title "Slash Command $version" --notes-file notes.md
+gh release view "$tag" --json isDraft,assets --jq '{draft: .isDraft, files: [.assets[].name]}'
 ```
 
-The workflow installs Swift for Windows (the installer's SHA-256 is pinned), checks that the tag matches the version in `WindowsAppModel.swift`, runs the tests before `scripts/package-windows.ps1` and uploads `Slash-Command-Windows-x64.zip` and its `.sha256` to the release of that tag, creating a draft when there is none yet. Run by hand (`gh workflow run windows-release.yml`) it builds without touching a release and keeps the zip as a workflow artifact. To build on a Windows PC instead, see [Windows](#windows) and upload with `gh release upload v0.2.0 dist\Slash-Command-Windows-x64.zip dist\Slash-Command-Windows-x64.zip.sha256 --clobber`.
+Confirm the release is a draft with `Slash-Command.dmg`, `Slash-Command.zip`, `Slash-Command-Windows-x64.zip` and `Slash-Command-Windows-x64.zip.sha256` attached. The README download links use these asset names, and Homebrew installs the macOS zip. Publish the verified draft with `gh release edit "$tag" --draft=false`.
 
-Keep the name `Slash-Command-Windows-x64.zip`; the README links to `releases/latest/download/Slash-Command-Windows-x64.zip`. Every release needs all three files (disk image, zip, Windows zip), because `latest` moves to the newest release.
-
-When all three are uploaded, publish the draft with `gh release edit v0.2.0 --draft=false`.
+A manual Windows workflow run (`gh workflow run windows-release.yml`) keeps its output as a workflow artifact. For a manual build on a Windows PC, follow [Windows](#windows) using the same tagged source and attach the zip and checksum to the draft for that tag.
 
 Then update the Homebrew cask in [yohangwak/homebrew-tap](https://github.com/yohangwak/homebrew-tap): set `version` and the zip's `sha256` that `release.sh` printed in `Casks/slash-command.rb`, and check it before pushing:
 
