@@ -139,7 +139,9 @@ final class Resident {
         awaitingConfirmation = false
         worker.press(id, foreground: captured) { [weak self] notice in
             // The awaiting notice is the only one without a timeout; every later notice of this press ends the wait.
-            self?.awaitingConfirmation = notice.seconds == nil
+            self?.awaitingConfirmation = notice?.seconds == nil && notice != nil
+            // nil: the switch worked and its notice is off. Take down what this press showed before ("Press Enter to confirm").
+            guard let notice else { self?.hud.hide(); return }
             self?.notice(notice.text, foreground: captured, seconds: notice.seconds)
         }
         return true

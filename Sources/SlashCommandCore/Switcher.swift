@@ -73,6 +73,10 @@ public struct SwitchResult: Equatable, Sendable {
 
     public var detail: String? { chatOutcome?.detail }
 
+    /// Whether the switch gets a notice on screen. A switch that worked shows one only when `successNotice` is on; one with a warning always does,
+    /// because the warning is something the user has to act on.
+    public func showsNotice(successNotice: Bool) -> Bool { successNotice || warning != nil }
+
     public var logSummary: String {
         if case .orcaChat = target.host { return "Orca chat options verified" }
         return summary

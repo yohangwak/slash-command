@@ -84,7 +84,7 @@ final class UnknownKeysTests: XCTestCase {
     func testAFileWithoutUnknownKeysIsWrittenAsBefore() throws {
         let config = SlashCommandConfig.starter
         let written = try object(JSONEncoder().encode(config))
-        XCTAssertEqual(Set(written.keys), ["version", "keepDefaults", "acceptSwitchPrompt", "effortKeys", "modifiers", "slots"])
+        XCTAssertEqual(Set(written.keys), ["version", "keepDefaults", "acceptSwitchPrompt", "successNotice", "effortKeys", "modifiers", "slots"])
         let slots = try XCTUnwrap(written["slots"] as? [[String: Any]])
         XCTAssertEqual(Set(slots[0].keys), ["claude", "codex"])
         XCTAssertEqual(Set((slots[0]["claude"] as? [String: Any] ?? [:]).keys), ["model", "effort"])

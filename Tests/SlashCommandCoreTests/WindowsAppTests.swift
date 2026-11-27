@@ -64,10 +64,32 @@ final class WindowsAppTests: XCTestCase {
         let target = Target(host: .orca(handle: "test"), agent: .claude, label: "test")
         let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "opus", effort: "high"),
                                   warning: "warning", confirmations: ["Set model to Opus 5.5 for this session only with high effort"], pendingRestore: nil)
-        XCTAssertEqual(WindowsAppModel.hud(result: result).text, "Opus 5.5 · high\nClaude Code · Orca · test\n⚠️ warning")
-        XCTAssertEqual(WindowsAppModel.hud(result: result).seconds, 1.6)
-        XCTAssertEqual(WindowsAppModel.hud(result: result, tabLagNote: true).seconds, 4)
-        XCTAssertTrue(WindowsAppModel.hud(result: result, tabLagNote: true).text.contains("wait 2.5 seconds"))
+        XCTAssertEqual(WindowsAppModel.hud(result: result)?.text, "Opus 5.5 · high\nClaude Code · Orca · test\n⚠️ warning")
+        XCTAssertEqual(WindowsAppModel.hud(result: result)?.seconds, 1.6)
+        XCTAssertEqual(WindowsAppModel.hud(result: result, tabLagNote: true)?.seconds, 4)
+        XCTAssertEqual(WindowsAppModel.hud(result: result, tabLagNote: true)?.text.contains("wait 2.5 seconds"), true)
+    }
+
+    func testSuccessNoticeIsOffByDefaultButWarningsStillShow() throws {
+        let target = Target(host: .orca(handle: "test"), agent: .claude, label: "test")
+        let clean = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "opus", effort: "high"),
+                                 warning: nil, confirmations: ["Set model to Opus 5.5 for this session only with high effort"], pendingRestore: nil)
+        let warned = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "opus", effort: "high"),
+                                  warning: "warning", confirmations: ["Set model to Opus 5.5 for this session only with high effort"], pendingRestore: nil)
+        XCTAssertFalse(SlashCommandConfig.starter.successNotice)
+        let old = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(#"{"slots":[]}"#.utf8))
+        XCTAssertFalse(old.successNotice, "A file from before the setting existed gets no success notice")
+        let on = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(#"{"successNotice":true,"slots":[]}"#.utf8))
+        XCTAssertTrue(on.successNotice)
+        XCTAssertTrue(on.unknownKeys.isEmpty)
+        XCTAssertNotEqual(on, old, "Turning it on in Settings makes the draft dirty, so it can be saved")
+        // Positive control: with the notice on, a clean switch is shown.
+        XCTAssertTrue(clean.showsNotice(successNotice: true))
+        XCTAssertNotNil(WindowsAppModel.hud(result: clean, successNotice: true))
+        XCTAssertFalse(clean.showsNotice(successNotice: false))
+        XCTAssertNil(WindowsAppModel.hud(result: clean, tabLagNote: true, successNotice: false))
+        XCTAssertTrue(warned.showsNotice(successNotice: false))
+        XCTAssertEqual(WindowsAppModel.hud(result: warned, successNotice: false)?.text, "Opus 5.5 · high\nClaude Code · Orca · test\n⚠️ warning")
     }
 
     func testTraySnapshotSurvivesOnlyOurProcessAndExplorerTrayWindows() {

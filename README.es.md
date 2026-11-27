@@ -83,7 +83,7 @@ No necesita permisos. La herramienta de línea de comandos `slashcommand.exe` es
 | `⇧⌥1` … `⇧⌥9` | Cambia el agente en primer plano al modelo y al effort de ese preajuste |
 | `⇧⌥=` / `⇧⌥-` | Mantiene el modelo y sube o baja el effort un nivel |
 
-Un pequeño aviso en la parte inferior de la pantalla muestra lo que respondió el agente, por ejemplo `Opus 5.5 · high`. Los atajos solo están activos mientras hay una terminal compatible en primer plano, así que las mismas teclas conservan su significado habitual en otras apps. Puedes cambiar las teclas modificadoras en Ajustes.
+El agente muestra el nuevo modelo en su propia pantalla. Un pequeño aviso en la parte inferior de la pantalla aparece cuando un cambio se rechaza, falla, espera tu respuesta o trae una advertencia; para verlo también después de cada cambio (lo que respondió el agente, por ejemplo `Opus 5.5 · high`), activa **Mostrar un aviso después de cada cambio** en Ajustes. Los atajos solo están activos mientras hay una terminal compatible en primer plano, así que las mismas teclas conservan su significado habitual en otras apps. Puedes cambiar las teclas modificadoras en Ajustes.
 
 El icono de la barra de menús muestra el agente de la sesión en primer plano y lo que haría cada preajuste con él.
 

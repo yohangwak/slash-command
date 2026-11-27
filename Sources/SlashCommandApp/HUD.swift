@@ -56,6 +56,20 @@ final class HUD {
         panel.contentView = background
     }
 
+    /// Takes down the notice on screen, if any, at once.
+    func hide() {
+        hideWork?.cancel()
+        shown += 1
+        panel.orderOut(nil)
+    }
+
+    /// Reads the text out with VoiceOver without showing anything. A switch whose notice is off is still announced, so it is not silent for someone who cannot see the agent's screen.
+    func announce(_ titleText: String, detail detailText: String = "") {
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: [titleText, detailText].filter { !$0.isEmpty }.joined(separator: "\n"),
+                                        .priority: NSAccessibilityPriorityLevel.high.rawValue])
+    }
+
     /// If `seconds` is nil, it stays up until the next `show`.
     func show(_ titleText: String, detail detailText: String = "", seconds: TimeInterval? = 1.6) {
         hideWork?.cancel()
@@ -73,9 +87,7 @@ final class HUD {
                               width: size.width, height: size.height), display: true)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
-        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
-                             userInfo: [.announcement: [titleText, detailText].filter { !$0.isEmpty }.joined(separator: "\n"),
-                                        .priority: NSAccessibilityPriorityLevel.high.rawValue])
+        announce(titleText, detail: detailText)
 
         guard let seconds else { return }
         let work = DispatchWorkItem { [weak self] in

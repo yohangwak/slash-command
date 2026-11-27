@@ -180,6 +180,8 @@
 "Remove %@ from this preset" = "Retirer %@ de ce préréglage";
 "Revert" = "Rétablir";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "Juste après une réponse, Claude Code redemande avant de changer le modèle ou l’effort (il relit la conversation). Slash Command appuie sur Enter uniquement si cette demande porte sur la valeur que vous avez choisie.";
+"Show a notice after each switch" = "Afficher une notification après chaque changement";
+"When off, a notice appears only when a switch is refused, fails, needs your answer or comes with a warning. The agent's own screen shows the new model either way." = "Si désactivé, une notification n’apparaît que lorsqu’un changement est refusé, échoue, attend votre réponse ou comporte un avertissement. L’écran de l’agent affiche le nouveau modèle dans tous les cas.";
 "Save" = "Enregistrer";
 "Saved" = "Enregistré";
 "Settings…" = "Réglages…";

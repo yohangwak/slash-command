@@ -232,6 +232,9 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
     /// — a notice that the conversation history will be reread). When true (default), that dialog is accepted with Enter only if it asks about "the value we chose" and the cursor is on Yes
     /// — pressing the hotkey is already that answer (decided 2026-10-06). When false, the dialog is left as is and the user chooses.
     public var acceptSwitchPrompt: Bool
+    /// Show the notice after a switch that worked. Off by default (decided 2026-11-28): the agent's own screen already shows the new model.
+    /// Refusals, failures, warnings, "Press Enter to confirm" and "nothing to change" are shown either way.
+    public var successNotice: Bool
     /// The modifier keys plus `=` (up) and `-` (down) change only the effort by one step and leave the model alone.
     public var effortKeys: Bool
     /// The modifier keys pressed together with the number keys. From `shift`, `option`, `control`, `command`.
@@ -259,11 +262,12 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         }
     }
 
-    public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = true, effortKeys: Bool = true,
+    public init(version: Int = 1, keepDefaults: Bool = true, acceptSwitchPrompt: Bool = true, successNotice: Bool = false, effortKeys: Bool = true,
                 modifiers: [String] = SlashCommandConfig.defaultModifiers, slots: [Slot]) {
         self.version = version
         self.keepDefaults = keepDefaults
         self.acceptSwitchPrompt = acceptSwitchPrompt
+        self.successNotice = successNotice
         self.effortKeys = effortKeys
         self.modifiers = modifiers
         self.slots = slots
@@ -310,7 +314,7 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
 
     /// What the warning remembers about the file is not part of the settings: a draft built from these values is equal to the loaded file.
     public static func == (a: SlashCommandConfig, b: SlashCommandConfig) -> Bool {
-        a.version == b.version && a.keepDefaults == b.keepDefaults && a.acceptSwitchPrompt == b.acceptSwitchPrompt
+        a.version == b.version && a.keepDefaults == b.keepDefaults && a.acceptSwitchPrompt == b.acceptSwitchPrompt && a.successNotice == b.successNotice
             && a.effortKeys == b.effortKeys && a.modifiers == b.modifiers && a.slots == b.slots && a.extra == b.extra
     }
 
@@ -319,6 +323,7 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         keepDefaults = try c.decodeIfPresent(Bool.self, forKey: .keepDefaults) ?? true
         acceptSwitchPrompt = try c.decodeIfPresent(Bool.self, forKey: .acceptSwitchPrompt) ?? true
+        successNotice = try c.decodeIfPresent(Bool.self, forKey: .successNotice) ?? false
         effortKeys = try c.decodeIfPresent(Bool.self, forKey: .effortKeys) ?? true
         let wanted = try c.decodeIfPresent([String].self, forKey: .modifiers) ?? SlashCommandConfig.defaultModifiers
         let named = wanted.compactMap(SlashCommandConfig.modifierName)
@@ -334,7 +339,7 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey, CaseIterable {
-        case version, keepDefaults, acceptSwitchPrompt, effortKeys, modifiers, slots
+        case version, keepDefaults, acceptSwitchPrompt, successNotice, effortKeys, modifiers, slots
     }
 
     private static let known = Set(CodingKeys.allCases.map(\.rawValue))
@@ -344,6 +349,7 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
         try c.encode(version, forKey: .version)
         try c.encode(keepDefaults, forKey: .keepDefaults)
         try c.encode(acceptSwitchPrompt, forKey: .acceptSwitchPrompt)
+        try c.encode(successNotice, forKey: .successNotice)
         try c.encode(effortKeys, forKey: .effortKeys)
         try c.encode(modifiers, forKey: .modifiers)
         try c.encode(slots, forKey: .slots)

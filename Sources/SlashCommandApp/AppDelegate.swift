@@ -332,6 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .effort(let up): return try made.stepEffort(up: up, on: target)
                 }
             }
+            let successNotice = switcher?.config.successNotice ?? false
             // Show the notification first — the re-check of the defaults (0.25 s) comes after.
             DispatchQueue.main.async {
                 self.awaitingConfirmation = false
@@ -343,7 +344,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if !result.slotName.isEmpty { lines.append(result.slotName) }
                     // The warning goes first — the notification shows only a few lines, so anything after it is cut off.
                     if let warning = result.warning { lines.append("⚠️ \(warning)") }
-                    self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 || result.detail != nil ? 4 : 1.6)
+                    if result.showsNotice(successNotice: successNotice) {
+                        self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 || result.detail != nil ? 4 : 1.6)
+                    } else {
+                        // The notice for a switch that worked is off: take down "Press Enter to confirm" if it is still up, and tell VoiceOver only.
+                        self.hud.hide()
+                        self.hud.announce(result.summary)
+                    }
                 case .failure(let error as SlashCommandError) where error.awaitingUser:
                     Log.write("awaiting confirmation \(action.label): \(SlashCommandError.logText(error))")
                     self.hud.show(loc("Press Enter to confirm"), detail: "\(error)", seconds: 6)

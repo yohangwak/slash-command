@@ -131,7 +131,9 @@ public enum WindowsAppModel {
         })
         return trimmed.isEmpty ? label : String(trimmed)
     }
-    public static func hud(result: SwitchResult, tabLagNote: Bool = false) -> Notice {
+    /// nil when the switch worked and the notice for that is off (`successNotice`). The Orca tab note waits for a notice that is shown.
+    public static func hud(result: SwitchResult, tabLagNote: Bool = false, successNotice: Bool = true) -> Notice? {
+        guard result.showsNotice(successNotice: successNotice) else { return nil }
         var lines = [targetLine(result.target)]
         if !result.slotName.isEmpty { lines.append(result.slotName) }
         if let warning = result.warning { lines.append("⚠️ " + warning) }

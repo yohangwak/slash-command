@@ -6,6 +6,8 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 
 - Orca: a workspace in a paired Orca environment (another computer, such as a Windows PC paired with `orca environment add`) is refused with "this Orca workspace runs on another computer that Orca is paired with". Its terminals are not in this computer's Orca lists, so the shortcut was refused with "the Orca tabs on screen do not line up". Switching there is not supported.
 - Orca: in a workspace on an SSH host (not checked on a real one), Grok, Cursor Agent, Antigravity and OpenCode switch only with `keepDefaults` off. They save the choice as their default on that host, where the app cannot put it back. Claude Code and Codex are unchanged; they switch for the session only.
+- Notices: a switch that worked no longer shows a notice; the agent's own screen shows the new model. A refused or failed switch, one waiting for your Enter, one with nothing to change and one with a warning still do. **Show a notice after each switch** in Settings (`successNotice` in the presets file) brings the old notice back. VoiceOver still announces each switch.
+- Settings: **Settings…** opens the window on the Space in front, also over a terminal in full screen. It used to come up on the desktop Space where it was first shown, so nothing seemed to happen.
 
 ## 0.2.19
 

@@ -4,7 +4,7 @@
 2. **Find the target.** The app works out which terminal session is in front and which agent is running in it. Each terminal has its own way; see [Terminals](terminals.md). The agent is identified from the processes running on that terminal, or from the window title where that is all there is.
 3. **Check the input box.** The app reads the screen and continues only when the agent's input box is visible at the bottom. See [Safety and limits](safety.md).
 4. **Switch.** The app opens the agent's own model picker and drives it while reading the screen: it reads which row the cursor is on, moves exactly that far, reads again to confirm it arrived, and confirms with "this session only".
-5. **Report.** The notice shows what the agent itself answered, read from the line under the command just typed.
+5. **Report.** The agent's own screen shows the new model. With **Show a notice after each switch** on (`successNotice`), the notice also shows what the agent itself answered, read from the line under the command just typed. A refusal, a failure, a wait for your Enter and a warning always get a notice.
 
 In Orca's Chat UI on macOS, the app identifies the focused Claude or Codex chat from the tab strip and tab list. It sets the options through Orca's runtime and shows the values Orca verifies for the next message.
 

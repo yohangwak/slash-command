@@ -78,6 +78,7 @@ final class SettingsModel: ObservableObject {
     @Published var expanded: Set<UUID> = []
     @Published var keepDefaults = true
     @Published var acceptSwitchPrompt = true
+    @Published var successNotice = false
     @Published var effortKeys = true
     @Published var modifiers: Set<String> = Set(SlashCommandConfig.defaultModifiers)
     @Published var message = ""
@@ -110,6 +111,7 @@ final class SettingsModel: ObservableObject {
         var made = SlashCommandConfig(version: saved?.version ?? 1,
                                       keepDefaults: keepDefaults,
                                       acceptSwitchPrompt: acceptSwitchPrompt,
+                                      successNotice: successNotice,
                                       effortKeys: effortKeys,
                                       modifiers: SlashCommandConfig.knownModifiers.filter(modifiers.contains),
                                       slots: slots.map(\.slot))
@@ -131,6 +133,7 @@ final class SettingsModel: ObservableObject {
             slots = config.slots.map(EditableSlot.init)
             keepDefaults = config.keepDefaults
             acceptSwitchPrompt = config.acceptSwitchPrompt
+            successNotice = config.successNotice
             effortKeys = config.effortKeys
             modifiers = Set(config.modifiers)
             expanded = slots.count == 1 ? Set(slots.map(\.id)) : []
@@ -362,6 +365,10 @@ struct SettingsView: View {
                 described(loc("Accept Claude Code's confirmation automatically"),
                           loc("Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose."))
             }
+            Toggle(isOn: $model.successNotice) {
+                described(loc("Show a notice after each switch"),
+                          loc("When off, a notice appears only when a switch is refused, fails, needs your answer or comes with a warning. The agent's own screen shows the new model either way."))
+            }
         } header: {
             Text(loc("Behavior"))
         }
@@ -577,6 +584,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             window.contentMinSize = NSSize(width: 620, height: 420)
             window.contentMaxSize = NSSize(width: 620, height: 10_000)
             window.center()
+            // A menu bar app's window stays on the Space it was first shown on. With the terminal in full screen (its own Space), Settings… then
+            // made the window come up on the desktop Space out of sight, and nothing seemed to happen (2026-11-28, Orca in full screen).
+            // Bring it to the Space in front instead, over a full-screen app too.
+            window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             self.window = window
         }
         // If there are unsaved edits, leave them: bringing the window up again does not erase them.
