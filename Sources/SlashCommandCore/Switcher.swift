@@ -73,9 +73,15 @@ public struct SwitchResult: Equatable, Sendable {
 
     public var detail: String? { chatOutcome?.detail }
 
-    /// Whether the switch gets a notice on screen. A switch that worked shows one only when `successNotice` is on; one with a warning always does,
-    /// because the warning is something the user has to act on.
-    public func showsNotice(successNotice: Bool) -> Bool { successNotice || warning != nil }
+    /// The agent's note that the new model has no effort levels (Claude Code: "Effort not supported for …"): the model changed, the preset's effort did not.
+    public var effortNote: String? {
+        guard !preset.effort.isEmpty else { return nil }
+        return confirmations.first { $0.hasPrefix("Effort not supported") }
+    }
+
+    /// Whether the switch gets a notice on screen. A switch that worked shows one only when `successNotice` is on; one with a warning,
+    /// or one that set the model but not the preset's effort, always does: the user has to know.
+    public func showsNotice(successNotice: Bool) -> Bool { successNotice || warning != nil || effortNote != nil }
 
     public var logSummary: String {
         if case .orcaChat = target.host { return "Orca chat options verified" }

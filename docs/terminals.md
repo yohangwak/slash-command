@@ -28,7 +28,7 @@ Accessibility is required. Orca 1.4.256 stopped saving the visible workspace and
 
 Workspaces in a paired Orca environment (another computer running its own Orca, added with `orca environment add`) are not supported. Orca's own runtime on this computer does not list, read or write their terminals; only the other computer's Orca does. The app reads the workspace's host from the sidebar and says so instead of sending. Workspaces on an SSH host have not been checked. Orca lists their terminals on this computer, marked with the host, so Grok, Cursor Agent, Antigravity and OpenCode, which save the choice as their default on that host where the app cannot put it back, switch there only with `keepDefaults` off.
 
-On macOS, shortcuts work in Orca's Chat UI for Claude and Codex. The chat's model and effort are saved through Orca's runtime for your next message in that chat. A terminal tab switched into Chat view with Cmd+Shift+J still works like a terminal. In that view, Orca's model button can keep showing the previous model after a switch while the agent answers using the new one.
+On macOS, shortcuts work in Orca's Chat UI for Claude and Codex. The chat's model and effort are saved through Orca's runtime for your next message in that chat. A terminal tab switched into Chat view with Cmd+Shift+J still works like a terminal. In that view, Orca's model button can keep showing the previous model after a switch while the agent answers using the new one. The app cannot tell that view from the terminal view, so if you rely on that button, turn on **Show a notice after each switch** (`successNotice`) to see the model the agent confirmed.
 
 ## iTerm2
 
