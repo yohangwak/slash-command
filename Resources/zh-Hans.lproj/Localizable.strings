@@ -255,6 +255,7 @@
 "Unsaved changes" = "有未存储的更改";
 "Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "用于读取 Ghostty 屏幕、识别 Orca 当前显示的标签页，并确认 iTerm2 的广播输入（Broadcast Input）已关闭。";
 "Used to type the switch commands into %@." = "用于向 %@ 输入切换命令。";
+"always the newest %@" = "始终是最新的 %@";
 "installed %@" = "已安装 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "首次在 %@ 中按快捷键时，macOS 会询问一次。";
 "no rows" = "无行";

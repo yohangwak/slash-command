@@ -97,8 +97,8 @@ Edita los preajustes en **Ajustes… → Preajustes**, o edita directamente `~/.
 {
   "version": 1,
   "slots": [
-    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6-astra", "effort": "high" } },
-    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.1-sol", "effort": "high" } },
+    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6.2-astra", "effort": "high" } },
+    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.2-sol", "effort": "high" } },
     { "name": "Nocturno", "claude": { "model": "fable", "effort": "max" } }
   ]
 }

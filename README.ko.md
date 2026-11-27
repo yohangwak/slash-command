@@ -97,8 +97,8 @@ Windows 앱은 아직 코드 서명이 없어서, 처음 열 때 SmartScreen 이
 {
   "version": 1,
   "slots": [
-    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6-astra", "effort": "high" } },
-    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.1-sol", "effort": "high" } },
+    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6.2-astra", "effort": "high" } },
+    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.2-sol", "effort": "high" } },
     { "name": "밤샘", "claude": { "model": "fable", "effort": "max" } }
   ]
 }

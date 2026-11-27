@@ -1162,6 +1162,23 @@ final class SwitcherApplyTests: KoreanMessagesTestCase {
         XCTAssertFalse(claude.sent.contains { $0.hasPrefix("/model ") || $0.contains("/model sonnet") })
     }
 
+    func testAliasPicksTheNewestRowWhenAnOlderOneIsTheOnlyRowShown() throws {
+        // Pre-review 2026-11-28: in a low window the cursor row (the current model, `Opus 5`) was the only row shown, and `opus` matched it
+        // by prefix, so the newer `Opus 5.5` folded above it was never looked for. Settings says an alias is always the newest of its family.
+        let settings = try tempSettings()
+        let claude = FakeClaude()
+        claude.settings = settings
+        claude.windowRows = 1
+        claude.model = "Opus 5"
+        _ = try switcher(config("opus", "high"), io: claude, settings: settings).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Opus 5.5")
+        XCTAssertEqual(claude.confirmedBy, "s")
+        // A name with a version still means that row.
+        _ = try switcher(config("Opus 5", "high"), io: claude, settings: settings).apply(slot: 1, to: target)
+        XCTAssertEqual(claude.model, "Opus 5")
+        XCTAssertEqual(try String(contentsOf: settings, encoding: .utf8), "{\n  \"model\": \"opus\"\n}", "The defaults file was never written")
+    }
+
     func testClosesAPickerWhoseHintRowIsCutOff() throws {
         // Measured 2026-10-12 (11-row tmux window): the hint line was cut so the picker was not recognized, and it ended saying it did not open, with the picker left open.
         let settings = try tempSettings()

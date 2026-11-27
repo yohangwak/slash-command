@@ -51,7 +51,7 @@ final class WindowsAppTests: XCTestCase {
     func testMenuShowsNineAgentSpecificDisplayRows() {
         let lines = WindowsAppModel.menu(config: .starter, supported: true, agent: .codex)
         XCTAssertTrue(lines[0].contains("Orca"))
-        XCTAssertTrue(lines[1].contains("gpt-6-astra"))
+        XCTAssertTrue(lines[1].contains("gpt-6.2-astra"))
         XCTAssertFalse(lines[1].contains("opus"))
         XCTAssertEqual(lines.count, 15)
         XCTAssertEqual(Array(lines.suffix(5)), ["Open presets file", "Open log folder", "Open at login", "Report a Problem…", "Quit Slash Command"])

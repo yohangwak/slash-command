@@ -97,8 +97,8 @@ Windows 版目前还没有代码签名,第一次打开时 SmartScreen 可能会�
 {
   "version": 1,
   "slots": [
-    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6-astra", "effort": "high" } },
-    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.1-sol", "effort": "high" } },
+    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6.2-astra", "effort": "high" } },
+    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.2-sol", "effort": "high" } },
     { "name": "通宵", "claude": { "model": "fable", "effort": "max" } }
   ]
 }

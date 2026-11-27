@@ -2,6 +2,13 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.21
+
+- Settings: the model menu brings the Cursor Agent and Antigravity lists up to the models those agents offer today (Cursor Agent: Claude Fable 5.2 in place of 5.1, plus Claude Sonnet 5.5 and Gemini 4 Argon; Antigravity adds Gemini 4 Neon, Carbon and Hydrogen). Codex and Grok already take their lists from what those agents keep on disk.
+- Settings: Claude Code's `fable`, `opus`, `sonnet` and `haiku` read "always the newest Opus" and so on in the model menu. They are aliases that Claude Code resolves to the newest model of that family, so they show no version and never need updating.
+- Claude Code: an alias such as `opus` picks the newest model of that family in a window too low to show the whole model picker. When the only row on screen was an older one (`Opus 5` with `Opus 5.5` folded away above it), that older row was picked.
+- Presets: a first launch starts Codex on `gpt-6.2-astra` and `gpt-6.2-sol` instead of `gpt-6-astra` and `gpt-6.1-sol`. Existing presets are not changed.
+
 ## 0.2.20
 
 - Orca: a workspace in a paired Orca environment (another computer, such as a Windows PC paired with `orca environment add`) is refused with "this Orca workspace runs on another computer that Orca is paired with". Its terminals are not in this computer's Orca lists, so the shortcut was refused with "the Orca tabs on screen do not line up". Switching there is not supported.
