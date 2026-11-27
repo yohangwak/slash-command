@@ -180,6 +180,9 @@
 "Remove %@ from this preset" = "このプリセットから %@ を削除";
 "Revert" = "元に戻す";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "応答の直後にモデルや effort を変更しようとすると、Claude Code はもう一度確認します(会話を読み直します)。Slash Command は、その確認が選んだ値についてのものである場合にだけ Enter を押します。";
+"%@ has no effort levels, so the effort (%@) was not set." = "%@ には effort の段階がないため、effort(%@)は設定していません。";
+"Show a notice after each switch" = "切り替えのたびに通知を表示";
+"When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "オフのときは、切り替えが拒否・失敗したとき、応答を待つとき、変更するものがないとき、警告があるときだけ通知が出ます。新しいモデルはどちらの場合もエージェントの画面に表示されます。";
 "Save" = "保存";
 "Saved" = "保存しました";
 "Settings…" = "設定…";

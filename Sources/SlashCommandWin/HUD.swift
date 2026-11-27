@@ -80,7 +80,11 @@ final class HUD {
             if SetTimer(window, 1, milliseconds, nil) == 0 { Log.write("HUD hide timer creation failed") }
         }
     }
-    func timer(_ id: Int) {
+    func hide() {
+        KillTimer(window, 1); KillTimer(window, 2); fadeStarted = 0; fadeDue = nil
+        ShowWindow(window, SW_HIDE)
+    }
+        func timer(_ id: Int) {
         if id == 1 {
             // KillTimer does not remove already queued messages from a previous notice.
             guard let fadeDue, GetTickCount64() >= fadeDue else { return }

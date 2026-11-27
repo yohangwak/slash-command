@@ -131,10 +131,15 @@ public enum WindowsAppModel {
         })
         return trimmed.isEmpty ? label : String(trimmed)
     }
-    public static func hud(result: SwitchResult, tabLagNote: Bool = false) -> Notice {
-        var lines = [targetLine(result.target)]
+    /// nil when the switch worked and the notice for that is off (`successNotice`). The Orca tab note is a safety hint, so it is shown either way.
+    public static func hud(result: SwitchResult, tabLagNote: Bool = false, successNotice: Bool = true) -> Notice? {
+        var orcaTabNote = false
+        if tabLagNote, case .orca = result.target.host { orcaTabNote = true }
+        guard result.showsNotice(successNotice: successNotice) || orcaTabNote else { return nil }
+        // The warnings first: the terminal title and the preset name can be long.
+        var lines = [result.warning, result.effortNote].compactMap { $0.map { "⚠️ " + $0 } }
+        lines.append(targetLine(result.target))
         if !result.slotName.isEmpty { lines.append(result.slotName) }
-        if let warning = result.warning { lines.append("⚠️ " + warning) }
         if tabLagNote, case .orca = result.target.host { lines.append(loc("Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file.")) }
         return Notice(([result.summary] + lines).joined(separator: "\n"), kind: lines.count > 2 ? .multiline : .result)
     }

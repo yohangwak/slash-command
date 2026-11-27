@@ -180,6 +180,9 @@
 "Remove %@ from this preset" = "إزالة %@ من هذا الإعداد المسبق";
 "Revert" = "تراجع";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "بعد الرد مباشرة، يسأل Claude Code مرة أخرى قبل تغيير النموذج أو effort (يعيد قراءة المحادثة). يضغط Slash Command على Enter فقط عندما يسأل ذلك الطلب عن القيمة التي اخترتها.";
+"%@ has no effort levels, so the effort (%@) was not set." = "لا توجد مستويات effort في %@، لذلك لم يتم تعيين effort (%@).";
+"Show a notice after each switch" = "إظهار إشعار بعد كل تبديل";
+"When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "عند إيقافه، يظهر إشعار فقط عند رفض التبديل أو فشله أو انتظار إجابتك أو عدم وجود ما يتغير أو وجود تحذير. تعرض شاشة الوكيل النموذج الجديد في كل الأحوال.";
 "Save" = "حفظ";
 "Saved" = "تم الحفظ";
 "Settings…" = "الإعدادات…";

@@ -73,6 +73,17 @@ public struct SwitchResult: Equatable, Sendable {
 
     public var detail: String? { chatOutcome?.detail }
 
+    /// Set when the preset asked for an effort and the agent said the new model has none (Claude Code: "Effort not supported for …"):
+    /// the model changed, the effort did not. Our own sentence, not the screen line, so no other text on screen is ever shown.
+    public var effortNote: String? {
+        guard !preset.effort.isEmpty, confirmations.contains(where: { $0.hasPrefix("Effort not supported") }) else { return nil }
+        return loc("%@ has no effort levels, so the effort (%@) was not set.", summary, preset.effort)
+    }
+
+    /// Whether the switch gets a notice on screen. A switch that worked shows one only when `successNotice` is on; one with a warning,
+    /// or one that set the model but not the preset's effort, always does: the user has to know.
+    public func showsNotice(successNotice: Bool) -> Bool { successNotice || warning != nil || effortNote != nil }
+
     public var logSummary: String {
         if case .orcaChat = target.host { return "Orca chat options verified" }
         return summary
@@ -992,7 +1003,7 @@ public struct Runner {
         var note: String?
         let shown = try poll(timeoutMs: timeoutMs) { lines in
             current = Picker.claudeEffort(lines)
-            note = lines.first { $0.contains("Effort not supported") }?.trimmingCharacters(in: .whitespaces)
+            note = Picker.claudeEffortNote(lines)
             return current != nil || note != nil
         }
         guard shown else { return .failed }

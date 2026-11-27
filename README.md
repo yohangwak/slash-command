@@ -83,7 +83,7 @@ No permissions are needed. The command line tool `slashcommand.exe` is in the sa
 | `⇧⌥1` … `⇧⌥9` | Switch the frontmost agent to that preset's model and effort |
 | `⇧⌥=` / `⇧⌥-` | Keep the model, raise or lower the effort one level |
 
-A small notice at the bottom of the screen shows what the agent answered, for example `Opus 5.5 · high`. The hotkeys are active only while a supported terminal is in front, so the same keys keep their usual meaning in other apps. You can change the modifier keys in Settings.
+The agent shows the new model on its own screen. A small notice at the bottom of the screen appears when a switch is refused, fails, waits for your answer or comes with a warning; to see one after every switch too (what the agent answered, for example `Opus 5.5 · high`), turn on **Show a notice after each switch** in Settings (on Windows, set `"successNotice": true` with **Open presets file** in the tray menu). The hotkeys are active only while a supported terminal is in front, so the same keys keep their usual meaning in other apps. You can change the modifier keys in Settings.
 
 The menu bar icon shows the agent in the frontmost session and what each preset would do for it.
 

@@ -1802,7 +1802,16 @@ final class ClaudePickerTests: KoreanMessagesTestCase {
         XCTAssertEqual(Picker.claudeEffort(["   ◐ Medium effort (default) ←/→ to adjust"]), "medium")
         XCTAssertEqual(Picker.claudeEffort(["   ◈ Max effort ←/→ to adjust", "   May use excessive tokens resulting in long response times."]), "max")
         XCTAssertNil(Picker.claudeEffort(["   ○ Effort not supported for Haiku 4.5"]))
-        XCTAssertTrue(Picker.claudeEffortUnsupported(["   ○ Effort not supported for Haiku 4.5"]))
+        let haiku = ["   Select model", "   ❯ 1.  Haiku 4.5 ✔   설명", "   ○ Effort not supported for Haiku 4.5",
+                     "   Enter to set as default · s to use this session only · Esc to cancel"]
+        XCTAssertTrue(Picker.claudeEffortUnsupported(haiku), "Positive control: the line under the picker's rows")
+        XCTAssertEqual(Picker.claudeEffortNote(haiku), "○ Effort not supported for Haiku 4.5")
+        XCTAssertFalse(Picker.claudeEffortUnsupported(["   ○ Effort not supported for Haiku 4.5"]), "No open picker: not read")
+        // The same words higher up in the conversation, above an Opus picker whose effort line is cut: not read as the picker's answer.
+        let older = ["  ○ Effort not supported for Haiku 4.5", "   Select model", "   ❯ 1.  Opus 5.5 ✔   설명", "   ● High effort ←/→ to",
+                     "   Enter to set as default · s to use this session only · Esc to cancel"]
+        XCTAssertNil(Picker.claudeEffortNote(older))
+        XCTAssertFalse(Picker.claudeEffortUnsupported(older))
     }
 }
 

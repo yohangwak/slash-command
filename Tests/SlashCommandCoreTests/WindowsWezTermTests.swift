@@ -87,7 +87,7 @@ final class WindowsWezTermTests: XCTestCase {
         XCTAssertEqual(menu[0], "WezTerm · Claude Code · Test shell")
         XCTAssertEqual(menu.filter { $0.first?.isNumber == true }.count, 9)
         let result = SwitchResult(target: target, slotName: "", preset: .init(model: "opus", effort: "high"), warning: nil, confirmations: [], pendingRestore: nil)
-        XCTAssertFalse(WindowsAppModel.hud(result: result, tabLagNote: true).text.contains("Orca"))
+        XCTAssertEqual(WindowsAppModel.hud(result: result, tabLagNote: true)?.text.contains("Orca"), false)
         XCTAssertTrue(WindowsAppModel.appliedLine(id: 1, result: result).contains("claude@WezTerm"))
     }
 

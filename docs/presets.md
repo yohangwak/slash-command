@@ -13,6 +13,7 @@ The file is `~/.config/slashcommand/presets.json`. Set `SLASHCOMMAND_CONFIG` to 
   "version": 1,
   "keepDefaults": true,
   "acceptSwitchPrompt": true,
+  "successNotice": false,
   "effortKeys": true,
   "modifiers": ["option", "shift"],
   "slots": [
@@ -30,6 +31,7 @@ The file is `~/.config/slashcommand/presets.json`. Set `SLASHCOMMAND_CONFIG` to 
 | `effortKeys` | `true` | Whether `=` and `-` with the same modifiers change the effort |
 | `keepDefaults` | `true` | Change this session only. See [Agents](agents.md) for what that means per agent |
 | `acceptSwitchPrompt` | `true` | Accept Claude Code's confirmation dialog automatically. See [How it works](how-it-works.md#claude-codes-confirmation-dialog) |
+| `successNotice` | `false` | Show the notice after a switch that worked. A refused or failed switch, one waiting for your Enter, one with nothing to change, one with a warning and one where Claude Code's model picker said the new model has no effort levels for the preset's effort are always shown |
 
 `command` is not available on Windows. Unrecognized modifier names are reported in the menu.
 

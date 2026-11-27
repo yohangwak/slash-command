@@ -46,6 +46,7 @@ final class ModifierWarningTests: KoreanMessagesTestCase {
         for names in [["hyper", "meta"], ["shift"]] as [[String]] {
             let loaded = try decode(names)
             let draft = SlashCommandConfig(version: loaded.version, keepDefaults: loaded.keepDefaults, acceptSwitchPrompt: loaded.acceptSwitchPrompt,
+                                           successNotice: loaded.successNotice,
                                            effortKeys: loaded.effortKeys, modifiers: loaded.modifiers, slots: loaded.slots)
             XCTAssertEqual(draft, loaded)
         }
@@ -55,7 +56,7 @@ final class ModifierWarningTests: KoreanMessagesTestCase {
     func testWarningDoesNotAddStoredKeys() throws {
         let config = try decode(["hyper", "meta"])
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(config)) as? [String: Any])
-        XCTAssertEqual(Set(object.keys), ["version", "keepDefaults", "acceptSwitchPrompt", "effortKeys", "modifiers", "slots"])
+        XCTAssertEqual(Set(object.keys), ["version", "keepDefaults", "acceptSwitchPrompt", "successNotice", "effortKeys", "modifiers", "slots"])
     }
 
     func testTenSlotsCannotOverwriteAnExistingFile() throws {

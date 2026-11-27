@@ -64,10 +64,47 @@ final class WindowsAppTests: XCTestCase {
         let target = Target(host: .orca(handle: "test"), agent: .claude, label: "test")
         let result = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "opus", effort: "high"),
                                   warning: "warning", confirmations: ["Set model to Opus 5.5 for this session only with high effort"], pendingRestore: nil)
-        XCTAssertEqual(WindowsAppModel.hud(result: result).text, "Opus 5.5 · high\nClaude Code · Orca · test\n⚠️ warning")
-        XCTAssertEqual(WindowsAppModel.hud(result: result).seconds, 1.6)
-        XCTAssertEqual(WindowsAppModel.hud(result: result, tabLagNote: true).seconds, 4)
-        XCTAssertTrue(WindowsAppModel.hud(result: result, tabLagNote: true).text.contains("wait 2.5 seconds"))
+        XCTAssertEqual(WindowsAppModel.hud(result: result)?.text, "Opus 5.5 · high\n⚠️ warning\nClaude Code · Orca · test")
+        XCTAssertEqual(WindowsAppModel.hud(result: result)?.seconds, 1.6)
+        XCTAssertEqual(WindowsAppModel.hud(result: result, tabLagNote: true)?.seconds, 4)
+        XCTAssertEqual(WindowsAppModel.hud(result: result, tabLagNote: true)?.text.contains("wait 2.5 seconds"), true)
+    }
+
+    func testSuccessNoticeIsOffByDefaultButWarningsStillShow() throws {
+        let target = Target(host: .orca(handle: "test"), agent: .claude, label: "test")
+        let clean = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "opus", effort: "high"),
+                                 warning: nil, confirmations: ["Set model to Opus 5.5 for this session only with high effort"], pendingRestore: nil)
+        let warned = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "opus", effort: "high"),
+                                  warning: "warning", confirmations: ["Set model to Opus 5.5 for this session only with high effort"], pendingRestore: nil)
+        XCTAssertFalse(SlashCommandConfig.starter.successNotice)
+        let old = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(#"{"slots":[]}"#.utf8))
+        XCTAssertFalse(old.successNotice, "A file from before the setting existed gets no success notice")
+        let on = try JSONDecoder().decode(SlashCommandConfig.self, from: Data(#"{"successNotice":true,"slots":[]}"#.utf8))
+        XCTAssertTrue(on.successNotice)
+        XCTAssertTrue(on.unknownKeys.isEmpty)
+        XCTAssertNotEqual(on, old, "Turning it on in Settings makes the draft dirty, so it can be saved")
+        // Positive control: with the notice on, a clean switch is shown.
+        XCTAssertTrue(clean.showsNotice(successNotice: true))
+        XCTAssertNotNil(WindowsAppModel.hud(result: clean, successNotice: true))
+        XCTAssertFalse(clean.showsNotice(successNotice: false))
+        XCTAssertNil(WindowsAppModel.hud(result: clean, successNotice: false))
+        XCTAssertEqual(WindowsAppModel.hud(result: clean, tabLagNote: true, successNotice: false)?.text.contains("wait 2.5 seconds"), true,
+                       "The first Orca switch still says to wait after changing tabs")
+        XCTAssertTrue(warned.showsNotice(successNotice: false))
+        let partial = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "haiku", effort: "high"), warning: nil,
+                                   confirmations: ["Effort not supported for Haiku 5.5", "Set model to Haiku 5.5 for this session only"], pendingRestore: nil)
+        XCTAssertEqual(partial.summary, "Haiku 5.5")
+        XCTAssertTrue(partial.showsNotice(successNotice: false), "The model changed but the preset's effort did not: say so")
+        XCTAssertEqual(WindowsAppModel.hud(result: partial, successNotice: false)?.text, "Haiku 5.5\n⚠️ Haiku 5.5 has no effort levels, so the effort (high) was not set.\nClaude Code · Orca · test")
+        let both = SwitchResult(target: target, slotName: "A long preset name", preset: AgentPreset(model: "haiku", effort: "high"), warning: "default not restored",
+                                confirmations: partial.confirmations, pendingRestore: nil)
+        XCTAssertEqual(WindowsAppModel.hud(result: both, successNotice: false)?.text.split(separator: "\n").prefix(3).map(String.init),
+                       ["Haiku 5.5", "⚠️ default not restored", "⚠️ Haiku 5.5 has no effort levels, so the effort (high) was not set."],
+                       "Both warnings come before the title and the preset name")
+        let noEffort = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "haiku", effort: ""), warning: nil,
+                                    confirmations: ["Effort not supported for Haiku 5.5"], pendingRestore: nil)
+        XCTAssertFalse(noEffort.showsNotice(successNotice: false), "A preset that asks for no effort was applied in full")
+        XCTAssertEqual(WindowsAppModel.hud(result: warned, successNotice: false)?.text, "Opus 5.5 · high\n⚠️ warning\nClaude Code · Orca · test")
     }
 
     func testTraySnapshotSurvivesOnlyOurProcessAndExplorerTrayWindows() {

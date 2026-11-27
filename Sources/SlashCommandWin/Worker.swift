@@ -27,7 +27,7 @@ final class Worker {
     private let mailbox: Mailbox
     init(mailbox: Mailbox) { self.mailbox = mailbox }
 
-    func press(_ id: Int, foreground: Foreground, completion: @escaping (WindowsAppModel.Notice) -> Void) {
+    func press(_ id: Int, foreground: Foreground, completion: @escaping (WindowsAppModel.Notice?) -> Void) {
         busy = true // Resident checks the registered key, foreground and busy state first.
         let label = WindowsAppModel.actionLabel(id)
         Log.write(WindowsAppModel.hotkeyLine(id))
@@ -49,9 +49,14 @@ final class Worker {
                 let result = try id <= 9 ? switcher.apply(slot: id, to: found, deferFinalCheck: true)
                     : switcher.stepEffort(up: id == WindowsAppModel.effortUp, on: found)
                 Log.write(WindowsAppModel.appliedLine(id: id, result: result))
-                let notice = WindowsAppModel.hud(result: result, tabLagNote: foreground.app == "orca" && !self.nudgedTabLag)
-                if foreground.app == "orca" { self.nudgedTabLag = true }
-                self.mailbox.post { completion(notice) }
+                if let notice = WindowsAppModel.hud(result: result, tabLagNote: foreground.app == "orca" && !self.nudgedTabLag,
+                                                    successNotice: config.successNotice) {
+                    if foreground.app == "orca" { self.nudgedTabLag = true }
+                    self.mailbox.post { completion(notice) }
+                } else {
+                    // No notice, but a notice from this press may still be on screen ("Press Enter to confirm" has no timeout), so take it down.
+                    self.mailbox.post { completion(nil) }
+                }
                 if let before = result.pendingRestore, let late = switcher.verifyRestore(before) {
                     Log.write("⚠️ \(late)")
                     self.mailbox.post { completion(.init(result.summary + "\n" + WindowsAppModel.targetLine(found) + "\n⚠️ " + late, kind: .multiline)) }
