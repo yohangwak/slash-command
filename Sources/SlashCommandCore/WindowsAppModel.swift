@@ -137,9 +137,9 @@ public enum WindowsAppModel {
         if tabLagNote, case .orca = result.target.host { orcaTabNote = true }
         guard result.showsNotice(successNotice: successNotice) || orcaTabNote else { return nil }
         var lines = [targetLine(result.target)]
+        if let note = result.effortNote { lines.append("⚠️ " + note) }
         if !result.slotName.isEmpty { lines.append(result.slotName) }
         if let warning = result.warning { lines.append("⚠️ " + warning) }
-        if let note = result.effortNote { lines.append("⚠️ " + note) }
         if tabLagNote, case .orca = result.target.host { lines.append(loc("Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file.")) }
         return Notice(([result.summary] + lines).joined(separator: "\n"), kind: lines.count > 2 ? .multiline : .result)
     }

@@ -73,10 +73,11 @@ public struct SwitchResult: Equatable, Sendable {
 
     public var detail: String? { chatOutcome?.detail }
 
-    /// The agent's note that the new model has no effort levels (Claude Code: "Effort not supported for …"): the model changed, the preset's effort did not.
+    /// Set when the preset asked for an effort and the agent said the new model has none (Claude Code: "Effort not supported for …"):
+    /// the model changed, the effort did not. Our own sentence, not the screen line, so no other text on screen is ever shown.
     public var effortNote: String? {
-        guard !preset.effort.isEmpty else { return nil }
-        return confirmations.first { $0.hasPrefix("Effort not supported") }
+        guard !preset.effort.isEmpty, confirmations.contains(where: { $0.hasPrefix("Effort not supported") }) else { return nil }
+        return loc("%@ has no effort levels, so the effort (%@) was not set.", summary, preset.effort)
     }
 
     /// Whether the switch gets a notice on screen. A switch that worked shows one only when `successNotice` is on; one with a warning,

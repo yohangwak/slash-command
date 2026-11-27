@@ -180,6 +180,7 @@
 "Remove %@ from this preset" = "从此预设中移除 %@";
 "Revert" = "还原";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "刚收到回复后，Claude Code 在更改模型或 effort 前会再次询问（会重新读取对话）。只有当该提示询问的是你所选的值时，Slash Command 才会按 Enter。";
+"%@ has no effort levels, so the effort (%@) was not set." = "%@ 没有 effort 级别，因此未设置 effort（%@）。";
 "Show a notice after each switch" = "每次切换后显示通知";
 "When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "关闭时，只有在切换被拒绝、失败、需要你回答、没有需要更改的内容或带有警告时才显示通知。无论哪种情况，代理自己的界面都会显示新模型。";
 "Save" = "存储";

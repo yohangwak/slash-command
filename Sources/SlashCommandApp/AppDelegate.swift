@@ -340,11 +340,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .success(let result):
                     Log.write("applied \(action.label): \(result.logSummary)\(result.confirmed ? "" : " (no confirmation text)") → \(result.target.agent.rawValue)@\(result.target.host.appName)\(result.warning.map { " ⚠️ " + $0 } ?? "")")
                     var lines = ["\(result.target.agent.displayName) · \(result.target.host.appName) · \(result.target.label)"]
+                    // Before the preset name, which can be long: the notice shows only a few lines.
+                    if let note = result.effortNote { lines.append("⚠️ \(note)") }
                     if let detail = result.detail { lines.append(detail) }
                     if !result.slotName.isEmpty { lines.append(result.slotName) }
                     // The warning goes first — the notification shows only a few lines, so anything after it is cut off.
                     if let warning = result.warning { lines.append("⚠️ \(warning)") }
-                    if let note = result.effortNote { lines.append("⚠️ \(note)") }
                     if result.showsNotice(successNotice: successNotice) {
                         self.hud.show(result.summary, detail: lines.joined(separator: "\n"), seconds: lines.count > 2 || result.detail != nil ? 4 : 1.6)
                     } else {
