@@ -332,7 +332,13 @@ public enum Picker {
 
     /// `○ Effort not supported for Haiku 4.5`
     public static func claudeEffortUnsupported(_ lines: [String]) -> Bool {
-        lines.contains { $0.contains("Effort not supported") }
+        claudeEffortNote(lines) != nil
+    }
+
+    /// The `Effort not supported …` line of the open picker: only below its last row, so the same words higher up in the conversation are never read.
+    public static func claudeEffortNote(_ lines: [String]) -> String? {
+        guard open(lines) != nil, let last = lines.lastIndex(where: { row($0) != nil }) else { return nil }
+        return lines[(last + 1)...].first { $0.contains("Effort not supported") }?.trimmingCharacters(in: .whitespaces)
     }
 }
 

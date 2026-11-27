@@ -136,8 +136,9 @@ public enum WindowsAppModel {
         var orcaTabNote = false
         if tabLagNote, case .orca = result.target.host { orcaTabNote = true }
         guard result.showsNotice(successNotice: successNotice) || orcaTabNote else { return nil }
-        var lines = [targetLine(result.target)]
-        if let note = result.effortNote { lines.append("⚠️ " + note) }
+        // The effort note first: the terminal title and the preset name can be long.
+        var lines = result.effortNote.map { ["⚠️ " + $0] } ?? []
+        lines.append(targetLine(result.target))
         if !result.slotName.isEmpty { lines.append(result.slotName) }
         if let warning = result.warning { lines.append("⚠️ " + warning) }
         if tabLagNote, case .orca = result.target.host { lines.append(loc("Right after switching Orca tabs, wait 2.5 seconds before pressing a shortcut; the visible tab is read from Orca’s delayed state file.")) }

@@ -95,7 +95,7 @@ final class WindowsAppTests: XCTestCase {
                                    confirmations: ["Effort not supported for Haiku 5.5", "Set model to Haiku 5.5 for this session only"], pendingRestore: nil)
         XCTAssertEqual(partial.summary, "Haiku 5.5")
         XCTAssertTrue(partial.showsNotice(successNotice: false), "The model changed but the preset's effort did not: say so")
-        XCTAssertEqual(WindowsAppModel.hud(result: partial, successNotice: false)?.text, "Haiku 5.5\nClaude Code · Orca · test\n⚠️ Haiku 5.5 has no effort levels, so the effort (high) was not set.")
+        XCTAssertEqual(WindowsAppModel.hud(result: partial, successNotice: false)?.text, "Haiku 5.5\n⚠️ Haiku 5.5 has no effort levels, so the effort (high) was not set.\nClaude Code · Orca · test")
         let noEffort = SwitchResult(target: target, slotName: "", preset: AgentPreset(model: "haiku", effort: ""), warning: nil,
                                     confirmations: ["Effort not supported for Haiku 5.5"], pendingRestore: nil)
         XCTAssertFalse(noEffort.showsNotice(successNotice: false), "A preset that asks for no effort was applied in full")

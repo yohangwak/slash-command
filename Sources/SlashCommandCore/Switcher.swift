@@ -1003,7 +1003,7 @@ public struct Runner {
         var note: String?
         let shown = try poll(timeoutMs: timeoutMs) { lines in
             current = Picker.claudeEffort(lines)
-            note = lines.first { $0.contains("Effort not supported") }?.trimmingCharacters(in: .whitespaces)
+            note = Picker.claudeEffortNote(lines)
             return current != nil || note != nil
         }
         guard shown else { return .failed }
