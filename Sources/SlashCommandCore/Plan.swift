@@ -248,16 +248,21 @@ public enum Launch {
     }
 
     /// Lines of `agy models`: `gemini-3.8-flash-high   Gemini 3.8 Flash (High)` — the effort is part of the id. Other lines (`Fetching available models...`) are skipped.
+    /// A bracket that is not an effort level stays part of the name: `Orchestrator (Neon)` and `Orchestrator (Carbon)` are two models.
     static func antigravityRows(listing output: String) -> [(id: String, name: String, effort: String?)] {
+        let efforts: Set<String> = ["minimal", "low", "medium", "high", "xhigh", "max", "none"]
         var rows: [(id: String, name: String, effort: String?)] = []
-        for line in output.split(separator: "\n") {
+        for line in output.split(whereSeparator: \.isNewline) {
             let parts = line.split(maxSplits: 1, whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
             guard parts.count == 2, !parts[0].contains(".."), parts[0].contains("-") else { continue }
             var name = parts[1].trimmingCharacters(in: .whitespaces)
             var effort: String?
             if name.hasSuffix(")"), let open = name.lastIndex(of: "(") {
-                effort = String(name[name.index(after: open)..<name.index(before: name.endIndex)]).lowercased()
-                name = name[..<open].trimmingCharacters(in: .whitespaces)
+                let inside = String(name[name.index(after: open)..<name.index(before: name.endIndex)]).lowercased()
+                if efforts.contains(inside) {
+                    effort = inside
+                    name = name[..<open].trimmingCharacters(in: .whitespaces)
+                }
             }
             rows.append((parts[0], name, effort))
         }
@@ -280,7 +285,7 @@ public enum Launch {
     static func cursorRows(listing output: String) -> [CursorRow] {
         let labels: [[String]] = [["Extra", "High"], ["High"], ["Medium"], ["Low"], ["Max"], ["None"], ["Minimal"]]
         var rows: [CursorRow] = []
-        for line in output.split(separator: "\n") {
+        for line in output.split(whereSeparator: \.isNewline) {
             guard let cut = line.range(of: " - ") else { continue }
             let id = line[..<cut.lowerBound].trimmingCharacters(in: .whitespaces)
             guard !id.isEmpty, !id.contains(" ") else { continue }

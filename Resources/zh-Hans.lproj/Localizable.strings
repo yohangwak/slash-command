@@ -1,6 +1,7 @@
 /* Simplified Chinese. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             已验证的版本";
+"%@ is not a model list file; it was left as it is." = "%@ 不是模型列表文件，已保持原样。";
 "%@ is not running, so this cannot be checked now." = "%@ 未在运行，现在无法检查。";
 "%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "不支持 %@。请在 Ghostty、Orca、iTerm2、WezTerm 或 kitty 终端中按下。";
 "%@ version  installed %@ · running %@" = "%@ 版本  已安装 %@ · 运行中 %@";

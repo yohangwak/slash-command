@@ -4,7 +4,7 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 
 ## 0.2.22
 
-- Settings: **Refresh Model Lists** fills the Cursor Agent and Antigravity model menus with what those agents offer you now. It runs `cursor-agent models` and `agy models` on your Mac (the commands `slashcommand run` already uses) only when you press it; they ask their own service with your existing sign-in, and no prompt is sent. The names are kept in `model-lists.json` next to the presets file, and the line under the button says how many each agent listed, or why one could not be read. Without a refresh, or for an agent whose list could not be read, the built-in list stays. Adding Cursor Agent or Antigravity to a preset still starts on Grok 4.7 or Gemini 4 Argon.
+- Settings: **Refresh Model Lists** fills the Cursor Agent and Antigravity model menus with what those agents offer you now. It runs `cursor-agent models` and `agy models` on your Mac (the commands `slashcommand run` already uses) only when you press it; they ask their own service with your existing sign-in, and no prompt is sent. The names are kept in `model-lists.json` next to the presets file, and the line under the button says how many each agent listed, or why one could not be read. An agent whose list could not be read keeps the list from its last refresh; before its first refresh, the built-in list is used. Adding Cursor Agent or Antigravity to a preset still starts on Grok 4.7 or Gemini 4 Argon.
 - Safety: the "No network" rule now names this one exception. Slash Command itself still opens no connection.
 
 ## 0.2.21

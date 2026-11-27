@@ -13,13 +13,7 @@ public enum ModelLists {
         let all: [String]
         switch agent {
         case .cursor: all = Launch.cursorRows(listing: listing).map(\.name)
-        case .antigravity:
-            // `Orchestrator (Neon)`: a bracket that is not an effort level is part of the name.
-            let efforts: Set<String> = ["minimal", "low", "medium", "high", "xhigh", "max", "none"]
-            all = Launch.antigravityRows(listing: listing).map { row in
-                guard let effort = row.effort, !efforts.contains(effort) else { return row.name }
-                return "\(row.name) (\(effort.prefix(1).uppercased() + effort.dropFirst()))"
-            }
+        case .antigravity: all = Launch.antigravityRows(listing: listing).map(\.name)
         default: return []
         }
         var seen: Set<String> = []
@@ -59,9 +53,13 @@ public enum ModelLists {
         return outcomes
     }
 
-    /// Next to the presets file: `~/.config/slashcommand/model-lists.json`.
-    public static var defaultURL: URL {
-        ConfigStore.defaultURL.deletingLastPathComponent().appendingPathComponent("model-lists.json")
+    /// Next to the presets file: `~/.config/slashcommand/model-lists.json`. If the presets file itself has that name
+    /// (`SLASHCOMMAND_CONFIG`), `<presets file>.model-lists.json`, so the two never share a path.
+    public static var defaultURL: URL { url(besides: ConfigStore.defaultURL) }
+
+    static func url(besides presets: URL) -> URL {
+        let url = presets.deletingLastPathComponent().appendingPathComponent("model-lists.json")
+        return url.standardizedFileURL.path == presets.standardizedFileURL.path ? presets.appendingPathExtension("model-lists.json") : url
     }
 
     struct File: Codable { var version = 1; var lists: [String: [String]] }
@@ -79,6 +77,10 @@ public enum ModelLists {
     /// Saves the lists that were read; an agent whose command failed keeps the list it had.
     @discardableResult
     public static func save(_ outcomes: [Agent: Outcome], to url: URL = ModelLists.defaultURL) throws -> [Agent: [String]] {
+        // A file at that path that is not a model list is someone else's; it is left alone.
+        if let data = try? Data(contentsOf: url), (try? JSONDecoder().decode(File.self, from: data)) == nil {
+            throw SlashCommandError(loc("%@ is not a model list file; it was left as it is.", url.path))
+        }
         var lists = load(from: url)
         for (agent, outcome) in outcomes { if case .names(let names) = outcome { lists[agent] = names } }
         let file = File(lists: Dictionary(uniqueKeysWithValues: lists.map { ($0.key.rawValue, $0.value) }))

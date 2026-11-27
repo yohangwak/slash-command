@@ -37,10 +37,38 @@ final class ModelListsTests: XCTestCase {
 
     func testEveryNameResolvesToAnIdWithTheSameListing() throws {
         for (agent, listing) in [(Agent.cursor, Self.cursor), (.antigravity, Self.agy)] {
-            for name in ModelLists.names(agent: agent, listing: listing) where !["Auto", "Composer 2.5"].contains(name) && !name.hasPrefix("Orchestrator") {
+            for name in ModelLists.names(agent: agent, listing: listing) where !["Auto", "Composer 2.5"].contains(name) {
                 XCTAssertNoThrow(try Launch.resolve(agent: agent, preset: AgentPreset(model: name, effort: "high"), listing: listing), "\(agent) \(name)")
             }
         }
+    }
+
+    func testOrchestratorRowsResolveToTheirOwnIds() throws {
+        XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Orchestrator (Carbon)", effort: "high"), listing: Self.agy).model,
+                       "gemini-pro-orchestrator")
+        XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Orchestrator (Neon)", effort: "high"), listing: Self.agy).model,
+                       "gemini-pro-orchestrator-neon")
+        XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 4 Neon", effort: "low"), listing: Self.agy).model,
+                       "gemini-4-neon-low", "An effort bracket is still split off")
+    }
+
+    func testCRLFListingsAreReadLineByLine() {
+        XCTAssertEqual(ModelLists.names(agent: .cursor, listing: Self.cursor.replacingOccurrences(of: "\n", with: "\r\n")),
+                       ModelLists.names(agent: .cursor, listing: Self.cursor))
+        XCTAssertEqual(ModelLists.names(agent: .antigravity, listing: Self.agy.replacingOccurrences(of: "\n", with: "\r\n")),
+                       ModelLists.names(agent: .antigravity, listing: Self.agy))
+    }
+
+    func testTheListNeverTakesThePresetsFilePath() throws {
+        let presets = URL(fileURLWithPath: "/tmp/x/model-lists.json")
+        XCTAssertEqual(ModelLists.url(besides: presets).path, "/tmp/x/model-lists.json.model-lists.json")
+        XCTAssertEqual(ModelLists.url(besides: URL(fileURLWithPath: "/tmp/x/presets.json")).path, "/tmp/x/model-lists.json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("not-a-list-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let other = Data(#"{"version":1,"slots":[]}"#.utf8)
+        try other.write(to: url)
+        XCTAssertThrowsError(try ModelLists.save([.cursor: .names(["Grok 4.7"])], to: url))
+        XCTAssertEqual(try Data(contentsOf: url), other, "Another file at that path is left alone")
     }
 
     func testAskRunsOnlyTheListCommandAndReportsEachAgent() {

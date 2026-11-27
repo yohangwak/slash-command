@@ -1,6 +1,7 @@
 /* Spanish. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             versión verificada";
+"%@ is not a model list file; it was left as it is." = "%@ no es un archivo de lista de modelos; se dejó como estaba.";
 "%@ is not running, so this cannot be checked now." = "%@ no se está ejecutando, así que no se puede comprobar ahora.";
 "%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@ no es compatible. Presiónalo en una terminal de Ghostty, Orca, iTerm2, WezTerm o kitty.";
 "%@ version  installed %@ · running %@" = "Versión de %@  instalada %@ · en ejecución %@";

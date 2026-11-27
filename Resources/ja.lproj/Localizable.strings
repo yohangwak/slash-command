@@ -1,6 +1,7 @@
 /* Japanese. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             確認済みのバージョン";
+"%@ is not a model list file; it was left as it is." = "%@ はモデル一覧のファイルではないため、そのままにしました。";
 "%@ is not running, so this cannot be checked now." = "%@ が実行されていないため、今は確認できません。";
 "%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@ には対応していません。Ghostty・Orca・iTerm2・WezTerm・kitty のターミナルで押してください。";
 "%@ version  installed %@ · running %@" = "%@ のバージョン  インストール済み %@ · 実行中 %@";

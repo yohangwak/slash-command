@@ -1,6 +1,7 @@
 /* Arabic. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             الإصدار الذي تم التحقق منه";
+"%@ is not a model list file; it was left as it is." = "%@ ليس ملف قائمة نماذج؛ تُرك كما هو.";
 "%@ is not running, so this cannot be checked now." = "%@ غير قيد التشغيل، لذا لا يمكن التحقق الآن.";
 "%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@ غير مدعوم. اضغطه في طرفية Ghostty أو Orca أو iTerm2 أو WezTerm أو kitty.";
 "%@ version  installed %@ · running %@" = "إصدار %@   مثبّت %@ · قيد التشغيل %@";

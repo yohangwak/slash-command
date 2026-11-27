@@ -1,6 +1,7 @@
 /* 한국어. 왼쪽은 코드에 있는 영어 문장(키), 오른쪽이 번역이다. 자리표 %@ 는 값이 들어갈 자리 — 순서를 바꾸려면 %1$@ · %2$@ 로 쓴다. */
 
 "             verified version" = "             확인한 판입니다";
+"%@ is not a model list file; it was left as it is." = "%@ 은(는) 모델 목록 파일이 아니라서 그대로 두었습니다.";
 "%@ is not running, so this cannot be checked now." = "%@이(가) 실행 중이 아니라 지금은 확인할 수 없습니다.";
 "%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@은(는) 지원하지 않습니다. Ghostty · Orca · iTerm2 · WezTerm · kitty 터미널에서 눌러 주세요.";
 "%@ version  installed %@ · running %@" = "%@ 판     설치 %@ · 실행 중 %@";
