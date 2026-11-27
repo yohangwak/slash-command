@@ -255,6 +255,7 @@
 "Unsaved changes" = "Nicht gesicherte Änderungen";
 "Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "Dient dazu, den Ghostty-Bildschirm zu lesen, den sichtbaren Orca-Tab zu erkennen und zu prüfen, dass die Eingabeübertragung (Broadcast Input) in iTerm2 aus ist.";
 "Used to type the switch commands into %@." = "Dient dazu, die Wechselbefehle in %@ einzugeben.";
+"always the newest %@" = "immer das neueste %@";
 "installed %@" = "installiert: %@";
 "macOS asks once, the first time you press a shortcut in %@." = "Beim ersten Drücken eines Tastenkürzels in %@ fragt macOS einmalig nach.";
 "no rows" = "keine Zeilen";

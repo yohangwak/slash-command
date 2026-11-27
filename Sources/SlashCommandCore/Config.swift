@@ -366,9 +366,9 @@ public struct SlashCommandConfig: Codable, Equatable, Sendable {
 
     public static let starter = SlashCommandConfig(slots: [
         Slot(claude: AgentPreset(model: "opus", effort: "high"),
-             codex: AgentPreset(model: "gpt-6-astra", effort: "high")),
+             codex: AgentPreset(model: "gpt-6.2-astra", effort: "high")),
         Slot(claude: AgentPreset(model: "sonnet", effort: "high"),
-             codex: AgentPreset(model: "gpt-6.1-sol", effort: "high")),
+             codex: AgentPreset(model: "gpt-6.2-sol", effort: "high")),
         Slot(claude: AgentPreset(model: "fable", effort: "high"),
              codex: nil),
     ])

@@ -255,6 +255,7 @@
 "Unsaved changes" = "저장하지 않은 변경이 있습니다";
 "Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "Ghostty 화면을 읽고, Orca에서 화면에 보이는 탭을 찾고, iTerm2의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하는 데 씁니다.";
 "Used to type the switch commands into %@." = "%@에 전환 명령을 입력하는 데 씁니다.";
+"always the newest %@" = "항상 최신 %@";
 "installed %@" = "설치된 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "%@에서 단축키를 처음 누를 때 macOS가 한 번 묻습니다.";
 "no rows" = "행 없음";

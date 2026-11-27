@@ -17,8 +17,8 @@ The file is `~/.config/slashcommand/presets.json`. Set `SLASHCOMMAND_CONFIG` to 
   "effortKeys": true,
   "modifiers": ["option", "shift"],
   "slots": [
-    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6-astra", "effort": "high" } },
-    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.1-sol", "effort": "high" } },
+    { "claude": { "model": "opus",   "effort": "high" }, "codex": { "model": "gpt-6.2-astra", "effort": "high" } },
+    { "claude": { "model": "sonnet", "effort": "high" }, "codex": { "model": "gpt-6.2-sol", "effort": "high" } },
     { "name": "Overnight", "claude": { "model": "fable", "effort": "max" } }
   ]
 }
