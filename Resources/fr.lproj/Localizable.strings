@@ -6,6 +6,9 @@
 "%@ version  installed %@ · running %@" = "version de %@  installée %@ · en cours %@";
 "%@ — no agent found in the front session" = "%@ — aucun agent trouvé dans la session au premier plan";
 "%@ — not set for %@" = "%1$@ — aucun réglage pour %2$@";
+"%@: %@ models" = "%@ : %@ modèles";
+"%@: could not read its list (%@)" = "%@ : liste illisible (%@)";
+"%@: not installed" = "%@ : non installé";
 "%@= and %@- raise and lower the effort only" = "%@= et %@- augmentent ou diminuent uniquement l’effort";
 "'%@' is not in the Antigravity model list." = "« %@ » ne figure pas dans la liste des modèles Antigravity.";
 "'%@' is not in the Antigravity model list. Available: %@" = "« %@ » ne figure pas dans la liste des modèles Antigravity. Disponibles : %@";
@@ -84,6 +87,7 @@
 "Could not read the presets file: %@ — %@" = "Impossible de lire le fichier de préréglages : %@ — %@";
 "Could not read the settings file" = "Impossible de lire le fichier de réglages";
 "Could not read the terminal screen, so the result could not be checked." = "Impossible de lire l’écran du terminal ; le résultat n’a pas pu être vérifié.";
+"Could not save the model lists: %@" = "Impossible d’enregistrer les listes de modèles : %@";
 "Could not save: %@" = "Enregistrement impossible : %@";
 "Could not set effort to '%@' in the Claude Code model picker." = "Impossible de régler l’effort sur « %@ » dans le sélecteur de modèle de Claude Code.";
 "Could not set the Antigravity effort slider." = "Impossible de régler le slider d’effort d’Antigravity.";
@@ -177,10 +181,13 @@
 "Quit Slash Command" = "Quitter Slash Command";
 "Raise Effort" = "Augmenter l’effort";
 "Read Again" = "Relire";
+"Refresh Model Lists" = "Actualiser les listes de modèles";
+"Refreshing…" = "Actualisation…";
 "Remove %@ from this preset" = "Retirer %@ de ce préréglage";
 "Revert" = "Rétablir";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "Juste après une réponse, Claude Code redemande avant de changer le modèle ou l’effort (il relit la conversation). Slash Command appuie sur Enter uniquement si cette demande porte sur la valeur que vous avez choisie.";
 "%@ has no effort levels, so the effort (%@) was not set." = "%@ n’a pas de niveaux d’effort, donc l’effort (%@) n’a pas été défini.";
+"Runs cursor-agent models and agy models on this computer and puts their models in the Cursor Agent and Antigravity menus. Those commands ask their own service, signed in as you; no prompt is sent. Slash Command opens no connection itself." = "Exécute cursor-agent models et agy models sur cet ordinateur et place leurs modèles dans les menus de Cursor Agent et d’Antigravity. Ces commandes interrogent leur propre service avec votre compte connecté ; aucun prompt n’est envoyé. Slash Command n’ouvre lui-même aucune connexion.";
 "Show a notice after each switch" = "Afficher une notification après chaque changement";
 "When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "Si désactivé, une notification n’apparaît que lorsqu’un changement est refusé, échoue, attend votre réponse, n’a rien à modifier ou comporte un avertissement. L’écran de l’agent affiche le nouveau modèle dans tous les cas.";
 "Save" = "Enregistrer";
@@ -258,6 +265,7 @@
 "always the newest %@" = "toujours le %@ le plus récent";
 "installed %@" = "installé %@";
 "macOS asks once, the first time you press a shortcut in %@." = "macOS demande l’autorisation une seule fois, la première fois que vous utilisez un raccourci dans %@.";
+"no models listed" = "aucun modèle listé";
 "no rows" = "aucune ligne";
 "none" = "aucun";
 "one level down" = "un niveau plus bas";

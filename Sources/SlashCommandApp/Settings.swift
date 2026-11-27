@@ -7,20 +7,23 @@ import SwiftUI
 struct AgentCatalog {
     let codexModels: [String]
     let grokModels: [String]
+    /// The Cursor Agent and Antigravity lists saved by Refresh Model Lists (`ModelLists`); the built-in lists below are used for an agent without one.
+    var refreshed: [Agent: [String]] = [:]
 
     /// Claude Code's aliases: each always means the newest model of that family, so this list never goes out of date.
     static let claudeModels = ["fable", "opus", "sonnet", "haiku"]
-    /// Cursor Agent and Antigravity keep no model list on disk; these are the newest of each family in `cursor-agent models` and `agy models` (checked 2026-11-28).
-    /// A model that is not here can still be typed in.
+    /// Cursor Agent and Antigravity keep no model list on disk; until Refresh Model Lists is pressed, these are shown: the newest of each family in
+    /// `cursor-agent models` and `agy models` (checked 2026-11-28). A model that is not in the menu can still be typed in.
     static let cursorModels = ["Grok 4.7", "Claude Fable 5.2", "Claude Opus 5.5", "Claude Sonnet 5.5", "GPT-5.6 Sol", "Gemini 4 Argon", "Composer 2.5"]
     /// The first entry is what Add Agent puts in, so it stays the one it was.
     static let antigravityModels = ["Gemini 4 Argon", "Gemini 4 Neon", "Gemini 4 Carbon", "Gemini 4 Hydrogen", "Gemini 3.8 Flash",
                                     "Claude Opus 5.5", "Claude Sonnet 5.5"]
 
-    /// The codex and grok lists are read from what those tools keep on disk (empty if there is none).
+    /// The codex and grok lists are read from what those tools keep on disk (empty if there is none); Cursor Agent and Antigravity from the saved refresh.
     static func load() -> AgentCatalog {
         AgentCatalog(codexModels: (try? CodexModels.load().listed.map(\.slug)) ?? [],
-                     grokModels: GrokModels.load().models.map(\.id))
+                     grokModels: GrokModels.load().models.map(\.id),
+                     refreshed: ModelLists.load())
     }
 
     func models(for agent: Agent) -> [String] {
@@ -28,8 +31,8 @@ struct AgentCatalog {
         case .claude: return AgentCatalog.claudeModels
         case .codex: return codexModels
         case .grok: return grokModels
-        case .cursor: return AgentCatalog.cursorModels
-        case .antigravity: return AgentCatalog.antigravityModels
+        case .cursor: return refreshed[.cursor] ?? AgentCatalog.cursorModels
+        case .antigravity: return refreshed[.antigravity] ?? AgentCatalog.antigravityModels
         case .opencode: return []
         }
     }
@@ -50,9 +53,15 @@ struct AgentCatalog {
         return "\(model) — " + loc("always the newest %@", model.prefix(1).uppercased() + model.dropFirst())
     }
 
-    /// The first value when an agent is newly added to a preset.
+    /// The first value when an agent is newly added to a preset. Cursor Agent and Antigravity start on the built-in first entry,
+    /// not on the first line of a refreshed list (`Auto` for Cursor Agent).
     func starter(for agent: Agent) -> AgentPreset {
-        AgentPreset(model: agent == .claude ? "opus" : models(for: agent).first ?? "", effort: "high")
+        switch agent {
+        case .claude: return AgentPreset(model: "opus", effort: "high")
+        case .cursor: return AgentPreset(model: AgentCatalog.cursorModels[0], effort: "high")
+        case .antigravity: return AgentPreset(model: AgentCatalog.antigravityModels[0], effort: "high")
+        default: return AgentPreset(model: models(for: agent).first ?? "", effort: "high")
+        }
     }
 }
 
@@ -102,7 +111,11 @@ final class SettingsModel: ObservableObject {
 
     let store: ConfigStore
     let onSaved: () -> Void
-    let catalog: AgentCatalog
+    @Published private(set) var catalog: AgentCatalog
+    /// True while Refresh Model Lists runs the agents' list commands (a few seconds).
+    @Published var refreshingModels = false
+    /// What the last Refresh Model Lists found, shown under its button.
+    @Published var modelListStatus = ""
     /// What is on disk. If it differs from the screen, there are "unsaved changes".
     private var saved: SlashCommandConfig?
 
@@ -226,6 +239,34 @@ final class SettingsModel: ObservableObject {
 }
 
 extension SettingsModel {
+    /// Runs `cursor-agent models` and `agy models` in the background, saves what they printed and puts it in the model menus.
+    /// Only on this button: those commands ask the agents' own services, signed in as the person (no prompt, no model run).
+    func refreshModelLists() {
+        guard !refreshingModels else { return }
+        refreshingModels = true
+        modelListStatus = ""
+        DispatchQueue.global(qos: .userInitiated).async {
+            let outcomes = ModelLists.ask()
+            let saved = Result { try ModelLists.save(outcomes) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.refreshingModels = false
+                if case .success(let lists) = saved { self.catalog.refreshed = lists }
+                var parts: [String] = []
+                for agent in ModelLists.agents {
+                    switch outcomes[agent] {
+                    case .names(let names)?: parts.append(loc("%@: %@ models", agent.displayName, String(names.count)))
+                    case .notInstalled?: parts.append(loc("%@: not installed", agent.displayName))
+                    case .failed(let reason)?: parts.append(loc("%@: could not read its list (%@)", agent.displayName, reason))
+                    case nil: break
+                    }
+                }
+                if case .failure(let error) = saved { parts.append(loc("Could not save the model lists: %@", error.localizedDescription)) }
+                self.modelListStatus = parts.joined(separator: " · ")
+            }
+        }
+    }
+
     func reportProblem() {
         guard !preparingReport else { return }
         preparingReport = true
@@ -327,8 +368,18 @@ struct SettingsView: View {
                               catalog: model.catalog,
                               onDelete: { model.delete(slot.id) })
                 }
-                Button { model.add() } label: { Label(loc("Add Preset"), systemImage: "plus") }
-                    .disabled(model.slots.count >= SlashCommandConfig.maxSlots)
+                HStack {
+                    Button { model.add() } label: { Label(loc("Add Preset"), systemImage: "plus") }
+                        .disabled(model.slots.count >= SlashCommandConfig.maxSlots)
+                    Spacer()
+                    Button(model.refreshingModels ? loc("Refreshing…") : loc("Refresh Model Lists")) { model.refreshModelLists() }
+                        .disabled(model.refreshingModels)
+                        .help(loc("Runs cursor-agent models and agy models on this computer and puts their models in the Cursor Agent and Antigravity menus. Those commands ask their own service, signed in as you; no prompt is sent. Slash Command opens no connection itself."))
+                }
+                if !model.modelListStatus.isEmpty {
+                    Text(model.modelListStatus).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         } header: {
             Text(loc("Presets"))

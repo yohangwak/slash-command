@@ -6,6 +6,9 @@
 "%@ version  installed %@ · running %@" = "%@ 판     설치 %@ · 실행 중 %@";
 "%@ — no agent found in the front session" = "%@ — 맨 앞 세션에서 에이전트를 찾지 못했습니다";
 "%@ — not set for %@" = "%1$@ — %2$@ 설정 없음";
+"%@: %@ models" = "%@: 모델 %@개";
+"%@: could not read its list (%@)" = "%@: 목록을 읽지 못함(%@)";
+"%@: not installed" = "%@: 설치되지 않음";
 "%@= and %@- raise and lower the effort only" = "%@= · %@- 로 effort만 한 단계 올리고 내리기";
 "'%@' is not in the Antigravity model list." = "antigravity 모델 목록에 '%@'이(가) 없습니다.";
 "'%@' is not in the Antigravity model list. Available: %@" = "antigravity 모델 목록에 '%@'이(가) 없습니다. 가능한 값: %@";
@@ -84,6 +87,7 @@
 "Could not read the presets file: %@ — %@" = "프리셋 파일을 읽지 못했습니다: %@ — %@";
 "Could not read the settings file" = "설정 파일을 읽지 못했습니다";
 "Could not read the terminal screen, so the result could not be checked." = "터미널 화면을 읽지 못해 결과를 확인하지 못했습니다.";
+"Could not save the model lists: %@" = "모델 목록을 저장하지 못했습니다: %@";
 "Could not save: %@" = "저장하지 못했습니다: %@";
 "Could not set effort to '%@' in the Claude Code model picker." = "claude 모델 선택창에서 effort를 '%@'(으)로 맞추지 못했습니다.";
 "Could not set the Antigravity effort slider." = "antigravity effort 슬라이더를 맞추지 못했습니다.";
@@ -177,10 +181,13 @@
 "Quit Slash Command" = "Slash Command 종료";
 "Raise Effort" = "effort 한 단계 올리기";
 "Read Again" = "다시 읽기";
+"Refresh Model Lists" = "모델 목록 새로 고침";
+"Refreshing…" = "새로 고치는 중…";
 "Remove %@ from this preset" = "이 프리셋에서 %@ 빼기";
 "Revert" = "되돌리기";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "Claude Code는 방금 응답한 대화에서 모델이나 effort를 바꾸기 전에 한 번 더 묻습니다(대화 기록을 다시 읽습니다). 그 창이 고른 바로 그 값을 물을 때만 Enter를 누릅니다.";
 "%@ has no effort levels, so the effort (%@) was not set." = "%@에는 effort 단계가 없어 effort(%@)는 설정하지 않았습니다.";
+"Runs cursor-agent models and agy models on this computer and puts their models in the Cursor Agent and Antigravity menus. Those commands ask their own service, signed in as you; no prompt is sent. Slash Command opens no connection itself." = "이 컴퓨터에서 cursor-agent models 와 agy models 를 실행해 그 모델들을 Cursor Agent·Antigravity 메뉴에 넣습니다. 그 명령들은 로그인된 계정으로 자기 서비스에 묻고, 프롬프트는 보내지 않습니다. Slash Command 자신은 연결을 열지 않습니다.";
 "Show a notice after each switch" = "전환할 때마다 알림 보이기";
 "When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "끄면 전환이 거부되거나 실패했을 때, 답을 기다릴 때, 바꿀 것이 없을 때, 경고가 있을 때만 알림이 뜹니다. 새 모델은 어느 쪽이든 에이전트 화면에 나옵니다.";
 "Save" = "저장";
@@ -258,6 +265,7 @@
 "always the newest %@" = "항상 최신 %@";
 "installed %@" = "설치된 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "%@에서 단축키를 처음 누를 때 macOS가 한 번 묻습니다.";
+"no models listed" = "나열된 모델 없음";
 "no rows" = "행 없음";
 "none" = "없음";
 "one level down" = "한 단계 아래";

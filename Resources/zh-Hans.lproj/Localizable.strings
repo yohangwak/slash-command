@@ -6,6 +6,9 @@
 "%@ version  installed %@ · running %@" = "%@ 版本  已安装 %@ · 运行中 %@";
 "%@ — no agent found in the front session" = "%@ — 在最前面的会话中未找到代理";
 "%@ — not set for %@" = "%1$@ — 未为 %2$@ 设置";
+"%@: %@ models" = "%@：%@ 个模型";
+"%@: could not read its list (%@)" = "%@：无法读取列表（%@）";
+"%@: not installed" = "%@：未安装";
 "%@= and %@- raise and lower the effort only" = "%@= 和 %@- 只升高或降低 effort";
 "'%@' is not in the Antigravity model list." = "Antigravity 模型列表中没有“%@”。";
 "'%@' is not in the Antigravity model list. Available: %@" = "Antigravity 模型列表中没有“%@”。可用值：%@";
@@ -84,6 +87,7 @@
 "Could not read the presets file: %@ — %@" = "无法读取预设文件：%1$@ — %2$@";
 "Could not read the settings file" = "无法读取设置文件";
 "Could not read the terminal screen, so the result could not be checked." = "无法读取终端屏幕，因此无法检查结果。";
+"Could not save the model lists: %@" = "无法保存模型列表：%@";
 "Could not save: %@" = "无法存储：%@";
 "Could not set effort to '%@' in the Claude Code model picker." = "无法在 Claude Code 模型选择器中将 effort 设为“%@”。";
 "Could not set the Antigravity effort slider." = "无法设置 Antigravity effort 滑块。";
@@ -177,10 +181,13 @@
 "Quit Slash Command" = "退出 Slash Command";
 "Raise Effort" = "提高 effort";
 "Read Again" = "重新读取";
+"Refresh Model Lists" = "刷新模型列表";
+"Refreshing…" = "正在刷新…";
 "Remove %@ from this preset" = "从此预设中移除 %@";
 "Revert" = "还原";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "刚收到回复后，Claude Code 在更改模型或 effort 前会再次询问（会重新读取对话）。只有当该提示询问的是你所选的值时，Slash Command 才会按 Enter。";
 "%@ has no effort levels, so the effort (%@) was not set." = "%@ 没有 effort 级别，因此未设置 effort（%@）。";
+"Runs cursor-agent models and agy models on this computer and puts their models in the Cursor Agent and Antigravity menus. Those commands ask their own service, signed in as you; no prompt is sent. Slash Command opens no connection itself." = "在这台电脑上运行 cursor-agent models 和 agy models，并把其中的模型放进 Cursor Agent 和 Antigravity 菜单。这些命令以你已登录的账户询问它们自己的服务，不发送任何提示。Slash Command 本身不打开任何连接。";
 "Show a notice after each switch" = "每次切换后显示通知";
 "When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "关闭时，只有在切换被拒绝、失败、需要你回答、没有需要更改的内容或带有警告时才显示通知。无论哪种情况，代理自己的界面都会显示新模型。";
 "Save" = "存储";
@@ -258,6 +265,7 @@
 "always the newest %@" = "始终是最新的 %@";
 "installed %@" = "已安装 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "首次在 %@ 中按快捷键时，macOS 会询问一次。";
+"no models listed" = "未列出任何模型";
 "no rows" = "无行";
 "none" = "无";
 "one level down" = "下调一级";

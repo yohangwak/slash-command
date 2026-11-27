@@ -184,19 +184,7 @@ public enum Launch {
     public static func resolve(agent: Agent, preset: AgentPreset, listing output: String, providerNames: [String: String] = [:]) throws -> Resolved {
         switch agent {
         case .antigravity:
-            // `gemini-3.8-flash-high   Gemini 3.8 Flash (High)`: the effort is part of the id.
-            var rows: [(id: String, name: String, effort: String?)] = []
-            for line in output.split(separator: "\n") {
-                let parts = line.split(maxSplits: 1, whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
-                guard parts.count == 2, !parts[0].contains(".."), parts[0].contains("-") else { continue }
-                var name = parts[1].trimmingCharacters(in: .whitespaces)
-                var effort: String?
-                if name.hasSuffix(")"), let open = name.lastIndex(of: "(") {
-                    effort = String(name[name.index(after: open)..<name.index(before: name.endIndex)]).lowercased()
-                    name = name[..<open].trimmingCharacters(in: .whitespaces)
-                }
-                rows.append((parts[0], name, effort))
-            }
+            let rows = antigravityRows(listing: output)
             let named = rows.filter { key($0.name) == key(preset.model) }
             guard !named.isEmpty else { throw SlashCommandError(loc("'%@' is not in the Antigravity model list.", preset.model)) }
             if let row = named.first(where: { $0.effort == preset.effort.lowercased() }) ?? (named.count == 1 && named[0].effort == nil ? named[0] : nil) {
@@ -257,6 +245,23 @@ public enum Launch {
         case .claude, .codex, .grok:
             return Resolved(model: preset.model, note: nil)
         }
+    }
+
+    /// Lines of `agy models`: `gemini-3.8-flash-high   Gemini 3.8 Flash (High)` — the effort is part of the id. Other lines (`Fetching available models...`) are skipped.
+    static func antigravityRows(listing output: String) -> [(id: String, name: String, effort: String?)] {
+        var rows: [(id: String, name: String, effort: String?)] = []
+        for line in output.split(separator: "\n") {
+            let parts = line.split(maxSplits: 1, whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
+            guard parts.count == 2, !parts[0].contains(".."), parts[0].contains("-") else { continue }
+            var name = parts[1].trimmingCharacters(in: .whitespaces)
+            var effort: String?
+            if name.hasSuffix(")"), let open = name.lastIndex(of: "(") {
+                effort = String(name[name.index(after: open)..<name.index(before: name.endIndex)]).lowercased()
+                name = name[..<open].trimmingCharacters(in: .whitespaces)
+            }
+            rows.append((parts[0], name, effort))
+        }
+        return rows
     }
 
     struct CursorRow: Equatable {
