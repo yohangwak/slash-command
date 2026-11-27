@@ -23,6 +23,43 @@ final class AgentDefaultsFileTests: KoreanMessagesTestCase {
         XCTAssertEqual(permissions?.intValue, 0o600, file: file, line: line)
     }
 
+    func testRestoreOfOriginallyAbsentFilePreservesDanglingLink() throws {
+        for grok in [false, true] {
+            try withLinkedFile(Data()) { link, target in
+                try FileManager.default.removeItem(at: target)
+                let snapshot = DefaultsFile.snapshot(link)
+                XCTAssertEqual(snapshot, .absent)
+                if grok {
+                    try Data("[models]\ndefault = \"new\"\n".utf8).write(to: target)
+                    XCTAssertEqual(GrokDefaults(url: link).restore(to: snapshot), .restored)
+                } else {
+                    try Data(#"{"model":"new"}"#.utf8).write(to: target)
+                    XCTAssertEqual(CursorDefaults(url: link).restore(to: snapshot), .restored)
+                }
+                XCTAssertNoThrow(try FileManager.default.destinationOfSymbolicLink(atPath: link.path))
+                XCTAssertFalse(FileManager.default.fileExists(atPath: target.path))
+            }
+        }
+    }
+
+    func testRestoringModelKeepsUnrelatedChangeFromBooleanToNumber() throws {
+        let before = "{\n  \"model\": \"old\",\n  \"other\": [true]\n}"
+        let after = before.replacingOccurrences(of: "true", with: "1").replacingOccurrences(of: "old", with: "new")
+        for claude in [false, true] {
+            try withLinkedFile(Data(after.utf8)) { link, target in
+                let snapshot = DefaultsSnapshot.content(Data(before.utf8))
+                if claude {
+                    XCTAssertEqual(ClaudeDefaults(url: link).restore(to: snapshot), .restored)
+                } else {
+                    XCTAssertEqual(CursorDefaults(url: link).restore(to: snapshot), .restored)
+                }
+                let object = try JSONSerialization.jsonObject(with: Data(contentsOf: target))
+                let canonical = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+                XCTAssertEqual(String(decoding: canonical, as: UTF8.self), #"{"model":"old","other":[1]}"#)
+            }
+        }
+    }
+
     func testCursorOriginalBytesRestorePreservesLinkAndPermissions() throws {
         let original = Data("{\"model\":\"old\",\"theme\":\"dark\"}".utf8)
         try withLinkedFile(Data("{\"model\":\"new\",\"theme\":\"dark\"}".utf8)) { link, target in

@@ -215,7 +215,7 @@ public struct GrokDefaults: Sendable {
         if fixed == current { return .unchanged }
         do {
             if wasAbsent, fixed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                try FileManager.default.removeItem(at: url)
+                try FileManager.default.removeItem(at: url.resolvingSymlinksInPath())
             } else {
                 try DefaultsFile.write(Data(fixed.utf8), to: url)
             }
