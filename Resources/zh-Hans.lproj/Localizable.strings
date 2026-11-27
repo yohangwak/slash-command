@@ -278,6 +278,7 @@
 "Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly." = "未发送：Orca 仍在让 Slash Command 能够读取其标签页，Orca 启动后最多需要一分钟。请稍后再按一次。";
 "Not sent: could not see which Orca workspace is open. If Orca just opened this window, wait a moment and press again; otherwise show Orca's sidebar with that workspace in view." = "未发送:无法确定 Orca 中打开的是哪个工作区。如果 Orca 刚刚打开此窗口，请稍等片刻再按一次；否则请显示 Orca 的侧边栏并让该工作区可见。";
 "Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart." = "未发送:屏幕上的 Orca 标签页与 Orca 给出的此工作区标签页列表对不上,无法确定显示的是哪个终端。";
+"Not sent: this Orca workspace runs on another computer that Orca is paired with. Slash Command switches agents only in workspaces that run on this computer." = "未发送：此 Orca 工作区运行在与 Orca 配对的另一台电脑上。Slash Command 只在这台电脑上运行的工作区中切换代理。";
 "Not sent: another Orca tab has the same title as this terminal, so it cannot be told apart. Rename one of them." = "未发送：Orca 中的另一个标签页与此终端的标题相同，无法区分。请重命名其中一个。";
 "Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat." = "未发送：Orca 中的另一个标签页与此聊天的标题相同，无法区分。请重命名其中一个，或先发送一条消息，让 Orca 为此聊天命名。";
 "Could not type into iTerm2: %@" = "无法向 iTerm2 输入：%@";
@@ -322,6 +323,7 @@
 "Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected." = "未切换：此 WezTerm 窗口中还运行着 WSL、tmux 或远程 shell，而 WezTerm 不会告知哪个窗格运行哪个程序，因此无法保护代理自身的默认设置。";
 
 "Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off." = "未切换：此代理会把选择保存为新会话的默认值，而 WezTerm 不显示此窗格是否在这台电脑上运行，因此无法恢复该默认值。请使用 Windows Terminal 或 Orca，或关闭 keepDefaults。";
+"Not switched: this agent saves the choice as its default for new sessions, and this Orca terminal runs on another computer, so that default could not be put back. Turn keepDefaults off to switch it there." = "未切换：此代理会把选择保存为新会话的默认值，而此 Orca 终端运行在另一台电脑上，因此无法恢复该默认值。要在那里切换，请关闭 keepDefaults。";
 
 "Stopped: could not read the Windows Terminal pane." = "已停止：无法读取 Windows Terminal 窗格。";
 

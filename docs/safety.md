@@ -31,6 +31,6 @@ Narrow windows are handled: rows whose description wraps to the next line are re
 - **iTerm2 Broadcast Input.** A few tens of milliseconds pass between the check and the write. Turning broadcasting on in that gap is not caught.
 - **Claude Code, command form.** Claude Code answers `Set effort level to high` even for a model without effort levels (Haiku). The notice repeats what Claude Code said.
 - **Several displays.** The notice appears on the main screen. Whether that is always the screen holding the terminal has not been checked.
-- **Not supported:** Terminal.app, the VS Code terminal, Orca's floating terminal, tmux inside Ghostty, iTerm2's tmux integration mode.
+- **Not supported:** Terminal.app, the VS Code terminal, Orca's floating terminal, workspaces in a paired Orca environment (another computer), tmux inside Ghostty, iTerm2's tmux integration mode.
 
 Per-terminal and per-agent limits are in [Terminals](terminals.md) and [Agents](agents.md).

@@ -47,6 +47,7 @@
 /* Not switched: this WezTerm window also runs WSL, tmux or a remote shell, and WezTerm does not say which pane runs which program, so the agent's own defaults cannot be protected. — English comes from the sentence in code. */
 
 /* Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off. — English comes from the sentence in code. */
+/* Not switched: this agent saves the choice as its default for new sessions, and this Orca terminal runs on another computer, so that default could not be put back. Turn keepDefaults off to switch it there. — English comes from the sentence in code. */
 
 /* Stopped: could not read the Windows Terminal pane. — English comes from the sentence in code. */
 
@@ -70,6 +71,7 @@
 /* Not sent: Orca is still making its tabs readable to Slash Command, which takes up to a minute after Orca starts. Press again shortly. — English comes from the sentence in code. */
 /* Not sent: could not see which Orca workspace is open. If Orca just opened this window, wait a moment and press again; otherwise show Orca's sidebar with that workspace in view. — English comes from the sentence in code. */
 /* Not sent: the Orca tabs on screen do not line up with Orca's list of this workspace's tabs, so the visible terminal cannot be told apart. — English comes from the sentence in code. */
+/* Not sent: this Orca workspace runs on another computer that Orca is paired with. Slash Command switches agents only in workspaces that run on this computer. — English comes from the sentence in code. */
 /* Not sent: another Orca tab has the same title as this terminal, so it cannot be told apart. Rename one of them. — English comes from the sentence in code. */
 /* Not sent: another Orca tab has the same title as this chat, so it cannot be told apart. Rename one of them, or send a message first so Orca names the chat. — English comes from the sentence in code. */
 

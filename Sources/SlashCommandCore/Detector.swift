@@ -82,6 +82,11 @@ public enum Detector {
 
     // MARK: Orca
 
+    /// The refusal for a workspace in a paired Orca environment (`OrcaView.isPairedEnvironment(host:)`).
+    public static var pairedEnvironmentRefusal: String {
+        loc("Not sent: this Orca workspace runs on another computer that Orca is paired with. Slash Command switches agents only in workspaces that run on this computer.")
+    }
+
     /// The terminal list and screen layout. Asks the Orca app directly, and if that fails asks through the `orca` command.
     public static func orcaTerminals() throws -> [String: Any] {
         #if os(Windows)
@@ -166,7 +171,8 @@ public enum OrcaState {
         #endif
         let query = """
         select json_object('worktree', json_extract(payload, '$.activeWorktreeId'), \
-        'tab', json_extract(payload, '$.activeTabId')) \
+        'tab', json_extract(payload, '$.activeTabId'), \
+        'host', json_extract(payload, '$.activeWorkspaceExecutionHostId')) \
         from profile_state_documents where domain = 'workspaceSession'
         """
         #if os(Windows)
@@ -174,11 +180,22 @@ public enum OrcaState {
         #else
         let result = Proc.run("/usr/bin/sqlite3", ["-readonly", "file:\(database.path)?mode=ro", query], timeout: 5)
         #endif
-        let unknown = SlashCommandError(loc("Could not work out which Orca workspace is on screen (an Orca update may have changed how it stores its state)."))
-        guard result.ok,
-              let json = try? JSONSerialization.jsonObject(with: Data(result.out.utf8)) as? [String: Any],
+        guard result.ok else {
+            throw SlashCommandError(loc("Could not work out which Orca workspace is on screen (an Orca update may have changed how it stores its state)."))
+        }
+        return try active(queryOutput: result.out)
+    }
+
+    /// The answer of the query in `active()`: one JSON object with the active workspace, tab and host.
+    static func active(queryOutput: String) throws -> Active {
+        guard let json = try? JSONSerialization.jsonObject(with: Data(queryOutput.utf8)) as? [String: Any],
               let worktree = json["worktree"] as? String, !worktree.isEmpty else {
-            throw unknown
+            throw SlashCommandError(loc("Could not work out which Orca workspace is on screen (an Orca update may have changed how it stores its state)."))
+        }
+        // Orca saves the active workspace's host too (`activeWorkspaceExecutionHostId`, seen 2026-11-25 on Orca 1.4.272 with a paired
+        // environment's workspace open). Such a workspace is not in this Orca's lists.
+        if OrcaView.isPairedEnvironment(host: json["host"] as? String) {
+            throw SlashCommandError(Detector.pairedEnvironmentRefusal)
         }
         guard let tab = json["tab"] as? String, !tab.isEmpty else {
             throw SlashCommandError(loc("The frontmost Orca tab is not a terminal."))
@@ -196,7 +213,18 @@ public enum OrcaState {
         guard let agent = processAgent(pane.handle) ?? pane.listedAgent else {
             throw SlashCommandError(loc("The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", pane.label)).quoting([pane.label])
         }
-        return Target(host: .orca(handle: pane.handle), agent: agent, label: pane.label)
+        var target = Target(host: .orca(handle: pane.handle), agent: agent, label: pane.label)
+        target.defaultsAreLocal = runsHere(payload: payload, handle: pane.handle)
+        return target
+    }
+
+    /// Whether the terminal runs on this computer. Orca lists an SSH workspace's terminals too, with `executionHostId` `ssh:<target>`;
+    /// such an agent saves its defaults on that computer, where this app cannot put them back. A list without the field (an older Orca)
+    /// is taken as this computer, as before. Measured 2026-11-25: Orca 1.4.273 lists `local` for all 38 terminals of a Mac.
+    static func runsHere(payload: [String: Any], handle: String) -> Bool {
+        let listed = (payload["terminals"] as? [[String: Any]] ?? []).first { $0["handle"] as? String == handle }
+        guard let host = listed?["executionHostId"] as? String else { return true }
+        return host == "local"
     }
 
     /// The active terminal of the tab visible on screen: handle, human-readable name, and the agent the list records (may be absent).

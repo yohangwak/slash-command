@@ -317,6 +317,9 @@ public struct Switcher {
     /// A switch that writes the agent's defaults file, with keepDefaults on, needs that file to be the one this app restores.
     private func requireRestorableDefaults(_ target: Target) throws {
         guard config.keepDefaults, !target.defaultsAreLocal else { return }
+        if case .orca = target.host {
+            throw SlashCommandError(loc("Not switched: this agent saves the choice as its default for new sessions, and this Orca terminal runs on another computer, so that default could not be put back. Turn keepDefaults off to switch it there."))
+        }
         throw SlashCommandError(loc("Not switched: this agent saves the choice as its default for new sessions, and WezTerm does not show whether this pane runs on this computer, so that default could not be put back. Use Windows Terminal or Orca, or turn keepDefaults off."))
     }
 

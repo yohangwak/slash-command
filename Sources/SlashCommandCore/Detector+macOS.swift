@@ -137,6 +137,11 @@ extension Detector {
             guard strip.currentWorkspaces.count == 1, let visible = strip.currentWorkspaces.first else {
                 throw refused(loc("Not sent: could not see which Orca workspace is open. If Orca just opened this window, wait a moment and press again; otherwise show Orca's sidebar with that workspace in view."), "noCurrentWorkspace")
             }
+            // A workspace in a paired Orca environment runs on another computer: this Orca's runtime does not list, read or write its
+            // terminals, so nothing here could prove which one is on screen (2026-11-24, home Mac 2: "tabs do not line up" three times).
+            if strip.currentHosts.count == 1, OrcaView.isPairedEnvironment(host: strip.currentHosts[0]) {
+                throw refused(Detector.pairedEnvironmentRefusal, "pairedEnvironment")
+            }
             let payload = try loadTerminals()
             let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
             var resolution = OrcaView.resolve(strip: strip, layouts: layouts)
