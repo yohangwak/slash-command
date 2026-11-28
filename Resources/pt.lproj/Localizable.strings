@@ -1,11 +1,15 @@
 /* Portuguese. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             versão verificada";
+"%@ is not a model list file; it was left as it is." = "%@ não é um arquivo de lista de modelos; foi deixado como estava.";
 "%@ is not running, so this cannot be checked now." = "%@ não está em execução, então não é possível verificar agora.";
 "%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@ não é compatível. Pressione-o em um terminal Ghostty, Orca, iTerm2, WezTerm ou kitty.";
 "%@ version  installed %@ · running %@" = "Versão de %@  instalada %@ · em execução %@";
 "%@ — no agent found in the front session" = "%@ — nenhum agente encontrado na sessão da frente";
 "%@ — not set for %@" = "%@ — não configurado para %@";
+"%@: %@ models" = "%@: %@ modelos";
+"%@: could not read its list (%@)" = "%@: não foi possível ler a lista (%@)";
+"%@: not installed" = "%@: não instalado";
 "%@= and %@- raise and lower the effort only" = "%@= e %@- aumentam e diminuem apenas o effort";
 "'%@' is not in the Antigravity model list." = "\"%@\" não está na lista de modelos do Antigravity.";
 "'%@' is not in the Antigravity model list. Available: %@" = "\"%@\" não está na lista de modelos do Antigravity. Disponíveis: %@";
@@ -84,6 +88,7 @@
 "Could not read the presets file: %@ — %@" = "Não foi possível ler o arquivo de predefinições: %@ — %@";
 "Could not read the settings file" = "Não foi possível ler o arquivo de ajustes";
 "Could not read the terminal screen, so the result could not be checked." = "Não foi possível ler a tela do terminal, então o resultado não pôde ser verificado.";
+"Could not save the model lists: %@" = "Não foi possível salvar as listas de modelos: %@";
 "Could not save: %@" = "Não foi possível salvar: %@";
 "Could not set effort to '%@' in the Claude Code model picker." = "Não foi possível definir o effort como \"%@\" no seletor de modelo do Claude Code.";
 "Could not set the Antigravity effort slider." = "Não foi possível definir o controle deslizante de effort do Antigravity.";
@@ -177,10 +182,13 @@
 "Quit Slash Command" = "Encerrar Slash Command";
 "Raise Effort" = "Aumentar effort";
 "Read Again" = "Ler novamente";
+"Refresh Model Lists" = "Atualizar listas de modelos";
+"Refreshing…" = "Atualizando…";
 "Remove %@ from this preset" = "Remover %@ desta predefinição";
 "Revert" = "Reverter";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "Logo após uma resposta, o Claude Code pergunta de novo antes de alterar o modelo ou o effort (ele relê a conversa). O Slash Command pressiona Enter somente quando essa pergunta se refere ao valor que você escolheu.";
 "%@ has no effort levels, so the effort (%@) was not set." = "%@ não tem níveis de effort, então o effort (%@) não foi definido.";
+"Runs cursor-agent models and agy models on this computer and puts their models in the Cursor Agent and Antigravity menus. Those commands ask their own service, signed in as you; no prompt is sent. Slash Command opens no connection itself." = "Executa cursor-agent models e agy models neste computador e coloca os modelos deles nos menus do Cursor Agent e do Antigravity. Esses comandos consultam o próprio serviço com a sua conta conectada; nenhum prompt é enviado. O Slash Command não abre nenhuma conexão por conta própria.";
 "Show a notice after each switch" = "Mostrar um aviso após cada troca";
 "When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "Quando desativado, um aviso aparece só quando uma troca é recusada, falha, precisa da sua resposta, não tem nada a mudar ou vem com um alerta. A tela do agente mostra o novo modelo de qualquer forma.";
 "Save" = "Salvar";
@@ -258,6 +266,7 @@
 "always the newest %@" = "sempre o %@ mais recente";
 "installed %@" = "%@ instalado";
 "macOS asks once, the first time you press a shortcut in %@." = "O macOS pergunta uma vez, na primeira vez que você pressiona um atalho em %@.";
+"no models listed" = "nenhum modelo listado";
 "no rows" = "nenhuma linha";
 "none" = "nenhum";
 "one level down" = "um nível abaixo";

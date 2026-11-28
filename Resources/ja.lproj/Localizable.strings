@@ -1,11 +1,15 @@
 /* Japanese. Left: the English sentence in the code (the key). Right: the translation. */
 
 "             verified version" = "             確認済みのバージョン";
+"%@ is not a model list file; it was left as it is." = "%@ はモデル一覧のファイルではないため、そのままにしました。";
 "%@ is not running, so this cannot be checked now." = "%@ が実行されていないため、今は確認できません。";
 "%@ is not supported. Press it in a Ghostty, Orca, iTerm2, WezTerm or kitty terminal." = "%@ には対応していません。Ghostty・Orca・iTerm2・WezTerm・kitty のターミナルで押してください。";
 "%@ version  installed %@ · running %@" = "%@ のバージョン  インストール済み %@ · 実行中 %@";
 "%@ — no agent found in the front session" = "%@ — 最前面のセッションでエージェントが見つかりません";
 "%@ — not set for %@" = "%1$@ — %2$@ の設定がありません";
+"%@: %@ models" = "%@: モデル %@ 件";
+"%@: could not read its list (%@)" = "%@: 一覧を読めませんでした（%@）";
+"%@: not installed" = "%@: 未インストール";
 "%@= and %@- raise and lower the effort only" = "%@= と %@- で effort だけを1段階上げ下げ";
 "'%@' is not in the Antigravity model list." = "'%@' は Antigravity のモデル一覧にありません。";
 "'%@' is not in the Antigravity model list. Available: %@" = "'%@' は Antigravity のモデル一覧にありません。使用できる値: %@";
@@ -84,6 +88,7 @@
 "Could not read the presets file: %@ — %@" = "プリセットファイルを読み込めませんでした: %@ — %@";
 "Could not read the settings file" = "設定ファイルを読み込めませんでした";
 "Could not read the terminal screen, so the result could not be checked." = "ターミナルの画面を読み取れなかったため、結果を確認できませんでした。";
+"Could not save the model lists: %@" = "モデル一覧を保存できませんでした: %@";
 "Could not save: %@" = "保存できませんでした: %@";
 "Could not set effort to '%@' in the Claude Code model picker." = "Claude Code のモデル選択画面で effort を '%@' に設定できませんでした。";
 "Could not set the Antigravity effort slider." = "Antigravity の effort スライダを設定できませんでした。";
@@ -177,10 +182,13 @@
 "Quit Slash Command" = "Slash Command を終了";
 "Raise Effort" = "effort を1段階上げる";
 "Read Again" = "再読み込み";
+"Refresh Model Lists" = "モデル一覧を更新";
+"Refreshing…" = "更新中…";
 "Remove %@ from this preset" = "このプリセットから %@ を削除";
 "Revert" = "元に戻す";
 "Right after a reply, Claude Code asks again before changing the model or effort (it re-reads the conversation). Slash Command presses Enter only when that prompt asks about the value you chose." = "応答の直後にモデルや effort を変更しようとすると、Claude Code はもう一度確認します(会話を読み直します)。Slash Command は、その確認が選んだ値についてのものである場合にだけ Enter を押します。";
 "%@ has no effort levels, so the effort (%@) was not set." = "%@ には effort の段階がないため、effort(%@)は設定していません。";
+"Runs cursor-agent models and agy models on this computer and puts their models in the Cursor Agent and Antigravity menus. Those commands ask their own service, signed in as you; no prompt is sent. Slash Command opens no connection itself." = "このコンピュータで cursor-agent models と agy models を実行し、そのモデルを Cursor Agent と Antigravity のメニューに入れます。これらのコマンドはサインイン中のアカウントで各自のサービスに問い合わせ、プロンプトは送りません。Slash Command 自身は接続を開きません。";
 "Show a notice after each switch" = "切り替えのたびに通知を表示";
 "When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "オフのときは、切り替えが拒否・失敗したとき、応答を待つとき、変更するものがないとき、警告があるときだけ通知が出ます。新しいモデルはどちらの場合もエージェントの画面に表示されます。";
 "Save" = "保存";
@@ -258,6 +266,7 @@
 "always the newest %@" = "常に最新の %@";
 "installed %@" = "インストール済み %@";
 "macOS asks once, the first time you press a shortcut in %@." = "%@ で初めてショートカットを押したときに、macOS が一度確認します。";
+"no models listed" = "モデルが一覧にありません";
 "no rows" = "行なし";
 "none" = "なし";
 "one level down" = "1段階下げる";

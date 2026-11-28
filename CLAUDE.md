@@ -16,7 +16,7 @@ There is no macOS CI. Tests run locally.
 
 ## Rules
 
-- The safety rules in [docs/safety.md](docs/safety.md) are the product. Do not add a path that sends keys without seeing the agent's input box, that treats an unreadable screen as a clear one, that logs screen text, or that uses the network.
+- The safety rules in [docs/safety.md](docs/safety.md) are the product. Do not add a path that sends keys without seeing the agent's input box, that treats an unreadable screen as a clear one, that logs screen text, or that uses the network (the one exception: Refresh Model Lists runs the agents' own `models` commands, only when pressed).
 - Changing a user-facing sentence means updating all nine `Resources/*.lproj/Localizable.strings`. A test fails until they match.
 - Test against real agents only in a separately opened test session. Copy each agent's defaults file first and compare afterwards. If it differs, restore only the key the test changed, never the whole file. Details: [docs/development.md](docs/development.md#rules-for-testing-against-real-agents).
 - Never print `~/.cursor/cli-config.json` (credentials), the output of `kitty @ ls` (each window's environment), or run `opencode auth export`.

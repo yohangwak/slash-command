@@ -184,22 +184,12 @@ public enum Launch {
     public static func resolve(agent: Agent, preset: AgentPreset, listing output: String, providerNames: [String: String] = [:]) throws -> Resolved {
         switch agent {
         case .antigravity:
-            // `gemini-3.8-flash-high   Gemini 3.8 Flash (High)`: the effort is part of the id.
-            var rows: [(id: String, name: String, effort: String?)] = []
-            for line in output.split(separator: "\n") {
-                let parts = line.split(maxSplits: 1, whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
-                guard parts.count == 2, !parts[0].contains(".."), parts[0].contains("-") else { continue }
-                var name = parts[1].trimmingCharacters(in: .whitespaces)
-                var effort: String?
-                if name.hasSuffix(")"), let open = name.lastIndex(of: "(") {
-                    effort = String(name[name.index(after: open)..<name.index(before: name.endIndex)]).lowercased()
-                    name = name[..<open].trimmingCharacters(in: .whitespaces)
-                }
-                rows.append((parts[0], name, effort))
-            }
+            let rows = antigravityRows(listing: output)
             let named = rows.filter { key($0.name) == key(preset.model) }
             guard !named.isEmpty else { throw SlashCommandError(loc("'%@' is not in the Antigravity model list.", preset.model)) }
-            if let row = named.first(where: { $0.effort == preset.effort.lowercased() }) ?? (named.count == 1 && named[0].effort == nil ? named[0] : nil) {
+            // `XHigh` and `Extra High` both mean the preset's `xhigh`.
+            func effortKey(_ text: String) -> String { let k = key(text); return k == "extrahigh" ? "xhigh" : k }
+            if let row = named.first(where: { $0.effort.map(effortKey) == effortKey(preset.effort) }) ?? (named.count == 1 && named[0].effort == nil ? named[0] : nil) {
                 return Resolved(model: row.id, note: nil)
             }
             let available = named.compactMap(\.effort).joined(separator: ", ")
@@ -259,6 +249,29 @@ public enum Launch {
         }
     }
 
+    /// Lines of `agy models`: `gemini-3.8-flash-high   Gemini 3.8 Flash (High)` — the effort is part of the id. Other lines (`Fetching available models...`) are skipped.
+    /// A bracket that is not an effort level stays part of the name: `Orchestrator (Neon)` and `Orchestrator (Carbon)` are two models.
+    static func antigravityRows(listing output: String) -> [(id: String, name: String, effort: String?)] {
+        // Compared by letters and digits only, so `XHigh`, `Extra High` and `extra-high` all count as effort levels.
+        let efforts: Set<String> = ["minimal", "low", "medium", "high", "xhigh", "extrahigh", "max", "none", "ultra"]
+        var rows: [(id: String, name: String, effort: String?)] = []
+        for line in output.split(whereSeparator: \.isNewline) {
+            let parts = line.split(maxSplits: 1, whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
+            guard parts.count == 2, !parts[0].contains(".."), parts[0].contains("-") else { continue }
+            var name = parts[1].trimmingCharacters(in: .whitespaces)
+            var effort: String?
+            if name.hasSuffix(")"), let open = name.lastIndex(of: "(") {
+                let inside = String(name[name.index(after: open)..<name.index(before: name.endIndex)]).lowercased()
+                if efforts.contains(key(inside)) {
+                    effort = inside
+                    name = name[..<open].trimmingCharacters(in: .whitespaces)
+                }
+            }
+            rows.append((parts[0], name, effort))
+        }
+        return rows
+    }
+
     struct CursorRow: Equatable {
         let id: String
         let name: String
@@ -275,7 +288,7 @@ public enum Launch {
     static func cursorRows(listing output: String) -> [CursorRow] {
         let labels: [[String]] = [["Extra", "High"], ["High"], ["Medium"], ["Low"], ["Max"], ["None"], ["Minimal"]]
         var rows: [CursorRow] = []
-        for line in output.split(separator: "\n") {
+        for line in output.split(whereSeparator: \.isNewline) {
             guard let cut = line.range(of: " - ") else { continue }
             let id = line[..<cut.lowerBound].trimmingCharacters(in: .whitespaces)
             guard !id.isEmpty, !id.contains(" ") else { continue }
