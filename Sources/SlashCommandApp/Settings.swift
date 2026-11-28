@@ -558,6 +558,11 @@ private struct PresetRow: View {
         return parts.isEmpty ? loc("No agents set") : parts.joined(separator: "  ·  ")
     }
 
+    /// The summary has a Claude Code alias with a version next to it, which the line's help explains.
+    private var showsAliasVersion: Bool {
+        slot.presets[.claude].map { AgentCatalog.summaryName(agent: .claude, model: $0.model) != $0.model } ?? false
+    }
+
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 8) {
@@ -594,7 +599,9 @@ private struct PresetRow: View {
                     Text(slot.name).fontWeight(.medium).lineLimit(1)
                 }
                 Text(summary).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-                    .help(loc("The version next to a Claude Code alias is the model it meant when this version of Slash Command was made. Claude Code itself moves to the newest model it knows."))
+                    .help(showsAliasVersion
+                          ? loc("The version next to a Claude Code alias is the model it meant when this version of Slash Command was made. Claude Code itself moves to the newest model it knows.")
+                          : "")
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())
