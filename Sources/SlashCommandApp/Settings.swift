@@ -42,7 +42,7 @@ struct AgentCatalog {
         case .claude, .cursor: return ["low", "medium", "high", "xhigh", "max"]
         case .codex: return ["low", "medium", "high", "xhigh", "max", "ultra"]
         case .grok: return ["low", "medium", "high", "xhigh"]
-        case .antigravity: return ["low", "medium", "high"]
+        case .antigravity: return ["low", "medium", "high", "xhigh"]
         case .opencode: return ["Default", "low", "medium", "high", "max"]
         }
     }

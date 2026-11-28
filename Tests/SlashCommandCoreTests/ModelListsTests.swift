@@ -54,6 +54,11 @@ final class ModelListsTests: XCTestCase {
         XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Example", effort: "extra high"), listing: spaced).model,
                        "example-extra-high", "`Extra High` is an effort level too")
         XCTAssertEqual(ModelLists.names(agent: .antigravity, listing: spaced), ["Example"])
+        XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Example", effort: "xhigh"), listing: spaced).model,
+                       "example-extra-high", "A preset's xhigh matches an `Extra High` row")
+        let today = "gemini-4-neon-xhigh\tGemini 4 Neon (XHigh)\ngemini-4-neon-high\tGemini 4 Neon (High)\n"
+        XCTAssertEqual(try Launch.resolve(agent: .antigravity, preset: AgentPreset(model: "Gemini 4 Neon", effort: "xhigh"), listing: today).model,
+                       "gemini-4-neon-xhigh")
     }
 
     func testCRLFListingsAreReadLineByLine() {

@@ -187,7 +187,9 @@ public enum Launch {
             let rows = antigravityRows(listing: output)
             let named = rows.filter { key($0.name) == key(preset.model) }
             guard !named.isEmpty else { throw SlashCommandError(loc("'%@' is not in the Antigravity model list.", preset.model)) }
-            if let row = named.first(where: { $0.effort == preset.effort.lowercased() }) ?? (named.count == 1 && named[0].effort == nil ? named[0] : nil) {
+            // `XHigh` and `Extra High` both mean the preset's `xhigh`.
+            func effortKey(_ text: String) -> String { let k = key(text); return k == "extrahigh" ? "xhigh" : k }
+            if let row = named.first(where: { $0.effort.map(effortKey) == effortKey(preset.effort) }) ?? (named.count == 1 && named[0].effort == nil ? named[0] : nil) {
                 return Resolved(model: row.id, note: nil)
             }
             let available = named.compactMap(\.effort).joined(separator: ", ")
