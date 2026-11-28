@@ -114,7 +114,15 @@ git tag "$tag" && git push origin "$tag"
 
 The tag starts the [Windows release workflow](../.github/workflows/windows-release.yml). It checks the pinned Swift installer's SHA-256, verifies the tag against `WindowsAppModel.swift`, runs the tests and packages the Windows build. Wait for the workflow to finish. It creates a draft release and attaches `Slash-Command-Windows-x64.zip` and its `.sha256` file.
 
-In the same shell, upload the macOS files to that draft and set its notes:
+If the workflow stopped before attaching the Windows files, check for its draft with `gh release view "$tag"`. If GitHub reports that the release does not exist, create a draft for the pushed tag.
+
+```sh
+gh release create "$tag" --draft --verify-tag --title "Slash Command $version" --notes-file notes.md
+```
+
+If the Windows files are missing, rerun the failed workflow or use the manual Windows build described below to attach the tested zip and checksum.
+
+In the same shell on the Mac, upload the macOS files to the draft and set its notes.
 
 ```sh
 gh release upload "$tag" dist/Slash-Command.dmg dist/Slash-Command.zip

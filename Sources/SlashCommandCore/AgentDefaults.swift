@@ -1,4 +1,3 @@
-import CoreFoundation
 import Foundation
 
 /// State of the new-session defaults file "before" the switch. Distinguishes a file that "did not exist" from one that "could not be read" —
@@ -106,8 +105,9 @@ enum DefaultsFile {
             return a.count == b.count && zip(a, b).allSatisfy { jsonEqual($0, $1) }
         case (let a as String, let b as String): return a == b
         case (let a as NSNumber, let b as NSNumber):
-            let boolean = CFBooleanGetTypeID()
-            return (CFGetTypeID(a) == boolean) == (CFGetTypeID(b) == boolean) && a.isEqual(to: b)
+            guard a.isEqual(to: b) else { return false }
+            let boolEncoding = NSNumber(value: true).objCType.pointee
+            return (a.objCType.pointee == boolEncoding) == (b.objCType.pointee == boolEncoding)
         case (is NSNull, is NSNull): return true
         default: return false
         }

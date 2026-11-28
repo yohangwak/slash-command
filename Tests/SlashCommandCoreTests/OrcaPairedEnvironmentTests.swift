@@ -85,6 +85,23 @@ final class OrcaPairedEnvironmentTests: XCTestCase {
         XCTAssertNil(OrcaState.runsHere(payload: duplicate, handle: "shared"))
     }
 
+    func testHotkeyRejectsMissingOrDuplicateListedTerminalBeforeProcessLookup() {
+        let active = OrcaState.Active(worktreeID: "w", tabID: "tab")
+        let local = ["handle": "term_1", "executionHostId": "local"]
+        let remote = ["handle": "term_1", "executionHostId": "ssh:box"]
+        for rows in [[], [local, remote]] {
+            var list = payload(host: "local")
+            list["terminals"] = rows
+            XCTAssertThrowsError(try OrcaState.pane(in: list, active: active))
+            XCTAssertThrowsError(try OrcaState.target(in: list, active: active) { _ in
+                XCTFail("An ambiguous handle must be rejected before looking up its process")
+                return .grok
+            }) { error in
+                XCTAssertEqual(String(describing: error), "Could not find the active terminal in the frontmost Orca tab.")
+            }
+        }
+    }
+
     private final class NoIO: TerminalIO {
         var keys: [Key] = []
         var typed: [String] = []
