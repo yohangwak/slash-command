@@ -2,6 +2,11 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.24
+
+- Settings: a preset's collapsed line shows the model a Claude Code alias means now, as in `Claude Code opus (Opus 5.5)`, and the model menu reads "always the newest Opus (now Opus 5.5)". The alias is still what is sent, so Claude Code moves to a newer model as soon as it has one; only this note waits for the next version of Slash Command.
+- Settings: the Claude Code model menu also lists the full names `claude-fable-5-2`, `claude-opus-5-5`, `claude-sonnet-5-5` and `claude-haiku-5-5`, for a preset that should stay on one version.
+
 ## 0.2.23
 
 - Restoring an agent's defaults preserves symbolic links and changes other sessions made to JSON settings, including a change from a boolean to a number.

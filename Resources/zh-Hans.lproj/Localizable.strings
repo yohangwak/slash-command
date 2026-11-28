@@ -7,6 +7,7 @@
 "%@ version  installed %@ · running %@" = "%@ 版本  已安装 %@ · 运行中 %@";
 "%@ — no agent found in the front session" = "%@ — 在最前面的会话中未找到代理";
 "%@ — not set for %@" = "%1$@ — 未为 %2$@ 设置";
+"%@, stays on this version" = "%@，固定在此版本";
 "%@: %@ models" = "%@：%@ 个模型";
 "%@: could not read its list (%@)" = "%@：无法读取列表（%@）";
 "%@: not installed" = "%@：未安装";
@@ -263,7 +264,7 @@
 "Unsaved changes" = "有未存储的更改";
 "Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "用于读取 Ghostty 屏幕、识别 Orca 当前显示的标签页，并确认 iTerm2 的广播输入（Broadcast Input）已关闭。";
 "Used to type the switch commands into %@." = "用于向 %@ 输入切换命令。";
-"always the newest %@" = "始终是最新的 %@";
+"always the newest %@ (now %@)" = "始终是最新的 %@（目前是 %@）";
 "installed %@" = "已安装 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "首次在 %@ 中按快捷键时，macOS 会询问一次。";
 "no models listed" = "未列出任何模型";

@@ -7,6 +7,7 @@
 "%@ version  installed %@ · running %@" = "Versão de %@  instalada %@ · em execução %@";
 "%@ — no agent found in the front session" = "%@ — nenhum agente encontrado na sessão da frente";
 "%@ — not set for %@" = "%@ — não configurado para %@";
+"%@, stays on this version" = "%@, fica nesta versão";
 "%@: %@ models" = "%@: %@ modelos";
 "%@: could not read its list (%@)" = "%@: não foi possível ler a lista (%@)";
 "%@: not installed" = "%@: não instalado";
@@ -263,7 +264,7 @@
 "Unsaved changes" = "Alterações não salvas";
 "Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "Usada para ler a tela do Ghostty, identificar qual aba do Orca está visível e verificar se a transmissão de entrada (Broadcast Input) do iTerm2 está desativada.";
 "Used to type the switch commands into %@." = "Usada para digitar os comandos de troca em %@.";
-"always the newest %@" = "sempre o %@ mais recente";
+"always the newest %@ (now %@)" = "sempre o %@ mais recente (agora %@)";
 "installed %@" = "%@ instalado";
 "macOS asks once, the first time you press a shortcut in %@." = "O macOS pergunta uma vez, na primeira vez que você pressiona um atalho em %@.";
 "no models listed" = "nenhum modelo listado";

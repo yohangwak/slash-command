@@ -1814,6 +1814,21 @@ final class ClaudePickerTests: KoreanMessagesTestCase {
         XCTAssertNil(Picker.index(of: ClaudeModels.rowLabel("gpt-6"), in: rows))
     }
 
+    func testVersionNameShowsTheVersionOfAnAliasOrAFullId() {
+        XCTAssertEqual(ClaudeModels.versionName("opus"), "Opus 5.5", "What the alias meant when this app version was made")
+        XCTAssertEqual(ClaudeModels.versionName("Fable"), "Fable 5.2")
+        XCTAssertEqual(ClaudeModels.versionName("claude-sonnet-5-5"), "Sonnet 5.5")
+        XCTAssertEqual(ClaudeModels.versionName("claude-opus-5"), "Opus 5")
+        XCTAssertEqual(ClaudeModels.versionName("claude-haiku-4-5-20251001"), "Haiku 4.5", "The date tail is dropped")
+        XCTAssertNil(ClaudeModels.versionName("Opus 5.5"), "Already shows its version")
+        XCTAssertNil(ClaudeModels.versionName("claude-opus"), "No version in it")
+        XCTAssertNil(ClaudeModels.versionName("gpt-6.2-sol"))
+        // Each alias's full id selects the same picker row the alias does today.
+        let rows = Picker.rows(picker)
+        XCTAssertEqual(Picker.index(of: ClaudeModels.rowLabel("claude-opus-5-5"), in: rows), Picker.index(of: ClaudeModels.rowLabel("opus"), in: rows))
+        XCTAssertEqual(ClaudeModels.aliases.map(\.alias), ["fable", "opus", "sonnet", "haiku"])
+    }
+
     func testReadsTheEffortLine() {
         XCTAssertEqual(Picker.claudeEffort(picker), "xhigh")
         XCTAssertEqual(Picker.claudeEffort(["   ◐ Medium effort (default) ←/→ to adjust"]), "medium")

@@ -344,6 +344,24 @@ public enum Picker {
 
 /// Converts a claude preset's model value into a picker row name.
 public enum ClaudeModels {
+    /// Claude Code's aliases and the model each one meant when this version of the app was made (Claude Code 2.1.332, checked 2026-11-28).
+    /// The model is only a note in Settings: the alias is what is sent, so Claude Code picks a newer model as soon as it has one, and only the note
+    /// waits for the next version of the app.
+    public static let aliases: [(alias: String, model: String)] = [
+        ("fable", "claude-fable-5-2"), ("opus", "claude-opus-5-5"), ("sonnet", "claude-sonnet-5-5"), ("haiku", "claude-haiku-5-5"),
+    ]
+
+    /// The name with its version, as the picker shows it: "claude-opus-5-5" → "Opus 5.5" · "claude-haiku-4-5-20251001" → "Haiku 4.5" ·
+    /// "opus" → "Opus 5.5" (what the alias meant, see `aliases`). nil for a name that has no version in it ("Opus 5.5" already shows it).
+    public static func versionName(_ model: String) -> String? {
+        let text = model.trimmingCharacters(in: .whitespaces).lowercased()
+        if let full = aliases.first(where: { $0.alias == text })?.model { return versionName(full) }
+        guard text.hasPrefix("claude-") else { return nil }
+        let parts = rowLabel(text).split(separator: " ", maxSplits: 1).map(String.init)
+        guard parts.count == 2, let first = parts[1].first, first.isNumber else { return nil }
+        return parts[0].prefix(1).uppercased() + parts[0].dropFirst() + " " + parts[1]
+    }
+
     /// "opus" → "opus" (the top Opus row) · "claude-opus-5-5" → "opus 5.5" · "Opus 5.5" → "opus 5.5".
     public static func rowLabel(_ model: String) -> String {
         var text = model.trimmingCharacters(in: .whitespaces).lowercased()

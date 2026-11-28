@@ -7,6 +7,7 @@
 "%@ version  installed %@ · running %@" = "%@ 판     설치 %@ · 실행 중 %@";
 "%@ — no agent found in the front session" = "%@ — 맨 앞 세션에서 에이전트를 찾지 못했습니다";
 "%@ — not set for %@" = "%1$@ — %2$@ 설정 없음";
+"%@, stays on this version" = "%@, 이 버전에 고정";
 "%@: %@ models" = "%@: 모델 %@개";
 "%@: could not read its list (%@)" = "%@: 목록을 읽지 못함(%@)";
 "%@: not installed" = "%@: 설치되지 않음";
@@ -263,7 +264,7 @@
 "Unsaved changes" = "저장하지 않은 변경이 있습니다";
 "Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "Ghostty 화면을 읽고, Orca에서 화면에 보이는 탭을 찾고, iTerm2의 입력 방송(Broadcast Input)이 꺼져 있는지 확인하는 데 씁니다.";
 "Used to type the switch commands into %@." = "%@에 전환 명령을 입력하는 데 씁니다.";
-"always the newest %@" = "항상 최신 %@";
+"always the newest %@ (now %@)" = "항상 최신 %@ (지금은 %@)";
 "installed %@" = "설치된 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "%@에서 단축키를 처음 누를 때 macOS가 한 번 묻습니다.";
 "no models listed" = "나열된 모델 없음";

@@ -50,7 +50,7 @@ The model is the name the agent shows on screen. Case and punctuation are ignore
 
 | Agent | `model` | `effort` |
 |---|---|---|
-| Claude Code | An alias (`fable`, `opus`, `sonnet`, `haiku`: the latest of that family), the name in the picker (`Opus 5`), or a full model id (`claude-opus-5`) | `low`, `medium`, `high`, `xhigh`, `max` |
+| Claude Code | An alias (`fable`, `opus`, `sonnet`, `haiku`: the latest of that family; Settings shows which model that is now), the name in the picker (`Opus 5`), or a full model id that stays on that version (`claude-opus-5-5`) | `low`, `medium`, `high`, `xhigh`, `max` |
 | Codex | The slug of a model shown in the `/model` picker | `low`, `medium`, `high`, `xhigh`, `max`, `ultra`, as far as the model supports them |
 | Grok, Cursor Agent, Antigravity | The model name shown in that agent's picker | The effort names that agent shows |
 | OpenCode | The model name followed by its provider, as the `/models` dialog shows the row | The variant name. A model without variants ignores it |
