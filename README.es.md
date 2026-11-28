@@ -154,7 +154,7 @@ Slash Command maneja el selector de modelos de cada agente leyendo la pantalla, 
 
 ## Privacidad
 
-Slash Command no tiene código de red. Lee la pantalla de la terminal solo para decidir qué enviar. Su registro (`~/Library/Logs/SlashCommand/slashcommand.log` en macOS, `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` en Windows) anota las teclas que pulsaste, el resultado y los tiempos. Nunca anota lo que había en la pantalla. Informar de un problema… (en Ajustes o en el menú) abre en tu navegador un formulario de incidencia de GitHub con los números de versión ya rellenados (Slash Command, el sistema y tus agentes). GitHub recibe esos números en la dirección de la página al abrirla; la incidencia solo se publica cuando envías el formulario.
+Slash Command no tiene código de red. Lee la pantalla de la terminal solo para decidir qué enviar. Su registro (`~/Library/Logs/SlashCommand/slashcommand.log` en macOS, `%LOCALAPPDATA%\SlashCommand\Logs\slashcommand.log` en Windows) anota las teclas que pulsaste, el resultado y los tiempos. Nunca anota lo que había en la pantalla. Informar de un problema… (en Ajustes o en el menú) abre en tu navegador un formulario de incidencia de GitHub con los números de versión ya rellenados (Slash Command, el sistema y tus agentes). GitHub recibe esos números en la dirección de la página al abrirla; la incidencia solo se publica cuando envías el formulario. **Actualizar listas de modelos** en Ajustes es la única vez que inicia algo que se conecta, y solo cuando lo pulsas: ejecuta `cursor-agent models` y `agy models` en tu Mac, que consultan su propio servicio con la sesión que ya tienes. No se envía ningún prompt y Slash Command sigue sin abrir ninguna conexión por sí mismo.
 
 ## Documentación
 

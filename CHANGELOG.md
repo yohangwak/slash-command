@@ -2,6 +2,12 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.22
+
+- Settings: **Refresh Model Lists** fills the Cursor Agent and Antigravity model menus with what those agents offer you now. It runs `cursor-agent models` and `agy models` on your Mac (the commands `slashcommand run` already uses) only when you press it; they ask their own service with your existing sign-in, and no prompt is sent. The names are kept in `model-lists.json` next to the presets file, and the line under the button says how many each agent listed, or why one could not be read. An agent whose list could not be read keeps the list from its last refresh; before its first refresh, the built-in list is used. Adding Cursor Agent or Antigravity to a preset still starts on Grok 4.7 or Gemini 4 Argon.
+- Antigravity: Settings offers `xhigh` (Gemini 4 Neon and Hydrogen list XHigh), and `slashcommand run` matches a preset's `xhigh` to an `XHigh` or `Extra High` row. Models whose name ends in a bracket that is not an effort level, such as `Orchestrator (Neon)`, are now separate models.
+- Safety: the "No network" rule now names this one exception. Slash Command itself still opens no connection.
+
 ## 0.2.21
 
 - Settings: the model menu brings the Cursor Agent and Antigravity lists up to the models those agents offer today (Cursor Agent: Claude Fable 5.2 in place of 5.1, plus Claude Sonnet 5.5 and Gemini 4 Argon; Antigravity adds Gemini 4 Neon, Carbon and Hydrogen). Codex and Grok already take their lists from what those agents keep on disk.
