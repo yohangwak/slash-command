@@ -107,7 +107,7 @@ public struct ClaudeDefaults: Sendable {
         }
         if tracked(before) == tracked(after) { return .unchanged }
         // If nothing but the default keys changed, put back the original bytes unchanged (preserves formatting and key order).
-        if stripped(before).isEqual(stripped(after)) { return .write(original) }
+        if DefaultsFile.jsonEqual(stripped(before), stripped(after)) { return .write(original) }
 
         // Other settings changed in the meantime too: fix only the default lines in the current file.
         guard var text = String(data: current, encoding: .utf8) else {
@@ -124,7 +124,7 @@ public struct ClaudeDefaults: Sendable {
             text = patched
         }
         let data = Data(text.utf8)
-        guard let result = object(data), tracked(result) == old, stripped(result).isEqual(stripped(after)) else {
+        guard let result = object(data), tracked(result) == old, DefaultsFile.jsonEqual(stripped(result), stripped(after)) else {
             return .failed(loc("The corrected defaults did not come out as expected, so they were not written"))
         }
         return .write(data)
@@ -149,7 +149,7 @@ public struct ClaudeDefaults: Sendable {
         return out
     }
 
-    static func stripped(_ json: [String: Any]) -> NSDictionary {
+    static func stripped(_ json: [String: Any]) -> [String: Any] {
         var copy = json
         copy["model"] = nil
         copy["effortLevel"] = nil
@@ -161,7 +161,7 @@ public struct ClaudeDefaults: Sendable {
             }
             copy["modelSettings"] = settings.isEmpty ? nil : settings
         }
-        return copy as NSDictionary
+        return copy
     }
 
     /// In the 2-space-indented JSON claude writes, changes only the string value of that key. Edits only when there is exactly one match.

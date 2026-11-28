@@ -171,7 +171,10 @@ final class WindowsPlatformTests: XCTestCase {
     }
 
     func testWindowsStateMatchesSlashAndCaseDifferences() throws {
-        let payload: [String: Any] = ["visualLayouts": [["worktreeId": #"repo::C:/Users/X/repo"#, "root": ["tabs": [["tabId": "tab", "activeLeafId": "leaf", "panes": ["type": "terminal", "leafId": "leaf", "handle": "term_a"]]]]]]]
+        let payload: [String: Any] = [
+            "terminals": [["handle": "term_a"]],
+            "visualLayouts": [["worktreeId": #"repo::C:/Users/X/repo"#, "root": ["tabs": [["tabId": "tab", "activeLeafId": "leaf", "panes": ["type": "terminal", "leafId": "leaf", "handle": "term_a"]]]]]],
+        ]
         let pane = try OrcaState.pane(in: payload, active: .init(worktreeID: #"repo::c:\users\x\repo"#, tabID: "tab"))
         XCTAssertEqual(pane.handle, "term_a")
     }

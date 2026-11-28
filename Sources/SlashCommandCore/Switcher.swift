@@ -547,12 +547,10 @@ public struct Runner {
         self.initial = initial
     }
 
-    /// Reads a screen that is not stale: waits until the terminal's lag has passed since the last read, then reads.
+    /// The terminal tracks the age of its cached screen, including reads outside this runner.
     private func freshSnapshot() -> ScreenSnapshot? {
-        let remaining = io.screenLagMs - clock.elapsedMs()
-        if remaining > 0 { sleep(remaining) }
         defer { clock.reset() }
-        return io.snapshot()
+        return io.freshSnapshot()
     }
 
     /// The returned values are the result lines that `expectResult` saw.

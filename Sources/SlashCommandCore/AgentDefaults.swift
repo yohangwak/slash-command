@@ -67,28 +67,19 @@ enum DefaultsFile {
         var oldRest = old
         for key in keys { rest[key] = nil; oldRest[key] = nil }
         do {
-            #if os(macOS)
-            let restEqual = NSDictionary(dictionary: rest).isEqual(to: oldRest)
-            #else
-            let restEqual = jsonEqual(rest, oldRest)
-            #endif
-            if restEqual {
+            if jsonEqual(rest, oldRest) {
                 if let before {
                     try write(before, to: url)
                 } else {
                     // The file did not exist and nothing is left — it is the file the agent created this time.
-                    try FileManager.default.removeItem(at: url)
+                    try FileManager.default.removeItem(at: url.resolvingSymlinksInPath())
                 }
             } else {
                 if keys.allSatisfy({ key in
                     switch (now[key], old[key]) {
                     case (nil, nil): return true
                     case (let a?, let b?):
-                        #if os(macOS)
-                        return (a as AnyObject).isEqual(b)
-                        #else
                         return jsonEqual(a, b)
-                        #endif
                     default: return false
                     }
                 }) { return .unchanged }
@@ -103,8 +94,7 @@ enum DefaultsFile {
         }
     }
 
-    /// Equality of JSON values without Objective-C dispatch. NSNumber preserves Foundation's
-    /// numeric equality (including 1 == 1.0 and true == 1); arrays remain order-sensitive.
+    /// JSON booleans are distinct from numbers, even though Foundation represents both as NSNumber.
     static func jsonEqual(_ a: Any, _ b: Any) -> Bool {
         switch (a, b) {
         case (let a as [String: Any], let b as [String: Any]):
@@ -114,7 +104,10 @@ enum DefaultsFile {
         case (let a as [Any], let b as [Any]):
             return a.count == b.count && zip(a, b).allSatisfy { jsonEqual($0, $1) }
         case (let a as String, let b as String): return a == b
-        case (let a as NSNumber, let b as NSNumber): return a.isEqual(to: b)
+        case (let a as NSNumber, let b as NSNumber):
+            guard a.isEqual(to: b) else { return false }
+            let boolEncoding = NSNumber(value: true).objCType.pointee
+            return (a.objCType.pointee == boolEncoding) == (b.objCType.pointee == boolEncoding)
         case (is NSNull, is NSNull): return true
         default: return false
         }
@@ -240,7 +233,7 @@ public enum LaunchDefaults {
                 guard var current = load(record, now: now()), let mine = current.launches[ticket] else { return nil }
                 // Skip a round that could not be read (the agent may be writing).
                 guard let keys = modelKeys(defaults) else { return .nothing }
-                if NSDictionary(dictionary: keys).isEqual(to: current.original) { return .nothing }
+                if DefaultsFile.jsonEqual(keys, current.original) { return .nothing }
                 let written = keys["model"] as? [String: Any] ?? [:]
                 guard current.launches.values.contains(where: { wrote(launch: $0.model, model: written) }) else {
                     // Not a live launch's model — it is a value another session changed. Do not restore; take it as the baseline.

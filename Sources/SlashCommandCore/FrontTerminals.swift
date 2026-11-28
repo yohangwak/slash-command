@@ -218,7 +218,7 @@ public enum TmuxFront {
         let label = "\(client.name) · \(outer)"
         guard let device = TTYProcesses.device(ofTTY: client.paneTTY),
               let agent = TTYProcesses.agent(in: table.entries.filter { $0.terminalDevice == device }, parents: table.parents) else {
-            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "tmux", label))
+            throw SlashCommandError(loc("The frontmost %@ terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", "tmux", label)).quoting([label])
         }
         return Target(host: .tmux(socket: socket, pane: client.pane), agent: agent, label: label)
     }

@@ -95,8 +95,8 @@ final class PortableFoundationTests: XCTestCase {
             (#"{"a":null}"#, #"{}"#, false),
             (#"{"a":1}"#, #"{"b":1}"#, false),
             (#""1""#, #"1"#, false),
-            (#"true"#, #"1"#, true),
-            (#"false"#, #"0"#, true),
+            (#"true"#, #"1"#, false),
+            (#"false"#, #"0"#, false),
             (#"true"#, #"false"#, false),
             (#"null"#, #"null"#, true),
             (#"null"#, #"false"#, false),
@@ -105,9 +105,6 @@ final class PortableFoundationTests: XCTestCase {
         for (left, right, expected) in pairs {
             let a = try json(left), b = try json(right)
             XCTAssertEqual(DefaultsFile.jsonEqual(a, b), expected, "\(left) vs \(right)")
-            #if os(macOS)
-            XCTAssertEqual(DefaultsFile.jsonEqual(a, b), (a as AnyObject).isEqual(b))
-            #endif
         }
     }
 

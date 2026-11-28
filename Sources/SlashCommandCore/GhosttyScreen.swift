@@ -51,10 +51,17 @@ public enum GhosttyScreen {
         var area = (attribute(element, kAXFocusedUIElementAttribute) as! AXUIElement?).flatMap { isTextArea($0) ? $0 : nil }
         if area == nil, let window = attribute(element, kAXFocusedWindowAttribute) {
             let areas = textAreas(in: window as! AXUIElement, depth: 0)
-            area = areas.first { (attribute($0, kAXFocusedAttribute) as? Bool) == true } ?? areas.first
+            area = focusedArea(in: areas) { (attribute($0, kAXFocusedAttribute) as? Bool) == true }
         }
         guard let area, let text = attribute(area, kAXValueAttribute) as? String else { return nil }
         return text.components(separatedBy: "\n")
+    }
+
+    /// With a split window, exactly one pane must report focus before its text can authorize a write.
+    static func focusedArea<T>(in areas: [T], isFocused: (T) -> Bool) -> T? {
+        if areas.count == 1 { return areas[0] }
+        let focused = areas.filter(isFocused)
+        return focused.count == 1 ? focused[0] : nil
     }
 
     private static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {

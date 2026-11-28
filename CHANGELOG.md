@@ -2,6 +2,13 @@
 
 Notable changes to Slash Command. Versions follow [Semantic Versioning](https://semver.org).
 
+## 0.2.23
+
+- Restoring an agent's defaults preserves symbolic links and changes other sessions made to JSON settings, including a change from a boolean to a number.
+- In a split Ghostty window, switching stops when the focused pane cannot be identified. Ghostty also reads a fresh screen before confirming a command's result. Orca checks the terminal handle and its execution host before treating defaults as local.
+- The CLI rejects socket and agent options that do not apply to the selected target and reports warnings when an effort setting or defaults restoration did not take effect.
+- When tmux is running an unsupported session, its name is shown in the notice and omitted from the log.
+
 ## 0.2.22
 
 - Settings: **Refresh Model Lists** fills the Cursor Agent and Antigravity model menus with what those agents offer you now. It runs `cursor-agent models` and `agy models` on your Mac (the commands `slashcommand run` already uses) only when you press it; they ask their own service with your existing sign-in, and no prompt is sent. The names are kept in `model-lists.json` next to the presets file, and the line under the button says how many each agent listed, or why one could not be read. An agent whose list could not be read keeps the list from its last refresh; before its first refresh, the built-in list is used. Adding Cursor Agent or Antigravity to a preset still starts on Grok 4.7 or Gemini 4 Argon.

@@ -214,21 +214,31 @@ public enum OrcaState {
             throw SlashCommandError(loc("The frontmost Orca terminal (%@) is not a supported agent session (Claude Code · Codex · Grok · Cursor · Antigravity · OpenCode).", pane.label)).quoting([pane.label])
         }
         var target = Target(host: .orca(handle: pane.handle), agent: agent, label: pane.label)
-        target.defaultsAreLocal = runsHere(payload: payload, handle: pane.handle)
+        target.defaultsAreLocal = pane.defaultsAreLocal
         return target
     }
 
     /// Whether the terminal runs on this computer. Orca lists an SSH workspace's terminals too, with `executionHostId` `ssh:<target>`;
     /// such an agent saves its defaults on that computer, where this app cannot put them back. A list without the field (an older Orca)
     /// is taken as this computer, as before. Measured 2026-11-25: Orca 1.4.273 lists `local` for all 38 terminals of a Mac.
-    static func runsHere(payload: [String: Any], handle: String) -> Bool {
-        let listed = (payload["terminals"] as? [[String: Any]] ?? []).first { $0["handle"] as? String == handle }
-        guard let host = listed?["executionHostId"] as? String else { return true }
-        return host == "local"
+    /// A missing or ambiguous handle gives no location.
+    public static func runsHere(payload: [String: Any], handle: String) -> Bool? {
+        listedTerminal(in: payload, handle: handle).map(runsHere(terminal:))
+    }
+
+    private static func listedTerminal(in payload: [String: Any], handle: String) -> [String: Any]? {
+        let matches = (payload["terminals"] as? [[String: Any]] ?? []).filter { $0["handle"] as? String == handle }
+        return matches.count == 1 ? matches[0] : nil
+    }
+
+    private static func runsHere(terminal: [String: Any]) -> Bool {
+        guard let host = terminal["executionHostId"] else { return true }
+        if host is NSNull { return true }
+        return host as? String == "local"
     }
 
     /// The active terminal of the tab visible on screen: handle, human-readable name, and the agent the list records (may be absent).
-    static func pane(in payload: [String: Any], active: Active) throws -> (handle: String, label: String, listedAgent: Agent?) {
+    static func pane(in payload: [String: Any], active: Active) throws -> (handle: String, label: String, listedAgent: Agent?, defaultsAreLocal: Bool) {
         let layouts = payload["visualLayouts"] as? [[String: Any]] ?? []
         guard let layout = layouts.first(where: {
             #if os(Windows)
@@ -246,14 +256,14 @@ public enum OrcaState {
         let activeLeaf = tab["activeLeafId"] as? String
         guard let pane = leaves.first(where: { $0["leafId"] as? String == activeLeaf })
                 ?? leaves.first(where: { $0["active"] as? Bool == true }),
-              let handle = pane["handle"] as? String else {
+              let handle = pane["handle"] as? String,
+              let listed = listedTerminal(in: payload, handle: handle) else {
             throw SlashCommandError(loc("Could not find the active terminal in the frontmost Orca tab."))
         }
-        let listed = (payload["terminals"] as? [[String: Any]] ?? []).first { $0["handle"] as? String == handle }
-        let title = (listed?["title"] as? String) ?? (pane["title"] as? String) ?? handle
+        let title = (listed["title"] as? String) ?? (pane["title"] as? String) ?? handle
         let folder = (layout["worktreePath"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent }
         let label = [title, folder].compactMap { $0 }.joined(separator: " · ")
-        return (handle, label, (listed?["agentIdentity"] as? String).flatMap(Agent.init(rawValue:)))
+        return (handle, label, (listed["agentIdentity"] as? String).flatMap(Agent.init(rawValue:)), runsHere(terminal: listed))
     }
 
     /// Collects tabs from the whole tree so they are found even when the tab group is split left and right.

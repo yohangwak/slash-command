@@ -5,6 +5,16 @@ import XCTest
 final class GhosttyCommandSafetyTests: KoreanMessagesTestCase {
     private let target = Target(host: .ghostty(terminalID: "T"), agent: .claude, label: "test")
 
+    #if os(macOS)
+    func testSplitWindowNeedsExactlyOneFocusedTextArea() {
+        let panes = [1, 2]
+        XCTAssertNil(GhosttyScreen.focusedArea(in: panes) { _ in false })
+        XCTAssertNil(GhosttyScreen.focusedArea(in: panes) { _ in true })
+        XCTAssertEqual(GhosttyScreen.focusedArea(in: panes) { $0 == 2 }, 2)
+        XCTAssertEqual(GhosttyScreen.focusedArea(in: [1]) { _ in false }, 1)
+    }
+    #endif
+
     private func settingsFile() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("ghostty-command-\(UUID().uuidString).json")
         try Data("{\"model\":\"opus\"}".utf8).write(to: url)
@@ -50,7 +60,10 @@ final class GhosttyCommandSafetyTests: KoreanMessagesTestCase {
         let switcher = Switcher(
             config: SlashCommandConfig(slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))]),
             claudeDefaults: ClaudeDefaults(url: settings), codexModels: { CodexModels(models: []) },
-            makeIO: { _ in io }, sleep: { clock += $0 })
+            // The effort reply can still be cached when the runner estimates that the cache has expired.
+            makeIO: { _ in io }, sleep: { ms in
+                clock += claude.sent.count == 2 ? max(0, ms - 1) : ms
+            })
 
         let result = try switcher.apply(slot: 1, to: target)
         XCTAssertEqual(result.summary, "Sonnet 5.5 · medium")
