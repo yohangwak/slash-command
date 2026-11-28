@@ -70,6 +70,13 @@ public enum ModelLists {
         var kind = File.marker
         var version = 1
         var lists: [String: [String]]
+        var agentLists: [Agent: [String]] {
+            var result: [Agent: [String]] = [:]
+            for (key, names) in lists {
+                if let agent = Agent(rawValue: key), ModelLists.agents.contains(agent), !names.isEmpty { result[agent] = names }
+            }
+            return result
+        }
         static func read(_ data: Data) -> File? {
             guard let file = try? JSONDecoder().decode(File.self, from: data), file.kind == marker else { return nil }
             return file
@@ -79,11 +86,7 @@ public enum ModelLists {
     /// The saved lists. Empty if there is no file or it cannot be read; the built-in lists are used then.
     public static func load(from url: URL = ModelLists.defaultURL) -> [Agent: [String]] {
         guard let data = try? Data(contentsOf: url), let file = File.read(data) else { return [:] }
-        var lists: [Agent: [String]] = [:]
-        for (key, names) in file.lists {
-            if let agent = Agent(rawValue: key), agents.contains(agent), !names.isEmpty { lists[agent] = names }
-        }
-        return lists
+        return file.agentLists
     }
 
     /// Saves the lists that were read; an agent whose command failed keeps the list it had.
@@ -93,8 +96,8 @@ public enum ModelLists {
         var lists: [Agent: [String]] = [:]
         if FileManager.default.fileExists(atPath: url.path) {
             let data = try Data(contentsOf: url)
-            guard File.read(data) != nil else { throw SlashCommandError(loc("%@ is not a model list file; it was left as it is.", url.path)) }
-            lists = load(from: url)
+            guard let file = File.read(data) else { throw SlashCommandError(loc("%@ is not a model list file; it was left as it is.", url.path)) }
+            lists = file.agentLists
         }
         for (agent, outcome) in outcomes { if case .names(let names) = outcome { lists[agent] = names } }
         let file = File(lists: Dictionary(uniqueKeysWithValues: lists.map { ($0.key.rawValue, $0.value) }))
