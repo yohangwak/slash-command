@@ -1816,7 +1816,7 @@ final class ClaudePickerTests: KoreanMessagesTestCase {
 
     func testVersionNameShowsTheVersionOfAnAliasOrAFullId() {
         XCTAssertEqual(ClaudeModels.versionName("opus"), "Opus 5.5", "What the alias meant when this app version was made")
-        XCTAssertEqual(ClaudeModels.versionName("Fable"), "Fable 5.2")
+        XCTAssertEqual(ClaudeModels.versionName(" Fable "), "Fable 5.2")
         XCTAssertEqual(ClaudeModels.versionName("claude-sonnet-5-5"), "Sonnet 5.5")
         XCTAssertEqual(ClaudeModels.versionName("claude-opus-5"), "Opus 5")
         XCTAssertEqual(ClaudeModels.versionName("claude-haiku-4-5-20251001"), "Haiku 4.5", "The date tail is dropped")

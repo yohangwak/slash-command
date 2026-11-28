@@ -53,14 +53,17 @@ struct AgentCatalog {
     static func menuLabel(agent: Agent, model: String) -> String {
         guard agent == .claude, let version = ClaudeModels.versionName(model) else { return model }
         if ClaudeModels.aliases.contains(where: { $0.alias == model }) {
-            return "\(model) — " + loc("always the newest %@ (now %@)", model.prefix(1).uppercased() + model.dropFirst(), version)
+            return "\(model) — " + loc("always the newest %@ (%@ when this version of Slash Command was made)",
+                                       model.prefix(1).uppercased() + model.dropFirst(), version)
         }
         return "\(model) — " + loc("%@, stays on this version", version)
     }
 
-    /// The model in the collapsed line of a preset: a Claude Code alias also names the model it means now (`opus (Opus 5.5)`).
+    /// The model in the collapsed line of a preset: a Claude Code alias also names the model it meant when this version of the app was made
+    /// (`opus (Opus 5.5)`). An older Claude Code may still mean an older one; the line's help says so.
     static func summaryName(agent: Agent, model: String) -> String {
-        guard agent == .claude, ClaudeModels.aliases.contains(where: { $0.alias == model.lowercased() }),
+        let alias = model.trimmingCharacters(in: .whitespaces).lowercased()
+        guard agent == .claude, ClaudeModels.aliases.contains(where: { $0.alias == alias }),
               let version = ClaudeModels.versionName(model) else { return model }
         return "\(model) (\(version))"
     }
@@ -591,6 +594,7 @@ private struct PresetRow: View {
                     Text(slot.name).fontWeight(.medium).lineLimit(1)
                 }
                 Text(summary).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                    .help(loc("The version next to a Claude Code alias is the model it meant when this version of Slash Command was made. Claude Code itself moves to the newest model it knows."))
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())
