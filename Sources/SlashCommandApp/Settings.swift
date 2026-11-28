@@ -10,8 +10,9 @@ struct AgentCatalog {
     /// The Cursor Agent and Antigravity lists saved by Refresh Model Lists (`ModelLists`); the built-in lists below are used for an agent without one.
     var refreshed: [Agent: [String]] = [:]
 
-    /// Claude Code's aliases: each always means the newest model of that family, so this list never goes out of date.
-    static let claudeModels = ["fable", "opus", "sonnet", "haiku"]
+    /// Claude Code's aliases first (each always means the newest model of that family, so they never go out of date), then the same models
+    /// by full name, which stay on that version.
+    static let claudeModels = ClaudeModels.aliases.map(\.alias) + ClaudeModels.aliases.map(\.model)
     /// Cursor Agent and Antigravity keep no model list on disk; until Refresh Model Lists is pressed, these are shown: the newest of each family in
     /// `cursor-agent models` and `agy models` (checked 2026-11-28). A model that is not in the menu can still be typed in.
     static let cursorModels = ["Grok 4.7", "Claude Fable 5.2", "Claude Opus 5.5", "Claude Sonnet 5.5", "GPT-5.6 Sol", "Gemini 4 Argon", "Composer 2.5"]
@@ -47,10 +48,24 @@ struct AgentCatalog {
         }
     }
 
-    /// The text of a row in the model menu. A Claude Code alias says that it follows the newest model, since it shows no version.
+    /// The text of a row in the model menu. A Claude Code alias says that it follows the newest model and which one that is now;
+    /// a full name says which version it stays on.
     static func menuLabel(agent: Agent, model: String) -> String {
-        guard agent == .claude, claudeModels.contains(model) else { return model }
-        return "\(model) — " + loc("always the newest %@", model.prefix(1).uppercased() + model.dropFirst())
+        guard agent == .claude, let version = ClaudeModels.versionName(model) else { return model }
+        if ClaudeModels.aliases.contains(where: { $0.alias == model }) {
+            return "\(model) — " + loc("always the newest %@ (%@ when this version of Slash Command was made)",
+                                       model.prefix(1).uppercased() + model.dropFirst(), version)
+        }
+        return "\(model) — " + loc("%@, stays on this version", version)
+    }
+
+    /// The model in the collapsed line of a preset: a Claude Code alias also names the model it meant when this version of the app was made
+    /// (`opus (Opus 5.5)`). An older Claude Code may still mean an older one; the line's help says so.
+    static func summaryName(agent: Agent, model: String) -> String {
+        let alias = model.trimmingCharacters(in: .whitespaces).lowercased()
+        guard agent == .claude, ClaudeModels.aliases.contains(where: { $0.alias == alias }),
+              let version = ClaudeModels.versionName(model) else { return model }
+        return "\(model) (\(version))"
     }
 
     /// The first value when an agent is newly added to a preset. Cursor Agent and Antigravity start on the built-in first entry,
@@ -535,10 +550,17 @@ private struct PresetRow: View {
     private var agents: [Agent] { Agent.allCases.filter { slot.presets[$0] != nil } }
     private var missing: [Agent] { Agent.allCases.filter { slot.presets[$0] == nil } }
 
-    /// Summary of the collapsed line: `Claude Code opus · Codex gpt-6-astra · …`
+    /// Summary of the collapsed line: `Claude Code opus (Opus 5.5) · Codex gpt-6.2-astra · …`
     private var summary: String {
-        let parts = agents.compactMap { agent in slot.presets[agent].map { "\(agent.displayName) \($0.model)" } }
+        let parts = agents.compactMap { agent in
+            slot.presets[agent].map { "\(agent.displayName) \(AgentCatalog.summaryName(agent: agent, model: $0.model))" }
+        }
         return parts.isEmpty ? loc("No agents set") : parts.joined(separator: "  ·  ")
+    }
+
+    /// The summary has a Claude Code alias with a version next to it, which the line's help explains.
+    private var showsAliasVersion: Bool {
+        slot.presets[.claude].map { AgentCatalog.summaryName(agent: .claude, model: $0.model) != $0.model } ?? false
     }
 
     var body: some View {
@@ -577,6 +599,9 @@ private struct PresetRow: View {
                     Text(slot.name).fontWeight(.medium).lineLimit(1)
                 }
                 Text(summary).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                    .help(showsAliasVersion
+                          ? loc("The version next to a Claude Code alias is the model it meant when this version of Slash Command was made. Claude Code itself moves to the newest model it knows.")
+                          : "")
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())

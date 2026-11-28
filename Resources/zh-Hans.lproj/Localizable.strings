@@ -7,6 +7,7 @@
 "%@ version  installed %@ · running %@" = "%@ 版本  已安装 %@ · 运行中 %@";
 "%@ — no agent found in the front session" = "%@ — 在最前面的会话中未找到代理";
 "%@ — not set for %@" = "%1$@ — 未为 %2$@ 设置";
+"%@, stays on this version" = "%@，固定在此版本";
 "%@: %@ models" = "%@：%@ 个模型";
 "%@: could not read its list (%@)" = "%@：无法读取列表（%@）";
 "%@: not installed" = "%@：未安装";
@@ -190,6 +191,7 @@
 "%@ has no effort levels, so the effort (%@) was not set." = "%@ 没有 effort 级别，因此未设置 effort（%@）。";
 "Runs cursor-agent models and agy models on this computer and puts their models in the Cursor Agent and Antigravity menus. Those commands ask their own service, signed in as you; no prompt is sent. Slash Command opens no connection itself." = "在这台电脑上运行 cursor-agent models 和 agy models，并把其中的模型放进 Cursor Agent 和 Antigravity 菜单。这些命令以你已登录的账户询问它们自己的服务，不发送任何提示。Slash Command 本身不打开任何连接。";
 "Show a notice after each switch" = "每次切换后显示通知";
+"The version next to a Claude Code alias is the model it meant when this version of Slash Command was made. Claude Code itself moves to the newest model it knows." = "Claude Code 别名旁的版本是此版 Slash Command 发布时该别名对应的模型。Claude Code 本身会使用它所知道的最新模型。";
 "When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "关闭时，只有在切换被拒绝、失败、需要你回答、没有需要更改的内容或带有警告时才显示通知。无论哪种情况，代理自己的界面都会显示新模型。";
 "Save" = "存储";
 "Saved" = "已存储";
@@ -263,7 +265,7 @@
 "Unsaved changes" = "有未存储的更改";
 "Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "用于读取 Ghostty 屏幕、识别 Orca 当前显示的标签页，并确认 iTerm2 的广播输入（Broadcast Input）已关闭。";
 "Used to type the switch commands into %@." = "用于向 %@ 输入切换命令。";
-"always the newest %@" = "始终是最新的 %@";
+"always the newest %@ (%@ when this version of Slash Command was made)" = "始终是最新的 %@（此版 Slash Command 发布时为 %@）";
 "installed %@" = "已安装 %@";
 "macOS asks once, the first time you press a shortcut in %@." = "首次在 %@ 中按快捷键时，macOS 会询问一次。";
 "no models listed" = "未列出任何模型";

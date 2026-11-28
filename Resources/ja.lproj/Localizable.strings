@@ -7,6 +7,7 @@
 "%@ version  installed %@ · running %@" = "%@ のバージョン  インストール済み %@ · 実行中 %@";
 "%@ — no agent found in the front session" = "%@ — 最前面のセッションでエージェントが見つかりません";
 "%@ — not set for %@" = "%1$@ — %2$@ の設定がありません";
+"%@, stays on this version" = "%@、このバージョンのまま";
 "%@: %@ models" = "%@: モデル %@ 件";
 "%@: could not read its list (%@)" = "%@: 一覧を読めませんでした（%@）";
 "%@: not installed" = "%@: 未インストール";
@@ -190,6 +191,7 @@
 "%@ has no effort levels, so the effort (%@) was not set." = "%@ には effort の段階がないため、effort(%@)は設定していません。";
 "Runs cursor-agent models and agy models on this computer and puts their models in the Cursor Agent and Antigravity menus. Those commands ask their own service, signed in as you; no prompt is sent. Slash Command opens no connection itself." = "このコンピュータで cursor-agent models と agy models を実行し、そのモデルを Cursor Agent と Antigravity のメニューに入れます。これらのコマンドはサインイン中のアカウントで各自のサービスに問い合わせ、プロンプトは送りません。Slash Command 自身は接続を開きません。";
 "Show a notice after each switch" = "切り替えのたびに通知を表示";
+"The version next to a Claude Code alias is the model it meant when this version of Slash Command was made. Claude Code itself moves to the newest model it knows." = "Claude Code のエイリアスの横の版は、この版の Slash Command 公開時にそのエイリアスが指していたモデルです。Claude Code 自体は、知っている最新のモデルを使います。";
 "When off, a notice appears only when a switch is refused, fails, needs your answer, has nothing to change or comes with a warning. The agent's own screen shows the new model either way." = "オフのときは、切り替えが拒否・失敗したとき、応答を待つとき、変更するものがないとき、警告があるときだけ通知が出ます。新しいモデルはどちらの場合もエージェントの画面に表示されます。";
 "Save" = "保存";
 "Saved" = "保存しました";
@@ -263,7 +265,7 @@
 "Unsaved changes" = "未保存の変更があります";
 "Used to read the Ghostty screen, to see which Orca tab is on screen, and to check that iTerm2 Broadcast Input is off." = "Ghostty の画面を読み取り、Orca で表示中のタブを特定し、iTerm2 の入力ブロードキャスト(Broadcast Input)がオフであることを確認するために使います。";
 "Used to type the switch commands into %@." = "%@ に切り替えコマンドを入力するために使います。";
-"always the newest %@" = "常に最新の %@";
+"always the newest %@ (%@ when this version of Slash Command was made)" = "常に最新の %@（この版の Slash Command 公開時は %@）";
 "installed %@" = "インストール済み %@";
 "macOS asks once, the first time you press a shortcut in %@." = "%@ で初めてショートカットを押したときに、macOS が一度確認します。";
 "no models listed" = "モデルが一覧にありません";
