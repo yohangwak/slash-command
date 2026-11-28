@@ -5,7 +5,7 @@ Notable changes to Slash Command. Versions follow [Semantic Versioning](https://
 ## 0.2.23
 
 - Restoring an agent's defaults preserves symbolic links and changes other sessions made to JSON settings, including a change from a boolean to a number.
-- In a split Ghostty window, switching stops when the focused pane cannot be identified. Orca checks the terminal handle and its execution host before treating defaults as local.
+- In a split Ghostty window, switching stops when the focused pane cannot be identified. Ghostty also reads a fresh screen before confirming a command's result. Orca checks the terminal handle and its execution host before treating defaults as local.
 - The CLI rejects socket and agent options that do not apply to the selected target and reports warnings when an effort setting or defaults restoration did not take effect.
 - When tmux is running an unsupported session, its name is shown in the notice and omitted from the log.
 

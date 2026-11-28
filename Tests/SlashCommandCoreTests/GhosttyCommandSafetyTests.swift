@@ -60,7 +60,10 @@ final class GhosttyCommandSafetyTests: KoreanMessagesTestCase {
         let switcher = Switcher(
             config: SlashCommandConfig(slots: [Slot(claude: AgentPreset(model: "sonnet", effort: "medium"))]),
             claudeDefaults: ClaudeDefaults(url: settings), codexModels: { CodexModels(models: []) },
-            makeIO: { _ in io }, sleep: { clock += $0 })
+            // The effort reply can still be cached when the runner estimates that the cache has expired.
+            makeIO: { _ in io }, sleep: { ms in
+                clock += claude.sent.count == 2 ? max(0, ms - 1) : ms
+            })
 
         let result = try switcher.apply(slot: 1, to: target)
         XCTAssertEqual(result.summary, "Sonnet 5.5 · medium")
